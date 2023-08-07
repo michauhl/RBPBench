@@ -161,7 +161,7 @@ meaning that input regions with SLBP motif hits also feature significantly highe
 
 The second test addresses **RBP motif co-occurrences** (i.e., between two different RBPs), 
 using Fisher's exact test. For this a 2x2 contingency table is constructed between 
-each input RBP pair, and the co-occurrence information can also be plotted as an interactive heat map (see Search with multiple RBPs example above). In addition to the co-occurrence statistics, the HTML report also includes a heat map plot of the **correlations between RBPs** (Pearson correlation coefficients). For this genomic input regions are labelled 1 or 0 (RBP motif present or not), resulting in a vector of 1s and 0s for each RBP. Correlations are then calculated by comparing vectors for every pair of RBPs. 
+each input RBP pair, and the co-occurrence information can also be plotted as an interactive heat map (see [example](#search-with-multiple-rbps) with multiple RBPs below). In addition to the co-occurrence statistics, the HTML report also includes a heat map plot of the **correlations between RBPs** (Pearson correlation coefficients). For this genomic input regions are labelled 1 or 0 (RBP motif present or not), resulting in a vector of 1s and 0s for each RBP. Correlations are then calculated by comparing vectors for every pair of RBPs. 
 
 
 #### Additional search options
