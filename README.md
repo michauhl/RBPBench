@@ -34,7 +34,8 @@ conda 23.7.2
 
 ### Conda package installation
 
-RBPBench is (soon) available as a Conda package, which makes installation a breeze. We simply creat a Conda environment and install RBPBench inside the environment:
+RBPBench is (soon) available as a Conda package, which makes installation a breeze. 
+We simply create a Conda environment and install RBPBench inside the environment:
 
 ```
 conda create -n rbpbench -c conda-forge -c bioconda
@@ -77,18 +78,7 @@ RBPBench will soon be available on Galaxy.
 
 
 
-
-
-
 ## Example runs
-
-The following examples we are going to run in the RBPBench subfolder `test`, 
-as we need some files from this folder in later examples:
-
-```
-git clone https://github.com/michauhl/RBPBench.git
-cd RBPBench/test
-```
 
 In order to run the examples, we first need to download the human genome sequence:
 
@@ -126,7 +116,7 @@ gunzip -c ENCFF623WGE.bed.gz | awk '{print $1"\t"$2"\t"$3"\t"$4"\t"$7"\t"$6}' > 
 We can use `rbpbench search` to search for RBP motifs by specifying the RBPs we are interested in.
 Here we can specify one RBP or several RBPs from the database, as well as all database RBPs, and 
 also user-specified ones (see examples further down). 
-For a full list of available RBPs for search:
+For a full list of RBPs currently available for search:
 
 ```
 rbpbench info
@@ -167,12 +157,11 @@ rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps SLBP --out SLBP_test_search_
 ```
 
 we get a significant enrichment of motif hits (Wilcoxon p-value: 6.87978e-09), 
-meaning that input regions with motif hits have significantly higher scores.
+meaning that input regions with SLBP motif hits also feature significantly higher scores.
 
 The second test addresses **RBP motif co-occurrences** (i.e., between two different RBPs), 
 using Fisher's exact test. For this a 2x2 contingency table is constructed between 
-each input RBP pair, and the co-occurrence information  
-can also be output in a HTML report file as an interactive heat map plot (see Search with multiple RBPs example above). In addition to the co-occurrence statistics, the HTML report also includes a heat map plot of the **correlations between RBPs** (Pearson correlation coefficients). For this genomic input regions are labelled 1 or 0 (RBP motif present or not), resulting in a vector of 1s and 0s for each RBP. Correlations are then calculated by comparing vectors for every pair of RBPs. 
+each input RBP pair, and the co-occurrence information can also be plotted as an interactive heat map (see Search with multiple RBPs example above). In addition to the co-occurrence statistics, the HTML report also includes a heat map plot of the **correlations between RBPs** (Pearson correlation coefficients). For this genomic input regions are labelled 1 or 0 (RBP motif present or not), resulting in a vector of 1s and 0s for each RBP. Correlations are then calculated by comparing vectors for every pair of RBPs. 
 
 
 #### Additional search options
@@ -195,7 +184,7 @@ rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps SLBP --out test_slbp_out --g
 We note that upstream extension (first command) by 20 nt results in 40 hits, 
 while downstream extension (second command) results in 54 hits.
 It thus seems that SLBP structure motifs tend to more often reside downstream relative 
-to the called peak region (as exemplified in [this publication](https://doi.org/10.1016/j.ymeth.2017.02.006) Fig. 3).
+to the called peak region (as exemplified in Fig. 3 of [this publication](https://doi.org/10.1016/j.ymeth.2017.02.006)).
 
 
 #### Search with multiple RBPs
