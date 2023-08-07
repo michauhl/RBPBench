@@ -208,7 +208,7 @@ wget https://www.encodeproject.org/files/ENCFF094MQV/@@download/ENCFF094MQV.bed.
 gunzip -c ENCFF094MQV.bed.gz | awk '{print $1"\t"$2"\t"$3"\t"$4"\t"$7"\t"$6}' > PUM1_K562_IDR_peaks.bed
 ```
 
-When searching with multiple RBPs, motif hit co-occurences and correlations might become of interest. For this we can also output an HTML report file, including hit statistics and interactive plots (`--report`).
+When searching with multiple RBPs, motif hit co-occurences and correlations might become of interest (besides the provided individual RBP statistics). For this we can also output an HTML report file, including hit statistics and interactive plots (`--report`).
 
 ```
 rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps RBFOX2 PUM1 PUM2 --out test_pum1_out --genome hg38.fa --report
@@ -254,7 +254,7 @@ rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps ALL --out SLBP_all_search_ou
 
 This uses all 259 database RBPs (default database: `human_v0.1`, 605 RBP motifs all together). 
 Note that SLBP has the lowest Wilcoxon p-value (6.87978e-09) of all 259 RBPs, 
-demonstrating that the chosen statistical test is plausible and useful.
+demonstrating the plausibility and usefulness of the provided statistics.
 
 
 #### User-provided motif search
@@ -274,10 +274,45 @@ rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps USER PUM2 RBFOX2 --out PUM1_
 ```
 
 
-
-
-
 ### Batch-processing multiple datasets
+
+#### Multiple BED input files
+
+RBPBench also supports batch processing of input files (`rbpbench batch`).
+Multiple input datasets can be processed with `rbpbench batch`. 
+
+Multiple BED files can be provided in two ways:
+(1) Given a folder containing BED files (.bed extension) via `--bed`, the RBP IDs are expected to be 
+the first part of the file name (e.g. for RBP ID RBP1: RBP1.bed, or RBP1_more_info.bed).
+(2) Given a list of BED files via `--bed`, the RBP IDs need to be provided (same order!) with `-rbp-list`.
+
+For example, suppose a folder `batch_clipper_idr_in` containing two BED files:
+
+```
+$ ls batch_clipper_idr_in/
+PUM1_K562_IDR_peaks.bed
+PUM2_K562_IDR_peaks.bed
+```
+
+Consequently, the two RBP IDs will be `PUM1` and `PUM2`. We can process both of them separately simply by:
+
+```
+python rbpbench batch --bed batch_clipper_idr_in --out batch_clipper_idr_out --genome hg38.fa
+```
+
+
+#### Adding more information for comparisons
+
+
+
+
+
+
+
+
+
+`rbpbench batch`. 
+
 
 
 ```
