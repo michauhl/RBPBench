@@ -1953,7 +1953,7 @@ def search_generate_html_report(df_corr, df_pval, pval_cont_lll,
                                 plots_subfolder="html_report_plots"):
     """
     Create additional hit statistics for selected RBPs, 
-    e.g. correlation / co-occurence between RBPs.
+    e.g. correlation / co-occurrence between RBPs.
 
     ALAMO
 

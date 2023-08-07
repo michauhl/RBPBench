@@ -1,6 +1,6 @@
 # RBPBench
 Evaluate CLIP-seq and other genomic region data using a comprehensive collection of known RBP binding motifs. RBPBench can be used for a variety of
-purposes, from RBP motif search in genomic regions, over motif co-occurence analysis, to benchmarking CLIP-seq peak callers.
+purposes, from RBP motif search in genomic regions, over motif co-occurrence analysis, to benchmarking CLIP-seq peak callers.
 
 ## Table of contents
 
@@ -20,37 +20,75 @@ In order to quantify the performance of a peak caller, the enrichment of known R
 
 ## Installation
 
-Installation
+RBPBench was developed and tested on Linux (Ubuntu 22.04 LTS). Currently only Linux operating systems are supported. To install RBPBench, you first need to install the Conda package manager.
 
+### Conda
+
+If you do not have Conda on your system yet, you can e.g. install miniconda, a free + lightweight Conda installer. Get miniconda [here](https://docs.conda.io/en/latest/miniconda.html), choose the latest Miniconda3 Python Linux 64-bit installer and follow the installation instructions. In the end, Conda should be evocable on the command line via (possibly in a different version):
+
+```
+$ conda --version
+conda 23.7.2
+```
+
+
+### Conda package installation
+
+RBPBench is (soon) available as a Conda package, which makes installation a breeze. We simply creat a Conda environment and install RBPBench inside the environment:
 
 ```
 conda create -n rbpbench -c conda-forge -c bioconda
 conda activate rbpbench
-conda install -c bioconda bedtools
-conda install -c bioconda meme
-conda install -c bioconda infernal
+conda install -c bioconda rbpbench
 ```
 
-For Kolmogorov-Smirnov test (scipy stats ks_2samp)
+RBPBench should now be available inside the environment:
+
 ```
-conda install -c conda-forge scipy
+rbpbench -h
 ```
-
-
-
-### Conda
-
-Conda
-
-### Conda package installation
-
-Conda package installation
 
 ### Manual installation
 
-Manual installation
+Manual installation of RBPBench is only slightly more work. First we create the Conda environment with all necessary dependencies:
+
+```
+conda create -n rbpbench -c conda-forge -c bioconda logomaker markdown meme scipy plotly textdistance venn matplotlib-venn infernal bedtools
+```
+
+Next we activate the environment, clone the RBPBench repository, and install RBPBench:
+
+```
+conda activate rbpbench
+git clone https://github.com/michauhl/RBPBench.git
+cd RBPBench
+python -m pip install . --ignore-installed --no-deps -vv
+```
+
+RBPBench should now be available inside the environment:
+
+```
+rbpbench -h
+```
+
+### RBPBench on Galaxy
+
+RBPBench will soon be available on Galaxy.
+
+
+
+
+
 
 ## Example runs
+
+The following examples we are going to run in the RBPBench subfolder `test`, 
+as we need some files from this folder in later examples:
+
+```
+git clone https://github.com/michauhl/RBPBench.git
+cd RBPBench/test
+```
 
 In order to run the examples, we first need to download the human genome sequence:
 
@@ -77,7 +115,7 @@ with column 5 containing the log2 fold change scores of the peak regions.
 
 #### Simple search for single RBPs
 
-Let's first check the CLIPper IDR peak regions of the RBP SLBP for motif occurences. 
+Let's first check the CLIPper IDR peak regions of the RBP SLBP for motif occurrences. 
 For this we first download the peak regions:
 
 ```
@@ -111,9 +149,30 @@ SLBP_test_search_out/motif_hit_stats.tsv
 
 The first file (RBP hit stats) contains comprehensive hit statistics for each RBP 
 (one row per RBP, see manual below for column descriptions), 
-while  the motif hits stats file contains hit statistics for each single motif hit 
+while the motif hits stats file contains hit statistics for each single motif hit 
 (one row per motif hit). 
 We can see that out of the 161 input regions, 27 contain a motif hit.
+
+
+#### Informative statistics
+
+RBPBench produces several informative statistics regarding motif hit (co-)occurrences.
+The first statistical test (Wilcoxon rank-sum test) 
+**checks whether motif hits are more likely in high-scoring input regions**.
+By default BED column 5 is used as region scores (set via `--bed-score-col`), which 
+can be e.g. log2 fold changes or -log10 p-values. For example, for the above call
+
+```
+rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps SLBP --out SLBP_test_search_out --genome hg38.fa
+```
+
+we get a significant enrichment of motif hits (Wilcoxon p-value: 6.87978e-09), 
+meaning that input regions with motif hits have significantly higher scores.
+
+The second test addresses **RBP motif co-occurrences** (i.e., between two different RBPs), 
+using Fisher's exact test. For this a 2x2 contingency table is constructed between 
+each input RBP pair, and the co-occurrence information  
+can also be output in a HTML report file as an interactive heat map plot (see Search with multiple RBPs example above). In addition to the co-occurrence statistics, the HTML report also includes a heat map plot of the **correlations between RBPs** (Pearson correlation coefficients). For this genomic input regions are labelled 1 or 0 (RBP motif present or not), resulting in a vector of 1s and 0s for each RBP. Correlations are then calculated by comparing vectors for every pair of RBPs. 
 
 
 #### Additional search options
@@ -136,14 +195,52 @@ rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps SLBP --out test_slbp_out --g
 We note that upstream extension (first command) by 20 nt results in 40 hits, 
 while downstream extension (second command) results in 54 hits.
 It thus seems that SLBP structure motifs tend to more often reside downstream relative 
-to the called peak region (as exemplified in [Uhl et al. 2017](https://doi.org/10.1016/j.ymeth.2017.02.006) Fig. 3).
+to the called peak region (as exemplified in [this publication](https://doi.org/10.1016/j.ymeth.2017.02.006) Fig. 3).
 
 
 #### Search with multiple RBPs
 
-```
+RBPBench can also search for motifs of multiply RBPs in one search run.
+For this example we download the PUM1 IDR peak regions:
 
 ```
+wget https://www.encodeproject.org/files/ENCFF094MQV/@@download/ENCFF094MQV.bed.gz
+gunzip -c ENCFF094MQV.bed.gz | awk '{print $1"\t"$2"\t"$3"\t"$4"\t"$7"\t"$6}' > PUM1_K562_IDR_peaks.bed
+```
+
+When searching with multiple RBPs, motif hit co-occurences and correlations might become of interest. For this we can also output an HTML report file, including hit statistics and interactive plots (`--report`).
+
+```
+rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps RBFOX2 PUM1 PUM2 --out test_pum1_out --genome hg38.fa --report
+```
+
+The following output files are produced:
+
+```
+Co-occurrence p-values for  each RBP pair .tsv:
+test_pum1_out/contingency_table_results.tsv
+RBP hit stats .tsv:
+test_pum1_out/rbp_hit_stats.tsv
+Motif hit stats .tsv:
+test_pum1_out/motif_hit_stats.tsv
+Search report .html:
+test_pum1_out/report.rbpbench_search.html
+```
+
+The search report `report.rbpbench_search.html` contains a table of motif 
+enrichment statistics, as well as the interactive RBP co-occurrences and correlations heat maps.
+We can see that PUM1 binding regions with motif hits have significantly higher scores 
+(Wilcoxon p-value = 0.00175), and that PUM1 and PUM2 have a significant co-occurrence 
+p-value (Fisher's exact test) of 2.48116e-31. In contrast, RBFOX2 co-occurrence p-values
+with PUM1 or PUM2 are not significant (0.15234, 0.52303).
+
+Similarly, we can output an HTML report (`motif_plots.rbpbench_search.html`) including the used sequence logos and motif hit statistics (`--plot-motifs`):
+
+```
+rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps RBFOX2 PUM1 PUM2 --out test_pum1_out --genome hg38.fa --report --plot-motifs
+```
+
+Note that this can take a bit if the whole database (`--rbps ALL`) is used for search (see below).
 
 
 
@@ -155,22 +252,29 @@ To use all database RBPs for motif search, we just need to specify `--rbps ALL`:
 rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps ALL --out SLBP_all_search_out --genome hg38.fa --report
 ```
 
+This uses all 259 database RBPs (default database: `human_v0.1`, 605 RBP motifs all together). 
+Note that SLBP has the lowest Wilcoxon p-value (6.87978e-09) of all 259 RBPs, 
+demonstrating that the chosen statistical test is plausible and useful.
+
 
 #### User-provided motifs
 
 Both sequence (MEME XML format) and structure (covariance model .CM) motifs can be supplied by the user 
 on top of the database RBPs (using `-rbps USER` option together with `-user-meme-xml` or `--user-cm`).
-For example, let's supply a structure motif (SLBP) via `--user-cm`:
+For example, let's supply a structure motif (SLBP) via `--user-cm` (the example motif files can be found in the RBPBench repository subfolder `RBPBench/test`):
 
 ```
-rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps USER --out SLBP_user_search_out --genome hg38.fa --user-cm test/SLBP_USER.cm  --user-rbp-id SLBP_USER
+rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps USER --out SLBP_user_search_out --genome hg38.fa --user-cm path_to_test/SLBP_USER.cm  --user-rbp-id SLBP_USER
 ```
 
-In the same way, we can supply sequence motif(s) (PUM2) via `--user-meme-xml`, and e.g. also combine it with any of the database RBPs (here PUM1 and RBFOX2):
+In the same way, we can supply sequence motif(s) (PUM1) via `--user-meme-xml`, and e.g. also combine it with any of the database RBPs (here PUM2 and RBFOX2):
 
 ```
-rbpbench search --in PUM2_K562_IDR_peaks.bed --rbps USER PUM1 RBFOX2 --out PUM2_user_search_out --genome hg38.fa --user-meme-xml test/PUM2_USER.xml --user-rbp-id PUM2_USER
+rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps USER PUM2 RBFOX2 --out PUM1_user_search_out --genome hg38.fa --user-meme-xml path_to_test/PUM1_USER.xml --user-rbp-id PUM1_USER
 ```
+
+
+
 
 
 ### Batch-processing multiple datasets

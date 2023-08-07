@@ -36,7 +36,7 @@ def setup_argument_parser():
     help_description = """
 
     Evaluate CLIP-seq and other genomic region data using a comprehensive collection of known RBP binding motifs (RNA sequence + structure).
-    RBPBench can be used for a variety of purposes, from RBP motif search in genomic regions, over motif co-occurence analysis, 
+    RBPBench can be used for a variety of purposes, from RBP motif search in genomic regions, over motif co-occurrence analysis, 
     to benchmarking CLIP-seq peak callers.
 
     """
@@ -168,7 +168,7 @@ def setup_argument_parser():
                    dest="report",
                    default = False,
                    action = "store_true",
-                   help = "Generate an .html report containing RBP co-occurence / correlation statistics and plots (default: False)")
+                   help = "Generate an .html report containing RBP co-occurrence / correlation statistics and plots (default: False)")
     p_s.add_argument("--plot-motifs",
                    dest="plot_motifs",
                    default = False,
@@ -1532,7 +1532,7 @@ def main_search(args):
 
     """
     Significance testing:
-    Check for co-occurences of motifs from different RBPs in regions.
+    Check for co-occurrences of motifs from different RBPs in regions.
     Use 2x2 contingency tables, and some test for significance,
     e.g. Fisher exact or Chi-squared
 
@@ -1606,7 +1606,7 @@ def main_search(args):
             c_regions_with_hits += 1
     print("# regions with hits (all motifs):", c_regions_with_hits)
 
-    print("Compute motif region co-occurences between RBP pairs ... ")
+    print("Compute motif region co-occurrences between RBP pairs ... ")
     for pair in rbp_pairs:
         pair = list(pair)
         pair.sort()
@@ -1653,7 +1653,7 @@ def main_search(args):
     print("B: NOT RBP1 AND RBP2")
     print("C: RBP1 AND NOT RBP2")
     print("D: NOT RBP1 AND NOT RBP2")
-    print("Co-occurence of motifs (RBP IDs (RBP1,RBP2), # hits, contingency table, Fisher p-value <=0.05):")
+    print("Co-occurrence of motifs (RBP IDs (RBP1,RBP2), # hits, contingency table, Fisher p-value <=0.05):")
     c_reported = 0
 
     for pair_str, p_value in sorted_con_pval_dic.items():
@@ -1668,7 +1668,7 @@ def main_search(args):
         print("%s\t%i,%i\t%s\t%s" %(pair_str, rbp1_hits, rbp2_hits, str(con_table), str(p_value)))
 
     if not c_reported:
-        print("NO SIGNIFICANT CO-OCCURENCES FOUND!")
+        print("NO SIGNIFICANT CO-OCCURRENCES FOUND!")
     print("")
 
     # Print table to file.
@@ -1745,7 +1745,7 @@ def main_search(args):
 
     """
     Create additional hit statistics for selected RBPs, 
-    e.g. correlation / co-occurence between RBPs.
+    e.g. correlation / co-occurrence between RBPs.
 
     """
 
@@ -1874,7 +1874,7 @@ def main_search(args):
     print("============")
     print("")
     print("Run parameter settings:\n%s" %(settings_file))
-    print("Co-occurence p-values for  each RBP pair .tsv:\n%s" %(con_res_out_tsv))
+    print("Co-occurrence p-values for  each RBP pair .tsv:\n%s" %(con_res_out_tsv))
     print("RBP hit stats .tsv:\n%s" %(rbp_stats_out))
     print("Motif hit stats .tsv:\n%s" %(motif_stats_out))
     if args.plot_motifs:
