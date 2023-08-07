@@ -9,7 +9,14 @@ purposes, from RBP motif search in genomic regions, over motif co-occurrence ana
     - [Conda](#conda)
     - [Conda package installation](#conda-package-installation)
     - [Manual installation](#manual-installation)
+    - [RBPBench on Galaxy](#rbpbench-on-galaxy)
 - [Example runs](#example-runs)
+    - [Searching for RBP motifs](#searching-for-rbp-motifs)
+        - [Search with single RBPs](#search-with-single-rbps)
+    - [batch-processing-multiple-datasets](#batch-processing-multiple-datasets)
+    - [Comparisons between search results](#comparisons-between-search-results)
+
+
 
 ## Introduction
 
@@ -103,7 +110,7 @@ with column 5 containing the log2 fold change scores of the peak regions.
 ### Searching for RBP motifs
 
 
-#### Simple search for single RBPs
+#### Search with single RBPs
 
 Let's first check the CLIPper IDR peak regions of the RBP SLBP for motif occurrences. 
 For this we first download the peak regions:
@@ -161,7 +168,7 @@ meaning that input regions with SLBP motif hits also feature significantly highe
 
 The second test addresses **RBP motif co-occurrences** (i.e., between two different RBPs), 
 using Fisher's exact test. For this a 2x2 contingency table is constructed between 
-each input RBP pair, and the co-occurrence information can also be plotted as an interactive heat map (see [example](#search-with-multiple-rbps) with multiple RBPs below). In addition to the co-occurrence statistics, the HTML report also includes a heat map plot of the **correlations between RBPs** (Pearson correlation coefficients). For this genomic input regions are labelled 1 or 0 (RBP motif present or not), resulting in a vector of 1s and 0s for each RBP. Correlations are then calculated by comparing vectors for every pair of RBPs. 
+each input RBP pair, and the co-occurrence information can also be plotted as an interactive heat map (see [example with multiple RBPs](#search-with-multiple-rbps) below). In addition to the co-occurrence statistics, the HTML report also includes a heat map plot of the **correlations between RBPs** (Pearson correlation coefficients). For this genomic input regions are labelled 1 or 0 (RBP motif present or not), resulting in a vector of 1s and 0s for each RBP. Correlations are then calculated by comparing vectors for every pair of RBPs. 
 
 
 #### Additional search options
@@ -276,8 +283,10 @@ rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps USER PUM2 RBFOX2 --out PUM1_
 
 
 
-### Comparisons between search results (Benchmarking)
+### Comparisons between search results
 
+
+Comparisons between search results (Benchmarking)
 
 ```
 
