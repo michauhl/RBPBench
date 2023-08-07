@@ -13,7 +13,12 @@ purposes, from RBP motif search in genomic regions, over motif co-occurrence ana
 - [Example runs](#example-runs)
     - [Searching for RBP motifs](#searching-for-rbp-motifs)
         - [Search with single RBPs](#search-with-single-rbps)
-    - [batch-processing-multiple-datasets](#batch-processing-multiple-datasets)
+        - [Informative statistics](#informative-statistics)
+        - [Additional search options](#additional-search-options)
+        - [Search with multiple RBPs](#search-with-multiple-rbps)
+        - [Search with all database RBPs](#search-with-all-database-rbps)
+        - [User-provided motif search](#user-provided-motif-search)
+    - [Batch-processing multiple datasets](#batch-processing-multiple-datasets)
     - [Comparisons between search results](#comparisons-between-search-results)
 
 
@@ -108,7 +113,6 @@ with column 5 containing the log2 fold change scores of the peak regions.
 
 
 ### Searching for RBP motifs
-
 
 #### Search with single RBPs
 
@@ -253,7 +257,7 @@ Note that SLBP has the lowest Wilcoxon p-value (6.87978e-09) of all 259 RBPs,
 demonstrating that the chosen statistical test is plausible and useful.
 
 
-#### User-provided motifs
+#### User-provided motif search
 
 Both sequence (MEME XML format) and structure (covariance model .CM) motifs can be supplied by the user 
 on top of the database RBPs (using `-rbps USER` option together with `-user-meme-xml` or `--user-cm`).
