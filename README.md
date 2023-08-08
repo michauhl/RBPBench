@@ -18,6 +18,7 @@ purposes, from RBP motif search in genomic regions, over motif co-occurrence ana
         - [Search with multiple RBPs](#search-with-multiple-rbps)
         - [Search with all database RBPs](#search-with-all-database-rbps)
         - [User-provided motif search](#user-provided-motif-search)
+        - [Unstranded motif search](#unstranded-motif-search)
     - [Batch-processing multiple datasets](#batch-processing-multiple-datasets)
     - [Comparisons between search results](#comparisons-between-search-results)
 
@@ -273,20 +274,27 @@ In the same way, we can supply sequence motif(s) (PUM1) via `--user-meme-xml`, a
 rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps USER PUM2 RBFOX2 --out PUM1_user_search_out --genome hg38.fa --user-meme-xml path_to_test/PUM1_USER.xml --user-rbp-id PUM1_USER
 ```
 
+#### Unstranded motif search
+
+If you have unstranded genomic regions as input (i.e., strand information is missing), 
+you can instruct RBPBench to do an unstranded search by specifying (`-unstranded` option). 
+This results in using both strands of the provided regions for motif search. 
+Note that for the hit statistics, by default the two strands of a region 
+will still be counted as one region (use `--unstranded-ct` to change this behavior). 
+
 
 ### Batch-processing multiple datasets
 
 #### Multiple BED input files
 
 RBPBench also supports batch processing of input files (`rbpbench batch`).
-Multiple input datasets can be processed with `rbpbench batch`. 
 
 Multiple BED files can be provided in two ways:
 (1) Given a folder containing BED files (.bed extension) via `--bed`, the RBP IDs are expected to be 
 the first part of the file name (e.g. for RBP ID RBP1: RBP1.bed, or RBP1_more_info.bed).
 (2) Given a list of BED files via `--bed`, the RBP IDs need to be provided (same order!) with `-rbp-list`.
 
-For example, suppose a folder `batch_clipper_idr_in` containing two BED files:
+For example, suppose we have a folder `batch_clipper_idr_in` containing the two BED files:
 
 ```
 $ ls batch_clipper_idr_in/
@@ -300,24 +308,59 @@ Consequently, the two RBP IDs will be `PUM1` and `PUM2`. We can process both of 
 python rbpbench batch --bed batch_clipper_idr_in --out batch_clipper_idr_out --genome hg38.fa
 ```
 
+The search results will include all motif hits for RBP `PUM1` (on `PUM1_K562_IDR_peaks.bed`) and 
+for RBP `PUM2` (on `PUM2_K562_IDR_peaks.bed`). Alternatively, the same results can be obtained via `-rbp-list`:
+
+```
+python rbpbench batch --bed batch_clipper_idr_in/PUM1_K562_IDR_peaks.bed batch_clipper_idr_in/PUM2_K562_IDR_peaks.bed --rbp-list PUM1 PUM2 --out batch_clipper_idr_out --genome hg38.fa
+```
+
 
 #### Adding more information for comparisons
 
-
-
-
-
-
-
-
-
-`rbpbench batch`. 
-
-
+As we also want to compare results of different runs (`rbpbench compare`, more details [below](#comparisons-between-search-results)), it makes sense to assign different descriptions or IDs to runs.
+For this RBPBench offers several optional ID arguments (`--data-id`, `--method-id`, `--run-id`).
+To quote the help page (`rbpbench search`):
 
 ```
+  --data-id str         Dataset ID to describe dataset, e.g. --data-id PUM2_eCLIP_K562, used in
+                        output tables and for generating the comparison reports (rbpbench compare)
+  --method-id str       Method ID to describe peak calling method, e.g. --method-id clipper_idr, used
+                        in output tables and for generating the comparison reports (rbpbench compare)
+  --run-id str          Run ID to describe rbpbench search job, e.g. --run-id RBP1_eCLIP_tool1, used
+                        in output tables and reports
+```
+
+These IDs are stored in the output tables together with the hit statistics. 
+For example, we can use `PUM2_eCLIP_K562` as `--data-id` to describe the CLIP experiment and cell type from 
+which the input dataset originates from, and `clipper_idr` as `--method-id`, to describe the peak calling 
+method which was used to produce the input peak regions. This information can later be used in `rbpbench compare` (details [below](#comparisons-between-search-results)) to define which datasets or conditions should be compared. 
+
+In `rbpbench batch` we can also supply lists of IDs (analogous to `--rbp-list` example). 
+Again from the help page (`rbpbench batch`):
 
 ```
+  --data-list str [str ...]
+                        List of data IDs to describe datasets given by -bed-list (NOTE: order needs
+                        to correspond to --bed order). Alternatively, use --data-id to set method for
+                        all datasets
+  --data-id str         Data ID to describe data for given datasets, e.g. --method-id k562_eclip,
+                        used in output tables and for generating the comparison reports (rbpbench
+                        compare)
+  --method-list str [str ...]
+                        List of method IDs to describe datasets given by -bed-list (NOTE: order needs
+                        to correspond to --bed order). Alternatively, use --method-id to set method
+                        for all datasets
+  --method-id str       Method ID to describe peak calling method for given datasets, e.g. --method-
+                        id clipper_idr, used in output tables and for generating the comparison
+                        reports (rbpbench compare)
+```
+
+We can see that we can either assign single IDs (`--data-id`, `--method-id`) to all runs in the batch, or 
+use their list equivalents (`--data-list`, `--method-list`) to assign IDs specific to each run.
+
+
+
 
 
 
