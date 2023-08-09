@@ -1,6 +1,6 @@
 # RBPBench
-Evaluate CLIP-seq and other genomic region data using a comprehensive collection of known RBP binding motifs. RBPBench can be used for a variety of
-purposes, from RBP motif search in genomic regions, over motif co-occurrence analysis, to benchmarking CLIP-seq peak callers.
+RBPBench is multi-function tool to evaluate CLIP-seq and other genomic region data using a comprehensive collection of known RBP binding motifs. RBPBench can be used for a variety of
+purposes, from RBP motif search (database or user-supplied RBPs) in genomic regions, over motif co-occurrence analysis, to benchmarking CLIP-seq peak callers.
 
 ## Table of contents
 
@@ -287,11 +287,11 @@ will still be counted as one region (use `--unstranded-ct` to change this behavi
 
 #### Multiple BED input files
 
-RBPBench also supports batch processing of input files (`rbpbench batch`).
+RBPBench also supports batch search, i.e., processing of multiple input files (`rbpbench batch`).
 
-Multiple BED files can be provided in two ways:
+Multiple input BED files can be provided in two ways:
 (1) Given a folder containing BED files (.bed extension) via `--bed`, the RBP IDs are expected to be 
-the first part of the file name (e.g. for RBP ID RBP1: RBP1.bed, or RBP1_more_info.bed).
+the first part of each file name (e.g. for RBP ID RBP1: RBP1.bed, or RBP1_more_info.bed).
 (2) Given a list of BED files via `--bed`, the RBP IDs need to be provided (same order!) with `-rbp-list`.
 
 For example, suppose we have a folder `batch_clipper_idr_in` containing the two BED files:
@@ -318,7 +318,7 @@ python rbpbench batch --bed batch_clipper_idr_in/PUM1_K562_IDR_peaks.bed batch_c
 
 #### Adding more information for comparisons
 
-As we also want to compare results of different runs (`rbpbench compare`, more details [below](#comparisons-between-search-results)), it makes sense to assign different descriptions or IDs to runs.
+As we also want to compare results of different search runs (using `rbpbench compare`, more details [below](#comparisons-between-search-results)), it makes sense to assign different descriptions or IDs to search runs.
 For this RBPBench offers several optional ID arguments (`--data-id`, `--method-id`, `--run-id`).
 To quote the help page (`rbpbench search`):
 
@@ -334,7 +334,7 @@ To quote the help page (`rbpbench search`):
 These IDs are stored in the output tables together with the hit statistics. 
 For example, we can use `PUM2_eCLIP_K562` as `--data-id` to describe the CLIP experiment and cell type from 
 which the input dataset originates from, and `clipper_idr` as `--method-id`, to describe the peak calling 
-method which was used to produce the input peak regions. This information can later be used in `rbpbench compare` (details [below](#comparisons-between-search-results)) to define which datasets or conditions should be compared. 
+method which was used to produce the input peak regions. This information can later be used in `rbpbench compare` (details [below](#comparisons-between-search-results)) to define which datasets or conditions should be compared.
 
 In `rbpbench batch` we can also supply lists of IDs (analogous to `--rbp-list` example). 
 Again from the help page (`rbpbench batch`):
@@ -356,16 +356,26 @@ Again from the help page (`rbpbench batch`):
                         reports (rbpbench compare)
 ```
 
-We can see that we can either assign single IDs (`--data-id`, `--method-id`) to all runs in the batch, or 
-use their list equivalents (`--data-list`, `--method-list`) to assign IDs specific to each run.
-
-
+We can see that we can either assign single IDs (`--data-id`, `--method-id`) to all search runs 
+in the batch, or use their list equivalents (`--data-list`, `--method-list`) to assign IDs 
+specific to each run.
 
 
 
 
 
 ### Comparisons between search results
+
+Both single (`rbpbench search`) and batch search (`rbpbench batch`) results can be combined 
+and compared using `rbpbench compare`. What is going to be compared is defined by 
+the method and data IDs (see [above](#adding-more-information-for-comparisons)) that were 
+set for the individual runs. 
+
+
+
+Check / correct input IDs:
+PUM2_eCLIP_K562
+Correct description RNAProt
 
 
 Comparisons between search results (Benchmarking)
@@ -387,3 +397,40 @@ To plot the nucleotide distribution around genomic positions, we can use
 ```
 
 ```
+
+
+## Manual
+
+RBPBench is a multi-function tool. To get an overview of the currently available 
+functions (or modes), we can type:
+
+```
+$ rbpbench -h
+usage: rbpbench [-h] [-v] {search,batch,optex,info,dist,compare} ...
+
+Evaluate CLIP-seq and other genomic region data using a comprehensive
+collection of known RBP binding motifs (RNA sequence + structure). RBPBench
+can be used for a variety of purposes, from RBP motif search in genomic
+regions, over motif co-occurence analysis, to benchmarking CLIP-seq peak
+callers.
+
+positional arguments:
+  {search,batch,optex,info,dist,compare}
+                        Program modes
+    search              Search motifs in genomic sites
+    batch               Find motifs on > 1 dataset
+    optex               Investigate optimal extension
+    info                Print out RBP IDs in database
+    dist                Plot nt distribution at genomic positions
+    compare             Compare different search results
+
+options:
+  -h, --help            show this help message and exit
+  -v, --version         show program's version number and exit
+
+```
+
+We can see that there are currently six modes available: 
+`rbpbench search`, `rbpbench batch`, `rbpbench optex`, `rbpbench info`, 
+`rbpbench dist`, and `rbpbench compare`.
+
