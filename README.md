@@ -464,11 +464,32 @@ The RBP hit statistics file `rbp_hit_stats.tsv` contains the following columns:
 
 | Column name | Description |
 |:--------------:|:--------------:|
-| method_id | Set method ID (`--method-id`) |
+| method_id | Set method ID (`--method-id`). More [here](#adding-more-information-for-comparisons) |
 | run_id | Set run ID (`--run-id`) |
-
-
-
+| motif_db | Selected motif database for search (`--motif-db`) |
+| rbp_id | RBP ID (i.e., RBP name), e.g. `PUM1` |
+| c_regions | Number of input genomic regions used for search (after filtering and extension operations) |
+| mean_reg_len | Mean length of genomic regions |
+| median_reg_len | Median length of genomic regions |
+| median_reg_len | Median length of genomic regions |
+| min_reg_len | Minimum length of genomic regions |
+| called_reg_size | Called size of genomic regions (including overlaps) |
+| effective_reg_size | Effective size of genomic regions (removed overlaps) |
+| c_reg_with_hits | Number of regions with motif hits from rbp_id |
+| perc_reg_with_hits | Percentage of regions with motif hits from rbp_id |
+| c_motif_hits | Total number of motif hits from rbp_id |
+| c_uniq_motif_hits | Number of unique motif hits from rbp_id (removed double counts) |
+| c_uniq_motif_nts | Number of unique motif nucleotides from rbp_id (removed overlaps) |
+| perc_uniq_motif_nts_cal_reg | Percentage of unique motif nucleotides over called region size |
+| perc_uniq_motif_nts_eff_reg | Percentage of unique motif nucleotides over effective region size |
+| uniq_motif_hits_cal_1000nt | Number of motif hits over 1000 nt of called region size |
+| uniq_motif_hits_eff_1000nt | Number of motif hits over 1000 nt of effective region size |
+| wc_pval | [Wilcoxon rank-sum test p-value](#informative-statistics) to test whether motif hit regions also feature higher scores | 
+| seq_motif_ids | Sequence motif IDs. Empty (`-`) if rbp_id has not sequence motifs  | 
+| seq_motif_hits | Sequence motif hit counts (count for each motif ID) | 
+| str_motif_ids | Structure motif IDs. Empty (`-`) if rbp_id has not structure motifs  | 
+| str_motif_hits | Structure motif hit counts (count for each motif ID) | 
+| internal_id | Internal ID (unique for each rbp_id run), used for connecting table results  | 
 
 
 
@@ -518,3 +539,9 @@ We can see that out of the 161 input regions, 27 contain a motif hit.
 
 
 #### HTML reports
+
+
+
+
+TOADD:
+Mention how overlapping regions are handled (same motif hits ...)
