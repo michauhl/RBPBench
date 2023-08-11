@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
 
-from rbpbench import benchlib
-from distutils.spawn import find_executable
-from typing import Optional
+
 import argparse
+import base64
 import os
 import re
-import subprocess
-import sys
-from scipy.stats import ks_2samp
-from scipy.stats import fisher_exact
-# from scipy.stats import wilcoxon
-from scipy.stats import mannwhitneyu
-from itertools import combinations
-#import benchlib
-# import uuid
-import base64
 import statistics
+import sys
+from itertools import combinations
 from pandas import DataFrame
+from scipy.stats import fisher_exact
+from scipy.stats import mannwhitneyu
+from rbpbench import benchlib
+# from distutils.spawn import find_executable
+# from typing import Optional
+# import subprocess
+# from scipy.stats import ks_2samp
+# from scipy.stats import wilcoxon
+# import benchlib
+# import uuid
 
 
 __version__ = "0.1"
@@ -1465,10 +1466,10 @@ def main_search(args):
         row_str += rbp_id + "\t"
         row_str += fh.motif_id + "\t"
         row_str += fh.chr_id + "\t"
-        row_str += str(fh.start) + "\t" # 1-based.
+        row_str += str(fh.start) + "\t"  # 1-based.
         row_str += str(fh.end) + "\t"
         row_str += fh.strand + "\t"
-        row_str += str(fh.seq_s) + "\t" # 1-based.
+        row_str += str(fh.seq_s) + "\t"  # 1-based.
         row_str += str(fh.seq_e) + "\t"
         row_str += str(region_len) + "\t"
         row_str += str(uniq_count) + "\t"

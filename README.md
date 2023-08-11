@@ -70,6 +70,8 @@ Manual installation of RBPBench is only slightly more work. First we create the 
 conda create -n rbpbench -c conda-forge -c bioconda logomaker markdown meme scipy plotly textdistance venn matplotlib-venn infernal bedtools
 ```
 
+MEME v5 needed / tested.
+
 Next we activate the environment, clone the RBPBench repository, and install RBPBench:
 
 ```
@@ -435,11 +437,79 @@ There are currently six modes available:
 `rbpbench dist`, and `rbpbench compare`.
 
 
+### Inputs
+
+
+
+#### Genomic regions
+
+Genomic input regions have to be provided in BED format. The first 6 columns 
+are mandatory and are expected to mean the following: chromosome ID, 
+genomic region start position (0-based index),
+genomic region end position (1-based index), 
+region ID, region score, region strand (plus(+) or minus(-) strand).
+If the genomic regions should be treated as unstranded (`--unstranded` enabled), 
+the region strand information will be ignored, and both strands will be used for motif search.
+For a valid example from one of our example runs:
+
+```
+$ head -5 PUM1_K562_IDR_peaks.bed 
+chr20	62139082	62139128	PUM1_K562_IDR	3.43241573178832	-
+chr20	62139146	62139197	PUM1_K562_IDR	3.35874858317445	-
+chr7	6156853	6157005	PUM1_K562_IDR	4.85347590189745	+
+chr15	82404676	82404753	PUM1_K562_IDR	4.1721908622051	+
+chr1	19094999	19095025	PUM1_K562_IDR	5.11052671530143	-
+```
+
+Additional columns (> 6) will be ignored, although the region score column 
+can be different from column 5 (default). You can specify which column should be used 
+as region score (for Wilcoxon rank sum test) via `--bed-score-col`.
+
+Before motif search, the input regions are filtered and optionally extended (`--ext` option).
+Regions with invalid chromosome IDs (i.e., not present in the genome sequence file `-genome`) 
+are removed. Furthermore, duplicated regions are removed (same chromosome ID + start + end + strand).
+The command line output also informs about these:
+
+```
+# --in regions pre-filtering:   2661
+# --in regions post-filtering:  2661
+# regions with invalid chr_id:  0
+# duplicated regions removed:   0
+```
+
+
+
+#### Genomic sequence
+
+Genomic sequences have to be provided in FASTA format. For example, the human 
+genome sequence (`hg38.fa`) can be obtained from [here](https://hgdownload.cse.ucsc.edu/goldenpath/hg38/bigZips).
+To download in the command line and unpack:
+
+```
+wget https://hgdownload.cse.ucsc.edu/goldenpath/hg38/bigZips/hg38.fa.gz
+gunzip hg38.fa.gz
+```
+
+### Handling genomic overlaps
+
+As input genomic regions can overlap (also due to applying `--ext`), RBPBench 
+considers both the called genomic region size as well as the effective genomic 
+region size. While the called size ignores overlaps, the effective size 
+only counts unique input regions (i.e., removing overlapping parts, only counting
+them once). This also holds for the reported motif hits, where **unique** counts 
+refer to effective counts. For example, a motif located at a specific genomic position 
+can appear several times in the input data. The unique count takes care of this 
+and counts it only once. This is important e.g. when comparing the results 
+of different peak callers. Another interesting statistic (full list of statistics and descriptions [here](#hit-statistics-table-files)) 
+is e.g. the number of unique motif hits over 1000 nt of called and effective region size. 
+This gives us an idea of how many motifs are included in the regions, normalized over 
+the total size of the regions (called or effective).
+
 
 ### Outputs
 
 
-RBP binding motif hit statistics are output into table files and (optionally) HTML reports (including additional plots).
+RBP binding motif hit statistics are output into table files and (optionally) HTML reports (including additional plots such as co-occurrence heat maps).
 
 
 #### Hit statistics table files
@@ -464,6 +534,7 @@ The RBP hit statistics file `rbp_hit_stats.tsv` contains the following columns:
 
 | Column name | Description |
 |:--------------:|:--------------:|
+| data_id | Set Data ID (`--data-id`). More [here](#adding-more-information-for-comparisons) |
 | method_id | Set method ID (`--method-id`). More [here](#adding-more-information-for-comparisons) |
 | run_id | Set run ID (`--run-id`) |
 | motif_db | Selected motif database for search (`--motif-db`) |
@@ -492,56 +563,42 @@ The RBP hit statistics file `rbp_hit_stats.tsv` contains the following columns:
 | internal_id | Internal ID (unique for each rbp_id run), used for connecting table results  | 
 
 
-
-
-
 The motif hit statistics file `motif_hit_stats.tsv` contains the following columns:
 
+| Column name | Description |
+|:--------------:|:--------------:|
+| data_id | Set Data ID (`--data-id`). More [here](#adding-more-information-for-comparisons) |
+| method_id | Set method ID (`--method-id`). More [here](#adding-more-information-for-comparisons) |
+| run_id | Set run ID (`--run-id`) |
+| motif_db | Selected motif database for search (`--motif-db`) |
+| region_id | Genomic region ID containing the hit, e.g. `chr1:228458485-228458560(+)` |
+| rbp_id | RBP ID (i.e., RBP name), e.g. `SLBP` |
+| motif_id | Motif ID |
+| chr_id | chromosome ID |
+| gen_s | genomic motif hit start (1-based) |
+| gen_e | genomic motif hit end (1-based) |
+| strand | Chromosome strand (+ or - strand) |
+| region_s | region motif hit start (1-based) |
+| region_e | region motif hit end (1-based) |
+| region_len | Region length |
+| uniq_count | Unique motif hit count |
+| fimo_score | FIMO score (for sequence motif hits) |
+| fimo_pval | FIMO p-value (for sequence motif hits) |
+| cms_score | cmsearch score (for structure motif hits) |
+| cms_eval | cmsearch e-value (for structure motif hits) |
+| internal_id | Internal ID (unique for each rbp_id run), used for connecting table results  | 
 
 
 
-
-
-
-
-Apart from the informative command line output, the search results are stored in two table files:
-
-```
-RBP hit stats .tsv:
-SLBP_test_search_out/rbp_hit_stats.tsv
-Motif hit stats .tsv:
-SLBP_test_search_out/motif_hit_stats.tsv
-```
-
-The first file (RBP hit stats) contains comprehensive hit statistics for each RBP 
-(one row per RBP, see manual below for column descriptions), 
-while the motif hits stats file contains hit statistics for each single motif hit 
-(one row per motif hit). 
-We can see that out of the 161 input regions, 27 contain a motif hit.
-
-
-
-| Left-aligned | Center-aligned | Right-aligned |
-|:-------------|:--------------:|--------------:|
-| Row 1, Column 1 | Row 1, Column 2 | Row 1, Column 3 |
-| Row 2, Column 1 | Row 2, Column 2 | Row 2, Column 3 |
-
-
-
-|   Feature       | Sequences | Genomic regions | Transcript regions |
-| :--------------: | :--------------: | :--------------: | :--------------: |
-| **structure**    | YES | YES | YES |
-| **conservation scores**    | NO | YES | YES |
-| **exon-intron annotation**    | NO | YES | NO |
-| **transcript region annotation**    | NO | YES | YES |
-| **repeat region annotation**    | NO | YES | YES |
-| **user-defined**    | NO | YES | YES |
-
+												
 
 #### HTML reports
 
 
 
+### Troubleshooting
 
-TOADD:
-Mention how overlapping regions are handled (same motif hits ...)
+#### No FIMO hits
+
+This can e.g. happen if you have an old MEME version installed (v4). RBPBench was implemented using v5, so please install MEME v5 (e.g. 5.5.3).
+
