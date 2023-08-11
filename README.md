@@ -430,7 +430,91 @@ options:
 
 ```
 
-We can see that there are currently six modes available: 
+There are currently six modes available: 
 `rbpbench search`, `rbpbench batch`, `rbpbench optex`, `rbpbench info`, 
 `rbpbench dist`, and `rbpbench compare`.
 
+
+
+### Outputs
+
+
+RBP binding motif hit statistics are output into table files and (optionally) HTML reports (including additional plots).
+
+
+#### Hit statistics table files
+
+In search and batch search (`rbpbench search`, `rbpbench batch`), RBPBench 
+outputs the RBP binding motif hit statistics to two table files stored in the results output folder:
+
+```
+RBP hit stats .tsv:
+results_output_folder/rbp_hit_stats.tsv
+Motif hit stats .tsv:
+results_output_folder/motif_hit_stats.tsv
+```
+
+The first file (RBP hit stats) contains comprehensive hit statistics for each RBP 
+(one row per RBP, see manual below for column descriptions), 
+while the motif hits stats file contains hit statistics for each single motif hit 
+(one row per motif hit).
+
+The RBP hit statistics file `rbp_hit_stats.tsv` contains the following columns:
+
+
+| Column name | Description |
+|:--------------:|:--------------:|
+| method_id | Set method ID (`--method-id`) |
+| run_id | Set run ID (`--run-id`) |
+
+
+
+
+
+
+
+
+The motif hit statistics file `motif_hit_stats.tsv` contains the following columns:
+
+
+
+
+
+
+
+
+Apart from the informative command line output, the search results are stored in two table files:
+
+```
+RBP hit stats .tsv:
+SLBP_test_search_out/rbp_hit_stats.tsv
+Motif hit stats .tsv:
+SLBP_test_search_out/motif_hit_stats.tsv
+```
+
+The first file (RBP hit stats) contains comprehensive hit statistics for each RBP 
+(one row per RBP, see manual below for column descriptions), 
+while the motif hits stats file contains hit statistics for each single motif hit 
+(one row per motif hit). 
+We can see that out of the 161 input regions, 27 contain a motif hit.
+
+
+
+| Left-aligned | Center-aligned | Right-aligned |
+|:-------------|:--------------:|--------------:|
+| Row 1, Column 1 | Row 1, Column 2 | Row 1, Column 3 |
+| Row 2, Column 1 | Row 2, Column 2 | Row 2, Column 3 |
+
+
+
+|   Feature       | Sequences | Genomic regions | Transcript regions |
+| :--------------: | :--------------: | :--------------: | :--------------: |
+| **structure**    | YES | YES | YES |
+| **conservation scores**    | NO | YES | YES |
+| **exon-intron annotation**    | NO | YES | NO |
+| **transcript region annotation**    | NO | YES | YES |
+| **repeat region annotation**    | NO | YES | YES |
+| **user-defined**    | NO | YES | YES |
+
+
+#### HTML reports

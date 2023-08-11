@@ -1280,13 +1280,12 @@ def main_search(args):
 
     rbp_list = []
 
-    OUTSTATS = open(rbp_stats_out,"w")
+    OUTSTATS = open(rbp_stats_out, "w")
     rbp_stats_header = "data_id\tmethod_id\trun_id\tmotif_db\trbp_id\tc_regions\tmean_reg_len\tmedian_reg_len\tmin_reg_len\tmax_reg_len\t"
     rbp_stats_header += "called_reg_size\teffective_reg_size\tc_reg_with_hits\tperc_reg_with_hits\t"
     rbp_stats_header += "c_motif_hits\tc_uniq_motif_hits\tc_uniq_motif_nts\tperc_uniq_motif_nts_cal_reg\tperc_uniq_motif_nts_eff_reg\tuniq_motif_hits_cal_1000nt\t"
     rbp_stats_header += "uniq_motif_hits_eff_1000nt\twc_pval\tseq_motif_ids\tseq_motif_hits\tstr_motif_ids\tstr_motif_hits\tinternal_id\n"
     OUTSTATS.write(rbp_stats_header)
-
 
     for rbp_id in search_rbps_dic:
 
