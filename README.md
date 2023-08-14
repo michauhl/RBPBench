@@ -184,15 +184,15 @@ There are a number of search options available (check out `rbpbench search -h` a
 For example, we can extend the given genomic regions, and see how this affects the hit statistics:
 
 ```
-rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps SLBP --out test_slbp_out --genome hg38.fa --report --ext 10
+rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps SLBP --out test_slbp_out --genome hg38.fa --ext 10
 ```
 
 This extends the genomic regions up- and downstream by 10 nt, and results in 51 hits (from 27 hits without extension). 
 Moreover, we can do uneven extension to check whether up- or downstream extension has different effects:
 
 ```
-rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps SLBP --out test_slbp_out --genome hg38.fa --report --ext 20,0
-rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps SLBP --out test_slbp_out --genome hg38.fa --report --ext 0,20
+rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps SLBP --out test_slbp_out --genome hg38.fa --ext 20,0
+rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps SLBP --out test_slbp_out --genome hg38.fa --ext 0,20
 ```
 
 We note that upstream extension (first command) by 20 nt results in 40 hits, 
@@ -467,7 +467,7 @@ as region score (for Wilcoxon rank sum test) via `--bed-score-col`.
 
 Before motif search, the input regions are filtered and optionally extended (`--ext` option).
 Regions with invalid chromosome IDs (i.e., not present in the genome sequence file `-genome`) 
-are removed. Furthermore, duplicated regions are removed (same chromosome ID + start + end + strand).
+are removed. Furthermore, duplicated regions are merged into one region (same chromosome ID + start + end + strand).
 The command line output also informs about these:
 
 ```
@@ -503,7 +503,7 @@ and counts it only once. This is important e.g. when comparing the results
 of different peak callers. Another interesting statistic (full list of statistics and descriptions [here](#hit-statistics-table-files)) 
 is e.g. the number of unique motif hits over 1000 nt of called and effective region size. 
 This gives us an idea of how many motifs are included in the regions, normalized over 
-the total size of the regions (called or effective).
+the total size of the regions (called or effective size).
 
 
 ### Outputs
@@ -515,7 +515,7 @@ RBP binding motif hit statistics are output into table files and (optionally) HT
 #### Hit statistics table files
 
 In search and batch search (`rbpbench search`, `rbpbench batch`), RBPBench 
-outputs the RBP binding motif hit statistics to two table files stored in the results output folder:
+outputs the RBP binding motif hit statistics into two table files stored in the results output folder (defined by `--out`):
 
 ```
 RBP hit stats .tsv:
@@ -590,10 +590,16 @@ The motif hit statistics file `motif_hit_stats.tsv` contains the following colum
 
 
 
-												
 
+ALAMO
+										
 #### HTML reports
 
+HTML reports containing additional statistics and plots are available in search and 
+compare mode (`rbpbench search`, `rbpbench compare`).
+
+
+`rbpbench search` and `rbpbench compare`. In search
 
 
 ### Troubleshooting
