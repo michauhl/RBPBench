@@ -2700,7 +2700,7 @@ by RBPBench (rbpbench compare):
         mdtext += """
 ## %s method comparison statistics ### {#%s}
 
-**Table:** RBP motif hit statistics for data combination ID "%s" (data ID, motif database ID, RBP ID) over different methods (method ID column).
+**Table:** RBP motif hit statistics for combined ID "%s" (data ID, motif database ID, RBP ID) over different methods (method ID column).
 
 """ %(comp_id, tab_id, comp_id)
         mdtext += '| Method ID | # regions | # motif hits | % regions with motifs | % motif nucleotides | # motif hits per 1000 nt |' + " \n"
@@ -2714,6 +2714,13 @@ by RBPBench (rbpbench compare):
             uniq_motif_hits_cal_1000nt = rbp_stats_dic[int_id].uniq_motif_hits_cal_1000nt
             mdtext += "| %s | %i | %i | %.2f | %.2f | %.2f |\n" %(method_id, c_regions, c_uniq_motif_hits, perc_reg_with_hits, perc_uniq_motif_nts_eff_reg, uniq_motif_hits_cal_1000nt)
         mdtext += "\n&nbsp;\n&nbsp;\n"
+        mdtext += "\nColumn IDs have the following meanings: "
+        mdtext += "**Method ID** -> method ID set for dataset (typically peak calling method ID), "
+        mdtext += '**# regions** -> number of peak regions used for motif search, '
+        mdtext += '**# motif hits** -> number of unique motif hits in peak regions (removed double counts), '
+        mdtext += '**% regions with motifs** -> percentage of peak regions with motif hits, '
+        mdtext += '**% motif nucleotides** -> percentage of unique motif nucleotides over effective peak region size (overlapping regions merged), '
+        mdtext += '**# motif hits per 1000 nt** -> number of motif hits over 1000 nt of called peak region size (overlapping regions NOT merged).' + "\n"
 
     # Dataset comparison tables.
     for comp_id, data in sorted(compare_datasets_dic.items()):
@@ -2723,7 +2730,7 @@ by RBPBench (rbpbench compare):
         mdtext += """
 ## %s dataset comparison statistics ### {#%s}
 
-**Table:** RBP motif hit statistics for data combination ID "%s" (method ID, motif database ID, RBP ID) over different datasets (data ID column).
+**Table:** RBP motif hit statistics for combined ID "%s" (method ID, motif database ID, RBP ID) over different datasets (data ID column).
 
 """ %(comp_id, tab_id, comp_id)
         mdtext += '| Data ID | # regions | # motif hits | % regions with motifs | % motif nucleotides | # motif hits per 1000 nt |' + " \n"
@@ -2737,6 +2744,13 @@ by RBPBench (rbpbench compare):
             uniq_motif_hits_cal_1000nt = rbp_stats_dic[int_id].uniq_motif_hits_cal_1000nt
             mdtext += "| %s | %i | %i | %.2f | %.2f | %.2f |\n" %(dataset_id, c_regions, c_uniq_motif_hits, perc_reg_with_hits, perc_uniq_motif_nts_eff_reg, uniq_motif_hits_cal_1000nt)
         mdtext += "\n&nbsp;\n&nbsp;\n"
+        mdtext += "\nColumn IDs have the following meanings: "
+        mdtext += "**Data ID** -> data ID set for dataset (typically describing CLIP data, e.g. CLIP method + cell type combination), "
+        mdtext += '**# regions** -> number of peak regions used for motif search, '
+        mdtext += '**# motif hits** -> number of unique motif hits in peak regions (removed double counts), '
+        mdtext += '**% regions with motifs** -> percentage of peak regions with motif hits, '
+        mdtext += '**% motif nucleotides** -> percentage of unique motif nucleotides over effective peak region size (overlapping regions merged), '
+        mdtext += '**# motif hits per 1000 nt** -> number of motif hits over 1000 nt of called peak region size (overlapping regions NOT merged).' + "\n"
 
     """
     Venn diagrams for method ID comparisons.
@@ -2783,16 +2797,15 @@ by RBPBench (rbpbench compare):
         mdtext += """
 ## %s method comparison plot ### {#%s}
 
-Based on the same dataset combination ID "%s" (data ID, motif database ID, RBP ID), motif hit occurrences for %i different methods (%s) are compared via Venn diagram.
-Motif hits can either be found only for one method, or be common to any >= 2 methods (intersection areas).
-Any given motif hit can either be found only by one method, or be identified by any subset (>=2) of methods (intersection areas).
+Based on the same combined ID "%s" (data ID, motif database ID, RBP ID), motif hit occurrences for %i different methods (%s) are compared via Venn diagram.
+Any given motif hit can either be found only by one method, or be identified by any set (>=2) of methods (intersection areas).
 
 """ %(comp_id, tab_id, comp_id, c_methods, method_ids_str)
         mdtext += '<img src="' + plot_path + '" alt="' + "dataset comparison plot %s" %(comp_id) + "\n"
         mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="700" />' + "\n"
         mdtext += """
 
-**Figure:** Venn diagram of motif hit occurrences for %i different methods (%s) with identical data combination ID (%s) + corresponding percentages of total motif hits.
+**Figure:** Venn diagram of motif hit occurrences for %i different methods (%s) with identical combined ID (%s) + corresponding percentages of total motif hits.
 
 &nbsp;
 

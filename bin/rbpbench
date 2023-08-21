@@ -3488,7 +3488,7 @@ def main_compare(args):
         elif os.path.isfile(data):
             in_files.append(data)
         else:
-            assert False, "--in argument neither folder nor a file. Please provide rbpbench search/batch output folder or RBP/motif stats files"
+            assert False, "--in argument \"%s\" neither folder nor a file. Please provide rbpbench search/batch output folder or RBP/motif stats files" %(data)
 
     assert in_files, "no --in files read in from given --in locations. Please provide valid rbpbench search/batch output folder or RBP/motif stats files"
 

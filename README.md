@@ -1,6 +1,6 @@
 # RBPBench
 RBPBench is multi-function tool to evaluate CLIP-seq and other genomic region data using a comprehensive collection of known RBP binding motifs. RBPBench can be used for a variety of
-purposes, from RBP motif search (database or user-supplied RBPs) in genomic regions, over motif co-occurrence analysis, to benchmarking CLIP-seq peak callers.
+purposes, from RBP motif search (database or user-supplied RBPs) in genomic regions, over motif co-occurrence analysis, to benchmarking CLIP-seq peak caller methods. 
 
 ## Table of contents
 
@@ -373,18 +373,75 @@ and compared using `rbpbench compare`. What is going to be compared is defined b
 the method and data IDs (see [above](#adding-more-information-for-comparisons)) that were 
 set for the individual runs. 
 
+#### Comparing peak callers
 
-
-Check / correct input IDs:
-PUM2_eCLIP_K562
-Correct description RNAProt
-
-
-Comparisons between search results (Benchmarking)
+Suppose we have peak regions (from eCLIP data, K562 cell line) for two RBPs (`PUM1`, `PUM2`), determined by two different peak callers (CLIPper and DEWSeq). The data is stored in two folders (one folder for each peak caller):
 
 ```
+$ ls batch_clipper_idr_in/
+PUM1_K562_clipper_idr_peaks.bed
+PUM2_K562_clipper_idr_peaks.bed
+$ ls batch_dewseq_in/
+PUM1_K562_dewseq_peaks.bed
+PUM2_K562_dewseq_peaks.bed
+```
+
+We first process the two folders via `rbpbench batch`, using descriptive IDs (`--data-id k562_eclip --method-id clipper_idr`):
 
 ```
+rbpbench batch --bed batch_clipper_idr_in --out batch_clipper_idr_out --genome hg38.fa --data-id k562_eclip --method-id clipper_idr  --bed-score-col 5
+```
+
+Likewise for the peak regions called by DEWSeq (used DEWSEQ settings were windows size 100 and step size 5):
+
+```
+rbpbench batch --bed batch_dewseq_in --out batch_dewseq_out --genome hg38.fa --data-id k562_eclip --method-id dewseq_w100_s5 --bed-score-col 7
+```
+
+Note that we set `--bed-score-col` depending on which column stores the BED region score (more details [above](#informative-statistics)).
+
+Now we can compare the results of the two peak caller methods (method IDs `clipper_idr` `dewseq_w100_s5`) by:
+
+```
+rbpbench compare --in batch_clipper_idr_out/ batch_dewseq_out/ --out compare_clipper_dewseq_out
+```
+
+This produces an HTML report (`compare_clipper_dewseq_out/report.rbpbench_compare.html`), 
+containing method comparison statistics (tables and plots). 
+
+In this example, we have two RBPs and two peak calling methods to compare, resulting in 
+2 method comparisons (one for RBP `PUM1`, one for RBP `PUM2`).
+Thus, a method comparison statistics table and a Venn digram is created for each RBP in the HTML report file.
+The table contains the following column metrics (extracted from the input RBP hit statistics files): 
+
+
+| Column name | Description |
+|:--------------:|:--------------:|
+| Method ID | Method ID set for dataset (typically peak calling method ID) |
+| # regions | Number of peak regions used for motif search |
+| # motif hits | Number of unique motif hits in peak regions (removed double counts) |
+| % regions with motifs | Percentage of peak regions with motif hits |
+| % motif nucleotides | Percentage of unique motif nucleotides over effective peak region size (overlapping regions merged) |
+| # motif hits per 1000 nt | Number of motif hits over 1000 nt of called peak region size (overlapping regions NOT merged) |
+
+This information sums up the performance of the peak calling method, using the motif hit statistics
+as performance metrics. In our example, we got the following table for `PUM1`:
+
+| Method ID | # regions | # motif hits | % regions with motifs | % motif nucleotides | # motif hits per 1000 nt |
+|:--------------:|:--------------:|:--------------:|:--------------:|:--------------:|:--------------:|
+| clipper_idr | 5384 | 15318 | 72.21 | 17.25 | 46.31 |
+| dewseq_w100_s5 | 4848 | 27817 | 94.29 | 12.22 | 28.62 |
+
+
+
+
+
+#### Comparing CLIP-seq datasets
+
+Comparing CLIP-seq datasets
+
+
+Can also be combined with peak caller comparisons
 
 
 
@@ -495,7 +552,7 @@ gunzip hg38.fa.gz
 As input genomic regions can overlap (also due to applying `--ext`), RBPBench 
 considers both the called genomic region size as well as the effective genomic 
 region size. While the called size ignores overlaps, the effective size 
-only counts unique input regions (i.e., removing overlapping parts, only counting
+only counts unique input regions (i.e., merging overlapping parts, only counting
 them once). This also holds for the reported motif hits, where **unique** counts 
 refer to effective counts. For example, a motif located at a specific genomic position 
 can appear several times in the input data. The unique count takes care of this 
