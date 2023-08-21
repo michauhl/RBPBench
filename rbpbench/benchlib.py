@@ -2805,7 +2805,7 @@ Any given motif hit can either be found only by one method, or be identified by 
         mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="700" />' + "\n"
         mdtext += """
 
-**Figure:** Venn diagram of motif hit occurrences for %i different methods (%s) with identical combined ID (%s) + corresponding percentages of total motif hits.
+**Figure:** Venn diagram of motif hit occurrences for %i different methods (%s) with identical combined ID (%s) + corresponding percentages of total motif hits for each region (method exclusive and intersection(s)).
 
 &nbsp;
 
@@ -2865,7 +2865,7 @@ Any given motif hit can either be found only in one dataset, or be common to any
         mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="700" />' + "\n"
         mdtext += """
 
-**Figure:** Venn diagram of motif hit occurrences for %i different datasets (%s) with identical method combination ID (%s) + corresponding percentages of total motif hits.
+**Figure:** Venn diagram of motif hit occurrences for %i different datasets (%s) with identical combined ID (%s) + corresponding percentages of total motif hits for each region (method exclusive and intersection(s)).
 
 &nbsp;
 

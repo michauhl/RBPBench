@@ -334,9 +334,9 @@ To quote the help page (`rbpbench search`):
 ```
 
 These IDs are stored in the output tables together with the hit statistics. 
-For example, we can use `PUM2_eCLIP_K562` as `--data-id` to describe the CLIP experiment and cell type from 
+For example, we can use `eCLIP_K562` as `--data-id` to describe the CLIP experiment and cell type from 
 which the input dataset originates from, and `clipper_idr` as `--method-id`, to describe the peak calling 
-method which was used to produce the input peak regions. This information can later be used in `rbpbench compare` (details [below](#comparisons-between-search-results)) to define which datasets or conditions should be compared.
+method which was used to produce the input peak regions. This information can later be used in `rbpbench compare` (details and examples [below](#comparisons-between-search-results)) to define which datasets or conditions should be compared.
 
 In `rbpbench batch` we can also supply lists of IDs (analogous to `--rbp-list` example). 
 Again from the help page (`rbpbench batch`):
@@ -368,14 +368,15 @@ specific to each run.
 
 ### Comparisons between search results
 
-Both single (`rbpbench search`) and batch search (`rbpbench batch`) results can be combined 
+Both single (`rbpbench search`) and batch search (`rbpbench batch`) results 
+(i.e., their output folders) can be combined 
 and compared using `rbpbench compare`. What is going to be compared is defined by 
 the method and data IDs (see [above](#adding-more-information-for-comparisons)) that were 
 set for the individual runs. 
 
 #### Comparing peak callers
 
-Suppose we have peak regions (from eCLIP data, K562 cell line) for two RBPs (`PUM1`, `PUM2`), determined by two different peak callers (CLIPper and DEWSeq). The data is stored in two folders (one folder for each peak caller):
+Suppose we have peak regions (from eCLIP data, K562 cell line) for two RBPs (`PUM1`, `PUM2`), determined by two different peak callers (CLIPper and DEWSeq). The data is stored in two folders (one folder for each peak calling method):
 
 ```
 $ ls batch_clipper_idr_in/
@@ -386,21 +387,16 @@ PUM1_K562_dewseq_peaks.bed
 PUM2_K562_dewseq_peaks.bed
 ```
 
-We first process the two folders via `rbpbench batch`, using descriptive IDs (`--data-id k562_eclip --method-id clipper_idr`):
+We first process the two folders via `rbpbench batch`, using descriptive data and method IDs (`--data-id k562_eclip --method-id clipper_idr`):
 
 ```
 rbpbench batch --bed batch_clipper_idr_in --out batch_clipper_idr_out --genome hg38.fa --data-id k562_eclip --method-id clipper_idr  --bed-score-col 5
-```
-
-Likewise for the peak regions called by DEWSeq (used DEWSEQ settings were windows size 100 and step size 5):
-
-```
 rbpbench batch --bed batch_dewseq_in --out batch_dewseq_out --genome hg38.fa --data-id k562_eclip --method-id dewseq_w100_s5 --bed-score-col 7
 ```
 
-Note that we set `--bed-score-col` depending on which column stores the BED region score (more details [above](#informative-statistics)).
+Note that we set `--bed-score-col` depending on which column stores the BED region score (more details [above](#informative-statistics)). For DEWSeq, we also added information about used settings to the method ID (windows size of 100, step size of 5).
 
-Now we can compare the results of the two peak caller methods (method IDs `clipper_idr` `dewseq_w100_s5`) by:
+Now we can compare the results of the two peak calling methods (method IDs `clipper_idr` and `dewseq_w100_s5`) simply by:
 
 ```
 rbpbench compare --in batch_clipper_idr_out/ batch_dewseq_out/ --out compare_clipper_dewseq_out
@@ -411,8 +407,8 @@ containing method comparison statistics (tables and plots).
 
 In this example, we have two RBPs and two peak calling methods to compare, resulting in 
 2 method comparisons (one for RBP `PUM1`, one for RBP `PUM2`).
-Thus, a method comparison statistics table and a Venn digram is created for each RBP in the HTML report file.
-The table contains the following column metrics (extracted from the input RBP hit statistics files): 
+Thus, a method comparison statistics table and a Venn diagram is created for each RBP in the HTML report file.
+The table contains the following column metrics (extracted from the input folder RBP hit statistics files): 
 
 
 | Column name | Description |
@@ -425,15 +421,32 @@ The table contains the following column metrics (extracted from the input RBP hi
 | # motif hits per 1000 nt | Number of motif hits over 1000 nt of called peak region size (overlapping regions NOT merged) |
 
 This information sums up the performance of the peak calling method, using the motif hit statistics
-as performance metrics. In our example, we got the following table for `PUM1`:
+as performance metrics. In our example, we get the following table for `PUM1`:
 
 | Method ID | # regions | # motif hits | % regions with motifs | % motif nucleotides | # motif hits per 1000 nt |
 |:--------------:|:--------------:|:--------------:|:--------------:|:--------------:|:--------------:|
-| clipper_idr | 5384 | 15318 | 72.21 | 17.25 | 46.31 |
-| dewseq_w100_s5 | 4848 | 27817 | 94.29 | 12.22 | 28.62 |
+| clipper_idr | 2661 | 488 | 13.08 | 2.12 | 3.03 |
+| dewseq_w100_s5 | 1583 | 936 | 29.88 | 2.59 | 3.65 |
+
+We can see that for the PUM1 dataset, 29.88 % of DEWSeq peak regions contain >= 1 PUM1 motif hit (CLIPper IDR 13.08 %). We can also see that the number of motif hits over 1,000 nt called peak region size is higher for DEWSeq (3.65 vs. 3.03).
+
+As any given genomic motif hit can either be found only by one method, or be identified by any set (>=2) of methods, it makes sense to visualize this information as a Venn diagram. 
+In the `PUM1` example, the produced Venn diagram looks like this:
 
 
+<img src="docs/venn_diagram.method_comp.k562_eclip,human_v0.1,PUM1.png" alt="PUM1 example Venn diagram"
+	title="PUM1 example Venn diagram" width="550" />
 
+**Fig. 1**: Venn diagram of motif hits by peak calling methods CLIPper IDR and DEWSeq (PUM1 eCLIP K562 data). 
+Motif hit numbers and percentages of total motif hits are shown for each region (method exclusive and intersection).
+
+We can see that the overlap is not particularly high for the PUM1 dataset. In contrast, the overlap is higher for the `PUM2` dataset:
+
+<img src="docs/venn_diagram.method_comp.k562_eclip,human_v0.1,PUM2.png" alt="PUM2 example Venn diagram"
+	title="PUM2 example Venn diagram" width="550" />
+
+**Fig. 1**: Venn diagram of motif hits by peak calling methods CLIPper IDR and DEWSeq (PUM2 eCLIP K562 data). 
+Motif hit numbers and percentages of total motif hits are shown for each region (method exclusive and intersection).
 
 
 #### Comparing CLIP-seq datasets
