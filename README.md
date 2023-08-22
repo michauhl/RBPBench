@@ -435,7 +435,7 @@ In the `PUM1` example, the produced Venn diagram looks like this:
 
 
 <img src="docs/venn_diagram.method_comp.k562_eclip,human_v0.1,PUM1.png" alt="PUM1 example Venn diagram"
-	title="PUM1 example Venn diagram" width="550" />
+	title="PUM1 example Venn diagram" width="600" />
 
 **Fig. 1**: Venn diagram of motif hits by peak calling methods CLIPper IDR and DEWSeq (PUM1 eCLIP K562 data). 
 Motif hit numbers and percentages of total motif hits are shown for each region (method exclusive and intersection).
@@ -443,9 +443,9 @@ Motif hit numbers and percentages of total motif hits are shown for each region 
 We can see that the overlap is not particularly high for the PUM1 dataset. In contrast, the overlap is higher for the `PUM2` dataset:
 
 <img src="docs/venn_diagram.method_comp.k562_eclip,human_v0.1,PUM2.png" alt="PUM2 example Venn diagram"
-	title="PUM2 example Venn diagram" width="550" />
+	title="PUM2 example Venn diagram" width="600" />
 
-**Fig. 1**: Venn diagram of motif hits by peak calling methods CLIPper IDR and DEWSeq (PUM2 eCLIP K562 data). 
+**Fig. 2**: Venn diagram of motif hits by peak calling methods CLIPper IDR and DEWSeq (PUM2 eCLIP K562 data). 
 Motif hit numbers and percentages of total motif hits are shown for each region (method exclusive and intersection).
 
 
@@ -463,12 +463,28 @@ Can also be combined with peak caller comparisons
 
 #### Plot nucleotide distribution around genomic positions
 
-To plot the nucleotide distribution around genomic positions, we can use 
-`rbpbench dist`:
+We can use `rbpbench dist` to plot the nucleotide distribution around genomic positions.
+This can be used e.g. to check for potential nucleotide biases at CLIP-seq crosslink positions.
+For illustration, we use genomic stop codon positions obtained from [ENSEMBL transcript
+annotations](https://www.ensembl.org/info/data/ftp/index.html):
 
 ```
-
+rbpbench dist --in start_codons.Homo_sapiens.GRCh38.110.bed --genome hg38.fa --out test_dist_out --ext 5
 ```
+
+By default the upstream start position of the genomic input regions is used as 
+position zero in the plot (change with `--cp-mode` option). Amount of up- and 
+downstream context added is defined by `--ext`. 
+The generated plot (`test_dist_out/nt_dist_zero_pos.png`) looks the following:
+
+<img src="docs/nt_dist_zero_pos.stop_codons.png" alt="Nucleotide distribution at stop codons"
+	title="Nucleotide distribution at stop codons" width="500" />
+
+**Fig. 3**: Nucleotide distribution at genomic stop codon positions (human transcript annotations, ENSEMBL GRCh38 release 110).
+
+We can clearly identify the known stop codon triplett sequences (in DNA: TAA, TAG, TGA), starting 
+at position 0.
+
 
 
 ## Manual
