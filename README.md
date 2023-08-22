@@ -469,18 +469,18 @@ For illustration, we use genomic stop codon positions obtained from [ENSEMBL tra
 annotations](https://www.ensembl.org/info/data/ftp/index.html):
 
 ```
-rbpbench dist --in start_codons.Homo_sapiens.GRCh38.110.bed --genome hg38.fa --out test_dist_out --ext 5
+rbpbench dist --in stop_codons.Homo_sapiens.GRCh38.110.bed --genome hg38.fa --out test_dist_out --ext 5
 ```
 
 By default the upstream start position of the genomic input regions is used as 
-position zero in the plot (change with `--cp-mode` option). Amount of up- and 
+position zero in the plot (change with `--cp-mode` option). The amount of up- and 
 downstream context added is defined by `--ext`. 
 The generated plot (`test_dist_out/nt_dist_zero_pos.png`) looks the following:
 
 <img src="docs/nt_dist_zero_pos.stop_codons.png" alt="Nucleotide distribution at stop codons"
 	title="Nucleotide distribution at stop codons" width="500" />
 
-**Fig. 3**: Nucleotide distribution at genomic stop codon positions (human transcript annotations, ENSEMBL GRCh38 release 110).
+**Fig. 3**: Nucleotide distribution (position probability matrix) at genomic stop codon positions (human transcript annotations, ENSEMBL GRCh38 release 110).
 
 We can clearly identify the known stop codon triplett sequences (in DNA: TAA, TAG, TGA), starting 
 at position 0.
