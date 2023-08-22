@@ -241,15 +241,16 @@ We can see that PUM1 binding regions with motif hits have significantly higher s
 (Wilcoxon p-value = 0.00175), and that PUM1 and PUM2 have a significant co-occurrence 
 p-value (Fisher's exact test) of 2.48116e-31. In contrast, RBFOX2 co-occurrence p-values
 with PUM1 or PUM2 are not significant (0.15234, 0.52303). 
-The produced co-occurrence heat map in the report will look the following:
+The produced co-occurrence heat map in the report looks the following:
 
 <img src="docs/co-occurrence_heat_map_example.png" alt="Co-occurrence heat map example screenshot"
 	title="Co-occurrence heat map example screenshot" width="500" />
 
-**Fig. 1**: Co-occurrence heat map from `report.rbpbench_search.html`, for the above example (static screenshot, cursor over PUM1-PUM2 pair to get their co-occurrence information). Coloring/scale values are -log10 of Fisher's exact test value.
+**Fig. 1**: Co-occurrence heat map from `report.rbpbench_search.html`, for the above example (static screenshot, cursor over PUM1-PUM2 RBP pair to get their co-occurrence information). Coloring/scale values are -log10 of Fisher's exact test p-value.
 
-We can see that the interactive co-occurrence heat map gives us the following information each RBP pair: 
-RBP pair IDs, Fisher's exact test p-value (calculated based on contingency table between RBP1 and RBP2), contingency table counts between RBP1 and RBP2, -log10 of Fisher's exact test value (coloring/scale value). The contingency table counts are the numbers of input genomic regions with/without shared motif hits between the compaired RBPs, with the format: [[A, B], [C, D]], where A: RBP1 AND RBP2, B: NOT RBP1 AND RBP2 C: RBP1 AND NOT RBP2 D: NOT RBP1 AND NOT RBP2
+We can see that the interactive co-occurrence heat map gives us the following information for each RBP pair: 
+RBP pair IDs, Fisher's exact test p-value (calculated based on contingency table between RBP1 and RBP2), contingency table counts between RBP1 and RBP2, -log10 of Fisher's exact test p-value (used as coloring/scale value). 
+The contingency table counts are the numbers of input genomic regions with/without shared motif hits between the compaired RBPs, with the format: [[A, B], [C, D]], where A: RBP1 AND RBP2, B: NOT RBP1 AND RBP2 C: RBP1 AND NOT RBP2 D: NOT RBP1 AND NOT RBP2
 
 Similarly, we can output an HTML report (`motif_plots.rbpbench_search.html`) including the used sequence logos and motif hit statistics (`--plot-motifs`):
 
@@ -451,7 +452,7 @@ In the `PUM1` example, the produced Venn diagram looks like this:
 <img src="docs/venn_diagram.method_comp.k562_eclip,human_v0.1,PUM1.png" alt="PUM1 example Venn diagram"
 	title="PUM1 example Venn diagram" width="600" />
 
-**Fig. 1**: Venn diagram of motif hits by peak calling methods CLIPper IDR and DEWSeq (PUM1 eCLIP K562 data). 
+**Fig. 2**: Venn diagram of motif hits by peak calling methods CLIPper IDR and DEWSeq (PUM1 eCLIP K562 data). 
 Motif hit numbers and percentages of total motif hits are shown for each region (method exclusive and intersection).
 
 We can see that the overlap is not particularly high for the PUM1 dataset. In contrast, the overlap is higher for the `PUM2` dataset:
@@ -459,7 +460,7 @@ We can see that the overlap is not particularly high for the PUM1 dataset. In co
 <img src="docs/venn_diagram.method_comp.k562_eclip,human_v0.1,PUM2.png" alt="PUM2 example Venn diagram"
 	title="PUM2 example Venn diagram" width="600" />
 
-**Fig. 2**: Venn diagram of motif hits by peak calling methods CLIPper IDR and DEWSeq (PUM2 eCLIP K562 data). 
+**Fig. 3**: Venn diagram of motif hits by peak calling methods CLIPper IDR and DEWSeq (PUM2 eCLIP K562 data). 
 Motif hit numbers and percentages of total motif hits are shown for each region (method exclusive and intersection).
 
 
@@ -494,7 +495,7 @@ The generated plot (`test_dist_out/nt_dist_zero_pos.png`) looks the following:
 <img src="docs/nt_dist_zero_pos.stop_codons.png" alt="Nucleotide distribution at stop codons"
 	title="Nucleotide distribution at stop codons" width="500" />
 
-**Fig. 3**: Nucleotide distribution (position probability matrix) at genomic stop codon positions (human transcript annotations, ENSEMBL GRCh38 release 110).
+**Fig. 4**: Nucleotide distribution (position probability matrix) at genomic stop codon positions (human transcript annotations, ENSEMBL GRCh38 release 110).
 
 We can clearly identify the known stop codon triplet sequences (in DNA: TAA, TAG, TGA), starting 
 at position 0.
