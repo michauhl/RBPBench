@@ -20,8 +20,13 @@ purposes, from RBP motif search (database or user-supplied RBPs) in genomic regi
         - [User-provided motif search](#user-provided-motif-search)
         - [Unstranded motif search](#unstranded-motif-search)
     - [Batch-processing multiple datasets](#batch-processing-multiple-datasets)
+        - [Multiple BED input files](#multiple-bed-input-files)
+        - [Adding more information for comparisons](#adding-more-information-for-comparisons)
     - [Comparisons between search results](#comparisons-between-search-results)
-
+        - [Comparing peak callers](#comparing-peak-callers)
+        - [Comparing CLIP-seq datasets](#comparing-clip-seq-datasets)
+    - [Additional functions](#additional-functions)
+        - [Plot nucleotide distribution at genomic positions](#plot-nucleotide-distribution-at-genomic-positions)
 
 
 ## Introduction
@@ -461,9 +466,9 @@ Can also be combined with peak caller comparisons
 
 ### Additional functions
 
-#### Plot nucleotide distribution around genomic positions
+#### Plot nucleotide distribution at genomic positions
 
-We can use `rbpbench dist` to plot the nucleotide distribution around genomic positions.
+We can use `rbpbench dist` to plot the nucleotide distribution at genomic positions.
 This can be used e.g. to check for potential nucleotide biases at CLIP-seq crosslink positions.
 For illustration, we use genomic stop codon positions obtained from [ENSEMBL transcript
 annotations](https://www.ensembl.org/info/data/ftp/index.html):
@@ -482,7 +487,7 @@ The generated plot (`test_dist_out/nt_dist_zero_pos.png`) looks the following:
 
 **Fig. 3**: Nucleotide distribution (position probability matrix) at genomic stop codon positions (human transcript annotations, ENSEMBL GRCh38 release 110).
 
-We can clearly identify the known stop codon triplett sequences (in DNA: TAA, TAG, TGA), starting 
+We can clearly identify the known stop codon triplet sequences (in DNA: TAA, TAG, TGA), starting 
 at position 0.
 
 
