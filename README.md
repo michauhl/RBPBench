@@ -244,7 +244,7 @@ with PUM1 or PUM2 are not significant (0.15234, 0.52303).
 The produced co-occurrence heat map in the report will look the following:
 
 <img src="docs/co-occurrence_heat_map_example.png" alt="Co-occurrence heat map example screenshot"
-	title="Co-occurrence heat map example screenshot" width="600" />
+	title="Co-occurrence heat map example screenshot" width="500" />
 
 **Fig. 1**: Co-occurrence heat map from `report.rbpbench_search.html`, for the above example (static screenshot, cursor over PUM1-PUM2 pair to get their co-occurrence information). Coloring/scale values are -log10 of Fisher's exact test value.
 
