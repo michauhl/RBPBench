@@ -240,7 +240,16 @@ enrichment statistics, as well as the interactive RBP co-occurrences and correla
 We can see that PUM1 binding regions with motif hits have significantly higher scores 
 (Wilcoxon p-value = 0.00175), and that PUM1 and PUM2 have a significant co-occurrence 
 p-value (Fisher's exact test) of 2.48116e-31. In contrast, RBFOX2 co-occurrence p-values
-with PUM1 or PUM2 are not significant (0.15234, 0.52303).
+with PUM1 or PUM2 are not significant (0.15234, 0.52303). 
+The produced co-occurrence heat map in the report will look the following:
+
+<img src="docs/co-occurrence_heat_map_example.png" alt="Co-occurrence heat map example screenshot"
+	title="Co-occurrence heat map example screenshot" width="600" />
+
+**Fig. 1**: Co-occurrence heat map from `report.rbpbench_search.html`, for the above example (static screenshot, cursor over PUM1-PUM2 pair to get their co-occurrence information). Coloring/scale values are -log10 of Fisher's exact test value.
+
+We can see that the interactive co-occurrence heat map gives us the following information each RBP pair: 
+RBP pair IDs, Fisher's exact test p-value (calculated based on contingency table between RBP1 and RBP2), contingency table counts between RBP1 and RBP2, -log10 of Fisher's exact test value (coloring/scale value). The contingency table counts are the numbers of input genomic regions with/without shared motif hits between the compaired RBPs, with the format: [[A, B], [C, D]], where A: RBP1 AND RBP2, B: NOT RBP1 AND RBP2 C: RBP1 AND NOT RBP2 D: NOT RBP1 AND NOT RBP2
 
 Similarly, we can output an HTML report (`motif_plots.rbpbench_search.html`) including the used sequence logos and motif hit statistics (`--plot-motifs`):
 
@@ -679,18 +688,14 @@ The motif hit statistics file `motif_hit_stats.tsv` contains the following colum
 | cms_eval | cmsearch e-value (for structure motif hits) |
 | internal_id | Internal ID (unique for each rbp_id run), used for connecting table results  | 
 
-
-
-
-ALAMO
 										
 #### HTML reports
 
 HTML reports containing additional statistics and plots are available in search and 
-compare mode (`rbpbench search`, `rbpbench compare`).
-
-
-`rbpbench search` and `rbpbench compare`. In search
+compare mode (`rbpbench search`, `rbpbench compare`). Contents of the `rbpbench compare` 
+HTML report are described [here](#comparing-peak-callers). In `rbpbench search`, 
+two HTML report files can be generated (`--report` and `--plot-motifs`). Their contents
+are described in the example section [above](#search-with-multiple-rbps).
 
 
 ### Troubleshooting

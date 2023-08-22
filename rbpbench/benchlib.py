@@ -1955,8 +1955,6 @@ def search_generate_html_report(df_corr, df_pval, pval_cont_lll,
     Create additional hit statistics for selected RBPs, 
     e.g. correlation / co-occurrence between RBPs.
 
-    ALAMO
-
     """
     plots_folder = plots_subfolder
     plots_out_folder = out_folder + "/" + plots_folder
@@ -2029,7 +2027,12 @@ input genomic regions are all the same, p-values become meaningless (i.e., they 
         c_uniq_motif_hits = search_rbps_dic[rbp_id].c_uniq_motif_hits
         mdtext += "| %s | %i | %.2f | %i | %s |\n" %(rbp_id, c_hit_reg, perc_hit_reg, c_uniq_motif_hits, str(wc_pval))
     mdtext += "\n&nbsp;\n&nbsp;\n"
-
+    mdtext += "\nColumn IDs have the following meanings: "
+    mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
+    mdtext += '**# hit regions** -> number of input genomic regions with motif hits (after filtering and optional extension), '
+    mdtext += '**% hit regions** -> percentage of hit regions over all regions (i.e. how many input regions contain >= 1 RBP binding motif), '
+    mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
+    mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
 
     """
     Co-occurrence heat map.
@@ -2445,6 +2448,11 @@ by RBPBench (rbpbench search --plot-motifs):
             motif_db = motif2db_dic[motif_id]
             mdtext += "| %s | %s | %s | %i |\n" %(rbp_id, motif_id, motif_db, c_motif_hits)
     mdtext += "\n&nbsp;\n&nbsp;\n"
+    mdtext += "\nColumn IDs have the following meanings: "
+    mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
+    mdtext += "**Motif ID** -> Motif ID from database or user-defined, "
+    mdtext += "**Motif database** -> Motif database used for search run, "
+    mdtext += '**# motif hits** -> number of individual motif hits (i.e., hits for motif with motif ID).' + "\n"
 
     """
     Motif plots.
