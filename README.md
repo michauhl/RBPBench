@@ -25,6 +25,7 @@ purposes, from RBP motif search (database or user-supplied RBPs) in genomic regi
     - [Comparisons between search results](#comparisons-between-search-results)
         - [Comparing peak callers](#comparing-peak-callers)
         - [Comparing CLIP-seq datasets](#comparing-clip-seq-datasets)
+        - [Comparing multiple results](#comparing-multiple-results)
     - [Additional functions](#additional-functions)
         - [Plot nucleotide distribution at genomic positions](#plot-nucleotide-distribution-at-genomic-positions)
 
@@ -466,12 +467,64 @@ Motif hit numbers and percentages of total motif hits are shown for each region 
 
 #### Comparing CLIP-seq datasets
 
-Comparing CLIP-seq datasets
+Besides comparing peak callers, we can also do other comparisons, based on the set 
+data IDs during search (`--data-id`). For example, we can compare peak regions 
+called with the same peak caller on two different cell lines. For this we first 
+download the eCLIP peak regions called by CLIPper IDR (RBP: RBFOX2, cell lines: K562, HepG2):
+
+```
+wget https://www.encodeproject.org/files/ENCFF206RIM/@@download/ENCFF206RIM.bed.gz
+gunzip -c ENCFF206RIM.bed.gz | awk '{print $1"\t"$2"\t"$3"\t"$4"\t"$7"\t"$6}' > RBFOX2_K562_IDR_peaks.bed
+wget https://www.encodeproject.org/files/ENCFF871NYM/@@download/ENCFF871NYM.bed.gz
+gunzip -c ENCFF871NYM.bed.gz | awk '{print $1"\t"$2"\t"$3"\t"$4"\t"$7"\t"$6}' > RBFOX2_HepG2_IDR_peaks.bed
+```
+Next we search for motifs in both using `rbpbench batch`:
+
+```
+rbpbench batch --bed RBFOX2_HepG2_IDR_peaks.bed RBFOX2_K562_IDR_peaks.bed --genome hg38.fa --rbp-list RBFOX2 RBFOX2 --data-list k562_eclip hegp2_eclip --method-id clipper_idr --out rbfox2_clipper_idr_batch_out
+```
+
+And for the comparison:
+
+```
+rbpbench compare --in rbfox2_clipper_idr_batch_out --out rbfox2_clipper_idr_compare_out
+```
+
+This gives us one dataset comparison (RBP: RBFOX2, data IDs `k562_eclip` and `hegp2_eclip`), 
+with the resulting table:
+
+| Data ID | # regions | # motif hits | % regions with motifs | % motif nucleotides | # motif hits per 1000 nt |
+|:--------------:|:--------------:|:--------------:|:--------------:|:--------------:|:--------------:|
+| k562_eclip | 7477 | 7706 | 41.65 | 4.32 | 14.48 |
+| hegp2_eclip | 3525 | 2594 | 29.33 | 2.93 | 9.81 |
+
+We can see that the eCLIP data from K562 cell line in general contains more motif hits (absolute and percentages), 
+which can hint at the quality of the experimental data.
+
+Moreover, looking at motif hit intersections between the two datasets, 
+the produced Venn diagram looks the following:
 
 
-Can also be combined with peak caller comparisons
+<img src="docs/venn_diagram.data_comp.clipper_idr,human_v0.1,RBFOX2.png" alt="RBFOX2 example Venn diagram"
+	title="RBFOX2 example Venn diagram" width="600" />
+
+**Fig. 2**: Venn diagram of motif hits for RBFOX2 in two cell lines HepG2 and K562 (peak calling method CLIPper IDR).
+Motif hit numbers and percentages of total motif hits are shown for each region (method exclusive and intersection).
 
 
+
+
+
+
+#### Comparing multiple results
+
+Any number of `rbpbench search` or `rbpbench batch` output folders can be input 
+at the same time to `rbpbench compare`, creating one report (using the found data IDs 
+and method IDs to define comparisons):
+
+```
+rbpbench compare --in rbfox2_clipper_batch_out/ batch_clipper_idr_out/ batch_dewseq_out/ --out compare_merged_out
+```
 
 
 ### Additional functions
