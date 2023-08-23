@@ -498,18 +498,20 @@ with the resulting table:
 | k562_eclip | 7477 | 7706 | 41.65 | 4.32 | 14.48 |
 | hegp2_eclip | 3525 | 2594 | 29.33 | 2.93 | 9.81 |
 
-We can see that the eCLIP data from K562 cell line in general contains more motif hits (absolute and percentages), 
+We can see that the eCLIP data from the K562 cell line in general contains more 
+motif hits (absolute and percentage-wise), 
 which can hint at the quality of the experimental data.
 
-Moreover, looking at motif hit intersections between the two datasets, 
+Moreover, looking at motif hits common between or exclusive to one of the two datasets, 
 the produced Venn diagram looks the following:
 
 
 <img src="docs/venn_diagram.data_comp.clipper_idr,human_v0.1,RBFOX2.png" alt="RBFOX2 example Venn diagram"
 	title="RBFOX2 example Venn diagram" width="600" />
 
-**Fig. 2**: Venn diagram of motif hits for RBFOX2 in two cell lines HepG2 and K562 (peak calling method CLIPper IDR).
+**Fig. 4**: Venn diagram of motif hits for RBFOX2 in two cell lines HepG2 and K562 (peak calling method CLIPper IDR).
 Motif hit numbers and percentages of total motif hits are shown for each region (method exclusive and intersection).
+
 
 
 
@@ -519,8 +521,8 @@ Motif hit numbers and percentages of total motif hits are shown for each region 
 #### Comparing multiple results
 
 Any number of `rbpbench search` or `rbpbench batch` output folders can be input 
-at the same time to `rbpbench compare`, creating one report (using the found data IDs 
-and method IDs to define comparisons):
+at the same time to `rbpbench compare`, creating one combined report (using the found data IDs 
+and method IDs to define data and/or method comparisons):
 
 ```
 rbpbench compare --in rbfox2_clipper_batch_out/ batch_clipper_idr_out/ batch_dewseq_out/ --out compare_merged_out
@@ -548,7 +550,7 @@ The generated plot (`test_dist_out/nt_dist_zero_pos.png`) looks the following:
 <img src="docs/nt_dist_zero_pos.stop_codons.png" alt="Nucleotide distribution at stop codons"
 	title="Nucleotide distribution at stop codons" width="500" />
 
-**Fig. 4**: Nucleotide distribution (position probability matrix) at genomic stop codon positions (human transcript annotations, ENSEMBL GRCh38 release 110).
+**Fig. 5**: Nucleotide distribution (position probability matrix) at genomic stop codon positions (human transcript annotations, ENSEMBL GRCh38 release 110).
 
 We can clearly identify the known stop codon triplet sequences (in DNA: TAA, TAG, TGA), starting 
 at position 0.

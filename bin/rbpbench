@@ -3515,7 +3515,8 @@ def main_compare(args):
         if type == "rbp_stats":
             benchlib.read_in_rbp_stats(in_file, rbp_stats_dic=rbp_stats_dic)
         elif type == "motif_stats":
-            benchlib.read_in_motif_stats(in_file, motif_stats_dic=motif_stats_dic)
+            benchlib.read_in_motif_stats(in_file, motif_stats_dic=motif_stats_dic,
+                                         store_uniq_only=True)
         else:
             assert False, "invalid --in file encountered (%s). Please provide valid rbpbench search/batch output folder or RBP/motif stats files" %(in_file)
 
@@ -3667,6 +3668,160 @@ def main_compare(args):
 
 
     """
+    Output comparison stats.
+
+    """
+
+    comp_stats_tsv_out = args.out_folder + "/" + "comparison_stats.rbpbench_compare.tsv"
+    motif_hits_tsv_out = args.out_folder + "/" + "motif_hits.rbpbench_compare.tsv"
+
+    OUTCS = open(comp_stats_tsv_out, "w")
+    outcs_header = "combined_id\tmethod_id\tdata_id\tmotif_db\trbp_id\tc_regions\tc_uniq_motif_hits\t"
+    outcs_header += "perc_reg_with_hits\tperc_uniq_motif_nts_eff_reg\tuniq_motif_hits_cal_1000nt\n"
+    OUTCS.write(outcs_header)
+
+    # Method ID comparisons.
+    for comp_id, method_dic in sorted(compare_methods_dic.items()):
+        if len(method_dic) < 2:
+            continue
+        for method_id in method_dic:
+            int_id = compare_methods_dic[comp_id][method_id]
+            data_id = rbp_stats_dic[int_id].data_id
+            rbp_id = rbp_stats_dic[int_id].rbp_id
+            motif_db = rbp_stats_dic[int_id].motif_db
+            c_regions = rbp_stats_dic[int_id].c_regions
+            c_uniq_motif_hits = rbp_stats_dic[int_id].c_uniq_motif_hits
+            perc_reg_with_hits = rbp_stats_dic[int_id].perc_reg_with_hits
+            perc_uniq_motif_nts_eff_reg = rbp_stats_dic[int_id].perc_uniq_motif_nts_eff_reg
+            uniq_motif_hits_cal_1000nt = rbp_stats_dic[int_id].uniq_motif_hits_cal_1000nt
+            outcs_line = comp_id + "\t"
+            outcs_line += method_id + "\t"
+            outcs_line += data_id + "\t"
+            outcs_line += motif_db + "\t"
+            outcs_line += rbp_id + "\t"
+            outcs_line += str(c_regions) + "\t"
+            outcs_line += str(c_uniq_motif_hits) + "\t"
+            outcs_line += str(perc_reg_with_hits) + "\t"
+            outcs_line += str(perc_uniq_motif_nts_eff_reg) + "\t"
+            outcs_line += str(uniq_motif_hits_cal_1000nt) + "\n"
+            OUTCS.write(outcs_line)
+
+    # Data ID comparisons.
+    for comp_id, data_dic in sorted(compare_datasets_dic.items()):
+        if len(data_dic) < 2:
+            continue
+        for data_id in data_dic:
+            int_id = compare_datasets_dic[comp_id][data_id]
+            method_id = rbp_stats_dic[int_id].method_id
+            rbp_id = rbp_stats_dic[int_id].rbp_id
+            motif_db = rbp_stats_dic[int_id].motif_db
+            c_regions = rbp_stats_dic[int_id].c_regions
+            c_uniq_motif_hits = rbp_stats_dic[int_id].c_uniq_motif_hits
+            perc_reg_with_hits = rbp_stats_dic[int_id].perc_reg_with_hits
+            perc_uniq_motif_nts_eff_reg = rbp_stats_dic[int_id].perc_uniq_motif_nts_eff_reg
+            uniq_motif_hits_cal_1000nt = rbp_stats_dic[int_id].uniq_motif_hits_cal_1000nt
+            outcs_line = comp_id + "\t"
+            outcs_line += method_id + "\t"
+            outcs_line += data_id + "\t"
+            outcs_line += motif_db + "\t"
+            outcs_line += rbp_id + "\t"
+            outcs_line += str(c_regions) + "\t"
+            outcs_line += str(c_uniq_motif_hits) + "\t"
+            outcs_line += str(perc_reg_with_hits) + "\t"
+            outcs_line += str(perc_uniq_motif_nts_eff_reg) + "\t"
+            outcs_line += str(uniq_motif_hits_cal_1000nt) + "\n"
+            OUTCS.write(outcs_line)
+
+    OUTCS.close()
+
+
+    """
+    Output motif intersection stats (used for Venn diagrams).
+
+    """
+
+    OUTMH = open(motif_hits_tsv_out, "w")
+    outmh_header = "combined_id\tmotif_hit_id\tmethod_data_ids_with_hit\n"
+    OUTMH.write(outmh_header)
+
+    # Method ID comparisons.
+    for comp_id, method_dic in sorted(compare_methods_dic.items()):
+        if len(method_dic) < 2:
+            continue
+        int_ids = []
+        method_ids = []
+        for method_id, int_id in sorted(method_dic.items()):
+            int_ids.append(int_id)
+            method_ids.append(method_id)
+
+        # Motif Hit ID (chr_id:gen_s-gen_e(strand),motif_id) to method IDs sporting this hit.
+        hid2mids_dic = {}
+        mid2c_dic = {}
+
+        for idx, int_id in enumerate(int_ids):
+            mid = method_ids[idx]
+            for motif_stats in motif_stats_dic[int_id]:  # motif_stats instance of MotifStats object.
+                hid = motif_stats.hit_id
+                if hid in hid2mids_dic:
+                    hid2mids_dic[hid].append(mid)
+                else:
+                    hid2mids_dic[hid] = [mid]
+                if mid in mid2c_dic:
+                    mid2c_dic[mid] += 1
+                else:
+                    mid2c_dic[mid] = 1
+
+        # print("Comparison:", comp_id)
+        # print("Method ID motif hit counts:")
+        # for mid in mid2c_dic:
+        #     print(mid, mid2c_dic[mid])
+
+
+        for hid in hid2mids_dic:
+            mids_str = ",".join(hid2mids_dic[hid])
+            OUTMH.write("%s\t%s\t%s\n" %(comp_id, hid, mids_str))
+
+
+    # Data ID comparisons.
+    for comp_id, data_dic in sorted(compare_datasets_dic.items()):
+        if len(data_dic) < 2:
+            continue
+        int_ids = []
+        data_ids = []
+        for data_id, int_id in sorted(data_dic.items()):
+            int_ids.append(int_id)
+            data_ids.append(data_id)
+
+        # Motif Hit ID (chr_id:gen_s-gen_e(strand),motif_id) to data IDs sporting this hit.
+        hid2dids_dic = {}
+        did2c_dic = {}
+
+        for idx, int_id in enumerate(int_ids):
+            did = data_ids[idx]
+            for motif_stats in motif_stats_dic[int_id]:
+                hid = motif_stats.hit_id
+                if hid in hid2dids_dic:
+                    hid2dids_dic[hid].append(did)
+                else:
+                    hid2dids_dic[hid] = [did]
+                if did in did2c_dic:
+                    did2c_dic[did] += 1
+                else:
+                    did2c_dic[did] = 1
+
+        # print("Comparison:", comp_id)
+        # print("Data ID motif hit counts:")
+        # for did in did2c_dic:
+        #     print(did, did2c_dic[did])
+
+        for hid in hid2dids_dic:
+            dids_str = ",".join(hid2dids_dic[hid])
+            OUTMH.write("%s\t%s\t%s\n" %(comp_id, hid, dids_str))
+
+    OUTMH.close()
+
+
+    """
     Inform about outputs.
 
     """
@@ -3674,6 +3829,8 @@ def main_compare(args):
     print("OUTPUT FILES")
     print("============")
     print("")
+    print("Comparison stats .tsv:\n%s" %(comp_stats_tsv_out))
+    print("Motif hit stats .tsv:\n%s" %(motif_hits_tsv_out))
     print("Motif search comparison Report .html:\n%s" %(html_report_out))
     print("")
 

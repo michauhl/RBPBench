@@ -1274,15 +1274,22 @@ class MotifStats:
 ################################################################################
 
 def read_in_motif_stats(in_file,
-                        motif_stats_dic=None):
+                        motif_stats_dic=None,
+                        store_uniq_only=True):
     """
     Read in motif stats file into dictionary of MotifStats objects.
     Each object is one row of motif stats.
+
+    store_uniq_only:
+        Store unique genomic motif hits only (i.e. do not store same genomic hit 
+        twice if it appears in input file).
 
     """
 
     if motif_stats_dic is None:
         motif_stats_dic = {}
+    seen_int_hit_ids_dic = {}
+
     with open(in_file) as f:
         for line in f:
             cols = line.strip().split("\t")
@@ -1290,10 +1297,18 @@ def read_in_motif_stats(in_file,
             if internal_id == "internal_id":
                 continue
             hit_id = "%s:%s-%s(%s),%s" %(cols[7], cols[8], cols[9], cols[10], cols[6])
+            
+            int_hit_id = internal_id + "," + hit_id
+            if store_uniq_only:
+                if int_hit_id in seen_int_hit_ids_dic:
+                    continue
+                else:
+                    seen_int_hit_ids_dic[int_hit_id] = 1
+                
             motif_stats = MotifStats(hit_id, internal_id)
             motif_stats.region_id = cols[4]
             motif_stats.rbp_id = cols[5]
-            motif_stats.motif_id = cols[6]           
+            motif_stats.motif_id = cols[6]
             motif_stats.chr_id = cols[7]
             motif_stats.gen_s = cols[8]
             motif_stats.gen_e = cols[9]
