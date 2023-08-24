@@ -1431,11 +1431,18 @@ def main_search(args):
 
     """
 
+
+    # ALAMO
     OUTSTATS = open(motif_stats_out,"w")
 
     motif_stats_header = "data_id\tmethod_id\trun_id\tmotif_db\tregion_id\trbp_id\tmotif_id\tchr_id\tgen_s\tgen_e\tstrand\tregion_s\tregion_e\tregion_len\t"
     motif_stats_header += "uniq_count\tfimo_score\tfimo_pval\tcms_score\tcms_eval\tinternal_id\n"
     OUTSTATS.write(motif_stats_header)
+
+    # Unique motif regions BED.
+    motif_reg_dic = {}
+
+    # hit_id = "%s:%s-%s(%s),%s" %(cols[7], cols[8], cols[9], cols[10], cols[6])
 
     for fh in fimo_hits_list:
 
@@ -1457,6 +1464,14 @@ def main_search(args):
         motif_db_out = loaded_motif_ids_dic[fh.motif_id]
 
         internal_id = search_rbps_dic[rbp_id].internal_id
+
+        # Hit ID.
+        hit_id = "%s:%s-%s(%s),%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
+
+        # ALAMO
+        if hit_id not in motif_reg_dic:
+            bed_row = "%s\t%i\t%i\t%s,%s;%i\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, fh.strand, str(fh.score), str(fh.pval))
+            motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
         row_str += args.method_id + "\t"
