@@ -594,6 +594,8 @@ def main_search(args):
     motif_stats_out = args.out_folder + "/motif_hit_stats.tsv"
     con_res_out_tsv = args.out_folder + "/contingency_table_results.tsv"
     settings_file = args.out_folder + "/settings.find_motifs.out"
+    # Output unique motif hits.
+    motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_search.bed"
 
     # Temp files.
     # random_id = uuid.uuid1()
@@ -1431,8 +1433,6 @@ def main_search(args):
 
     """
 
-
-    # ALAMO
     OUTSTATS = open(motif_stats_out,"w")
 
     motif_stats_header = "data_id\tmethod_id\trun_id\tmotif_db\tregion_id\trbp_id\tmotif_id\tchr_id\tgen_s\tgen_e\tstrand\tregion_s\tregion_e\tregion_len\t"
@@ -1465,12 +1465,11 @@ def main_search(args):
 
         internal_id = search_rbps_dic[rbp_id].internal_id
 
-        # Hit ID.
-        hit_id = "%s:%s-%s(%s),%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
-
+        # Store motif hit as BED.
         # ALAMO
+        hit_id = "%s:%s-%s(%s),%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s,%s;%i\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, fh.strand, str(fh.score), str(fh.pval))
+            bed_row = "%s\t%i\t%i\t%s,%s;%i;%s,%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval))
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -1517,6 +1516,12 @@ def main_search(args):
 
         internal_id = search_rbps_dic[rbp_id].internal_id
 
+        # Store motif hit as BED.
+        hit_id = "%s:%s-%s(%s),%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
+        if hit_id not in motif_reg_dic:
+            bed_row = "%s\t%i\t%i\t%s,%s;%i;%s,%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.eval))
+            motif_reg_dic[hit_id] = bed_row
+
         row_str = args.data_id + "\t"
         row_str += args.method_id + "\t"
         row_str += run_id + "\t"
@@ -1544,6 +1549,16 @@ def main_search(args):
         OUTSTATS.write(row_str)
 
     OUTSTATS.close()
+
+    """
+    Output motif hits as BED.
+    """
+
+    OUTBED = open(motif_hits_bed_out,"w")
+    for hit_id in motif_reg_dic:
+        OUTBED.write("%s\n" %(motif_reg_dic[hit_id]))
+    OUTBED.close()
+
 
     """
     Significance testing:
@@ -1741,9 +1756,6 @@ def main_search(args):
         # fig.show()
 
 
-        # ALAMO: Make co-occurrence + correlation heat map plots (aka --report enabled).
-        #  
-
         html_report_out = args.out_folder + "/" + "report.rbpbench_search.html"
         plots_subfolder = "html_report_plots"
         benchlib_path = os.path.dirname(benchlib.__file__)
@@ -1890,6 +1902,7 @@ def main_search(args):
     print("")
     print("Run parameter settings:\n%s" %(settings_file))
     print("Co-occurrence p-values for  each RBP pair .tsv:\n%s" %(con_res_out_tsv))
+    print("Motif hits .bed:\n%s" %(motif_hits_bed_out))
     print("RBP hit stats .tsv:\n%s" %(rbp_stats_out))
     print("Motif hit stats .tsv:\n%s" %(motif_stats_out))
     if args.plot_motifs:
@@ -2105,6 +2118,9 @@ def main_batch(args):
     con_res_out_tsv = args.out_folder + "/contingency_table_results.tsv"
     settings_file = args.out_folder + "/settings.find_motifs.out"
 
+    # Output unique motif hits.
+    motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_batch.bed"
+
     # Temp files.
     # random_id = uuid.uuid1()
     # tmp_out_bed = args.out_folder + "/" + str(random_id) + ".filtered_in.bed"
@@ -2163,6 +2179,9 @@ def main_batch(args):
     OUTMTFSTATS.write(motif_stats_header)
 
     args.internal_id = []
+
+    # Unique motif regions BED.
+    motif_reg_dic = {}
 
     # Unstranded option.
     if args.unstranded:
@@ -2626,6 +2645,12 @@ def main_batch(args):
             fh_str = repr(fh) 
             uniq_count = unique_motifs_dic[fh_str]
 
+            # Store motif hit as BED.
+            hit_id = "%s:%s-%s(%s),%s;%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id, internal_id)
+            if hit_id not in motif_reg_dic:
+                bed_row = "%s\t%i\t%i\t%s,%s;%i;%s,%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, method_id, data_id, fh.strand, str(fh.score), str(fh.pval))
+                motif_reg_dic[hit_id] = bed_row
+
             row_str = data_id + "\t"
             row_str += method_id + "\t"
             row_str += run_id + "\t"
@@ -2657,8 +2682,14 @@ def main_batch(args):
             cmsh_str = repr(cmsh) 
             uniq_count = unique_motifs_dic[cmsh_str]
 
-            row_str = args.data_id + "\t"
-            row_str += args.method_id + "\t"
+            # Store motif hit as BED.
+            hit_id = "%s:%s-%s(%s),%s;%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id, internal_id)
+            if hit_id not in motif_reg_dic:
+                bed_row = "%s\t%i\t%i\t%s,%s;%i;%s,%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, cmsh.strand, method_id, data_id, str(cmsh.score), str(cmsh.eval))
+                motif_reg_dic[hit_id] = bed_row
+
+            row_str = data_id + "\t"
+            row_str += method_id + "\t"
             row_str += run_id + "\t"
             row_str += motif_db_str + "\t"
             row_str += region_id + "\t"
@@ -2682,6 +2713,12 @@ def main_batch(args):
 
     OUTRBPSTATS.close()
     OUTMTFSTATS.close()
+
+    OUTBED = open(motif_hits_bed_out,"w")
+    for hit_id in motif_reg_dic:
+        OUTBED.write("%s\n" %(motif_reg_dic[hit_id]))
+    OUTBED.close()
+
 
     """
     Output parameter settings.
@@ -2716,18 +2753,10 @@ def main_batch(args):
     print("============")
     print("")
     print("Run parameter settings:\n%s" %(settings_file))
+    print("Motif hits .bed:\n%s" %(motif_hits_bed_out))
     print("RBP hit stats .tsv:\n%s" %(rbp_stats_out))
     print("Motif hit stats .tsv:\n%s" %(motif_stats_out))
     print("")
-
-
-
-
-
-
-
-
-
 
 
 ################################################################################
@@ -3689,6 +3718,7 @@ def main_compare(args):
 
     comp_stats_tsv_out = args.out_folder + "/" + "comparison_stats.rbpbench_compare.tsv"
     motif_hits_tsv_out = args.out_folder + "/" + "motif_hits.rbpbench_compare.tsv"
+    motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_compare.bed"
 
     OUTCS = open(comp_stats_tsv_out, "w")
     outcs_header = "combined_id\tmethod_id\tdata_id\tmotif_db\trbp_id\tc_regions\tc_uniq_motif_hits\t"
@@ -3758,6 +3788,7 @@ def main_compare(args):
     OUTMH = open(motif_hits_tsv_out, "w")
     outmh_header = "combined_id\tmotif_hit_id\tmethod_data_ids_with_hit\n"
     OUTMH.write(outmh_header)
+    OUTBED = open(motif_hits_bed_out, "w")
 
     # Method ID comparisons.
     for comp_id, method_dic in sorted(compare_methods_dic.items()):
@@ -3795,7 +3826,9 @@ def main_compare(args):
         for hid in hid2mids_dic:
             mids_str = ",".join(hid2mids_dic[hid])
             OUTMH.write("%s\t%s\t%s\n" %(comp_id, hid, mids_str))
-
+            # Also store motif hit in BED format.
+            id_elem = benchlib.get_hit_id_elements(hid)
+            OUTBED.write("%s\t%s\t%s\t%s;%s;%s\t0\t\%s\n" %(id_elem[0], id_elem[1], id_elem[2], id_elem[4], comp_id, mids_str, id_elem[3]))
 
     # Data ID comparisons.
     for comp_id, data_dic in sorted(compare_datasets_dic.items()):
@@ -3832,9 +3865,12 @@ def main_compare(args):
         for hid in hid2dids_dic:
             dids_str = ",".join(hid2dids_dic[hid])
             OUTMH.write("%s\t%s\t%s\n" %(comp_id, hid, dids_str))
+            # Also store motif hit in BED format.
+            id_elem = benchlib.get_hit_id_elements(hid)
+            OUTBED.write("%s\t%s\t%s\t%s;%s;%s\t0\t\%s\n" %(id_elem[0], id_elem[1], id_elem[2], id_elem[4], comp_id, dids_str, id_elem[3]))
 
     OUTMH.close()
-
+    OUTBED.close()
 
     """
     Inform about outputs.
@@ -3846,6 +3882,7 @@ def main_compare(args):
     print("")
     print("Comparison stats .tsv:\n%s" %(comp_stats_tsv_out))
     print("Motif hit stats .tsv:\n%s" %(motif_hits_tsv_out))
+    print("Motif hit stats .bed:\n%s" %(motif_hits_bed_out))
     print("Motif search comparison Report .html:\n%s" %(html_report_out))
     print("")
 

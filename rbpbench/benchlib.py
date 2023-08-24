@@ -897,6 +897,32 @@ def reg_get_core_id(reg_id):
         assert False, "region ID has invalid format (%s). Please contact developers" %(reg_id)
 
 
+
+
+################################################################################
+
+def get_hit_id_elements(hit_id):
+    """
+    From  hit ID to ID elements list.
+
+    Hit ID format:
+    chr1:100-110(+),motif_id
+
+    >>> hit_id = "chr1:100-110(+),motif_id"
+    >>> get_hit_id_elements(hit_id)
+    ['chr1', '100', '110', '+', 'motif_id']
+    
+    """
+
+    if re.search("\w+:\d+-\d+\([+|-]\),\w+", hit_id):
+        m = re.search("(\w+):(\d+)-(\d+)\(([+|-])\),(.+)", hit_id)
+        id_elements = [m.group(1), m.group(2), m.group(3), m.group(4), m.group(5)]
+        return id_elements
+    else:
+        assert False, "hit ID has invalid format (%s). Please contact developers" %(hit_id)
+
+
+
 ################################################################################
 
 def get_center_position(start, end):
