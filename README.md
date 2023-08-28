@@ -786,12 +786,15 @@ To make this work you can also try the `mamba` or `micromamba` package manager (
 conda install -c conda-forge mamba
 # Install RBPBench via conda package.
 mamba create -n rbpbench -c conda-forge -c bioconda
+conda activate rbpbench
+rbpbench -h
 # Or via manual installation:
 mamba create -n rbpbench -c conda-forge -c bioconda logomaker markdown meme scipy plotly textdistance venn matplotlib-venn infernal bedtools
 conda activate rbpbench
 git clone https://github.com/michauhl/RBPBench.git
 cd RBPBench
 python -m pip install . --ignore-installed --no-deps -vv
+rbpbench -h
 
 # Or with micromamba:
 conda install -c conda-forge micromamba
