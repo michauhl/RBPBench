@@ -779,7 +779,7 @@ are described in the example section [above](#search-with-multiple-rbps).
 #### No FIMO hits
 
 This can e.g. happen if you have an old MEME version installed (v4). RBPBench was implemented using v5, so please install MEME v5 (e.g. 5.5.3). 
-To make this work you can also try the `mamba` or `micromamba` package manager (instead of `conda`), using the same syntax (first install then create environment):
+To make this work you can also try the `mamba` or `micromamba` package manager (instead of `conda`), using the same syntax:
 
 ```
 # Install mamba.
@@ -788,9 +788,12 @@ conda install -c conda-forge mamba
 mamba create -n rbpbench -c conda-forge -c bioconda
 # Or via manual installation:
 mamba create -n rbpbench -c conda-forge -c bioconda logomaker markdown meme scipy plotly textdistance venn matplotlib-venn infernal bedtools
+conda activate rbpbench
+git clone https://github.com/michauhl/RBPBench.git
+cd RBPBench
+python -m pip install . --ignore-installed --no-deps -vv
 
-# Same for micromamba:
+# Or with micromamba:
 conda install -c conda-forge micromamba
 micromamba create -n rbpbench -c conda-forge -c bioconda
-micromamba create -n rbpbench -c conda-forge -c bioconda logomaker markdown meme scipy plotly textdistance venn matplotlib-venn infernal bedtools
 ```
