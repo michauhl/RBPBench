@@ -761,6 +761,9 @@ The motif hit statistics file `motif_hit_stats.tsv` contains the following colum
 | cms_eval | cmsearch e-value (for structure motif hits) |
 | internal_id | Internal ID (unique for each rbp_id run), used for connecting table results  | 
 
+In addition, motif hits are also output in BED format (modes: `search`, `batch` and `compare`). 
+This together with the peak regions BED allows for quick studying of motif occurrences in a genome viewer (e.g. [IGV](https://software.broadinstitute.org/software/igv/)).
+
 										
 #### HTML reports
 
