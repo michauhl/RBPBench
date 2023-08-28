@@ -28,6 +28,16 @@ purposes, from RBP motif search (database or user-supplied RBPs) in genomic regi
         - [Comparing multiple results](#comparing-multiple-results)
     - [Additional functions](#additional-functions)
         - [Plot nucleotide distribution at genomic positions](#plot-nucleotide-distribution-at-genomic-positions)
+- [Manual](#manual)
+    - [Inputs](#inputs)
+        - [Genomic regions](#genomic-regions)
+        - [Genomic sequence](#genomic-sequence)
+    - [Handling genomic overlaps](#handling-genomic-overlaps)
+    - [Outputs](#outputs)
+        - [Hit statistics table files](#hit-statistics-table-files)
+        - [HTML reports](#html-reports)
+    - [Troubleshooting](#troubleshooting)
+        - [No FIMO hits](#no-fimo-hits)
 
 
 ## Introduction
@@ -511,10 +521,6 @@ the produced Venn diagram looks the following:
 
 **Fig. 4**: Venn diagram of motif hits for RBFOX2 in two cell lines HepG2 and K562 (peak calling method CLIPper IDR).
 Motif hit numbers and percentages of total motif hits are shown for each region (method exclusive and intersection).
-
-
-
-
 
 
 
