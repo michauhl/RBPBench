@@ -897,8 +897,6 @@ def reg_get_core_id(reg_id):
         assert False, "region ID has invalid format (%s). Please contact developers" %(reg_id)
 
 
-
-
 ################################################################################
 
 def get_hit_id_elements(hit_id):
@@ -920,7 +918,6 @@ def get_hit_id_elements(hit_id):
         return id_elements
     else:
         assert False, "hit ID has invalid format (%s). Please contact developers" %(hit_id)
-
 
 
 ################################################################################
