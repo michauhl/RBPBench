@@ -762,7 +762,7 @@ The motif hit statistics file `motif_hit_stats.tsv` contains the following colum
 | internal_id | Internal ID (unique for each rbp_id run), used for connecting table results  | 
 
 In addition, motif hits are also output in BED format (modes: `search`, `batch` and `compare`). 
-This together with the peak regions BED allows for quick studying of motif occurrences in a genome viewer (e.g. [IGV](https://software.broadinstitute.org/software/igv/)).
+This together with the peak regions BED allows for quick studying of motif occurrences in a genome viewer (e.g., [IGV](https://software.broadinstitute.org/software/igv/)).
 
 										
 #### HTML reports
@@ -778,5 +778,12 @@ are described in the example section [above](#search-with-multiple-rbps).
 
 #### No FIMO hits
 
-This can e.g. happen if you have an old MEME version installed (v4). RBPBench was implemented using v5, so please install MEME v5 (e.g. 5.5.3).
+This can e.g. happen if you have an old MEME version installed (v4). RBPBench was implemented using v5, so please install MEME v5 (e.g. 5.5.3). 
+To make this work you can also try the `mamba` or `micromamba` package manager (instead of `conda`), using the same syntax:
 
+```
+mamba create -n rbpbench -c conda-forge -c bioconda
+micromamba create -n rbpbench -c conda-forge -c bioconda
+mamba create -n rbpbench -c conda-forge -c bioconda logomaker markdown meme scipy plotly textdistance venn matplotlib-venn infernal bedtools
+micromamba create -n rbpbench -c conda-forge -c bioconda logomaker markdown meme scipy plotly textdistance venn matplotlib-venn infernal bedtools
+```
