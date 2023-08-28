@@ -1,6 +1,8 @@
 # RBPBench
-RBPBench is multi-function tool to evaluate CLIP-seq and other genomic region data using a comprehensive collection of known RBP binding motifs. RBPBench can be used for a variety of
-purposes, from RBP motif search (database or user-supplied RBPs) in genomic regions, over motif co-occurrence analysis, to benchmarking CLIP-seq peak caller methods. 
+RBPBench is multi-function tool to evaluate CLIP-seq and other genomic region data 
+using a comprehensive collection of known RBP binding motifs. RBPBench can be used for a variety of
+purposes, from RBP motif search (database or user-supplied RBPs) in genomic regions, over motif 
+co-occurrence analysis, to benchmarking CLIP-seq peak caller methods. 
 
 ## Table of contents
 
@@ -42,9 +44,18 @@ purposes, from RBP motif search (database or user-supplied RBPs) in genomic regi
 
 ## Introduction
 
-CLIP-seq is by far the most common wet-lab protocol to identify the RNA binding sites of an RNA-binding protein (RBP) on a transcriptome-wide scale. Various popular protocol variants exist, such as PAR-CLIP, iCLIP, or eCLIP. In order to identify the binding sites from the mapped CLIP-seq read data, tools termed peak callers are applied on the read data. Regions with enriched read numbers in the CLIP-seq libraries (i.e., peak regions), typically compared to one or more control libraries are subsequently defined as RBP binding sites. Various peak callers exist, applying various techniques in order to define the binding sites.
+[CLIP-seq](https://doi.org/10.1038/s43586-021-00018-1) is the by far most common experimental method to identify the RNA binding sites of an RNA-binding protein (RBP) on a transcriptome-wide scale. Various popular protocol variants exist, such as PAR-CLIP, iCLIP, or eCLIP. In order to identify the binding sites from the mapped CLIP-seq read data, tools termed peak callers are applied on the read data. Regions with enriched read numbers in the CLIP-seq libraries (i.e., peak regions), typically compared to one or more control libraries, are subsequently defined as RBP binding sites. Various peak callers exist, applying various techniques in order to define the binding sites.
 
-In order to quantify the performance of a peak caller, the enrichment of known RBP binding motifs in the binding site (or peak region) data can be used. However, there exists no automated tool for this yet. rbp-bench was implemented to fill this gap, providing easy installation, an easy-to-use interface, as well as a comprehensive motif database. rbp-bench is simply installed via conda, and a Galaxy wrapper is also available. Comprehensive statistics and informative plots allow for easy comparisons across multiple RBPs and peak callers.
+As no ground truth (i.e., set of true transcriptome-wide binding sites of an RBP) exists, one way to quantify the performance of a peak caller is to look for the enrichment of known RBP binding motifs in the binding site (or peak region) data. 
+Since there exists no automated solution for this task yet, we implemented RBPBench:
+RBPBench is multi-function tool to evaluate CLIP-seq and other genomic region data 
+using a comprehensive collection of known high-quality RBP binding motifs (current release: 259 RBPs comprising 605 motifs). 
+RBPBench can be used for benchmarking CLIP-seq peak callers, but it works just as well for other RBP related research questions:
+one can e.g. look for RBP binding motifs in any set of genomic regions (selecting any number of RBPs of interest, including user supplied motifs),
+or check for RBP motif co-occurrences (to see which RBPs bind similar regions).
+RBPBench is easy to use and freely available via conda (command line usage) or on Galaxy.
+Comprehensive statistics and informative plots allow for easy comparisons across multiple RBPs and peak callers.
+Last but not least, RBPBench comes with an extensive documentation, including many usage examples.
 
 
 ## Installation
