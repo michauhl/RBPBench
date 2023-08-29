@@ -657,7 +657,7 @@ def main_search(args):
                         c += 1
                         suggested_rbps.append(key)
                     suggested_rbps_str = ",".join(suggested_rbps)
-                    assert False, "provided --rbps ID %s not in internal motif database (%s). Please provide RBP name present in database (did you mean (any of) the following database ID(s) (top 10 hits based string similarity): %s ?)" %(rbp_id, motif_db_str, suggested_rbps_str)
+                    assert False, "provided --rbps ID %s not in internal motif database (%s). Please provide RBP name present in database. Did you mean (any of) the following database ID(s) (top 10 hits based on string similarity): %s ?" %(rbp_id, motif_db_str, suggested_rbps_str)
                 # assert rbp_id in name2ids_dic, "provided --rbps ID %s not in internal motif database. Please provide RBP name present in database" %(rbp_id)
                 loaded_rbps_dic[rbp_id] = motif_db_str
 
