@@ -629,6 +629,8 @@ about the current motif database content (numbers of RBPs and motifs).
 Finally, `rbpbench compare` is used to compare multiple search results (e.g. to 
 compare peak caller peformance, see examples [above](#comparisons-between-search-results)).
 
+To get a full list of parameters with descriptions available for each mode, use `-h`, 
+e.g. for the first mode `rbpbench search -h`.
 
 
 ### Inputs

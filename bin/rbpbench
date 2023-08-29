@@ -3732,7 +3732,7 @@ def main_compare(args):
             OUTMH.write("%s\t%s\t%s\n" %(comp_id, hid, mids_str))
             # Also store motif hit in BED format.
             id_elem = benchlib.get_hit_id_elements(hid)
-            OUTBED.write("%s\t%s\t%s\t%s;%s;%s\t0\t\%s\n" %(id_elem[0], id_elem[1], id_elem[2], id_elem[4], comp_id, mids_str, id_elem[3]))
+            OUTBED.write("%s\t%s\t%s\t%s;%s;%s\t0\t%s\n" %(id_elem[0], id_elem[1], id_elem[2], id_elem[4], comp_id, mids_str, id_elem[3]))
 
     # Data ID comparisons.
     for comp_id, data_dic in sorted(compare_datasets_dic.items()):
@@ -3771,7 +3771,7 @@ def main_compare(args):
             OUTMH.write("%s\t%s\t%s\n" %(comp_id, hid, dids_str))
             # Also store motif hit in BED format.
             id_elem = benchlib.get_hit_id_elements(hid)
-            OUTBED.write("%s\t%s\t%s\t%s;%s;%s\t0\t\%s\n" %(id_elem[0], id_elem[1], id_elem[2], id_elem[4], comp_id, dids_str, id_elem[3]))
+            OUTBED.write("%s\t%s\t%s\t%s;%s;%s\t0\t%s\n" %(id_elem[0], id_elem[1], id_elem[2], id_elem[4], comp_id, dids_str, id_elem[3]))
 
     OUTMH.close()
     OUTBED.close()
