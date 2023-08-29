@@ -30,7 +30,8 @@ co-occurrence analysis, to benchmarking CLIP-seq peak caller methods.
         - [Comparing multiple results](#comparing-multiple-results)
     - [Additional functions](#additional-functions)
         - [Plot nucleotide distribution at genomic positions](#plot-nucleotide-distribution-at-genomic-positions)
-- [Manual](#manual)
+- [Documentation](#documentation)
+    - [Program modes](#program-modes)
     - [Inputs](#inputs)
         - [Genomic regions](#genomic-regions)
         - [Genomic sequence](#genomic-sequence)
@@ -49,13 +50,13 @@ co-occurrence analysis, to benchmarking CLIP-seq peak caller methods.
 As no ground truth (i.e., set of true transcriptome-wide binding sites of an RBP) exists, one obvious way to quantify the performance of a peak caller is to look for the enrichment of known RBP binding motifs in the binding site (peak region) data. 
 Since there exists no automated solution for this task yet, we implemented RBPBench:
 RBPBench is multi-function tool to evaluate CLIP-seq and other genomic region data 
-using a comprehensive collection of known high-confidence RBP binding motifs (current release: 259 RBPs comprising 605 motifs). 
+using a comprehensive collection of known high-confidence RBP binding motifs (release v0.1: 259 RBPs comprising 605 motifs).
 RBPBench can be used for benchmarking CLIP-seq peak callers, but it works just as well for other RBP-related research questions:
 one can e.g. look for RBP binding motifs in any set of genomic regions (selecting any number of RBPs of interest, including user supplied motifs),
 and check for RBP motif co-occurrences (to see which RBPs bind similar regions).
 RBPBench is easy to use and freely available via conda (command line usage) or on Galaxy.
 Comprehensive statistics and informative plots allow for easy comparisons across multiple RBPs and peak callers.
-Last but not least, RBPBench comes with an extensive documentation, including many usage examples.
+Last but not least, RBPBench comes with an extensive manual, including many usage examples.
 
 
 ## Installation
@@ -179,7 +180,7 @@ SLBP_test_search_out/motif_hit_stats.tsv
 ```
 
 The first file (RBP hit stats) contains comprehensive hit statistics for each RBP 
-(one row per RBP, see manual below for column descriptions), 
+(one row per RBP, see documentation below for column descriptions), 
 while the motif hits stats file contains hit statistics for each single motif hit 
 (one row per motif hit). 
 We can see that out of the 161 input regions, 27 contain a motif hit.
@@ -207,7 +208,7 @@ each input RBP pair, and the co-occurrence information can also be plotted as an
 
 #### Additional search options
 
-There are a number of search options available (check out `rbpbench search -h` and manual below for full descriptions). 
+There are a number of search options available (check out `rbpbench search -h` and documentation below for full descriptions). 
 For example, we can extend the given genomic regions, and see how this affects the hit statistics:
 
 ```
@@ -574,10 +575,14 @@ at position 0.
 
 
 
-## Manual
+## Documentation
 
-RBPBench is a multi-function tool. To get an overview of the currently available 
-functions (or modes), we can type:
+This documentation provides further details on RBPBench (version 0.1).
+
+### Program modes
+
+RBPBench is a multi-function tool featuring several modes of operation. 
+To get an overview of the currently available modes:
 
 ```
 $ rbpbench -h
@@ -611,7 +616,6 @@ There are currently six modes available:
 
 
 ### Inputs
-
 
 
 #### Genomic regions
@@ -698,7 +702,7 @@ results_output_folder/motif_hit_stats.tsv
 ```
 
 The first file (RBP hit stats) contains comprehensive hit statistics for each RBP 
-(one row per RBP, see manual below for column descriptions), 
+(one row per RBP), 
 while the motif hits stats file contains hit statistics for each single motif hit 
 (one row per motif hit).
 
