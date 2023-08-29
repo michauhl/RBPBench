@@ -75,7 +75,7 @@ conda 23.7.2
 
 ### Conda package installation
 
-RBPBench is (soon) available as a Conda package, which makes installation a breeze. 
+RBPBench is available as a Conda package, which makes installation a breeze. 
 We simply create a Conda environment and install RBPBench inside the environment:
 
 ```
