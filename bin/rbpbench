@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-
 import argparse
 import base64
 import os
@@ -24,10 +23,6 @@ from rbpbench import benchlib
 __version__ = "0.1"
 
 
-"""
-
-
-"""
 
 ################################################################################
 
@@ -360,7 +355,6 @@ def setup_argument_parser():
                    help="List of extensions to test (e.g. --ext-list 0 10 20 30 40 50). Internally, all combinations will be tested")
 
 
-
     """
     Info mode.
     """
@@ -462,7 +456,6 @@ def specify_motif_db(motif_db_nr, db_path="./"):
     2: human_v0.1_no_round
     3: human_eclip_v0.1
 
-
     catRAPID_omics_v2.0_6plus_motifs.meme
     catRAPID_omics_v2.0_6plus_motifs.weak_rounded.meme
     s6_refined_ic010_rounded_ENCODE_RBPs.meme
@@ -492,7 +485,6 @@ def main_search(args):
     """
 
     print("Running for you in SEARCH mode ... ")
-
 
 
     assert os.path.exists(args.in_sites), "--in file \"%s\" not found" % (args.in_sites)
@@ -1134,7 +1126,6 @@ def main_search(args):
         search_rbps_dic[rbp_id].uniq_motif_hits_cal_1000nt  = search_rbps_dic[rbp_id].c_uniq_motif_hits / (called_reg_size / 1000)
 
     """
-    # !CHECKPOINT!
     # Print RBP object stats.
     for rbp_id in search_rbps_dic:
         print(search_rbps_dic[rbp_id].__dict__)
@@ -1466,7 +1457,6 @@ def main_search(args):
         internal_id = search_rbps_dic[rbp_id].internal_id
 
         # Store motif hit as BED.
-        # ALAMO
         hit_id = "%s:%s-%s(%s),%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
         if hit_id not in motif_reg_dic:
             bed_row = "%s\t%i\t%i\t%s,%s;%i;%s,%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval))
@@ -1767,86 +1757,6 @@ def main_search(args):
                                          benchlib_path,
                                          html_report_out=html_report_out,
                                          plots_subfolder=plots_subfolder)
-
-
-
-    """
-    Create additional hit statistics for selected RBPs, 
-    e.g. correlation / co-occurrence between RBPs.
-
-    """
-
-
-
-
-    """
-    Create comparison statistics and HTML report.
-
-    Contains:
-    some table stats?
-    Heat maps ...
-
-
-    df_corr
-
-    Produce df.corr with p-values table
-    pval_ll, rbp_list
-
-    
-
-    motif_rows = ['letter-probability matrix: alength= 4 w= 9 nsites= 20 E= 0', ' 0.000000  0.000000  0.000000  1.000000 ', ' 0.000000  0.000000  0.500000  0.500000 ', ' 0.000000  0.000000  0.000000  1.000000 ', ' 1.000000  0.000000  0.000000  0.000000 ', ' 1.000000  0.000000  0.000000  0.000000 ', ' 0.000000  0.000000  0.000000  1.000000 ', ' 0.500000  0.000000  0.500000  0.000000 ', ' 0.000000  0.000000  0.000000  1.000000 ', ' 0.000000  0.000000  0.000000  1.000000 ']
-
-    motif_freqs_dic = {}
-    motif_freqs_dic["A"] = []
-    motif_freqs_dic["C"] = []
-    motif_freqs_dic["G"] = []
-    motif_freqs_dic["T"] = []
-
-    seq_len = 0
-    for idx, row in enumerate(motif_rows):
-        if idx == 0:
-            continue
-        seq_len += 1
-        freqs_pre = row.split(" ")
-        freqs = []
-        for f in freqs_pre:
-            if f:
-                freqs.append(float(f))
-        
-        print(freqs)
-        assert len(freqs) == 4, "invalid number of nucleotide frequencies (expected 4 but found %i)" %(len(freqs))
-        motif_freqs_dic["A"].append(freqs[0])
-        motif_freqs_dic["C"].append(freqs[1])
-        motif_freqs_dic["G"].append(freqs[2])
-        motif_freqs_dic["T"].append(freqs[3])
-
-
-    jos = seq_len*["jo"]
-    print("jos:", jos)
-
-    df = pd.DataFrame(motif_freqs_dic)
-    df.index = jos
-    print("df:", df)
-
-
-    """
-
-
-
-
-    # html_report_out = args.out_folder + "/" + "report.rbpbench_compare.html"
-    # plots_subfolder = "html_plots"
-    # benchlib_path = os.path.dirname(benchlib.__file__)
-
-
-    # # Generate report.
-    # benchlib.compare_generate_html_report(compare_methods_dic, 
-    #                                       compare_datasets_dic,
-    #                                       rbp_stats_dic, motif_stats_dic,
-    #                                       args.out_folder, benchlib_path,
-    #                                       html_report_out=html_report_out,
-    #                                       plots_subfolder=plots_subfolder)
-
 
 
     """
@@ -3326,7 +3236,6 @@ def main_optex(args):
     print("")
 
 
-
 ################################################################################
 
 def main_info(args):
@@ -3498,14 +3407,11 @@ def main_dist(args):
     print("Distribution plot file:\n%s" %(motif_plot_out))
     print("")
 
-
     # Take out the trash.
     # if os.path.exists(filtered_sites_bed):
     #     os.remove(filtered_sites_bed)
     # if os.path.exists(filtered_sites_fa):
     #     os.remove(filtered_sites_fa)
-
-
 
 
 ################################################################################
@@ -3630,13 +3536,9 @@ def main_compare(args):
     k562_eclip,human_v0.1,clipper_idr
     And variable ID will be rbp_id
     
-    ALAMO
-
-
     change to dic of dic 
     clipper_idr,human_v0.1,PUM1 -> k562_eclip -> GeR1WaFK
     
-
 
     """
     compare_methods_dic = {}

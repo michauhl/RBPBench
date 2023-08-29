@@ -3,15 +3,11 @@ from typing import Optional
 import os
 import re
 import subprocess
-import sys
-import random
-from itertools import combinations
 import matplotlib.pyplot as plt
 from matplotlib_venn import venn2, venn3
 from venn import venn
 from logomaker import Logo
 from markdown import markdown
-# import logomaker
 import pandas as pd
 import plotly.express as px
 from math import log10
@@ -33,14 +29,6 @@ python3 -m doctest benchlib.py
 
 
 
-
-2DO:
-function to convert BED narrowPeak to BED 6-column
-    choose what score to use
-    Add unique site IDs.
-
-
-
 """
 
 
@@ -49,6 +37,11 @@ function to convert BED narrowPeak to BED 6-column
 def calc_edit_dist_query_list(query_str, lst):
     """
     Calculate edit distance between query string and list of strings.
+
+    >>> query_str = 'AAAC'
+    >>> lst = ['AAAC', 'AAAA', 'AACA']
+    >>> calc_edit_dist_query_list(query_str, lst)
+    {'AAAA': 1, 'AACA': 2}
 
     """
 
@@ -74,6 +67,13 @@ def calc_edit_dist(s1, s2):
     """
     Calculate edit distance (Levenshtein distance) between two strings s1, s2.
 
+    >>> s1 = 'HALLO'
+    >>> s2 = 'HELLO'
+    >>> calc_edit_dist(s1, s1)
+    0
+    >>> calc_edit_dist(s1, s2)
+    1
+    
     """
     assert s1, "given s1 empty"
     assert s2, "given s2 empty"
@@ -194,7 +194,6 @@ def read_in_cm_blocks(cm_file):
     Read in .cm file, containing covariance model(s). Return single model 
     text blocks in dictionary, with accession IDs as keys.
 
-
     """
 
     idx = -1
@@ -301,7 +300,7 @@ def read_cm_acc(in_cm):
     Return IDs dictionary, with values == appearance counts (expected to be 
     2 for each individual ID)
 
-    >>> in_cm = "SLBP.cm"
+    >>> in_cm = "test_data/SLBP_USER.cm"
     >>> read_cm_acc(in_cm)
     {'RF00032': 2}
 
@@ -474,7 +473,8 @@ def run_fimo(in_fa, in_meme_xml, out_folder,
 ################################################################################
 
 def bed_extract_sequences_from_fasta(in_bed, in_fa, out_fa,
-                                     print_warnings=False):
+                                     print_warnings=False,
+                                     ignore_errors=False):
     """
     Extract sequences from genome (provide genome .fasta file).
     Gzipped FASTA not supported by bedtools getfasta so far ...
@@ -493,9 +493,15 @@ def bed_extract_sequences_from_fasta(in_bed, in_fa, out_fa,
     GCAGAGCCCTCCGAGCGGCGCGTGAAGCGGGAGAAGCGCGATGACGGCTACGAGGCC
     ...
     There is no line break in sequence output ...
-
-
     bedtools getfasta -fi hg38.fa.gz -bed PUM1_K562_IDR_peaks.uniq_ids.bed -s
+
+    >>> in_bed = "test_data/test2.bed"
+    >>> in_fa = "test_data/test2.fa"
+    >>> out_fa = "test_data/test2.tmp.fa"
+    >>> bed_extract_sequences_from_fasta(in_bed, in_fa, out_fa, ignore_errors=True)
+    >>> read_fasta_into_dic(out_fa, dna=True, all_uc=True)
+    {'chr1:5-10(+)': 'GGGTT', 'chr2:5-10(-)': 'AACCC'}
+    
     """
 
     assert is_tool("bedtools"), "bedtools not in PATH"
@@ -511,7 +517,8 @@ def bed_extract_sequences_from_fasta(in_bed, in_fa, out_fa,
         error = False
         if output:
             error = True
-        assert error == False, "bedtools getfasta is complaining:\n%s\n%s" %(check_cmd, output)
+        if not ignore_errors:
+            assert error == False, "bedtools getfasta is complaining:\n%s\n%s" %(check_cmd, output)
 
 
 ################################################################################
@@ -761,9 +768,6 @@ def get_rbp_id_mappings(rbp2ids_file):
     ...
     RF00032	SLBP	cm	human
 
-
-    If organism != "human":
-
     """
     name2ids_dic = {}
     id2type_dic = {}
@@ -806,7 +810,6 @@ def get_uniq_gen_size(gen_sites_bed):
     >>> get_uniq_gen_size(gen_sites_bed)
     2500
 
-    
     sort -k1,1 -k2,2n in_sites.filtered.bed | mergeBed -i stdin -s -c 4 -o distinct -delim ";"
     """
 
@@ -825,6 +828,7 @@ def get_uniq_gen_size(gen_sites_bed):
     assert reg_len_sum, "no merged regions obtained from \"%s\"" %(check_cmd)
     return reg_len_sum
 
+
 ################################################################################
 
 def is_tool(name):
@@ -834,10 +838,14 @@ def is_tool(name):
 
 ################################################################################
 
-def bed_check_format(bed_file):
+def bed_check_format(bed_file, gimme=False):
     """
     Check whether given BED file is not empty + has >= 6 columns.
 
+    >>> bed_file = "test_data/test2.bed"
+    >>> bed_check_format(bed_file, gimme=True)
+    True
+    
     """
     pols = ["+", "-"]
     okay = False
@@ -851,6 +859,9 @@ def bed_check_format(bed_file):
             break
     f.closed
     assert okay, "invalid --in BED format (file empty?)"
+    if gimme:
+        return okay
+
 
 ################################################################################
 
@@ -858,6 +869,16 @@ def check_report_in_file(in_file):
     """
     Check if in_file is RBP or motif stats file.
     
+    >>> in_file = 'test_data/rbp_hit_stats.tsv'
+    >>> check_report_in_file(in_file)
+    'rbp_stats'
+    >>> in_file = 'test_data/motif_hit_stats.tsv'
+    >>> check_report_in_file(in_file)
+    'motif_stats'
+    >>> in_file = 'test_data/test2.bed'
+    >>> check_report_in_file(in_file)
+    '?'
+
     """
     type = "?"
 
@@ -883,7 +904,7 @@ def reg_get_core_id(reg_id):
 
     So from chr1:100-101:+ to chr1:100-101
 
-    >>> reg_id = "chr1:100-101:+"
+    >>> reg_id = "chr1:100-101(+)"
     >>> reg_get_core_id(reg_id)
     'chr1:100-101'
     
@@ -945,13 +966,50 @@ def get_center_position(start, end):
 
 ################################################################################
 
+def diff_two_files_identical(file1, file2):
+    """
+    Check whether two files are identical. Return true if diff reports no
+    differences.
+
+    >>> file1 = "test_data/file1"
+    >>> file2 = "test_data/file2"
+    >>> diff_two_files_identical(file1, file2)
+    True
+    >>> file1 = "test_data/test1.bed"
+    >>> diff_two_files_identical(file1, file2)
+    False
+
+    """
+    same = True
+    check_cmd = "diff " + file1 + " " + file2
+    output = subprocess.getoutput(check_cmd)
+    if output:
+        same = False
+    return same
+
+
+################################################################################
+
 def bed_extend_bed(in_bed, out_bed, 
                    ext_lr=10,
                    cp_mode=1,
                    remove_dupl=False,
                    chr_ids_dic=None):
     """
-    Extend BED file regions, optionally filter by chromosome IDs.
+    Center + extend BED file regions (rbpbench dist), optionally filter by 
+    chromosome IDs.
+
+    >>> in_bed = 'test_data/test.bed'
+    >>> out_bed = 'test_data/test.tmp.bed'
+    >>> exp_bed = 'test_data/test.exp.bed'
+    >>> reg_stats_dic = bed_extend_bed(in_bed, out_bed, ext_lr=2, cp_mode=1)
+    >>> diff_two_files_identical(out_bed, exp_bed)
+    True
+    >>> in_fa = "test_data/test2.fa"
+    >>> out_fa = "test_data/test.tmp.fa"
+    >>> bed_extract_sequences_from_fasta(exp_bed, in_fa, out_fa, ignore_errors=True)
+    >>> read_fasta_into_dic(out_fa, dna=True, all_uc=True)
+    {'chr1:3-8(+)': 'AAGGG', 'chr2:7-12(-)': 'GGAAC'}
 
     """
 
@@ -1036,6 +1094,38 @@ def bed_extend_bed(in_bed, out_bed,
     stats_dic["reg_len_sum"] = reg_len_sum
 
     return stats_dic
+
+
+################################################################################
+
+def bed_read_rows_into_dic(in_bed, to_list=False):
+    """
+    Read in .bed file rows into dictionary.
+    Mapping is region ID -> bed row.
+
+    """
+
+    id2row_dic = {}
+
+    with open(in_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            chr_id = cols[0]
+            site_s = cols[1]
+            site_e = cols[2]
+            site_id = cols[3]
+            site_sc = cols[4]
+            site_pol = cols[5]
+
+            row = "%s\t%s\t%s\t%s\t%s\t%s" %(chr_id, site_s, site_e, site_id, site_sc, site_pol)
+            if to_list:
+                id2row_dic[site_id] = cols
+            else:
+                id2row_dic[site_id] = row
+
+    f.closed
+
+    return id2row_dic
 
 
 ################################################################################
@@ -1967,7 +2057,7 @@ def get_motif_id_from_str_repr(hit_str_repr):
     return motif_id
 
     >>> hit_str_repr = "chr6:66-666(-),satan6666"
-    >>> et_motif_id_from_str_repr(hit_str_repr)
+    >>> get_motif_id_from_str_repr(hit_str_repr)
     'satan6666'
 
     """
@@ -2206,7 +2296,6 @@ def create_corr_plot_plotly(df, pval_cont_lll, plotly_js_path, plot_out):
                     include_plotlyjs=plotly_js_path)
     
 
-
 ################################################################################
 
 def create_cooc_plot_plotly(df, pval_cont_lll, plotly_js_path, plot_out):
@@ -2222,43 +2311,6 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plotly_js_path, plot_out):
     plot.write_html(plot_out,
                     full_html=False,
                     include_plotlyjs=plotly_js_path)
-
-
-################################################################################
-
-
-"""
-x:
-y:
-
-z1:%{customdata[0]:.3f}
-
-z1, z2, z3 = np.random.random((3, 7, 7))
-customdata = np.dstack((z2, z3))
-fig = make_subplots(1, 2, subplot_titles=['z1', 'z2'])
-fig.add_trace(go.Heatmap(
-    z=z1,
-    customdata=np.dstack((z2, z3)),
-    hovertemplate='<b>z1:%{z:.3f}</b><br>z2:%{customdata[0]:.3f} <br>z3: %{customdata[1]:.3f} ',
-    coloraxis="coloraxis1", name=''),
-    1, 1)
-fig.add_trace(go.Heatmap(
-    z=z2,
-    customdata=np.dstack((z1, z3)),
-    hovertemplate='z1:%{customdata[0]:.3f} <br><b>z2:%{z:.3f}</b><br>z3: %{customdata[1]:.3f} ',
-    coloraxis="coloraxis1", name=''),
-    1, 2)
-fig.update_layout(title_text='Hover to see the value of z1, z2 and z3 together')
-fig.show()
-
-
-fig.update(data=[{'customdata': np.repeat(names, len(df.columns)).reshape(3, 3),
-    'hovertemplate': 'Letter: %{x}<br>Nickname: %{y}<br>Fullname: %{customdata}<br>Color: %{z}<extra></extra>'}])
-
-    
-    update_traces
-
-"""
 
 
 ################################################################################
@@ -2321,6 +2373,12 @@ def make_pos_freq_matrix(seqs_dic,
     to_ppm:
         Normalize frequencies to probabilities, creating a position 
         probability matrix (PPM) out of PFM.
+
+    >>> seqs_dic = {'s1': 'ACT', 's2': 'ACA'}
+    >>> make_pos_freq_matrix(seqs_dic, exp_len=3, report=False)
+    {'A': [2, 0, 1], 'C': [0, 2, 0], 'G': [0, 0, 0], 'T': [0, 0, 1], 'N': [0, 0, 0]}
+    >>> make_pos_freq_matrix(seqs_dic, exp_len=3, report=False, to_ppm=True)
+    {'A': [1.0, 0.0, 0.5], 'C': [0.0, 1.0, 0.0], 'G': [0.0, 0.0, 0.0], 'T': [0.0, 0.0, 0.5], 'N': [0.0, 0.0, 0.0]}
 
     """
 
@@ -2917,28 +2975,6 @@ Any given motif hit can either be found only in one dataset, or be common to any
 
 """ %(c_data_ids, data_ids_str, comp_id)
 
-
-    """
-
-
-    Some matplotlib color map styles to try:
-    jet, nipy_spectral, tab20, brg, turbo, gnuplot
-    https://matplotlib.org/stable/tutorials/colors/colormaps.html
-
-    
-
-    perc_reg_with_hits
-    c_uniq_motif_hits
-    perc_uniq_motif_nts_eff_reg
-    uniq_motif_hits_eff_1000nt
-
-
-    c_regions	mean_reg_len	median_reg_len	min_reg_len	max_reg_len	called_reg_size	effective_reg_size
-
-    wc_pval
-
-    """
-
     """
     Method comparisons.
 
@@ -2971,66 +3007,6 @@ Any given motif hit can either be found only in one dataset, or be common to any
     if output:
         error = True
     assert error == False, "sed command returned error:\n%s" %(output)
-
-
-################################################################################
-
-
-    """
-    rbp_stats_dic
-    motif_stats_dic
-
-    class MotifStats:
-    def __init__(self,
-                 hit_id: str,
-                 internal_id: str,
-                 region_id = "-",
-                 rbp_id = "-",
-                 motif_id = "-",
-                 chr_id = "chr1",
-                 gen_s = 0, # 1-based genomic motif start.
-                 gen_e = 0,
-                 strand = "+",
-                 region_s = 0, # 1-based region motif start.
-                 region_e = 0,
-                 region_len = 0,
-                 uniq_count = 0,
-                 fimo_score: Optional[float] = None,
-                 fimo_pval: Optional[float] = None,
-                 cms_score: Optional[float] = None,
-                 cms_eval: Optional[float] = None) -> None:
-
-    class RBPStats:
-    def __init__(self,
-                 internal_id: str,
-                 data_id: str,
-                 method_id: str,
-                 run_id: str,
-                 motif_db: str,
-                 rbp_id = "-",
-                 c_regions = 0,
-                 mean_reg_len = 0,
-                 median_reg_len = 0,
-                 min_reg_len = 0,
-                 max_reg_len = 0,
-                 called_reg_size = 0,
-                 effective_reg_size = 0,
-                 c_reg_with_hits = 0,
-                 perc_reg_with_hits = 0.0,
-                 c_motif_hits = 0,
-                 c_uniq_motif_hits = 0,
-                 c_uniq_motif_nts = 0,
-                 perc_uniq_motif_nts_cal_reg = 0.0,
-                 perc_uniq_motif_nts_eff_reg = 0.0,
-                 uniq_motif_hits_cal_1000nt = 0.0,
-                 uniq_motif_hits_eff_1000nt = 0.0,
-                 wc_pval = 1.0,
-                 seq_motif_ids = None,
-                 str_motif_ids = None,
-                 seq_motif_hits = None,
-                 str_motif_hits = None) -> None:
-
-    """
 
 
 ################################################################################
@@ -3086,8 +3062,8 @@ def create_venn3_diagram(int_id1, int_id2, int_id3,
     Create Venn Diagram for three sets.
 
     #36e6e6
-#ee2a9a
-#f8e318
+    #ee2a9a
+    #f8e318
 
     """
     assert int_id1 in motif_stats_dic, "given internal_id %s not in motif_stats_dic" %(int_id1)
@@ -3161,11 +3137,6 @@ def create_vennx_diagram(int_ids, set_labels,
 
 ################################################################################
 
-
-
-
-################################################################################
-
 def print_some_banner():
     """
     Print some banner.
@@ -3195,588 +3166,3 @@ def print_some_banner():
     return(a)
 
 ################################################################################
-
-
-
-
-"""
-
-
-
-
-              ######  ######  ######             
-              #     # #     # #     #            
-              #     # #     # #     #            
-              ######  ######  ######             
-              #   #   #     # #                  
-              #    #  #     # #
-   ##         #     # ######  #              ##
- ####                                        ####
-##################################################
- ####                                        ####
-   ##   #####  ###### #    #  ####  #    #   ##
-        #    # #      ##   # #    # #    #            
-        #####  #####  # #  # #      ###### 
-        #    # #      #  # # #      #    # 
-        #    # #      #   ## #    # #    # 
-        #####  ###### #    #  ####  #    #
-
-
-       __  ___    ___ 
- |\/| /  \  |  | |__  
- |  | \__/  |  | |    
-                      
-#     # ####### ####### ### ####### 
-##   ## #     #    #     #  #       
-# # # # #     #    #     #  #####       
-#  #  # #     #    #     #  # 
-#     # #     #    #     #  #             
-#     # #######    #    ### #       
-
-#     # ####### ####### ### ####### 
-##   ## #     #    #     #  #       
-# # # # #     #    #     #  #####       
-#  #  # #     #    #     #  #             
-#     # #######    #    ### #       
-
-     __ ___  __ 
-|\/|/  \ | ||_  
-|  |\__/ | ||   
-                
-rbpmb
-
-
- ____    ____   ___    _________  _____  ________  
-|_   \  /   _|.'   `. |  _   _  ||_   _||_   __  | 
-  |   \/   | /  .-.  \|_/ | | \_|  | |    | |_ \_| 
-  | |\  /| | | |   | |    | |      | |    |  _|    
- _| |_\/_| |_\  `-'  /   _| |_    _| |_  _| |_     
-|_____||_____|`.___.'   |_____|  |_____||_____|    
-                                                   
-
-_  _ ____ ___ _ ____ 
-|\/| |  |  |  | |___ 
-|  | |__|  |  | |    
-                     
-
- _______  _____  _______ _____ _______
- |  |  | |     |    |      |   |______
- |  |  | |_____|    |    __|__ |      
-                                      
-
-
-  __  __  ___ _____ ___ _____ 
- |  \/  |/ _ \_   _|_ _|  ___|
- | |\/| | | | || |  | || |_   
- | |  | | |_| || |  | ||  _|  
- |_|  |_|\___/ |_| |___|_|    
-                              
-
-
-
-
-
-
- #     # ####### ####### ### ####### 
- ##   ## #     #    #     #  #       
- # # # # #     #    #     #  #       
- #  #  # #     #    #     #  #####   
- #     # #     #    #     #  #       
- #     # #     #    #     #  #       
- #     # #######    #    ### #       
-                                     
-
-##     ##  #######  ######## #### ######## 
-###   ### ##     ##    ##     ##  ##       
-#### #### ##     ##    ##     ##  ##       
-## ### ## ##     ##    ##     ##  ######   
-##     ## ##     ##    ##     ##  ##       
-##     ## ##     ##    ##     ##  ##       
-##     ##  #######     ##    #### ##       
-
-                                                     
- _|      _|    _|_|    _|_|_|_|_|  _|_|_|  _|_|_|_|  
- _|_|  _|_|  _|    _|      _|        _|    _|        
- _|  _|  _|  _|    _|      _|        _|    _|_|_|    
- _|      _|  _|    _|      _|        _|    _|        
- _|      _|    _|_|        _|      _|_|_|  _|        
-                                                     
-                                                     
-
-
-
-  __  __  ___ _____ ___ ___ 
- |  \/  |/ _ \_   _|_ _| __|
- | |\/| | (_) || |  | || _| 
- |_|  |_|\___/ |_| |___|_|  
-                            
-
-   __  _______  ______________
-  /  |/  / __ \/_  __/  _/ __/
- / /|_/ / /_/ / / / _/ // _/  
-/_/  /_/\____/ /_/ /___/_/    
-                              
-
-  __  __  ___ _____ ___ _____ 
- |  \/  |/ _ \_   _|_ _|  ___|
- | |\/| | | | || |  | || |_   
- | |  | | |_| || |  | ||  _|  
- |_|  |_|\___/ |_| |___|_|    
-                              
-
- __    __     ______     ______   __     ______  
-/\ "-./  \   /\  __ \   /\__  _\ /\ \   /\  ___\ 
-\ \ \-./\ \  \ \ \/\ \  \/_/\ \/ \ \ \  \ \  __\ 
- \ \_\ \ \_\  \ \_____\    \ \_\  \ \_\  \ \_\   
-  \/_/  \/_/   \/_____/     \/_/   \/_/   \/_/   
-                                                 
-
-
-
-
-
-######  ######  ######  #     # ######  
-#     # #     # #     # ##   ## #     # 
-#     # #     # #     # # # # # #     # 
-######  ######  ######  #  #  # ######  
-#   #   #     # #       #     # #     # 
-#    #  #     # #       #     # #     # 
-#     # ######  #       #     # ######  
-
-   ##         #     # ######  #              ##
- ####                                        ####
-##################################################
- ####                                        ####
-   ##   #####  ###### #    #  ####  #    #   ##
-
-RBP MOTIF BENCH
-
-
-.  ..__..___.._..___
-|\/||  |  |   | [__ 
-|  ||__|  |  _|_|   
-                    
-
-
-
-
-       ######  ######  ######             
-       #     # #     # #     #            
-       #     # #     # #     #            
-       ######  ######  ######             
-       #   #   #     # #                  
-       #    #  #     # #                  
-       #     # ######  #                  
-                                   
- #####  ###### #    #  ####  #    # 
- #    # #      ##   # #    # #    # 
- #####  #####  # #  # #      ###### 
- #    # #      #  # # #      #    # 
- #    # #      #   ## #    # #    # 
- #####  ###### #    #  ####  #    # 
-
-
-
-
-######  ######  ######                  
-#     # #     # #     #                 
-#     # #     # #     #                 
-######  ######  ######                  
-#   #   #     # #                       
-#    #  #     # #                       
-#     # ######  #      
-                 
-#     # ####### ####### ### #######     
-##   ## #     #    #     #  #           
-# # # # #     #    #     #  #           
-#  #  # #     #    #     #  #####       
-#     # #     #    #     #  #           
-#     # #     #    #     #  #           
-#     # #######    #    ### #     
-      
-######  ####### #     #  #####  #     # 
-#     # #       ##    # #     # #     # 
-#     # #       # #   # #       #     # 
-######  #####   #  #  # #       ####### 
-#     # #       #   # # #       #     # 
-#     # #       #    ## #     # #     # 
-######  ####### #     #  #####  #     # 
-
-
-
-
-       ######  ######  ######             
-       #     # #     # #     #            
-       #     # #     # #     #            
-       ######  ######  ######             
-       #   #   #     # #                  
-       #    #  #     # #                  
-       #     # ######  #                  
-                                   
- #####  ###### #    #  ####  #    # 
- #    # #      ##   # #    # #    # 
- #####  #####  # #  # #      ###### 
- #    # #      #  # # #      #    # 
- #    # #      #   ## #    # #    # 
- #####  ###### #    #  ####  #    # 
-
-
-
-######  ######  ######                                     
-#     # #     # #     # #####  ###### #    #  ####  #    # 
-#     # #     # #     # #    # #      ##   # #    # #    # 
-######  ######  ######  #####  #####  # #  # #      ###### 
-#   #   #     # #       #    # #      #  # # #      #    # 
-#    #  #     # #       #    # #      #   ## #    # #    # 
-#     # ######  #       #####  ###### #    #  ####  #    # 
-
-
-
-
-
-######  ######  ######  ######  ####### #     #  #####  #     # 
-#     # #     # #     # #     # #       ##    # #     # #     # 
-#     # #     # #     # #     # #       # #   # #       #     # 
-######  ######  ######  ######  #####   #  #  # #       ####### 
-#   #   #     # #       #     # #       #   # # #       #     # 
-#    #  #     # #       #     # #       #    ## #     # #     # 
-#     # ######  #       ######  ####### #     #  #####  #     # 
-
-
-
-
-
-
-                                     
- /$$$$$$$  /$$$$$$$  /$$$$$$$                     
-| $$__  $$| $$__  $$| $$__  $$                    
-| $$  \ $$| $$  \ $$| $$  \ $$                    
-| $$$$$$$/| $$$$$$$ | $$$$$$$/                    
-| $$__  $$| $$__  $$| $$____/                     
-| $$  \ $$| $$  \ $$| $$                          
-| $$  | $$| $$$$$$$/| $$                          
-|__/  |__/|_______/ |__/                          
-                                                  
-                                                  
-                                                  
- /$$                                     /$$      
-| $$                                    | $$      
-| $$$$$$$   /$$$$$$  /$$$$$$$   /$$$$$$$| $$$$$$$ 
-| $$__  $$ /$$__  $$| $$__  $$ /$$_____/| $$__  $$
-| $$  \ $$| $$$$$$$$| $$  \ $$| $$      | $$  \ $$
-| $$  | $$| $$_____/| $$  | $$| $$      | $$  | $$
-| $$$$$$$/|  $$$$$$$| $$  | $$|  $$$$$$$| $$  | $$
-|_______/  \_______/|__/  |__/ \_______/|__/  |__/
-                                                  
-                                                  
-                                                  
-
-
- /$$$$$$$  /$$$$$$$  /$$$$$$$                     
-| $$__  $$| $$__  $$| $$__  $$                    
-| $$  \ $$| $$  \ $$| $$  \ $$                    
-| $$$$$$$/| $$$$$$$ | $$$$$$$/                    
-| $$__  $$| $$__  $$| $$____/                     
-| $$  \ $$| $$  \ $$| $$                          
-| $$  | $$| $$$$$$$/| $$                          
-|_$$  |__/|_______/ |__/                 /$$                                                             
-| $$                                    | $$      
-| $$$$$$$   /$$$$$$  /$$$$$$$   /$$$$$$$| $$$$$$$ 
-| $$__  $$ /$$__  $$| $$__  $$ /$$_____/| $$__  $$
-| $$  \ $$| $$$$$$$$| $$  \ $$| $$      | $$  \ $$
-| $$  | $$| $$_____/| $$  | $$| $$      | $$  | $$
-| $$$$$$$/|  $$$$$$$| $$  | $$|  $$$$$$$| $$  | $$
-|_______/  \_______/|__/  |__/ \_______/|__/  |__/
-                                                  
-                                                  
-                                                  
-
-
-$$$$$$$\  $$$$$$$\  $$$$$$$\                      
-$$  __$$\ $$  __$$\ $$  __$$\                     
-$$ |  $$ |$$ |  $$ |$$ |  $$ |                    
-$$$$$$$  |$$$$$$$\ |$$$$$$$  |                    
-$$  __$$< $$  __$$\ $$  ____/                     
-$$ |  $$ |$$ |  $$ |$$ |                          
-$$ |  $$ |$$$$$$$  |$$ |                          
-\__|  \__|\_______/ \__|                          
-                                                                                                                      
-$$\                                     $$\       
-$$ |                                    $$ |      
-$$$$$$$\   $$$$$$\  $$$$$$$\   $$$$$$$\ $$$$$$$\  
-$$  __$$\ $$  __$$\ $$  __$$\ $$  _____|$$  __$$\ 
-$$ |  $$ |$$$$$$$$ |$$ |  $$ |$$ /      $$ |  $$ |
-$$ |  $$ |$$   ____|$$ |  $$ |$$ |      $$ |  $$ |
-$$$$$$$  |\$$$$$$$\ $$ |  $$ |\$$$$$$$\ $$ |  $$ |
-\_______/  \_______|\__|  \__| \_______|\__|  \__|
-                                                  
-                                                  
-
-$$$$$$$\  $$$$$$$\  $$$$$$$\                      
-$$  __$$\ $$  __$$\ $$  __$$\                     
-$$ |  $$ |$$ |  $$ |$$ |  $$ |                    
-$$$$$$$  |$$$$$$$\ |$$$$$$$  |                    
-$$  __$$< $$  __$$\ $$  ____/                     
-$$ |  $$ |$$ |  $$ |$$ |                          
-$$ |  $$ |$$$$$$$  |$$ |                          
-\__|  \__|\_______/ \__|                                                                          
-$$\                                     $$\       
-$$ |                                    $$ |      
-$$$$$$$\   $$$$$$\  $$$$$$$\   $$$$$$$\ $$$$$$$\  
-$$  __$$\ $$  __$$\ $$  __$$\ $$  _____|$$  __$$\ 
-$$ |  $$ |$$$$$$$$ |$$ |  $$ |$$ /      $$ |  $$ |
-$$ |  $$ |$$   ____|$$ |  $$ |$$ |      $$ |  $$ |
-$$$$$$$  |\$$$$$$$\ $$ |  $$ |\$$$$$$$\ $$ |  $$ |
-\_______/  \_______|\__|  \__| \_______|\__|  \__|
-                                                  
-        
-
-
-
-________________________         
-___  __ \__  __ )__  __ \        
-__  /_/ /_  __  |_  /_/ /        
-_  _, _/_  /_/ /_  ____/         
-/_/ |_| /_____/ /_/                                           
-______                   ______  
-___  /______________________  /_ 
-__  __ \  _ \_  __ \  ___/_  __ \
-_  /_/ /  __/  / / / /__ _  / / /
-/_.___/\___//_/ /_/\___/ /_/ /_/ 
-                                 
-
-
-
- 
-######  ######  ######             
-#     # #     # #     #            
-#     # #     # #     #            
-######  ######  ######             
-#   #   #     # #                  
-#    #  #     # #                  
-#     # ######  #                  
-                                   
-#####  ###### #    #  ####  #    # 
-#    # #      ##   # #    # #    # 
-#####  #####  # #  # #      ###### 
-#    # #      #  # # #      #    # 
-#    # #      #   ## #    # #    # 
-#####  ###### #    #  ####  #    # 
-
-
-
-
-       ######  ######  ######             
-       #     # #     # #     #            
-       #     # #     # #     #            
-       ######  ######  ######             
-       #   #   #     # #                  
-       #    #  #     # #                  
-       #     # ######  #                  
-                                   
-#####  ###### #    #  ####  #    # 
-#    # #      ##   # #    # #    # 
-#####  #####  # #  # #      ###### 
-#    # #      #  # # #      #    # 
-#    # #      #   ## #    # #    # 
-#####  ###### #    #  ####  #    # 
-
-
-
-
-      ######  ######  ######             
-      #     # #     # #     #            
-      #     # #     # #     #            
-      ######  ######  ######             
-      #   #   #     # #                  
-      #    #  #     # #                  
-      #     # ######  #                  
-                                   
-#####  ###### #    #  ####  #    # 
-#    # #      ##   # #    # #    # 
-#####  #####  # #  # #      ###### 
-#    # #      #  # # #      #    # 
-#    # #      #   ## #    # #    # 
-#####  ###### #    #  ####  #    # 
-
-
-
-
-   ____    ____     ____                     
-  /\  _`\ /\  _`\  /\  _`\                   
-  \ \ \L\ \ \ \L\ \\ \ \L\ \                 
-   \ \ ,  /\ \  _ <'\ \ ,__/                 
-    \ \ \\ \\ \ \L\ \\ \ \/                  
-     \ \_\ \_\ \____/ \ \_\                  
-  _   \/_/\/ /\/___/   \/_/      _                                                    
-/\ \                           /\ \        
-\ \ \____     __    ___     ___\ \ \___    
- \ \ '__`\  /'__`\/' _ `\  /'___\ \  _ `\  
-  \ \ \L\ \/\  __//\ \/\ \/\ \__/\ \ \ \ \ 
-   \ \_,__/\ \____\ \_\ \_\ \____\\ \_\ \_\
-    \/___/  \/____/\/_/\/_/\/____/ \/_/\/_/
-                                           
-                                           
-  _____  ____  _____          
- |  __ \|  _ \|  __ \         
- | |__) | |_) | |__) |        
- |  _  /|  _ <|  ___/         
- | | \ \| |_) | |             
- |_|  \_\____/|_|       _     
- | |                   | |    
- | |__   ___ _ __   ___| |__  
- | '_ \ / _ \ '_ \ / __| '_ \ 
- | |_) |  __/ | | | (__| | | |
- |_.__/ \___|_| |_|\___|_| |_|
-                              
-                              
-
-
-$$$$$$$\  $$$$$$$\  $$$$$$$\                      
-$$  __$$\ $$  __$$\ $$  __$$\                     
-$$ |  $$ |$$ |  $$ |$$ |  $$ |                    
-$$$$$$$  |$$$$$$$\ |$$$$$$$  |                    
-$$  __$$< $$  __$$\ $$  ____/                     
-$$ |  $$ |$$ |  $$ |$$ |                          
-$$ |  $$ |$$$$$$$  |$$ |                          
-\__|  \__|\_______/ \__|                          
-                                                  
-                                                  
-                                                  
-$$$$$$$\  $$$$$$$$\ $$\   $$\  $$$$$$\  $$\   $$\ 
-$$  __$$\ $$  _____|$$$\  $$ |$$  __$$\ $$ |  $$ |
-$$ |  $$ |$$ |      $$$$\ $$ |$$ /  \__|$$ |  $$ |
-$$$$$$$\ |$$$$$\    $$ $$\$$ |$$ |      $$$$$$$$ |
-$$  __$$\ $$  __|   $$ \$$$$ |$$ |      $$  __$$ |
-$$ |  $$ |$$ |      $$ |\$$$ |$$ |  $$\ $$ |  $$ |
-$$$$$$$  |$$$$$$$$\ $$ | \$$ |\$$$$$$  |$$ |  $$ |
-\_______/ \________|\__|  \__| \______/ \__|  \__|
-                                                  
-                                                  
-                                                  
-
-
-          $$$$$$$\  $$$$$$$\  $$$$$$$\                      
-          $$  __$$\ $$  __$$\ $$  __$$\                     
-          $$ |  $$ |$$ |  $$ |$$ |  $$ |                    
-          $$$$$$$  |$$$$$$$\ |$$$$$$$  |                    
-          $$  __$$< $$  __$$\ $$  ____/                     
-          $$ |  $$ |$$ |  $$ |$$ |                          
-          $$ |  $$ |$$$$$$$  |$$ |                          
-          \__|  \__|\_______/ \__|                          
-                                                                                                                  
-$$$$$$$\  $$$$$$$$\ $$\   $$\  $$$$$$\  $$\   $$\ 
-$$  __$$\ $$  _____|$$$\  $$ |$$  __$$\ $$ |  $$ |
-$$ |  $$ |$$ |      $$$$\ $$ |$$ /  \__|$$ |  $$ |
-$$$$$$$\ |$$$$$\    $$ $$\$$ |$$ |      $$$$$$$$ |
-$$  __$$\ $$  __|   $$ \$$$$ |$$ |      $$  __$$ |
-$$ |  $$ |$$ |      $$ |\$$$ |$$ |  $$\ $$ |  $$ |
-$$$$$$$  |$$$$$$$$\ $$ | \$$ |\$$$$$$  |$$ |  $$ |
-\_______/ \________|\__|  \__| \______/ \__|  \__|
-                                                  
-                                                  
-                                                  
-
-          $$$$$$$\  $$$$$$$\  $$$$$$$\                      
-          $$  __$$\ $$  __$$\ $$  __$$\                     
-          $$ |  $$ |$$ |  $$ |$$ |  $$ |                    
-          $$$$$$$  |$$$$$$$\ |$$$$$$$  |                    
-          $$  __$$< $$  __$$\ $$  ____/                     
-          $$ |  $$ |$$ |  $$ |$$ |                          
-          $$ |  $$ |$$$$$$$  |$$ |                          
-          \__|  \__|\_______/ \__|                                                                          
-$$\                                     $$\       
-$$ |                                    $$ |      
-$$$$$$$\   $$$$$$\  $$$$$$$\   $$$$$$$\ $$$$$$$\  
-$$  __$$\ $$  __$$\ $$  __$$\ $$  _____|$$  __$$\ 
-$$ |  $$ |$$$$$$$$ |$$ |  $$ |$$ /      $$ |  $$ |
-$$ |  $$ |$$   ____|$$ |  $$ |$$ |      $$ |  $$ |
-$$$$$$$  |\$$$$$$$\ $$ |  $$ |\$$$$$$$\ $$ |  $$ |
-\_______/  \_______|\__|  \__| \_______|\__|  \__|
-
-
-
-
- 
-    ██        ██
-  ████        ████
-████████████████████
-  ████        ████
-    ██        ██
-
-    
-  #
- ##
-###
- ##
-  #
-
-
-            ######  ######  ######             
-            #     # #     # #     #            
-            #     # #     # #     #            
-            ######  ######  ######             
-            #   #   #     # #                  
-            #    #  #     # #                  
-            #     # ######  #                  
-
-            
-             ######  ######  ######             
-             #     # #     # #     #            
-             #     # #     # #     #            
-             ######  ######  ######             
-             #   #   #     # #                  
-             #    #  #     # #
-   ##        #     # ######  #             ##
- ####                                      ####
-################################################
- ####                                      ####
-   ##  #####  ###### #    #  ####  #    #  ##
-       #    # #      ##   # #    # #    #            
-       #####  #####  # #  # #      ###### 
-       #    # #      #  # # #      #    # 
-       #    # #      #   ## #    # #    # 
-       #####  ###### #    #  ####  #    #      
-
-
-       
-              ######  ######  ######             
-              #     # #     # #     #            
-              #     # #     # #     #            
-              ######  ######  ######             
-              #   #   #     # #                  
-              #    #  #     # #
-   ##         #     # ######  #              ##
- ####                                        ####
-##################################################
- ####                                        ####
-   ##   #####  ###### #    #  ####  #    #   ##
-        #    # #      ##   # #    # #    #            
-        #####  #####  # #  # #      ###### 
-        #    # #      #  # # #      #    # 
-        #    # #      #   ## #    # #    # 
-        #####  ###### #    #  ####  #    #      
-
-
-
-
-                 
-
-       #####  ###### #    #  ####  #    # 
-       #    # #      ##   # #    # #    # 
-       #####  #####  # #  # #      ###### 
-       #    # #      #  # # #      #    # 
-       #    # #      #   ## #    # #    # 
-       #####  ###### #    #  ####  #    # 
-   
-
-   
-
-   ##                                      ##
- ####                                      ####
-################################################
- ####                                      ####
-   ##                                      ##
-
-
-"""
