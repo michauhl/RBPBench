@@ -248,8 +248,14 @@ rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps RBFOX2 PUM1 PUM2 --out test_
 The following output files are produced:
 
 ```
-Co-occurrence p-values for  each RBP pair .tsv:
+Co-occurrence p-values for each RBP pair .tsv:
 test_pum1_out/contingency_table_results.tsv
+Filtered input regions .bed:
+test_pum1_out/in_sites.filtered.bed
+Filtered input regions .fa:
+test_pum1_out/in_sites.filtered.fa
+Motif hits .bed:
+test_pum1_out/motif_hits.rbpbench_search.bed
 RBP hit stats .tsv:
 test_pum1_out/rbp_hit_stats.tsv
 Motif hit stats .tsv:
@@ -345,14 +351,14 @@ PUM2_K562_IDR_peaks.bed
 Consequently, the two RBP IDs will be `PUM1` and `PUM2`. We can process both of them separately simply by:
 
 ```
-python rbpbench batch --bed batch_clipper_idr_in --out batch_clipper_idr_out --genome hg38.fa
+rbpbench batch --bed batch_clipper_idr_in --out batch_clipper_idr_out --genome hg38.fa
 ```
 
 The search results will include all motif hits for RBP `PUM1` (on `PUM1_K562_IDR_peaks.bed`) and 
 for RBP `PUM2` (on `PUM2_K562_IDR_peaks.bed`). Alternatively, the same results can be obtained via `-rbp-list`:
 
 ```
-python rbpbench batch --bed batch_clipper_idr_in/PUM1_K562_IDR_peaks.bed batch_clipper_idr_in/PUM2_K562_IDR_peaks.bed --rbp-list PUM1 PUM2 --out batch_clipper_idr_out --genome hg38.fa
+rbpbench batch --bed batch_clipper_idr_in/PUM1_K562_IDR_peaks.bed batch_clipper_idr_in/PUM2_K562_IDR_peaks.bed --rbp-list PUM1 PUM2 --out batch_clipper_idr_out --genome hg38.fa
 ```
 
 
