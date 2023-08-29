@@ -618,7 +618,6 @@ any number of RBPs (database or user-defined ones).
  `rbpbench batch` is `rbpbench search` extended to multiple input files (files containing 
  genomic regions), with one RBP for search set for each input file.
 `rbpbench optex` can be ignored for now (still experimental).
-
 `rbpbench info` informs about the current motif database content (numbers of RBPs and motifs).
 `rbpbench dist` is designed to plot nucleotide distribution at specifed genomic positions.
 Finally, `rbpbench compare` is used to compare multiple search results (e.g. to 
