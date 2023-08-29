@@ -98,8 +98,6 @@ Manual installation of RBPBench is only slightly more work. First we create the 
 conda create -n rbpbench -c conda-forge -c bioconda logomaker markdown meme scipy plotly textdistance venn matplotlib-venn infernal bedtools
 ```
 
-MEME v5 needed / tested.
-
 Next we activate the environment, clone the RBPBench repository, and install RBPBench:
 
 ```
