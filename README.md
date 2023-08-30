@@ -84,6 +84,13 @@ conda activate rbpbench
 conda install -c bioconda rbpbench
 ```
 
+If `conda install` is taking too long, you can also try `mamba` or `micromamba`.
+
+```
+conda install -c conda-forge micromamba
+micromamba install -c bioconda rbpbench
+```
+
 RBPBench should now be available inside the environment:
 
 ```
@@ -799,24 +806,4 @@ are described in the example section [above](#search-with-multiple-rbps).
 #### No FIMO hits
 
 This can e.g. happen if you have an old MEME version installed (v4). RBPBench was implemented using v5, so please install MEME v5 (e.g. 5.5.3). 
-To make this work you can also try the `mamba` or `micromamba` package manager (instead of `conda`), using the same syntax:
-
-```
-# Install mamba.
-conda install -c conda-forge mamba
-# Install RBPBench via conda package.
-mamba create -n rbpbench -c conda-forge -c bioconda
-conda activate rbpbench
-rbpbench -h
-# Or via manual installation:
-mamba create -n rbpbench -c conda-forge -c bioconda logomaker markdown meme scipy plotly textdistance venn matplotlib-venn infernal bedtools
-conda activate rbpbench
-git clone https://github.com/michauhl/RBPBench.git
-cd RBPBench
-python -m pip install . --ignore-installed --no-deps -vv
-rbpbench -h
-
-# Or with micromamba:
-conda install -c conda-forge micromamba
-micromamba create -n rbpbench -c conda-forge -c bioconda
-```
+To make this work you can also try the `mamba` or `micromamba` package manager to install RBPBench (instead of `conda`, see [above](#conda-package-installation)).
