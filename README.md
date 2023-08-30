@@ -588,7 +588,7 @@ at position 0.
 
 ## Documentation
 
-This documentation provides further details on RBPBench (version 0.1).
+This documentation provides further details on RBPBench (version 0.2).
 
 ### Program modes
 
