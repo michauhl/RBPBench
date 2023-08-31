@@ -23,7 +23,6 @@ from rbpbench import benchlib
 __version__ = "0.2"
 
 
-
 ################################################################################
 
 def setup_argument_parser():
