@@ -1701,6 +1701,7 @@ def main_search(args):
     instead of 1 for any number of hits)
 
     """
+    html_report_out = args.out_folder + "/" + "report.rbpbench_search.html"
 
     if args.report:
 
@@ -1745,8 +1746,6 @@ def main_search(args):
         # fig = px.imshow(df_corr)
         # fig.show()
 
-
-        html_report_out = args.out_folder + "/" + "report.rbpbench_search.html"
         plots_subfolder = "html_report_plots"
         benchlib_path = os.path.dirname(benchlib.__file__)
 
@@ -1763,11 +1762,12 @@ def main_search(args):
     Motif plots and motif hit statistics HTML.
 
     """
+    html_motif_plots_out = args.out_folder + "/" + "motif_plots.rbpbench_search.html"
 
     if args.plot_motifs:
         
         print("Generate motif plots HTML ... ")
-        html_motif_plots_out = args.out_folder + "/" + "motif_plots.rbpbench_search.html"
+        
         plots_subfolder = "html_motif_plots"
         benchlib_path = os.path.dirname(benchlib.__file__)
 
@@ -2107,6 +2107,7 @@ def main_batch(args):
     Run motif search for each BED / RBP ID combination.
 
     """
+    call_dic = {}
 
     for idx, bed_file in enumerate(bed_list):
 
@@ -2240,7 +2241,6 @@ def main_batch(args):
         
         """
         fimo_hits_list = []
-        call_dic = {}
 
         if seq_rbps_dic:
 
@@ -2833,7 +2833,7 @@ def main_optex(args):
     str_rbps_dic = {}
     search_rbps_dic = {}
 
-    rbp = benchlib.RBP(rbp_id)
+    rbp = benchlib.RBP(rbp_id, "optex")
 
     for motif_id in loaded_motif_ids_dic:
 

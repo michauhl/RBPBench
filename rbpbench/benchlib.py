@@ -3,6 +3,7 @@ from typing import Optional
 import os
 import re
 import subprocess
+import gzip
 import matplotlib.pyplot as plt
 from matplotlib_venn import venn2, venn3
 from venn import venn
@@ -1423,13 +1424,13 @@ def read_in_motif_stats(in_file,
             motif_stats.rbp_id = cols[5]
             motif_stats.motif_id = cols[6]
             motif_stats.chr_id = cols[7]
-            motif_stats.gen_s = cols[8]
-            motif_stats.gen_e = cols[9]
+            motif_stats.gen_s = int(cols[8])
+            motif_stats.gen_e = int(cols[9])
             motif_stats.strand = cols[10]
-            motif_stats.region_s = cols[11]
-            motif_stats.region_e = cols[12]
-            motif_stats.region_len = cols[13]
-            motif_stats.uniq_count = cols[14]
+            motif_stats.region_s = int(cols[11])
+            motif_stats.region_e = int(cols[12])
+            motif_stats.region_len = int(cols[13])
+            motif_stats.uniq_count = int(cols[14])
             fimo_score = cols[15]
             fimo_pval = cols[16]
             cms_score = cols[17]
@@ -1467,7 +1468,7 @@ class RBPStats:
                  motif_db: str,
                  rbp_id = "-",
                  c_regions = 0,
-                 mean_reg_len = 0,
+                 mean_reg_len = 0.0,
                  median_reg_len = 0,
                  min_reg_len = 0,
                  max_reg_len = 0,
