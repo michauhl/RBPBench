@@ -174,7 +174,7 @@ def setup_argument_parser():
     Batch mode.
     """
     p_b = subparsers.add_parser('batch',
-                                  help='Find motifs on > 1 dataset')
+                                  help='Search motifs on > 1 dataset')
     p_b.set_defaults(which='batch')
     # Add required arguments group.
     p_bm = p_b.add_argument_group("required arguments")
@@ -406,8 +406,8 @@ def setup_argument_parser():
     p_d.add_argument("--ext",
                    dest="ext_up_down",
                    type=int,
-                   metavar='str',
-                   default="10",
+                   metavar='int',
+                   default=10,
                    help="Up- and downstream extension of --in sites in nucleotides (nt). Set e.g. --ext 20 for 20 nt on both sides (default: 10)")
     p_d.add_argument("--plot-pdf",
                    dest="plot_pdf",
@@ -3477,7 +3477,7 @@ def main_compare(args):
     c_motif_stats = len(motif_stats_dic)
     assert c_rbp_stats == c_motif_stats, "# RBP stats != # motif stats. Please provide RBP/motif stats files in pairs"
     for internal_id in rbp_stats_dic:
-        assert internal_id in motif_stats_dic, "RBP stats internal_id %s not found in motif stats files. Please provide matching RBP/motif stats files"
+        assert internal_id in motif_stats_dic, "RBP stats internal_id %s not found in motif stats files. Please provide matching RBP/motif stats files" %(internal_id)
 
     print("# RBP stats:  ", c_rbp_stats)
     print("# motif stats:", c_motif_stats)

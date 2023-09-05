@@ -609,7 +609,7 @@ positional arguments:
   {search,batch,optex,info,dist,compare}
                         Program modes
     search              Search motifs in genomic sites
-    batch               Find motifs on > 1 dataset
+    batch               Search motifs on > 1 dataset
     optex               Investigate optimal extension
     info                Print out RBP IDs in database
     dist                Plot nt distribution at genomic positions
