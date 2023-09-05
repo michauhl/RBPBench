@@ -112,7 +112,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide MEME XML file containing sequence motif(s) to be used for the run (needs --rbps USER)")
+                   help = "Provide MEME/DREME XML file containing sequence motif(s) to be used for the run (needs --rbps USER)")
     p_s.add_argument("--user-cm",
                    dest="user_cm",
                    type=str,
@@ -309,7 +309,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide MEME XML file containing sequence motif(s) to be used as search motifs")
+                   help = "Provide MEME/DREME XML file containing sequence motif(s) to be used as search motifs")
     p_oe.add_argument("--user-cm",
                    dest="user_cm",
                    type=str,
@@ -408,7 +408,7 @@ def setup_argument_parser():
                    type=int,
                    metavar='int',
                    default=10,
-                   help="Up- and downstream extension of --in sites in nucleotides (nt). Set e.g. --ext 20 for 20 nt on both sides (default: 10)")
+                   help="Up- and downstream extension of defined genomic positions (define via --cp-mode) in nucleotides (nt). Set e.g. --ext 20 for 20 nt on both sides (default: 10)")
     p_d.add_argument("--plot-pdf",
                    dest="plot_pdf",
                    default = False,
