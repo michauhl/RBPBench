@@ -802,7 +802,11 @@ def main_search(args):
                                           score_col=args.bed_score_col,
                                           chr_ids_dic=chr_ids_dic,
                                           unstranded=args.unstranded)
-    
+
+    print("# --in regions pre-filtering:  ", reg_stats_dic["c_in"])
+    print("# --in regions post-filtering: ", reg_stats_dic["c_out"])
+    print("# regions with invalid chr_id: ", reg_stats_dic["c_chr_filter"])
+    print("# duplicated regions removed:  ", reg_stats_dic["c_dupl_filter"])
     assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID filtering"
 
     """
@@ -812,10 +816,7 @@ def main_search(args):
     print("Calculate effective genomic region size ... ")
     eff_reg_size = benchlib.get_uniq_gen_size(filtered_sites_bed)
 
-    print("# --in regions pre-filtering:  ", reg_stats_dic["c_in"])
-    print("# --in regions post-filtering: ", reg_stats_dic["c_out"])
-    print("# regions with invalid chr_id: ", reg_stats_dic["c_chr_filter"])
-    print("# duplicated regions removed:  ", reg_stats_dic["c_dupl_filter"])
+
     print("Called region length sum:      ", reg_stats_dic["reg_len_sum"])
     print("Effective region length sum:   ", eff_reg_size)
 
@@ -2172,7 +2173,11 @@ def main_batch(args):
                                             score_col=args.bed_score_col,
                                             chr_ids_dic=chr_ids_dic,
                                             unstranded=args.unstranded)
-        
+
+        print("# --in regions pre-filtering:  ", reg_stats_dic["c_in"])
+        print("# --in regions post-filtering: ", reg_stats_dic["c_out"])
+        print("# regions with invalid chr_id: ", reg_stats_dic["c_chr_filter"])
+        print("# duplicated regions removed:  ", reg_stats_dic["c_dupl_filter"])
         assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID filtering"
 
         """
@@ -2182,10 +2187,7 @@ def main_batch(args):
         print("Calculate effective genomic region size ... ")
         eff_reg_size = benchlib.get_uniq_gen_size(filtered_sites_bed)
 
-        print("# --in regions pre-filtering:  ", reg_stats_dic["c_in"])
-        print("# --in regions post-filtering: ", reg_stats_dic["c_out"])
-        print("# regions with invalid chr_id: ", reg_stats_dic["c_chr_filter"])
-        print("# duplicated regions removed:  ", reg_stats_dic["c_dupl_filter"])
+
         print("Called region length sum:      ", reg_stats_dic["reg_len_sum"])
         print("Effective region length sum:   ", eff_reg_size)
 
@@ -3331,7 +3333,11 @@ def main_dist(args):
                                           cp_mode=args.cp_mode,
                                           remove_dupl=True,
                                           chr_ids_dic=chr_ids_dic)
-    
+
+    print("# --in regions pre-filtering:  ", reg_stats_dic["c_in"])
+    print("# --in regions post-filtering: ", reg_stats_dic["c_out"])
+    print("# regions with invalid chr_id: ", reg_stats_dic["c_chr_filter"])
+    print("# duplicated regions removed:  ", reg_stats_dic["c_dupl_filter"])
     assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID filtering"
 
     """
@@ -3341,10 +3347,7 @@ def main_dist(args):
     print("Calculate effective genomic region size ... ")
     eff_reg_size = benchlib.get_uniq_gen_size(filtered_sites_bed)
 
-    print("# --in regions pre-filtering:  ", reg_stats_dic["c_in"])
-    print("# --in regions post-filtering: ", reg_stats_dic["c_out"])
-    print("# regions with invalid chr_id: ", reg_stats_dic["c_chr_filter"])
-    print("# duplicated regions removed:  ", reg_stats_dic["c_dupl_filter"])
+
     print("Called region length sum:      ", reg_stats_dic["reg_len_sum"])
     print("Effective region length sum:   ", eff_reg_size)
 
