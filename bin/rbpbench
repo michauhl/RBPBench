@@ -3403,6 +3403,8 @@ def main_dist(args):
 
 
     print("")
+    print("Filtered input regions .bed:\n%s" %(filtered_sites_bed))
+    print("Filtered input regions .fa:\n%s" %(filtered_sites_fa))
     print("Distribution plot file:\n%s" %(motif_plot_out))
     print("")
 
