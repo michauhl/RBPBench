@@ -2079,14 +2079,22 @@ def search_generate_html_report(df_corr, df_pval, pval_cont_lll,
                                 id2name_dic, out_folder, 
                                 benchlib_path,
                                 html_report_out="report.rbpbench_search.html",
+                                plot_abs_paths=False,
                                 plots_subfolder="html_report_plots"):
     """
     Create additional hit statistics for selected RBPs, 
     e.g. correlation / co-occurrence between RBPs.
 
     """
+    # Use absolute paths?
+    if plot_abs_paths:
+        out_folder = os.path.abspath(out_folder)
+    
     plots_folder = plots_subfolder
     plots_out_folder = out_folder + "/" + plots_folder
+    if plot_abs_paths:
+        plots_folder = plots_out_folder
+
     if not os.path.exists(plots_out_folder):
         os.makedirs(plots_out_folder)
     html_out = out_folder + "/" + "report.rbpbench_search.html"
@@ -2337,7 +2345,8 @@ def log_tf_pval(pval):
 
 def log_tf_df(df,
               min_pv=2.2e-308,
-              convert_zero_pv=False):
+              convert_zero_pv=False,
+              rbp_list=None):
     """
     Log transform quadratic dataframe of p-values.
 
@@ -2348,15 +2357,29 @@ def log_tf_df(df,
 
     """
 
-    for i in range(len(df)):
-        for j in range(len(df)):
-            if df.iloc[i][j] is not None:
-                pv = df.iloc[i][j]
-                if convert_zero_pv:
-                    if pv == 0:
-                        pv = min_pv
-                ltf_pval = log_tf_pval(pv)
-                df.iloc[i][j] = ltf_pval
+    if rbp_list is None:
+        # Old .iloc way of addressing (gives warning from pandas 2.1.0 on).
+        for i in range(len(df)):
+            for j in range(len(df)):
+                if df.iloc[i][j] is not None:
+                    pv = df.iloc[i][j]
+                    if convert_zero_pv:
+                        if pv == 0:
+                            pv = min_pv
+                    ltf_pval = log_tf_pval(pv)
+                    df.iloc[i][j] = ltf_pval
+    else:
+        # Way to deal with pandas 2.1.0 deprecation warning "treating keys as positions is deprecated ...".
+        assert len(df) == len(rbp_list), "len(df) != len(rbp_list) (%i != %i)" %(len(df), len(rbp_list)) 
+        for i,rbp_i in enumerate(rbp_list):
+            for j,rbp_j in enumerate(rbp_list):
+                if df.loc[rbp_i][rbp_j] is not None:
+                    pv = df.loc[rbp_i][rbp_j]
+                    if convert_zero_pv:
+                        if pv == 0:
+                            pv = min_pv
+                    ltf_pval = log_tf_pval(pv)
+                    df.loc[rbp_i][rbp_j] = ltf_pval
 
 
 ################################################################################
@@ -2476,14 +2499,21 @@ def search_generate_html_motif_plots(search_rbps_dic,
                                      seq_motif_blocks_dic, str_motif_blocks_dic,
                                      out_folder, benchlib_path, motif2db_dic,
                                      html_report_out="motif_plots.rbpbench_search.html",
+                                     plot_abs_paths=False,
                                      plots_subfolder="html_motif_plots"):
     """
     Create motif plots for selected RBPs.
 
     """
-
+    # Use absolute paths?
+    if plot_abs_paths:
+        out_folder = os.path.abspath(out_folder)
+    
     plots_folder = plots_subfolder
     plots_out_folder = out_folder + "/" + plots_folder
+    if plot_abs_paths:
+        plots_folder = plots_out_folder
+
     if not os.path.exists(plots_out_folder):
         os.makedirs(plots_out_folder)
     html_out = out_folder + "/" + "motif_plots.rbpbench_search.html"
@@ -2706,15 +2736,21 @@ def compare_generate_html_report(compare_methods_dic, compare_datasets_dic,
                                  rbp_stats_dic, motif_stats_dic,
                                  out_folder, benchlib_path,
                                  html_report_out="report.rbpbench_compare.html",
+                                 plot_abs_paths=False,
                                  plots_subfolder="html_plots"):
     """
     Create comparison statistics and HTML report.
 
     """
+    # Use absolute paths?
+    if plot_abs_paths:
+        out_folder = os.path.abspath(out_folder)
 
-    from markdown import markdown
     plots_folder = plots_subfolder
     plots_out_folder = out_folder + "/" + plots_folder
+    if plot_abs_paths:
+        plots_folder = plots_out_folder
+
     if not os.path.exists(plots_out_folder):
         os.makedirs(plots_out_folder)
     html_out = out_folder + "/" + "report.rbpbench_compare.html"

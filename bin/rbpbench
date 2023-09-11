@@ -169,6 +169,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Visualize selected sequence motifs, by outputting sequence logos and motif hit statistics into a separate .html file (default: False)")
+    p_s.add_argument("--plot-absolute-paths",
+                   dest="plot_abs_paths",
+                   default = False,
+                   action = "store_true",
+                   help = "Store plot files with absolute paths in HTML files. Default is relative paths (default: False)")
 
     """
     Batch mode.
@@ -438,6 +443,11 @@ def setup_argument_parser():
                    metavar='str',
                    required=True,
                    help="Comparison results output folder")
+    p_c.add_argument("--plot-absolute-paths",
+                   dest="plot_abs_paths",
+                   default = False,
+                   action = "store_true",
+                   help = "Store plot files with absolute paths in HTML files. Default is relative paths (default: False)")
     return p
 
 
@@ -1702,6 +1712,9 @@ def main_search(args):
 
     """
     html_report_out = args.out_folder + "/" + "report.rbpbench_search.html"
+    if args.plot_abs_paths:
+        html_report_out = os.path.abspath(args.out_folder) + "/" + "report.rbpbench_search.html"
+
 
     if args.report:
 
@@ -1710,9 +1723,8 @@ def main_search(args):
         df = DataFrame(reg_hits_dic, columns=rbp_list)
         df_corr = df.corr(method='pearson')
 
-
-        for i,rbp1 in enumerate(rbp_list):
-            for j,rbp2 in enumerate(rbp_list):
+        for i,rbp_i in enumerate(rbp_list):
+            for j,rbp_j in enumerate(rbp_list):
                 if j > i:
                     pval_ll[i][j] = None
 
@@ -1720,19 +1732,29 @@ def main_search(args):
         df_pval = DataFrame(pval_ll, columns=rbp_list, index=rbp_list)
 
         # Write None to upper-diagonal entries.
-        for i in range(len(rbp_list)):
-            for j in range(len(rbp_list)):
+        for i,rbp_i in enumerate(rbp_list):
+            for j,rbp_j in enumerate(rbp_list):
                 if j > i:
-                    df_corr.iloc[i][j] = None
+                    df_corr.loc[rbp_i][rbp_j] = None
 
-        for i in range(len(rbp_list)):
-            for j in range(len(rbp_list)):
+        for i,rbp_i in enumerate(rbp_list):
+            for j,rbp_j in enumerate(rbp_list):
                 if j > i:
-                    df_pval.iloc[i][j] = None
+                    df_pval.loc[rbp_i][rbp_j] = None
+
+        # for i in range(len(rbp_list)):
+        #     for j in range(len(rbp_list)):
+        #         if j > i:
+        #             df_corr.iloc[i][j] = None
+
+        # for i in range(len(rbp_list)):
+        #     for j in range(len(rbp_list)):
+        #         if j > i:
+        #             df_pval.iloc[i][j] = None
 
         # print("df_pval:", df_pval)
         # Log transform p-values.
-        benchlib.log_tf_df(df_pval, convert_zero_pv=True)
+        benchlib.log_tf_df(df_pval, convert_zero_pv=True, rbp_list=rbp_list)
         # print("df_pval:", df_pval)
 
 
@@ -1755,6 +1777,7 @@ def main_search(args):
                                          id2name_dic, args.out_folder, 
                                          benchlib_path,
                                          html_report_out=html_report_out,
+                                         plot_abs_paths=args.plot_abs_paths,
                                          plots_subfolder=plots_subfolder)
 
 
@@ -1763,6 +1786,8 @@ def main_search(args):
 
     """
     html_motif_plots_out = args.out_folder + "/" + "motif_plots.rbpbench_search.html"
+    if args.plot_abs_paths:
+        html_motif_plots_out = os.path.abspath(args.out_folder) + "/" + "motif_plots.rbpbench_search.html"
 
     if args.plot_motifs:
         
@@ -1775,6 +1800,7 @@ def main_search(args):
                                          str_motif_blocks_dic, args.out_folder, 
                                          benchlib_path, loaded_motif_ids_dic,
                                          html_report_out=html_motif_plots_out,
+                                         plot_abs_paths=args.plot_abs_paths,
                                          plots_subfolder=plots_subfolder)
 
 
@@ -3606,9 +3632,11 @@ def main_compare(args):
     """
 
     html_report_out = args.out_folder + "/" + "report.rbpbench_compare.html"
+    if args.plot_abs_paths:
+        html_report_out = os.path.abspath(args.out_folder) + "/" + "report.rbpbench_compare.html"
+
     plots_subfolder = "html_report_plots"
     benchlib_path = os.path.dirname(benchlib.__file__)
-
 
     # Generate report.
     benchlib.compare_generate_html_report(compare_methods_dic, 
@@ -3616,6 +3644,7 @@ def main_compare(args):
                                           rbp_stats_dic, motif_stats_dic,
                                           args.out_folder, benchlib_path,
                                           html_report_out=html_report_out,
+                                          plot_abs_paths=args.plot_abs_paths,
                                           plots_subfolder=plots_subfolder)
 
 
