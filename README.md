@@ -1,4 +1,8 @@
 # RBPBench
+
+[![GitHub](https://img.shields.io/github/tag/michauhl/RBPBench.svg)](https://github.com/michauhl/RBPBench)
+[![Bioconda](https://anaconda.org/bioconda/rbpbench/badges/version.svg)](https://anaconda.org/bioconda/rbpbench)
+
 RBPBench is multi-function tool to evaluate CLIP-seq and other genomic region data 
 using a comprehensive collection of known RBP binding motifs. RBPBench can be used for a variety of
 purposes, from RBP motif search (database or user-supplied RBPs) in genomic regions, over motif 
