@@ -169,7 +169,7 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Visualize selected sequence motifs, by outputting sequence logos and motif hit statistics into a separate .html file (default: False)")
-    p_s.add_argument("--plot-absolute-paths",
+    p_s.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
                    action = "store_true",
@@ -443,7 +443,7 @@ def setup_argument_parser():
                    metavar='str',
                    required=True,
                    help="Comparison results output folder")
-    p_c.add_argument("--plot-absolute-paths",
+    p_c.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
                    action = "store_true",
