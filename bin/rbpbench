@@ -407,7 +407,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Define which position of --in genomic sites to use as zero position for plotting. 1: upstream end position, 2: center position, 2: downstream end position (default: 1)")
+                   help="Define which position of --in genomic sites to use as zero position for plotting. 1: upstream end position, 2: center position, 3: downstream end position (default: 1)")
     p_d.add_argument("--ext",
                    dest="ext_up_down",
                    type=int,
