@@ -3624,7 +3624,7 @@ def main_compare(args):
     print("# of data combinations:", c_data_comps)
 
     if not c_method_comps and not c_data_comps:
-        assert False, "--in data does not contain any dataset or method combinations. Please provide combinations for method or dataset comparsion"
+        assert False, "--in data does not contain any dataset or method combinations. Please provide combinations for method or dataset comparison"
 
     """
     Create comparison statistics and HTML report.
