@@ -7,10 +7,12 @@ import re
 import statistics
 import sys
 from itertools import combinations
+
 from pandas import DataFrame
+from rbpbench import benchlib
 from scipy.stats import fisher_exact
 from scipy.stats import mannwhitneyu
-from rbpbench import benchlib
+
 # from distutils.spawn import find_executable
 # from typing import Optional
 # import subprocess
@@ -1120,7 +1122,7 @@ def main_search(args):
     for rbp_id in unique_motifs_dic:
         # Ouput unique motif hit regions (sequence or structure) to BED for RBP rbp_id.
         benchlib.output_motif_hits_to_bed(rbp_id, unique_motifs_dic, out_tmp_bed,
-                                 one_based_start=True)
+                                          one_based_start=True)
         # Calculate effective motif region size.
         eff_motif_reg_size = benchlib.get_uniq_gen_size(out_tmp_bed)
 
@@ -1598,7 +1600,7 @@ def main_search(args):
     for rbp_id in rbp_list:
         pval_ll.append([1.0]*len_rbp_list)
         pval_cont_lll.append([]*len_rbp_list)
-        #pval_cont_lll.append([["1.0","-", "-"]]*len_rbp_list)
+        # pval_cont_lll.append([["1.0","-", "-"]]*len_rbp_list)
         or_ll.append([0.0]*len_rbp_list)
 
     for i in range(len_rbp_list):
@@ -1617,7 +1619,7 @@ def main_search(args):
     pair_str_dic = {}
 
     # print("rbp2idx_dic:", rbp2idx_dic)
-    # #print("region_rbp_binds_dic:", region_rbp_binds_dic)
+    # print("region_rbp_binds_dic:", region_rbp_binds_dic)
     # print("len(region_rbp_binds_dic):", len(region_rbp_binds_dic))
     # true_c = 0
     # for reg_id in region_rbp_binds_dic:
@@ -1652,10 +1654,10 @@ def main_search(args):
         odds_ratio, p_value = fisher_exact(table, alternative="two-sided")
 
         # if p_value == 0:
-        #     p_value = 2.2e-308
-            # print("PVALUE ZERO! (%s, odds_ratio: %s)" %(str(p_value), str(odds_ratio)))
-            # print("pair_str:", pair_str)
-            # print("table_str:", table_str)
+        #   p_value = 2.2e-308
+        #   print("PVALUE ZERO! (%s, odds_ratio: %s)" %(str(p_value), str(odds_ratio)))
+        #   print("pair_str:", pair_str)
+        #   print("table_str:", table_str)
 
         con_pval_dic[pair_str] = p_value
         con_table_dic[pair_str] = table
@@ -1971,7 +1973,7 @@ def main_batch(args):
     Motif database.
     """
     seq_motifs_db_file, str_motifs_db_file, rbp2ids_file, motif_db_str = specify_motif_db(args.motif_db, 
-                                                                            db_path=db_path)
+                                                                                          db_path=db_path)
     args.motif_db_str = motif_db_str
 
 
@@ -2053,7 +2055,7 @@ def main_batch(args):
 
     rbp_stats_out = args.out_folder + "/rbp_hit_stats.tsv"
     motif_stats_out = args.out_folder + "/motif_hit_stats.tsv"
-    con_res_out_tsv = args.out_folder + "/contingency_table_results.tsv"
+    # con_res_out_tsv = args.out_folder + "/contingency_table_results.tsv"
     settings_file = args.out_folder + "/settings.find_motifs.out"
 
     # Output unique motif hits.
@@ -2155,7 +2157,7 @@ def main_batch(args):
             loaded_motif_ids_dic[motif_id] = motif_db_str
 
         # Store motif IDs for search.
-        search_rbps_dic = {} #
+        # search_rbps_dic = {}
         seq_rbps_dic = {}
         str_rbps_dic = {}
         motif_id2idx_dic = {} # motif ID -> list index.
@@ -2223,19 +2225,19 @@ def main_batch(args):
         """
         print("Extract sequences from --genome ... ")
         benchlib.bed_extract_sequences_from_fasta(filtered_sites_bed, 
-                                                args.in_genome, filtered_sites_fa,
-                                                print_warnings=True)
+                                                  args.in_genome, filtered_sites_fa,
+                                                  print_warnings=True)
 
         """
         Get FASTA sequences and sequence lengths.
         """
 
         out_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
-                                        dna=True,
-                                        all_uc=True,
-                                        id_check=True,
-                                        empty_check=False,
-                                        skip_n_seqs=False)
+                                                    dna=True,
+                                                    all_uc=True,
+                                                    id_check=True,
+                                                    empty_check=False,
+                                                    skip_n_seqs=False)
 
         assert out_seqs_dic, "no sequences extracted from FASTA file for --in BED sites. Make sure to use compatible FASTA/BED files!"
 
@@ -2324,9 +2326,9 @@ def main_batch(args):
             # Run cmsearch.
             print("Run cmsearch ... ")
             benchlib.run_cmsearch(filtered_sites_fa, str_motifs_cm, cmsearch_res_txt,
-                            error_check=False,
-                            call_dic=call_dic,
-                            params="-g --tformat fasta --toponly --incT 1 -T 1 --default")
+                                  error_check=False,
+                                  call_dic=call_dic,
+                                  params="-g --tformat fasta --toponly --incT 1 -T 1 --default")
             # Read in hits.
             print("Read in cmsearch results ... ")
             cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt)
@@ -2357,7 +2359,7 @@ def main_batch(args):
             if fh.seq_name in regions_with_motifs_dic:
                 regions_with_motifs_dic[fh.seq_name] += 1
             else:
-               regions_with_motifs_dic[fh.seq_name] = 1 
+                regions_with_motifs_dic[fh.seq_name] = 1 
 
             fh_str = repr(fh) # genomic motif region string.
 
@@ -2372,7 +2374,7 @@ def main_batch(args):
             if cmsh.seq_name in regions_with_motifs_dic:
                 regions_with_motifs_dic[cmsh.seq_name] += 1
             else:
-               regions_with_motifs_dic[cmsh.seq_name] = 1 
+                regions_with_motifs_dic[cmsh.seq_name] = 1 
 
             cmsh_str = repr(cmsh) # genomic motif region string.
 
@@ -2735,7 +2737,7 @@ def main_optex(args):
     Motif database.
     """
     seq_motifs_db_file, str_motifs_db_file, rbp2ids_file, motif_db_str = specify_motif_db(args.motif_db, 
-                                                                            db_path=db_path)
+                                                                                          db_path=db_path)
     args.motif_db_str = motif_db_str
 
     """
@@ -3033,7 +3035,7 @@ def main_optex(args):
             # print("Read in FIMO results ... ")
             fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv)
 
-            c_fimo_hits = len(fimo_hits_list)
+            # c_fimo_hits = len(fimo_hits_list)
             # print("# of FIMO motif hits:", c_fimo_hits)
 
         """
@@ -3099,7 +3101,7 @@ def main_optex(args):
             if cmsh.seq_name in regions_with_motifs_dic:
                 regions_with_motifs_dic[cmsh.seq_name] += 1
             else:
-               regions_with_motifs_dic[cmsh.seq_name] = 1 
+                regions_with_motifs_dic[cmsh.seq_name] = 1 
 
             cmsh_str = repr(cmsh) # genomic motif region string.
 
