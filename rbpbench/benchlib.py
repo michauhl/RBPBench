@@ -13,6 +13,7 @@ import pandas as pd
 import plotly.express as px
 from math import log10
 import textdistance
+from upsetplot import plot
 
 
 """
@@ -2078,6 +2079,10 @@ def search_generate_html_report(df_corr, df_pval, pval_cont_lll,
                                 fimo_hits_list, cmsearch_hits_list,
                                 id2name_dic, out_folder, 
                                 benchlib_path,
+                                rbp2regidx_dic,
+                                c_regions,
+                                upset_plot_min_degree=2,
+                                upset_plot_min_subset_size=10,
                                 html_report_out="report.rbpbench_search.html",
                                 plot_abs_paths=False,
                                 plots_subfolder="html_report_plots"):
@@ -2129,7 +2134,8 @@ by RBPBench (rbpbench search --report):
 
 - [RBP motif enrichment statistics](#rbp-enrich-stats)
 - [RBP co-occurrences heat map](#cooc-heat-map)
-- [RBP correlations heat map](#corr-heat-map)"""
+- [RBP correlations heat map](#corr-heat-map)
+- [RBP combinations upset plot](#rbp-comb-upset-plot)"""
 
     mdtext += "\n&nbsp;\n"
 
@@ -2250,6 +2256,74 @@ D: NOT RBP1 AND NOT RBP2.
 
 """
 
+
+
+    """
+    RBP region occupancies upset plot.
+
+    """
+
+    rbp_reg_occ_upset_plot =  "rbp_region_occupancies.upset_plot.png"
+    rbp_reg_occ_upset_plot_out = plots_out_folder + "/" + rbp_reg_occ_upset_plot
+
+    plotted, reason = create_rbp_reg_occ_upset_plot(rbp2regidx_dic, c_regions,
+                                  min_degree=upset_plot_min_degree,
+                                  min_subset_size=upset_plot_min_subset_size,
+                                  plot_out=rbp_reg_occ_upset_plot_out)
+
+
+    plot_path = plots_folder + "/" + rbp_reg_occ_upset_plot
+
+    mdtext += """
+## RBP combinations upset plot ### {#rbp-comb-upset-plot}
+
+RBP combinations upset plot.
+
+"""
+
+    if plotted:
+        mdtext += '<img src="' + plot_path + '" alt="RBP region occupancies upset plot"' + "\n"
+        mdtext += 'title="RBP region occupancies upset plot" width="600" />' + "\n"
+        mdtext += """
+
+**Figure:** Upset plot of RBP combinations found in the given set of genomic regions (# of regions = %i). 
+Intersection size == how often a specific RBP combination is found in the regions dataset.
+For example, if two regions in the input set contain motif hits for RBP1, RBP3, and RBP5, then the RBP combination RBP1,RBP3,RBP5 will get a count (== Intersection size) of 2.
+Minimum occurrence number for a combination to be reported = %i (command line parameter: --upset-plot-min-subset-size). 
+How many RBPs a combination must contain to be reported (--up) = %i (command line parameter: --upset-plot-min-degree). 
+Number of
+
+&nbsp;
+
+""" %(c_regions, upset_plot_min_subset_size, upset_plot_min_degree)
+
+    else:
+
+        if reason == "min_degree":
+
+            mdtext += """
+
+No upset plot generated since set --upset-plot-min-degree > maximum degree found in the RBP combination set. Please use lower number for --upset-plot-min-degree parameter.
+
+&nbsp;
+
+"""
+
+        elif reason == "min_degree":
+
+            mdtext += """
+
+No upset plot generated since set --upset-plot-min-subset-size > maximum subset size found in the RBP combination set. Please use lower number for --upset-plot-min-subset-size parameter.
+
+&nbsp;
+
+"""
+        else:
+            assert False, "invalid reason given for not plotting upset plot"
+
+
+    # ALAMO
+
     # Convert mdtext to html.
     md2html = markdown(mdtext, extensions=['attr_list', 'tables'])
 
@@ -2267,6 +2341,79 @@ D: NOT RBP1 AND NOT RBP2.
     if output:
         error = True
     assert error == False, "sed command returned error:\n%s" %(output)
+
+
+################################################################################
+
+def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, c_regions,
+                                  min_degree=2,
+                                  min_subset_size=10,
+                                  plot_out="rbp_region_occupancies.upset_plot.png"):
+    """
+    Create upset plot for RBP region occupancies.
+
+    conda install -c conda-forge upsetplot
+    import pandas as pd
+    from upsetplot import plot
+    from matplotlib import pyplot
+
+    Return False if plotting not possible (due to set min_degree or min_subset_size too high).
+
+    """
+
+
+    # All regions (# regions).
+    assert c_regions > 0, "c_regions must be >= 0"
+    rbp_idx_list = []
+    for i in range(c_regions):
+        rbp_idx_list.append(i)
+
+    # Convert to sets.
+    rbp_id_list = []
+    for rbp_id, rbp_list in sorted(rbp2regidx_dic.items()):
+        rbp_set = set(rbp_list)
+        rbp2regidx_dic[rbp_id] = rbp_set
+        rbp_id_list.append(rbp_id)
+    rbp_idx_list = set(rbp_idx_list)
+
+    # Create boolean list of lists to convert to pandas DataFrame.
+    bool_ll = []
+    for idx in rbp_idx_list:
+        bool_l = []
+        for rbp_id, rbp_set in sorted(rbp2regidx_dic.items()):
+            if idx in rbp_set:
+                bool_l.append(True)
+            else:
+                bool_l.append(False)        
+        bool_ll.append(bool_l)
+
+    df = pd.DataFrame(bool_ll, columns=rbp_id_list)
+
+    df_up = df.groupby(rbp_id_list).size()
+
+    # Check if set min_degree and min_subset_size are too high (to prevent plotting error).
+    df_up_check = df_up[df_up.index.map(sum) >= min_degree]
+    if df_up_check.empty:
+        # Set min_degree too high.
+        return False, "min_degree"
+    max_subset_size = 0
+    for elem_c in df_up_check:
+        if elem_c > max_subset_size:
+            max_subset_size = elem_c
+
+    if max_subset_size < min_subset_size:
+        # Set min_subset_size too high.
+        return False, "min_subset_size"
+
+    # Move on to plotting.
+    upset_plot = plot(df_up, orientation='horizontal', 
+                    min_degree=min_degree,  # number of RBPs in set (e.g. 2 -> at least 2 RBP pairs, not single RBPs)
+                    min_subset_size=min_subset_size,  # min size of a set to be reported.
+                    sort_by="cardinality")
+
+    plt.savefig(plot_out, dpi=150)
+    plt.close()
+    return True, "yowza"
 
 
 ################################################################################

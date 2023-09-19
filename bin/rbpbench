@@ -171,6 +171,18 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Visualize selected sequence motifs, by outputting sequence logos and motif hit statistics into a separate .html file (default: False)")
+    p_s.add_argument("--upset-plot-min-degree",
+                   dest="upset_plot_min_degree",
+                   type=int,
+                   metavar='int',
+                   default=2,
+                   help="Upset plot minimum degree parameter (default: 2)")
+    p_s.add_argument("--upset-plot-min-subset-size",
+                   dest="upset_plot_min_subset_size",
+                   type=int,
+                   metavar='int',
+                   default=10,
+                   help="Upset plot minimum subset size (default: 10)")
     p_s.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
@@ -597,6 +609,8 @@ def main_search(args):
     motif_stats_out = args.out_folder + "/motif_hit_stats.tsv"
     con_res_out_tsv = args.out_folder + "/contingency_table_results.tsv"
     settings_file = args.out_folder + "/settings.find_motifs.out"
+    rbp_reg_occ_table_out = args.out_folder + "/rbp_region_occupancies.tsv"
+
     # Output unique motif hits.
     motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_search.bed"
 
@@ -1394,6 +1408,7 @@ def main_search(args):
     # RBP ID to index mapping.
     rbp2idx_dic = {}
     idx2rbp_dic = {}
+    print("Get RBP region occupancies ... ")
     for idx, rbp_id in enumerate(rbp_list):
         rbp2idx_dic[rbp_id] = idx
         idx2rbp_dic[idx] = rbp_id
@@ -1416,6 +1431,33 @@ def main_search(args):
                 else:
                     hit_list.append(0)
         reg_hits_dic[rbp_id] = hit_list
+
+    """
+    Output occupancies.
+
+    reg_hits_dic[rbp_id] = [0,1,0,0, ...]
+    reg_ids_list = [reg_id1, reg_id2, ... ]
+
+    rbp2regidx_dic:
+        # rbp_id -> 0-based indexes of occupied regions, e.g. [0, 3, 12, 88, 114] 
+
+    """
+    rbp2regidx_dic = {}
+    OUTOCC = open(rbp_reg_occ_table_out,"w")
+    occ_header = "#rbp_id \ region_id"
+    for reg_id in reg_ids_list:
+        occ_header += "\t%s" %(reg_id)
+    OUTOCC.write("%s\n" %(occ_header))
+    for rbp_id in reg_hits_dic:
+        rbp2regidx_dic[rbp_id] = []
+        occ_row = "%s" %(rbp_id)
+        for idx, label in enumerate(reg_hits_dic[rbp_id]):
+            occ_row += "\t%i" %(label)
+            if label:  # if occupied (i.e. 1-label).
+                rbp2regidx_dic[rbp_id].append(idx)
+        OUTOCC.write("%s\n" %(occ_row))
+    OUTOCC.close()
+
 
     # Init region_rbp_binds_dic, over all regions.
     seen_ids_dic = {}
@@ -1778,9 +1820,22 @@ def main_search(args):
                                          fimo_hits_list, cmsearch_hits_list,
                                          id2name_dic, args.out_folder, 
                                          benchlib_path,
+                                         rbp2regidx_dic,
+                                         len(reg_ids_list),
+                                         upset_plot_min_degree=args.upset_plot_min_degree,
+                                         upset_plot_min_subset_size=args.upset_plot_min_subset_size,
                                          html_report_out=html_report_out,
                                          plot_abs_paths=args.plot_abs_paths,
                                          plots_subfolder=plots_subfolder)
+
+
+Give to function:
+upset_plot_min_degree
+upset_plot_min_subset_size
+
+
+rbp2regidx_dic
+len(reg_ids_list)
 
 
     """
@@ -1843,6 +1898,7 @@ def main_search(args):
     print("Filtered input regions .bed:\n%s" %(filtered_sites_bed))
     print("Filtered input regions .fa:\n%s" %(filtered_sites_fa))
     print("Motif hits .bed:\n%s" %(motif_hits_bed_out))
+    print("RBP region occupancies .tsv:\n%s" %(rbp_reg_occ_table_out))
     print("RBP hit stats .tsv:\n%s" %(rbp_stats_out))
     print("Motif hit stats .tsv:\n%s" %(motif_stats_out))
     if args.plot_motifs:
