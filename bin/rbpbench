@@ -181,8 +181,8 @@ def setup_argument_parser():
                    dest="upset_plot_min_subset_size",
                    type=int,
                    metavar='int',
-                   default=10,
-                   help="Upset plot minimum subset size (default: 10)")
+                   default=5,
+                   help="Upset plot minimum subset size (default: 5)")
     p_s.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
@@ -1444,19 +1444,35 @@ def main_search(args):
     """
     rbp2regidx_dic = {}
     OUTOCC = open(rbp_reg_occ_table_out,"w")
-    occ_header = "#rbp_id \ region_id"
-    for reg_id in reg_ids_list:
-        occ_header += "\t%s" %(reg_id)
-    OUTOCC.write("%s\n" %(occ_header))
-    for rbp_id in reg_hits_dic:
+
+    occ_header = "#region_id \ rbp_id"
+    for rbp_id, hit_list in sorted(reg_hits_dic.items()):
+        occ_header += "\t%s" %(rbp_id)
         rbp2regidx_dic[rbp_id] = []
-        occ_row = "%s" %(rbp_id)
-        for idx, label in enumerate(reg_hits_dic[rbp_id]):
-            occ_row += "\t%i" %(label)
+        for idx, label in enumerate(hit_list):
             if label:  # if occupied (i.e. 1-label).
                 rbp2regidx_dic[rbp_id].append(idx)
+    OUTOCC.write("%s\n" %(occ_header))
+    for idx, reg_id in enumerate(reg_ids_list):
+        occ_row = "%s" %(reg_id)
+        for rbp_id, hit_list in sorted(reg_hits_dic.items()):
+            occ_row += "\t%i" %(hit_list[idx])
         OUTOCC.write("%s\n" %(occ_row))
     OUTOCC.close()
+
+    # occ_header = "#rbp_id \ region_id"
+    # for reg_id in reg_ids_list:
+    #     occ_header += "\t%s" %(reg_id)
+    # OUTOCC.write("%s\n" %(occ_header))
+    # for rbp_id in reg_hits_dic:
+    #     rbp2regidx_dic[rbp_id] = []
+    #     occ_row = "%s" %(rbp_id)
+    #     for idx, label in enumerate(reg_hits_dic[rbp_id]):
+    #         occ_row += "\t%i" %(label)
+    #         if label:  # if occupied (i.e. 1-label).
+    #             rbp2regidx_dic[rbp_id].append(idx)
+    #     OUTOCC.write("%s\n" %(occ_row))
+    # OUTOCC.close()
 
 
     # Init region_rbp_binds_dic, over all regions.
@@ -1815,6 +1831,7 @@ def main_search(args):
         plots_subfolder = "html_report_plots"
         benchlib_path = os.path.dirname(benchlib.__file__)
 
+        print("Create report ... ")
         benchlib.search_generate_html_report(df_corr, df_pval, pval_cont_lll,
                                          search_rbps_dic,
                                          fimo_hits_list, cmsearch_hits_list,
@@ -1828,15 +1845,7 @@ def main_search(args):
                                          plot_abs_paths=args.plot_abs_paths,
                                          plots_subfolder=plots_subfolder)
 
-
-Give to function:
-upset_plot_min_degree
-upset_plot_min_subset_size
-
-# ALAMO
-rbp2regidx_dic
-len(reg_ids_list)
-
+    # ALAMO
 
     """
     Motif plots and motif hit statistics HTML.

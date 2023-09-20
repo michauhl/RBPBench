@@ -14,6 +14,7 @@ import plotly.express as px
 from math import log10
 import textdistance
 from upsetplot import plot
+import numpy as np
 
 
 """
@@ -2074,6 +2075,20 @@ def get_motif_id_from_str_repr(hit_str_repr):
 
 ################################################################################
 
+def convert_sci_not_to_decimal(sn_value):
+    """
+    Convert scientific notation value to decimal string.
+
+    >>> convert_sci_not_to_decimal(6.879779511865709E-8)
+    '0.00000006879779511865709'
+
+    """
+    dec_str = np.format_float_positional(sn_value, trim='-')
+    return dec_str
+
+
+################################################################################
+
 def search_generate_html_report(df_corr, df_pval, pval_cont_lll,
                                 search_rbps_dic,
                                 fimo_hits_list, cmsearch_hits_list,
@@ -2165,10 +2180,11 @@ input genomic regions are all the same, p-values become meaningless (i.e., they 
     mdtext += "| :-: | :-: | :-: | :-: | :-: |\n"
     for rbp_id in search_rbps_dic:
         wc_pval = search_rbps_dic[rbp_id].wc_pval
+        wc_pval_str = convert_sci_not_to_decimal(wc_pval)  # Convert scientific notation to decimal string for sorting to work.
         c_hit_reg = search_rbps_dic[rbp_id].c_hit_reg
         perc_hit_reg = search_rbps_dic[rbp_id].perc_hit_reg
         c_uniq_motif_hits = search_rbps_dic[rbp_id].c_uniq_motif_hits
-        mdtext += "| %s | %i | %.2f | %i | %s |\n" %(rbp_id, c_hit_reg, perc_hit_reg, c_uniq_motif_hits, str(wc_pval))
+        mdtext += "| %s | %i | %.2f | %i | %s |\n" %(rbp_id, c_hit_reg, perc_hit_reg, c_uniq_motif_hits, wc_pval_str)
     mdtext += "\n&nbsp;\n&nbsp;\n"
     mdtext += "\nColumn IDs have the following meanings: "
     mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
@@ -2177,6 +2193,7 @@ input genomic regions are all the same, p-values become meaningless (i.e., they 
     mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
     mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
 
+    # ALAMO
     """
     Co-occurrence heat map.
 
@@ -2192,8 +2209,6 @@ input genomic regions are all the same, p-values become meaningless (i.e., they 
 
     mdtext += """
 ## RBP co-occurrences heat map ### {#cooc-heat-map}
-
-RBP co-occurrences heat map.
 
 """
     mdtext += '<div class=class="container-fluid" style="margin-top:40px">' + "\n"
@@ -2231,8 +2246,6 @@ D: NOT RBP1 AND NOT RBP2.
     mdtext += """
 ## RBP correlations heat map ### {#corr-heat-map}
 
-RBP correlations heat map.
-
 """
 
     mdtext += '<div class=class="container-fluid" style="margin-top:40px">' + "\n"
@@ -2266,7 +2279,7 @@ D: NOT RBP1 AND NOT RBP2.
     rbp_reg_occ_upset_plot =  "rbp_region_occupancies.upset_plot.png"
     rbp_reg_occ_upset_plot_out = plots_out_folder + "/" + rbp_reg_occ_upset_plot
 
-    plotted, reason = create_rbp_reg_occ_upset_plot(rbp2regidx_dic, c_regions,
+    plotted, reason, count = create_rbp_reg_occ_upset_plot(rbp2regidx_dic, c_regions,
                                   min_degree=upset_plot_min_degree,
                                   min_subset_size=upset_plot_min_subset_size,
                                   plot_out=rbp_reg_occ_upset_plot_out)
@@ -2277,21 +2290,19 @@ D: NOT RBP1 AND NOT RBP2.
     mdtext += """
 ## RBP combinations upset plot ### {#rbp-comb-upset-plot}
 
-RBP combinations upset plot.
-
 """
 
     if plotted:
         mdtext += '<img src="' + plot_path + '" alt="RBP region occupancies upset plot"' + "\n"
-        mdtext += 'title="RBP region occupancies upset plot" width="600" />' + "\n"
+        mdtext += 'title="RBP region occupancies upset plot" />' + "\n"
         mdtext += """
 
 **Figure:** Upset plot of RBP combinations found in the given set of genomic regions (# of regions = %i). 
 Intersection size == how often a specific RBP combination is found in the regions dataset.
 For example, if two regions in the input set contain motif hits for RBP1, RBP3, and RBP5, then the RBP combination RBP1,RBP3,RBP5 will get a count (== Intersection size) of 2.
 Minimum occurrence number for a combination to be reported = %i (command line parameter: --upset-plot-min-subset-size). 
-How many RBPs a combination must contain to be reported (--up) = %i (command line parameter: --upset-plot-min-degree). 
-Number of
+How many RBPs a combination must contain to be reported (--up) = %i (command line parameter: --upset-plot-min-degree).
+The numbers on left side for each RBP tell how many genomic regions have motif hits (1 or more) of the respective RBP.
 
 &nbsp;
 
@@ -2309,15 +2320,15 @@ No upset plot generated since set --upset-plot-min-degree > maximum degree found
 
 """
 
-        elif reason == "min_degree":
+        elif reason == "min_subset_size":
 
             mdtext += """
 
-No upset plot generated since set --upset-plot-min-subset-size > maximum subset size found in the RBP combination set. Please use lower number for --upset-plot-min-subset-size parameter.
+No upset plot generated since set --upset-plot-min-subset-size (%i) > maximum subset size (%i) found in the RBP combination set. Please use lower number for --upset-plot-min-subset-size parameter.
 
 &nbsp;
 
-"""
+""" %(upset_plot_min_subset_size, count)
         else:
             assert False, "invalid reason given for not plotting upset plot"
 
@@ -2395,7 +2406,7 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, c_regions,
     df_up_check = df_up[df_up.index.map(sum) >= min_degree]
     if df_up_check.empty:
         # Set min_degree too high.
-        return False, "min_degree"
+        return False, "min_degree", 0
     max_subset_size = 0
     for elem_c in df_up_check:
         if elem_c > max_subset_size:
@@ -2403,17 +2414,19 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, c_regions,
 
     if max_subset_size < min_subset_size:
         # Set min_subset_size too high.
-        return False, "min_subset_size"
+        return False, "min_subset_size", max_subset_size
 
     # Move on to plotting.
+    print("Plotting upset plot ... ")
     upset_plot = plot(df_up, orientation='horizontal', 
                     min_degree=min_degree,  # number of RBPs in set (e.g. 2 -> at least 2 RBP pairs, not single RBPs)
                     min_subset_size=min_subset_size,  # min size of a set to be reported.
+                    show_counts=True,
                     sort_by="cardinality")
 
-    plt.savefig(plot_out, dpi=150)
+    plt.savefig(plot_out, dpi=125)
     plt.close()
-    return True, "yowza"
+    return True, "yowza", 0
 
 
 ################################################################################
