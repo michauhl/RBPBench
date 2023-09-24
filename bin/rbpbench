@@ -177,6 +177,12 @@ def setup_argument_parser():
                    metavar='int',
                    default=2,
                    help="Upset plot minimum degree parameter (default: 2)")
+    p_s.add_argument("--upset-plot-max-degree",
+                   dest="upset_plot_max_degree",
+                   type=int,
+                   metavar='int',
+                   default=None,
+                   help="Upset plot maximum degree. By default no maximum degree is set. Useful to look at specific degrees only (together with --upset-plot-min-degree), e.g. 2 or 2 to 3 (default: None)")
     p_s.add_argument("--upset-plot-min-subset-size",
                    dest="upset_plot_min_subset_size",
                    type=int,
@@ -514,6 +520,9 @@ def main_search(args):
     # Check --in BED format.
     if not args.unstranded:
         benchlib.bed_check_format(args.in_sites)
+    # More checks.
+    if args.upset_plot_max_degree is not None:
+        assert args.upset_plot_max_degree >= args.upset_plot_min_degree, "set --upset-plot-max-degree needs to be >= --upset-plot-min-degree"
 
     """
     Library path.
@@ -1840,6 +1849,7 @@ def main_search(args):
                                          rbp2regidx_dic,
                                          len(reg_ids_list),
                                          upset_plot_min_degree=args.upset_plot_min_degree,
+                                         upset_plot_max_degree=args.upset_plot_max_degree,
                                          upset_plot_min_subset_size=args.upset_plot_min_subset_size,
                                          html_report_out=html_report_out,
                                          plot_abs_paths=args.plot_abs_paths,

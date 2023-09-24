@@ -2097,6 +2097,7 @@ def search_generate_html_report(df_corr, df_pval, pval_cont_lll,
                                 rbp2regidx_dic,
                                 c_regions,
                                 upset_plot_min_degree=2,
+                                upset_plot_max_degree=None,
                                 upset_plot_min_subset_size=10,
                                 html_report_out="report.rbpbench_search.html",
                                 plot_abs_paths=False,
@@ -2281,6 +2282,7 @@ D: NOT RBP1 AND NOT RBP2.
 
     plotted, reason, count = create_rbp_reg_occ_upset_plot(rbp2regidx_dic, c_regions,
                                   min_degree=upset_plot_min_degree,
+                                  max_degree=upset_plot_max_degree,
                                   min_subset_size=upset_plot_min_subset_size,
                                   plot_out=rbp_reg_occ_upset_plot_out)
 
@@ -2358,6 +2360,7 @@ No upset plot generated since set --upset-plot-min-subset-size (%i) > maximum su
 
 def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, c_regions,
                                   min_degree=2,
+                                  max_degree=None,
                                   min_subset_size=10,
                                   plot_out="rbp_region_occupancies.upset_plot.png"):
     """
@@ -2371,7 +2374,6 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, c_regions,
     Return False if plotting not possible (due to set min_degree or min_subset_size too high).
 
     """
-
 
     # All regions (# regions).
     assert c_regions > 0, "c_regions must be >= 0"
@@ -2420,6 +2422,7 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, c_regions,
     print("Plotting upset plot ... ")
     upset_plot = plot(df_up, orientation='horizontal', 
                     min_degree=min_degree,  # number of RBPs in set (e.g. 2 -> at least 2 RBP pairs, not single RBPs)
+                    max_degree=max_degree,
                     min_subset_size=min_subset_size,  # min size of a set to be reported.
                     show_counts=True,
                     sort_by="cardinality")
