@@ -192,7 +192,8 @@ def make_contingency_table_2x2(region_labels_dic, idx1, idx2):
 
 ################################################################################
 
-def read_in_cm_blocks(cm_file):
+def read_in_cm_blocks(cm_file, 
+                      empty_check=True):
     """
     Read in .cm file, containing covariance model(s). Return single model 
     text blocks in dictionary, with accession IDs as keys.
@@ -217,9 +218,9 @@ def read_in_cm_blocks(cm_file):
                 blocks_list[idx] += line
     f.closed
 
-    assert blocks_list, "no covariance models read in from %s (blocks_list empty)" %(cm_file)
+    if empty_check:
+        assert blocks_list, "no covariance models read in from %s (blocks_list empty). Please provide valid covariance model(s) (.cm) file" %(cm_file)
     assert 2*len(blocks_list) == len(acc_list), "invalid cm_file %s format (2*len(blocks_list) != len(acc_list))" %(cm_file)
-
 
     blocks_dic = {}
     for i, acc_id in enumerate(acc_list[::2]):
@@ -248,7 +249,7 @@ def output_cm_blocks_to_file(cm_blocks_dic, motif_ids_dic, out_file):
 ################################################################################
 
 def check_cm_file(cm_file, cmstat_out,
-                  check=True):
+                  empty_check=True):
     """
     Check if .cm file is valid, and return accession IDs, using cmstat.
 
@@ -287,7 +288,7 @@ def check_cm_file(cm_file, cmstat_out,
             acc_ids_dic[acc_id] = 1
     f.closed
 
-    if check:
+    if empty_check:
         assert acc_ids_dic, "no valid covariance models found in supplied --user-cm file (checked by cmstat). Please provide valid covariance model file"
 
     return acc_ids_dic
@@ -654,7 +655,7 @@ def fasta_output_dic(fasta_dic, fasta_out,
 ################################################################################
 
 def read_in_xml_motifs(meme_xml_file, 
-                       check=True):
+                       empty_check=True):
     """
     Read in XML motifs, store in blocks dictionary.
 
@@ -665,13 +666,13 @@ def read_in_xml_motifs(meme_xml_file,
     raw_text = ""
     with open(meme_xml_file, "r") as f:
         raw_text = f.read()
-    assert raw_text, "nothing read in from MEME XML file %s" %(meme_xml_file)
+    assert raw_text, "nothing read in from MEME XML file %s. Please provide valid MEME/DREME XML sequence motifs file" %(meme_xml_file)
 
     # Get motif blocks.
     motif_blocks_dic = extract_motif_blocks(raw_text)
 
-    if check:
-        assert motif_blocks_dic, "motif_blocks_dic empty (malformatted MEME XML file provided?)"
+    if empty_check:
+        assert motif_blocks_dic, "motif_blocks_dic empty (malformatted MEME/DREME XML file provided?)"
 
     return motif_blocks_dic
 
@@ -741,6 +742,461 @@ A 0.250000 C 0.250000 G 0.250000 T 0.250000
 
 ################################################################################
 
+def gtf_read_in_gene_infos(in_gtf,
+                           tr2gid_dic=None):
+    """
+    Read in gene infos (GeneInfos), including information on transcript isoforms 
+    for the gene.
+
+    Assuming gtf file with order: gene,transcript(s),exon(s) ...
+
+    """
+
+    # Transcript ID to exonic length dictionary.
+    tr2len_dic = {}
+    # Gene info objects dictionary (gene_id -> gene info object).
+    gid2gio_dic = {}
+
+    if re.search(".+\.gz$", in_gtf):
+        f = gzip.open(in_gtf, 'rt')
+    else: 
+        f = open(in_gtf, "r")
+    for line in f:
+        # Skip header.
+        if re.search("^#", line):
+            continue
+
+        cols = line.strip().split("\t")
+        chr_id = cols[0]
+        feature = cols[2]
+        feat_s = int(cols[3])  # 1-based index (see e.g. start_codon feature for proof).
+        feat_e = int(cols[4])
+        feat_pol = cols[6]
+        infos = cols[8]
+
+
+        if feature == "gene":
+
+            m = re.search('gene_id "(.+?)"', infos)
+            assert m, "gene_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
+            gene_id = m.group(1)
+            m = re.search('gene_name "(.+?)"', infos)
+            gene_name = "-"  # optional.
+            if m:
+                gene_name = m.group(1)
+            gene_biotype = "-"  # # optional.
+            m = re.search('gene_biotype "(.+?)"', infos)
+            if not m:
+                m = re.search('gene_type "(.+?)"', infos)
+            if m:
+                gene_biotype = m.group(1)
+            # assert m, "gene_biotype / gene_type entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
+            # gene_biotype = m.group(1)
+
+            # Convert chromosome ID to "chrX" format.
+            new_chr_id = check_convert_chr_id(chr_id, id_style=1)
+            gene_infos = GeneInfo(gene_id, gene_name, gene_biotype, new_chr_id, feat_s, feat_e, feat_pol)
+
+            assert gene_id not in gid2gio_dic, "gene feature with gene ID %s already encountered in GTF file \"%s\"" %(gene_id, in_gtf)
+            gid2gio_dic[gene_id] = gene_infos
+
+
+        elif feature == "transcript":
+
+            m = re.search('gene_id "(.+?)"', infos)
+            assert m, "gene_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
+            gene_id = m.group(1)
+            m = re.search('transcript_id "(.+?)"', infos)
+            assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(args.in_gtf, line)
+            tr_id = m.group(1)
+            assert gene_id in gid2gio_dic, "gene_id %s belonging to transcript ID %s not (yet) encountered. Gene feature expected to come before transcript and exon features in GTF file \"%s\"" %(gene_id, tr_id, in_gtf)
+
+            if tr2gid_dic is not None:
+                tr2gid_dic[tr_id] = gene_id
+
+            tr_biotype = "-"  # # optional.
+            m = re.search('transcript_biotype "(.+?)"', infos)
+            if not m:
+                m = re.search('transcript_type "(.+?)"', infos)
+            # assert m, "transcript_biotype / transcript_type entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
+            if m:
+                tr_biotype = m.group(1)
+            # Basic tag.
+            basic_tag = 0
+            m = re.search('tag "basic"', infos)
+            if m:
+                basic_tag = 1
+            # Ensembl canonical.
+            ensembl_canonical = 0
+            m = re.search('tag "Ensembl_canonical"', infos)
+            if m:
+                ensembl_canonical = 1
+            # Transcript support level (TSL).
+            m = re.search('transcript_support_level "(.+?)"', infos)
+            tsl_id = "NA"
+            if m:
+                tsl_id = m.group(1)
+                if re.search("assigned to previous", tsl_id):
+                    m = re.search("(.+?) \(", tsl_id)
+                    tsl_id = m.group(1)
+            # Dummy length for now.
+            tr_length = 0
+
+            # Update gene infos.
+            gid2gio_dic[gene_id].tr_ids.append(tr_id)
+            gid2gio_dic[gene_id].tr_biotypes.append(tr_biotype)
+            gid2gio_dic[gene_id].tr_basic_tags.append(basic_tag)
+            gid2gio_dic[gene_id].tr_ensembl_canonical_tags.append(ensembl_canonical)
+            gid2gio_dic[gene_id].tr_tsls.append(tsl_id)
+            gid2gio_dic[gene_id].tr_lengths.append(tr_length)
+
+
+        elif feature == "exon":
+            # Extract transcript ID.
+            m = re.search('transcript_id "(.+?)"', infos)
+            assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)    
+            tr_id = m.group(1)
+            # Sum up length.
+            ex_len = feat_e - feat_s + 1
+            if not tr_id in tr2len_dic:
+                tr2len_dic[tr_id] = ex_len
+            else:
+                tr2len_dic[tr_id] += ex_len
+
+    f.close()
+
+    assert gid2gio_dic, "no gene infos read in from GTF file \"%s\"" %(in_gtf)
+
+    c_genes = len(gid2gio_dic)
+    print("# gene infos read in:", c_genes)
+
+    # Update transcript lengths.
+    for gene_id in gid2gio_dic:
+        for idx, tr_id in enumerate(gid2gio_dic[gene_id].tr_ids):
+            gid2gio_dic[gene_id].tr_lengths[idx] = tr2len_dic[tr_id]
+
+    return gid2gio_dic
+
+
+################################################################################
+
+class TranscriptInfo:
+    """
+    Store transcript infos.
+    
+    """
+    def __init__(self,
+                 tr_id: str,
+                 tr_biotype: str,
+                 chr_id: str,
+                 tr_s: int,  # 1-based index (GTF).
+                 tr_e: int,  # 1-based index.
+                 tr_pol: str,
+                 gene_id: str,
+                 exon_c: Optional[int] = None,
+                 cds_s: Optional[int] = None,
+                 cds_e: Optional[int] = None,
+                 exon_numbers=None,
+                 exon_coords=None) -> None:
+
+        self.tr_id = tr_id
+        self.tr_biotype = tr_biotype
+        self.chr_id = chr_id
+        self.tr_s = tr_s
+        self.tr_e = tr_e
+        self.tr_pol = tr_pol
+        self.gene_id = gene_id
+        self.exon_c = exon_c
+        self.cds_s = cds_s
+        self.cds_e = cds_e
+        if exon_numbers is None:
+            self.exon_numbers = []
+        else:
+            self.exon_numbers = exon_numbers
+        if exon_coords is None:
+            self.exon_coords = []
+        else:
+            self.exon_coords = exon_coords
+
+
+################################################################################
+
+class GeneInfo:
+    """
+    Stores gene infos.
+    
+    GENCODE example (gencode.v44.annotation.gtf.gz):
+chr1	HAVANA	gene	11869	14409	.	+	.	gene_id "ENSG00000290825.1"; gene_type "lncRNA"; gene_name "DDX11L2"; level 2; tag "overlaps_pseudogene";
+chr1	HAVANA	transcript	11869	14409	.	+	.	gene_id "ENSG00000290825.1"; transcript_id "ENST00000456328.2"; gene_type "lncRNA"; gene_name "DDX11L2"; transcript_type "lncRNA"; transcript_name "DDX11L2-202"; level 2; transcript_support_level "1"; tag "basic"; tag "Ensembl_canonical"; havana_transcript "OTTHUMT00000362751.1";
+chr1	HAVANA	exon	11869	12227	.	+	.	gene_id "ENSG00000290825.1"; transcript_id "ENST00000456328.2"; gene_type "lncRNA"; gene_name "DDX11L2"; transcript_type "lncRNA"; transcript_name "DDX11L2-202"; exon_number 1; exon_id "ENSE00002234944.1"; level 2; transcript_support_level "1"; tag "basic"; tag "Ensembl_canonical"; havana_transcript "OTTHUMT00000362751.1";
+
+    Ensembl example (Homo_sapiens.GRCh38.110.gtf.gz):
+1	havana	gene	11869	14409	.	+	.	gene_id "ENSG00000290825"; gene_version "1"; gene_name "DDX11L2"; gene_source "havana"; gene_biotype "lncRNA";
+1	havana	transcript	11869	14409	.	+	.	gene_id "ENSG00000290825"; gene_version "1"; transcript_id "ENST00000456328"; transcript_version "2"; gene_name "DDX11L2"; gene_source "havana"; gene_biotype "lncRNA"; transcript_name "DDX11L2-202"; transcript_source "havana"; transcript_biotype "lncRNA"; tag "basic"; tag "Ensembl_canonical"; transcript_support_level "1";
+1	havana	exon	11869	12227	.	+	.	gene_id "ENSG00000290825"; gene_version "1"; transcript_id "ENST00000456328"; transcript_version "2"; exon_number "1"; gene_name "DDX11L2"; gene_source "havana"; gene_biotype "lncRNA"; transcript_name "DDX11L2-202"; transcript_source "havana"; transcript_biotype "lncRNA"; exon_id "ENSE00002234944"; exon_version "1"; tag "basic"; tag "Ensembl_canonical"; transcript_support_level "1";
+
+    """
+
+    def __init__(self,
+                 gene_id: str,
+                 gene_name: str,
+                 gene_biotype: str,
+                 chr_id: str,
+                 gene_s: int,  # 1-based index (GTF).
+                 gene_e: int,  # 1-based index.
+                 gene_pol: str,
+                 tr_ids=None,
+                 tr_biotypes=None,
+                 tr_basic_tags=None,
+                 tr_ensembl_canonical_tags=None,
+                 tr_lengths=None,
+                 tr_tsls=None) -> None:
+        self.gene_id = gene_id
+        self.gene_name = gene_name
+        self.gene_biotype = gene_biotype
+        self.chr_id = chr_id
+        self.gene_s = gene_s
+        self.gene_e = gene_e
+        self.gene_pol = gene_pol
+        if tr_ids is None:
+            self.tr_ids = []
+        else:
+            self.tr_ids = tr_ids
+        if tr_biotypes is None:
+            self.tr_biotypes = []
+        else:
+            self.tr_biotypes = tr_biotypes
+        if tr_basic_tags is None:
+            self.tr_basic_tags = []
+        else:
+            self.tr_basic_tags = tr_basic_tags
+        if tr_ensembl_canonical_tags is None:
+            self.tr_ensembl_canonical_tags = []
+        else:
+            self.tr_ensembl_canonical_tags = tr_ensembl_canonical_tags
+        if tr_lengths is None:
+            self.tr_lengths = []
+        else:
+            self.tr_lengths = tr_lengths
+        if tr_tsls is None:
+            self.tr_tsls = []
+        else:
+            self.tr_tsls = tr_tsls
+
+
+################################################################################
+
+def get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e, 
+                         strand="+"):
+    """
+    Based on CDS and exon coordinates, get CDS, 5'UTR, and 3'UTR parts of 
+    the exon (coordinates).
+    
+    cds_s:
+        CDS start (1-based)
+    cds_e:
+        CDS end (1-based)
+    exon_s:
+        Exon start (1-based)
+    exon_e:
+        Exon end (1-based)
+    strand:
+        Set strand of exon/cds coordinates. "+" (plus) or "-" (minus) strand
+    
+    Returns:
+    CDS overlap coordinates (False if no overlap with exon),
+    Upstream (5'UTR) overlap coordinates (False if no 5'UTR part),
+    Upstream (3'UTR) overlap coordinates (False if no 3'UTR part),
+    CDS label (False if not present in exon),
+    5'UTR label (False if not present in exon),
+    3'UTR label (False if not present in exon)
+
+    >>> cds_s, cds_e = 200, 300
+    >>> exon_s, exon_e = 150, 250
+    >>> get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e)
+    ((200, 250), (150, 199), False, "CDS", 5'UTR, False)
+    >>> cds_s, cds_e = 200, 220
+    >>> exon_s, exon_e = 150, 250
+    >>> get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e)
+    ((200, 220), (150, 199), (221, 250), "CDS", "5'UTR", "3'UTR")
+    >>> cds_s, cds_e = 50, 100
+    >>> exon_s, exon_e = 150, 250
+    >>> get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e)
+    (False, False, (150, 250), False, False, "3'UTR")
+    >>> cds_s, cds_e = 300, 400
+    >>> exon_s, exon_e = 150, 250
+    >>> get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e)
+    (False, (150, 250), False, False, "5'UTR", False)
+    >>> cds_s, cds_e = 100, 200
+    >>> exon_s, exon_e = 150, 250
+    >>> get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e, strand="-")
+    ((150, 200), (201, 250), False, 'CDS', "5'UTR", False)
+    >>> cds_s, cds_e = 200, 300
+    >>> exon_s, exon_e = 150, 250
+    >>> get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e, strand="-")
+    ((200, 250), False, (150, 199), 'CDS', False, "3'UTR")
+    >>> cds_s, cds_e = 300, 400
+    >>> exon_s, exon_e = 150, 250
+    >>> get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e, strand="-")
+    (False, False, (150, 250), False, False, "3'UTR")
+    >>> cds_s, cds_e = 50, 100
+    >>> exon_s, exon_e = 150, 250
+    >>> get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e, strand="-")
+    (False, (150, 250), False, False, "5'UTR", False)
+    >>> cds_s, cds_e = 200, 220
+    >>> exon_s, exon_e = 150, 250
+    >>> get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e, strand="-")
+    ((200, 220), (221, 250), (150, 199), 'CDS', "5'UTR", "3'UTR")
+
+
+    """
+    assert strand == "+" or strand == "-", "invalid strand set"
+
+    overlap_start = max(cds_s, exon_s)
+    overlap_stop = min(cds_e, exon_e)
+    
+    # If there is CDS-exon overlap.
+    if overlap_start <= overlap_stop:
+        non_overlap1 = (exon_s, overlap_start-1) if cds_s > exon_s else False
+        non_overlap2 = (overlap_stop+1, exon_e) if exon_e > cds_e else False
+        
+        # Negative strand, just switch 5'UTR and 3'UTR parts.
+        if strand == "-":
+            no1 = non_overlap1
+            non_overlap1 = non_overlap2
+            non_overlap2 = no1
+
+        if non_overlap1 and non_overlap2:
+            return (overlap_start, overlap_stop), non_overlap1, non_overlap2, "CDS", "5'UTR", "3'UTR"
+        elif non_overlap1 and not non_overlap2:
+            return (overlap_start, overlap_stop), non_overlap1, non_overlap2, "CDS", "5'UTR", False
+        elif not non_overlap1 and non_overlap2:
+            return (overlap_start, overlap_stop), non_overlap1, non_overlap2, "CDS", False, "3'UTR"
+        else:
+            return (overlap_start, overlap_stop), non_overlap1, non_overlap2, "CDS", False, False
+
+    else:  # If no CDS-exon overlap.
+        if cds_e <= exon_s:
+            if strand == "+":
+                return False, False, (exon_s, exon_e), False, False, "3'UTR"
+            else:
+                return False, (exon_s, exon_e), False, False, "5'UTR", False
+        else:
+            if strand == "+":
+                return False, (exon_s, exon_e), False, False, "5'UTR", False
+            else:
+                return False, False, (exon_s, exon_e), False, False, "3'UTR"
+
+
+################################################################################
+
+def read_ids_into_dic(ids_file,
+                      check_dic=True,
+                      ids_dic=False):
+    """
+    Read in IDs file, where each line stores one ID.
+
+    >>> test_ids_file = "test_data/test.ids"
+    >>> ids_dic = read_ids_into_dic(test_ids_file)
+    >>> print(ids_dic)
+    {'clip1': 1, 'clip2': 1, 'clip3': 1}
+
+    """
+    if not ids_dic:
+        ids_dic = {}
+    # Read in file content.
+    with open(ids_file) as f:
+        for line in f:
+            row_id = line.strip()
+            ids_dic[row_id] = 1
+    f.closed
+    if check_dic:
+        assert ids_dic, "IDs dictionary ids_dic empty"
+    return ids_dic
+
+
+################################################################################
+
+def select_mpts_from_gene_infos(gid2gio_dic,
+                                basic_tag=True,
+                                ensembl_canonical_tag=False,
+                                only_tsl=False,
+                                tr_min_len=False
+                                ):
+    """
+    Select most prominent transcripts from GeneInfo objects. 
+    Selection is based on transcript support level (TSL), 
+    with lower value == better.
+    If several transcripts with lowest TSL, select longest transcript.
+    Depending on filter settings, there might be genes for which no TSL 
+    is reported.
+    
+    basic_tag:
+        If True only report transcripts with "basic" tag.
+    ensembl_canonical_tag:
+        If True only report transcripts with "Ensembl_canonical" tag.
+    only_tsl:
+        If True only report transcripts with TSL 1-5 (excluding "NA").
+    tr_min_len:
+        If length set, only report transcripts with length >= tr_min_len.
+    
+        
+    """
+
+    # Comparison dictionary.
+    id2sc = {}
+    for i in range(5):
+        pos = i + 1
+        pos_str = "%i" %(pos)
+        id2sc[pos_str] = pos
+    id2sc["NA"] = 6
+
+    mpt2gid_dic = {}
+
+    for gene_id in gid2gio_dic:
+        gene_info = gid2gio_dic[gene_id]
+        mpt_id = "-"
+        mpt_tsl = "NA"
+        mpt_len = 0
+
+        for idx, tr_id in enumerate(gene_info.tr_ids):
+            tr_tsl = gene_info.tr_tsls[idx]
+            tr_bt = gene_info.tr_basic_tags[idx]
+            tr_ec = gene_info.tr_ensembl_canonical_tags[idx]
+            tr_length = gene_info.tr_lengths[idx]
+            if basic_tag:
+                if not tr_bt:
+                    continue
+            if ensembl_canonical_tag:
+                if not tr_ec:
+                    continue
+            if only_tsl:
+                if tr_tsl == "NA":
+                    continue
+            if tr_min_len:
+                if tr_length < tr_min_len:
+                    continue
+
+            if id2sc[tr_tsl] < id2sc[mpt_tsl]:
+                mpt_id = tr_id
+                mpt_tsl = tr_tsl
+                mpt_len = tr_length
+            elif id2sc[tr_tsl] == id2sc[mpt_tsl]:
+                if tr_length > mpt_len:
+                    mpt_id = tr_id
+                    mpt_tsl = tr_tsl
+                    mpt_len = tr_length
+
+        if not mpt_len:
+            continue
+
+        mpt2gid_dic[mpt_id] = gene_id
+
+    return mpt2gid_dic
+
+
+################################################################################
+
 def output_string_to_file(out_str, out_file):
     """
     Output string to file.
@@ -771,25 +1227,27 @@ def get_rbp_id_mappings(rbp2ids_file):
     ...
     RF00032	SLBP	cm	human
 
+    RBPBench v0.2:
+    Currently ignore Organism column / do not use this information.
+
     """
     name2ids_dic = {}
     id2type_dic = {}
-    id2org_dic = {}
+    # id2org_dic = {}
 
     with open(rbp2ids_file) as f:
         for line in f:
-            if re.search("^RBP_motif_id", line):
+            if re.search("^RBP_motif_id", line) or re.search("^#", line):
                 continue
             cols = line.strip().split("\t")
             motif_id = cols[0]
             rbp_name = cols[1]
             motif_type = cols[2]
-            organism = cols[3]
-            
-            if organism != "human":
-                rbp_name = rbp_name + "_" + organism
+            # organism = cols[3]            
+            # if organism != "human":
+            #     rbp_name = rbp_name + "_" + organism
+            # id2org_dic[motif_id] = organism
 
-            id2org_dic[motif_id] = organism
             id2type_dic[motif_id] = motif_type
             if rbp_name in name2ids_dic:
                 name2ids_dic[rbp_name].append(motif_id)
@@ -799,7 +1257,7 @@ def get_rbp_id_mappings(rbp2ids_file):
 
     assert name2ids_dic, "no RBP IDs read in from %s" %(rbp2ids_file)
 
-    return name2ids_dic, id2type_dic, id2org_dic
+    return name2ids_dic, id2type_dic  #, id2org_dic
 
 
 ################################################################################
@@ -2335,7 +2793,7 @@ No upset plot generated since set --upset-plot-min-subset-size (%i) > maximum su
             assert False, "invalid reason given for not plotting upset plot"
 
 
-    # ALAMO
+    # ALAMO upset plot
 
     # Convert mdtext to html.
     md2html = markdown(mdtext, extensions=['attr_list', 'tables'])
