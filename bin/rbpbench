@@ -224,13 +224,20 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Input GTF file with genomic annotations to add to upset plot (e.g. from GENCODE or Ensembl). By default the most prominent transcripts will be extracted and used for functional annotation. Alternatively, provide a list of expressed transcripts via --tr-list (together with --gtf containing the transcripts). Note that upset plot only gets generated if --report is set")
+                   help = "Input GTF file with genomic annotations to add to upset plot (e.g. from GENCODE or Ensembl). By default the most prominent transcripts will be extracted and used for functional annotation. Alternatively, provide a list of expressed transcripts via --tr-list (together with --gtf containing the transcripts). Note that upset plot only gets generated if --report is set. Moreover, only features on standard chromosomes (1,2,..,X,Y,MT) are currently used for annotation")
     p_s.add_argument("--tr-list",
                    dest="tr_list",
                    type=str,
                    metavar='str',
                    default = False,
                    help = "Supply file with transcript IDs (one ID per row) to define which transcripts to use from --gtf for functional annoation added to upset plot")
+    p_s.add_argument("--tr-types",
+                   dest="tr_types_list",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   required=True,
+                   help="List of transcript biotypes to consider in upset plot. By default an internal selection of transcript biotypes are used (in addition to intron, CDS, UTR, intergenic). Note that provided biotype strings need to be in GTF file")
     p_s.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
@@ -594,14 +601,10 @@ def specify_custom_motif_db(motif_db_path):
         ZRANB2_2	ZRANB2	meme_xml	human
         RF00032	SLBP	cm	human
 
-        organism column optional?
+        organism column optional for now ...
 
     seq_motifs.meme
     str_motifs.cm
-
-    
-    Set motifs to user
-    ALAMO
     
     """
     assert os.path.isdir(motif_db_path), "given --custom-motif-db path \"%s\" is not a valid path" %(motif_db_path) 
@@ -981,6 +984,7 @@ def main_search(args):
     # Filter / extend --in BED.
     print("Preprocess --in sites ... ")
     reg2sc_dic = {}
+    bed_chr_ids_dic = {}
     reg_stats_dic = benchlib.bed_filter_extend_bed(args.in_sites, filtered_sites_bed,
                                           ext_up=ext_up,
                                           ext_down=ext_down,
@@ -988,13 +992,35 @@ def main_search(args):
                                           reg2sc_dic=reg2sc_dic,
                                           score_col=args.bed_score_col,
                                           chr_ids_dic=chr_ids_dic,
+                                          bed_chr_ids_dic=bed_chr_ids_dic,
+                                          use_region_ids=True,
                                           unstranded=args.unstranded)
 
     print("# --in regions pre-filtering:  ", reg_stats_dic["c_in"])
     print("# --in regions post-filtering: ", reg_stats_dic["c_out"])
     print("# regions with invalid chr_id: ", reg_stats_dic["c_chr_filter"])
     print("# duplicated regions removed:  ", reg_stats_dic["c_dupl_filter"])
-    assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID filtering"
+
+    assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID filtering. If caused by invalid chr_id filtering, make sure chromosome IDs in --genome FASTA and --in BED files are compatible (i.e., \"chr1\" vs. \"1\" notation)"
+
+    """
+    Guess chromosome ID style.
+
+    chr_style:
+        1: chr1, chr2, ..., chrX, chrM
+        2: 1, 2, ... , X, MT
+
+    """
+    chr_style = 0  # no changes to chromosome IDs in GTF files.
+    
+    if "1" in chr_ids_dic:
+        assert "chr1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
+    if "chr1" in chr_ids_dic:
+        assert "1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
+    if "chr1" in chr_ids_dic:
+        chr_style = 1
+    if "1" in chr_ids_dic:
+        chr_style = 2
 
     """
     Calculate effective size of genomic regions.
@@ -1542,14 +1568,16 @@ def main_search(args):
     
     """
     reg_ids_list = []
+    reg_ids_dic = {}
     if args.unstranded and not args.unstranded_ct:
         for seq_id, seq in sorted(out_seqs_dic.items()):
             core_id = benchlib.reg_get_core_id(seq_id)
             reg_ids_list.append(core_id)
+            reg_ids_dic[core_id] = 1
     else:
         for seq_id, seq in sorted(out_seqs_dic.items()):
             reg_ids_list.append(seq_id)
-
+            reg_ids_dic[seq_id] = 1
 
     """
     Store RBP binding information for each input region.
@@ -2006,10 +2034,16 @@ def main_search(args):
         if args.in_gtf:
 
             # Get gene infos.
-            print("Read in gene infos from --gtf ... ")
+            print("Read in gene features from --gtf ... ")
             tr2gid_dic = {}
-            gid2gio_dic = benchlib.gtf_read_in_gene_infos(args.in_gtf)
+            gid2gio_dic = benchlib.gtf_read_in_gene_infos(args.in_gtf,
+                                                          tr2gid_dic=tr2gid_dic,
+                                                          check_chr_ids_dic=bed_chr_ids_dic,
+                                                          chr_style=chr_style,
+                                                          empty_check=False)
             assert gid2gio_dic, "no gene infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
+            c_gene_infos = len(gid2gio_dic)
+            print("# gene features read in from --gtf:", c_gene_infos)
 
             # If --tr-list given.
             tr_ids_dic = {}
@@ -2023,31 +2057,98 @@ def main_search(args):
                 print("# of transcript IDs (read in from --tr-list): ", len(tr_ids_dic))
             else:
                 # Get most prominent transcripts from gene infos.
-                tr_ids_dic = select_mpts_from_gene_infos(gid2gio_dic,
+                tr_ids_dic = benchlib.select_mpts_from_gene_infos(gid2gio_dic,
                                         basic_tag=False,  # do not be strict (only_tsl=False too).
                                         ensembl_canonical_tag=False,
                                         only_tsl=False)
                 assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
                 print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
 
-            # Extract exon + intron regions of selected transcripts from --gtf,
+            # Check exon order (return True if minus strand exon 1 is most downstream, not most upstream, which is the correct way).
+            print("Check minus-strand exon order in --gtf ... ")
+            correct_min_ex_order = benchlib.gtf_check_exon_order(args.in_gtf)
+            if correct_min_ex_order:
+                print("Correct order encountered ... ")
+            else:
+                print("Reverse order encountered ... ")
+            # Get transcript infos.
+            print("Read in transcript infos from --gtf ... ")
+            tid2tio_dic = benchlib.gtf_read_in_transcript_infos(args.in_gtf, 
+                                                                tr_ids_dic=tr_ids_dic,
+                                                                correct_min_ex_order=correct_min_ex_order,
+                                                                chr_style=chr_style,
+                                                                empty_check=False)
 
+            assert tid2tio_dic, "no transcript infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
+            c_tr_infos = len(tid2tio_dic)
+            print("# transcript features read in from --gtf:", c_tr_infos)
+
+            # Extract exon + intron regions of selected transcripts from transcript infos.
+            print("Output intron annotations to BED ... ")
+            intron_exon_out_bed = args.out_folder + "/intron_exon_regions.tmp.bed"
+            benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
+                                              output_mode=3,  # only introns.
+                                              report_counts=True,
+                                              empty_check=False)
+
+            # Custom transcript biotypes for upset plot.
+            custom_annot_dic = None
+            if args.tr_types_list:
+                for tr_type in args.tr_types_list:
+                    custom_annot_dic[tr_type] = tr_type
+
+            # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.
+            print("Output exon annotations to BED ... ")
+            benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
+                                             custom_annot_dic=custom_annot_dic,
+                                             append=True)
 
             # Overlap with input regions.
+            print("Overlap annotations with input regions ... ")
+            overlap_annotations_bed = args.out_folder + "/overlap_annotations.tmp.bed"
+            benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_out_bed, 
+                                         overlap_annotations_bed,
+                                         params="-s -wo -f 0.5")
+            
+            reg2annot_dic = get_region_annotations(overlap_annotations_bed,
+                                                   reg_ids_dic=reg_ids_dic)
+
+            # Give reg2annot_dic to plotting function.
+            # How to upset plot with this info?
+            
+
+def get_region_annotations(overlap_annotations_bed,
+                           reg_ids_dic=None):
+
+            # rbp2regidx_dic
+
+
+def bed_intersect_files(a_bed, b_bed, out_bed,
+                                    params="-s -u"):
+
+            # Get regions located in exons (CDS UTR or transcript biotype).
+
+            # ALAMO
+
+
+            # intersectBed -a regions.bed -b introns.bed -s -wo -f 0.5
+
+def get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e, 
+                         strand="+"):
+
+
+            #     filtered_sites_bed = args.out_folder + "/in_sites.filtered.bed"
+
+
+
+            # Remaining regions (without overlap hit) label as intergenic.
+
 
 
             # Some function to assign UTR regions based on CDS features
             # For rem
 
-
-
             # ALAMO
-
-"""
-
-"""
-
-
 
 
         plots_subfolder = "html_report_plots"

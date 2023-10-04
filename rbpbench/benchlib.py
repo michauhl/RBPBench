@@ -742,13 +742,158 @@ A 0.250000 C 0.250000 G 0.250000 T 0.250000
 
 ################################################################################
 
-def gtf_read_in_gene_infos(in_gtf,
-                           tr2gid_dic=None):
+def check_convert_chr_id(chr_id,
+                         id_style=1):
     """
-    Read in gene infos (GeneInfos), including information on transcript isoforms 
-    for the gene.
+    Check and convert chromosome IDs to format:
+    chr1, chr2, chrX, ...
+    If chromosome IDs like 1,2,X, .. given, convert to chr1, chr2, chrX ..
+    Return False if given chr_id not standard and not convertable.
+
+    Filter out scaffold IDs like:
+    GL000009.2, KI270442.1, chr14_GL000009v2_random
+    chrUn_KI270442v1 ...
+
+    id_style:
+        Defines to which style chromosome IDs should be converted to.
+        0: Do not convert at all, just return chr_id.
+        1: to chr1,chr2,...,chrM style.
+        2: to 1,2,...,MT style.
+
+    >>> chr_id = "chrX"
+    >>> check_convert_chr_id(chr_id)
+    'chrX'
+    >>> chr_id = "4"
+    >>> check_convert_chr_id(chr_id)
+    'chr4'
+    >>> chr_id = "MT"
+    >>> check_convert_chr_id(chr_id)
+    'chrM'
+    >>> chr_id = "GL000009.2"
+    >>> check_convert_chr_id(chr_id)
+    False
+    >>> chr_id = "chrUn_KI270442v1"
+    >>> check_convert_chr_id(chr_id)
+    False
+    >>> chr_id = "chr2R"
+    >>> check_convert_chr_id(chr_id)
+    'chr2R'
+    >>> chr_id = "3L"
+    >>> check_convert_chr_id(chr_id)
+    'chr3L'
+    >>> chr_id = "4L"
+    >>> check_convert_chr_id(chr_id)
+    False
+    >>> chr_id = "chrM"
+    >>> check_convert_chr_id(chr_id, id_style=2)
+    'MT'
+    >>> chr_id = "chr2R"
+    >>> check_convert_chr_id(chr_id, id_style=2)
+    '2R'
+    >>> chr_id = "5"
+    >>> check_convert_chr_id(chr_id, id_style=2)
+    '5'
+    >>> chr_id = "chrA"
+    >>> check_convert_chr_id(chr_id, id_style=2)
+    False
+    >>> chr_id = "chrA"
+    >>> check_convert_chr_id(chr_id, id_style=0)
+    'chrA'
+
+
+    """
+    assert chr_id, "given chr_id empty"
+
+    if not id_style: # If id_style == 0 or False.
+        return chr_id
+
+    elif id_style == 1:
+        if re.search("^chr", chr_id):
+            if chr_id in add_chr_names_dic or re.search("^chr[\dMXY]+$", chr_id):
+                return chr_id
+            else:
+                return False
+        else:
+            # Convert to "chr" IDs.
+            if chr_id == "MT": # special case MT -> chrM.
+                return "chrM"
+            if chr_id in add_chr_names_dic or re.search("^[\dXY]+$", chr_id):
+                return "chr" + chr_id
+            else:
+                return False
+
+    elif id_style == 2:
+
+        if re.search("^chr", chr_id):
+            if chr_id == "chrM": # special case chrM -> MT.
+                return "MT"
+            if chr_id in add_chr_names_dic or re.search("^chr[\dXY]+$", chr_id):
+                # Cut out chr suffix.
+                m = re.search("chr(.+)", chr_id)
+                assert m, "no match for regex search"
+                chr_suffix = m.group(1)
+                return chr_suffix
+            else:
+                return False
+
+        else:
+            if chr_id == "MT": # special case MT.
+                return chr_id
+            if chr_id in add_chr_names_dic or re.search("^[\dXY]+$", chr_id):
+                return chr_id
+            else:
+                return False
+    else:
+        assert False, "invalid id_style set"
+
+
+################################################################################
+
+"""
+Define additional chromosome names to be supported.
+
+From Drosophila melanogaster:
+chr2L
+chr2R
+chr3L
+chr3R
+2L
+2R
+3L
+3R
+
+"""
+
+add_chr_names_dic = {
+    "chr2L" : 1,
+    "chr2R" : 1,
+    "chr3L" : 1,
+    "chr3R" : 1,
+    "2L" : 1,
+    "2R" : 1,
+    "3L" : 1,
+    "3R" : 1
+}
+
+
+################################################################################
+
+def gtf_read_in_gene_infos(in_gtf,
+                           tr2gid_dic=None,
+                           check_chr_ids_dic=None,
+                           chr_style=0,
+                           empty_check=False):
+    """
+    Read in gene infos into GeneInfo objects, including information on 
+    transcript isoforms for the gene. Note that only features on standard 
+    chromosomes (1,2,...,X Y MT) are currently used.
 
     Assuming gtf file with order: gene,transcript(s),exon(s) ...
+
+    chr_style:
+        0: do not change
+        1: change to chr1, chr2 ...
+        2: change to 1, 2, 3, ...
 
     """
 
@@ -774,6 +919,15 @@ def gtf_read_in_gene_infos(in_gtf,
         feat_pol = cols[6]
         infos = cols[8]
 
+        chr_id = check_convert_chr_id(chr_id, id_style=chr_style)
+        # If not one of standard chromosomes, continue.
+        if not chr_id:
+            continue
+
+        assert feat_e > feat_s, "feature end <= feature start in GTF file \"%s\", line \"%s\". Since both coordinates are expected to have 1-based index, this should not happen" %(in_gtf, line)
+
+        if check_chr_ids_dic is not None:
+            assert chr_id in check_chr_ids_dic, "chromosme ID %s from in GTF file \"%s\" not found in --genome FASTA file. Make sure GTF + FASTA + BED files use compatible chromosome IDs" %(chr_id, in_gtf)
 
         if feature == "gene":
 
@@ -793,13 +947,10 @@ def gtf_read_in_gene_infos(in_gtf,
             # assert m, "gene_biotype / gene_type entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             # gene_biotype = m.group(1)
 
-            # Convert chromosome ID to "chrX" format.
-            new_chr_id = check_convert_chr_id(chr_id, id_style=1)
             gene_infos = GeneInfo(gene_id, gene_name, gene_biotype, new_chr_id, feat_s, feat_e, feat_pol)
 
             assert gene_id not in gid2gio_dic, "gene feature with gene ID %s already encountered in GTF file \"%s\"" %(gene_id, in_gtf)
             gid2gio_dic[gene_id] = gene_infos
-
 
         elif feature == "transcript":
 
@@ -850,7 +1001,6 @@ def gtf_read_in_gene_infos(in_gtf,
             gid2gio_dic[gene_id].tr_tsls.append(tsl_id)
             gid2gio_dic[gene_id].tr_lengths.append(tr_length)
 
-
         elif feature == "exon":
             # Extract transcript ID.
             m = re.search('transcript_id "(.+?)"', infos)
@@ -865,10 +1015,8 @@ def gtf_read_in_gene_infos(in_gtf,
 
     f.close()
 
-    assert gid2gio_dic, "no gene infos read in from GTF file \"%s\"" %(in_gtf)
-
-    c_genes = len(gid2gio_dic)
-    print("# gene infos read in:", c_genes)
+    if empty_check:
+        assert gid2gio_dic, "no gene infos read in from GTF file \"%s\"" %(in_gtf)
 
     # Update transcript lengths.
     for gene_id in gid2gio_dic:
@@ -880,10 +1028,248 @@ def gtf_read_in_gene_infos(in_gtf,
 
 ################################################################################
 
+def gtf_read_in_transcript_infos(in_gtf,
+                                 tr_ids_dic=None,
+                                 correct_min_ex_order=True,
+                                 chr_style=0,
+                                 empty_check=True):
+    """
+    Read in transcript infos into TransriptInfo objects. Note that only 
+    features on standard chromosomes (1,2,...,X Y MT) are currently used.
+
+    tr_ids_dic:
+        Transcript IDs dictionary to define which transcript IDs to read in.
+    correct_min_ex_order:
+        If True, assume minus strand exon numbering is correct, i.e., most 
+        downstream exon gets exon number 1. In some GTF files, most upstream 
+        exon get exon number 1, which is incorrect as it is the last exon 
+        of the minus strand transcript (in this case set to False).
+    chr_style:
+        0: do not change
+        1: change to chr1, chr2 ...
+        2: change to 1, 2, 3, ...
+
+    Assuming gtf file with order: gene,transcript(s),exon(s) ...
+
+    """
+
+    # Transcript info objects dictionary (transcript ID -> transcript info object).
+    tid2tio_dic = {}
+    tr_ids_seen_dic = {}
+
+    if re.search(".+\.gz$", in_gtf):
+        f = gzip.open(in_gtf, 'rt')
+    else: 
+        f = open(in_gtf, "r")
+    for line in f:
+        # Skip header.
+        if re.search("^#", line):
+            continue
+
+        cols = line.strip().split("\t")
+        chr_id = cols[0]
+        feature = cols[2]
+        feat_s = int(cols[3])  # 1-based index (see e.g. start_codon feature for proof).
+        feat_e = int(cols[4])
+        feat_pol = cols[6]
+        infos = cols[8]
+
+        chr_id = check_convert_chr_id(chr_id, id_style=chr_style)
+        # If not one of standard chromosomes, continue.
+        if not chr_id:
+            continue
+
+        if feature == "transcript":
+
+            m = re.search('gene_id "(.+?)"', infos)
+            assert m, "gene_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
+            gene_id = m.group(1)
+            m = re.search('transcript_id "(.+?)"', infos)
+            assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(args.in_gtf, line)
+            tr_id = m.group(1)
+
+            tr_ids_seen_dic[tr_id] = 1
+
+            if tr_ids_dic is not None:
+                if tr_id not in tr_ids_dic:
+                    continue
+
+            tr_biotype = "-"  # optional.
+            m = re.search('transcript_biotype "(.+?)"', infos)
+            if not m:
+                m = re.search('transcript_type "(.+?)"', infos)
+            if m:
+                tr_biotype = m.group(1)
+
+            tr_infos = TranscriptInfo(tr_id, tr_biotype, new_chr_id, feat_s, feat_e, feat_pol, gene_id,
+                                      tr_length=0,
+                                      exon_c=0)
+            assert tr_id not in tid2tio_dic, "transcript feature with transcript ID %s already encountered in GTF file \"%s\"" %(tr_id, in_gtf)
+            tid2tio_dic[tr_id] = tr_infos
+
+        elif feature == "exon":
+
+            m = re.search('transcript_id "(.+?)"', infos)
+            assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)    
+            tr_id = m.group(1)
+            assert tr_id in tr_ids_seen_dic, "transcript ID %s in exon feature not (yet) encountered. Transcript feature expected to come before exon features in GTF file \"%s\"" %(tr_id, in_gtf)
+    
+            if tr_ids_dic is not None:
+                if tr_id not in tr_ids_dic:
+                    continue
+
+            m = re.search('exon_number "(\d+?)"', infos)
+            if not m:
+                m = re.search('exon_number (\d+?);', infos)  # GENCODE encoding.
+            assert m, "exon_number entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
+            exon_nr = int(m.group(1))
+
+            tid2tio_dic[tr_id].exon_c += 1
+
+            assert exon_nr == tid2tio_dic[tr_id].exon_c, "ascending exon numbers expected in GTF file \"%s\" but instead found: %i (exon number) %i (expected number) in line:\n%s" %(in_gtf, exon_nr, tid2tio_dic[tr_id].exon_c, line)
+
+            if correct_min_ex_order:
+                # If correct minus trand exon order, add exon coordinates to end of list.
+                tid2tio_dic[tr_id].exon_coords.append([feat_s, feat_e])
+            else:
+                # If reverse minus strand exon order, insert exon coordinates at beginning.
+                tid2tio_dic[tr_id].exon_coords.insert(0, [feat_s, feat_e])
+
+            # Record exon length.
+            exon_length = feat_e - feat_s + 1
+            tid2tio_dic[tr_id].tr_length += exon_length
+
+        elif feature == "CDS":
+
+            m = re.search('transcript_id "(.+?)"', infos)
+            assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)    
+            tr_id = m.group(1)
+            assert tr_id in tr_ids_seen_dic, "transcript ID %s in exon feature not (yet) encountered. Transcript feature expected to come before CDS features in GTF file \"%s\"" %(tr_id, in_gtf)
+        
+            if tr_ids_dic is not None:
+                if tr_id not in tr_ids_dic:
+                    continue
+
+            m = re.search('transcript_id "(.+?)"', infos)
+            assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)    
+            tr_id = m.group(1)
+
+            assert tr_id in tr_ids_seen_dic, "transcript ID %s in exon feature not (yet) encountered. Transcript feature expected to come before exon features in GTF file \"%s\"" %(tr_id, in_gtf)
+
+            # Store/update CDS genomic start and end coordinates.
+            if tid2tio_dic[tr_id].cds_s is None:
+                tid2tio_dic[tr_id].cds_s = feat_s
+                tid2tio_dic[tr_id].cds_e = feat_e
+            else:
+                if tid2tio_dic[tr_id].cds_s > feat_s:
+                    tid2tio_dic[tr_id].cds_s = feat_s
+                if tid2tio_dic[tr_id].cds_e < feat_e:
+                    tid2tio_dic[tr_id].cds_e = feat_e
+
+    f.close()
+
+    if empty_check:
+        assert tid2tio_dic, "no transcript infos read in from GTF file \"%s\"" %(in_gtf)
+
+    return tid2tio_dic
+
+
+################################################################################
+
+def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
+                                              output_mode=1,
+                                              report_counts=True,
+                                              empty_check=False):
+    """
+    Output exon and/or intron regions to BED given a dictionary of TranscriptInfo 
+    objects (tid2tio_dic), with key transcript ID and value TranscriptInfo object.
+    
+    output_mode:
+        1: output exon + intron regions to BED.
+        2: output exon regions only.
+        3: output intron regions only.
+
+    """
+    assert tid2tio_dic, "given tid2tio_dic empty"
+
+    OUTBED = open(out_bed, "w")
+
+    c_exon_out = 0
+    c_intron_out = 0
+
+    for tr_id in tid2tio_dic:
+        
+        chr_id = tid2tio_dic[tr_id].chr_id
+        tr_pol = tid2tio_dic[tr_id].tr_pol
+        exon_coords = tid2tio_dic[tr_id].exon_coords
+        assert exon_coords is not None, "exon coordinates list not set for transcript ID %s" %(tr_id)
+    
+        # Get intron coordinates.
+        intron_coords = []
+        if tr_pol == "+":
+            for i in range(len(exon_coords) - 1):
+                intron_coords.append([exon_coords[i][1]+1, exon_coords[i+1][0]-1])
+        elif tr_pol == "-":
+            for i in range(len(exon_coords) - 1):
+                intron_coords.append([exon_coords[i+1][1]+1,exon_coords[i][0]-1])
+        else:
+            assert False, "invalid strand given (%s) for transcript ID %s" %(tr_pol, tr_id)
+
+        if output_mode == 1:
+            for exon in exon_coords:
+                c_exon_out += 1
+                OUTBED.write("%s\t%i\t%i\texon\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], tr_pol))
+            for intron in intron_coords:
+                c_intron_out += 1
+                OUTBED.write("%s\t%i\t%i\texon\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], tr_pol))
+        elif output_mode == 2:
+            for exon in exon_coords:
+                c_exon_out += 1
+                OUTBED.write("%s\t%i\t%i\texon\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], tr_pol))
+        elif output_mode == 3:
+            for intron in intron_coords:
+                c_intron_out += 1
+                OUTBED.write("%s\t%i\t%i\texon\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], tr_pol))
+
+    OUTBED.close()
+
+    if report_counts:
+        print("# of exon features output to BED:   ", c_exon_out)
+        print("# of intron features output to BED: ", c_intron_out)
+    if empty_check:
+        assert (c_exon_out+c_intron_out) > 0, "no exon/intron features output to BED"
+
+
+################################################################################
+
+def bed_intersect_files(a_bed, b_bed, out_bed,
+                                    params="-s -u"):
+
+    """
+    Intersect two files using bedtools intersect.
+
+    """
+    assert os.path.exists(a_bed), "a_bed does not exist"
+    assert os.path.exists(b_bed), "b_bed does not exist"
+
+    check_cmd = "intersectBed -a " + a_bed + " -b " + b_bed + " " + params + " > " + out_bed
+    output = subprocess.getoutput(check_cmd)
+    error = False
+    if output:
+        error = True
+    assert error == False, "intersectBed has problems with your input:\n%s\n%s" %(check_cmd, output)
+
+
+################################################################################
+
 class TranscriptInfo:
     """
     Store transcript infos.
-    
+
+    Store exons in order, i.e., for plus strand exon 1 is most upstream,
+    while for minus strand exon 1 is most downstream.
+
+
     """
     def __init__(self,
                  tr_id: str,
@@ -893,10 +1279,10 @@ class TranscriptInfo:
                  tr_e: int,  # 1-based index.
                  tr_pol: str,
                  gene_id: str,
+                 tr_length: Optional[int] = None,
                  exon_c: Optional[int] = None,
                  cds_s: Optional[int] = None,
                  cds_e: Optional[int] = None,
-                 exon_numbers=None,
                  exon_coords=None) -> None:
 
         self.tr_id = tr_id
@@ -906,13 +1292,10 @@ class TranscriptInfo:
         self.tr_e = tr_e
         self.tr_pol = tr_pol
         self.gene_id = gene_id
+        self.tr_length = tr_length
         self.exon_c = exon_c
         self.cds_s = cds_s
         self.cds_e = cds_e
-        if exon_numbers is None:
-            self.exon_numbers = []
-        else:
-            self.exon_numbers = exon_numbers
         if exon_coords is None:
             self.exon_coords = []
         else:
@@ -1090,6 +1473,245 @@ def get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e,
 
 ################################################################################
 
+def output_exon_annotations(tid2tio_dic, out_bed,
+                            custom_annot_dic=None,
+                            append=False):
+    """
+    Output detailed exon annotations to BED file (out_bed.
+    If transcript has CDS, output CDS / 5'UTR / 3'UTR annotations.
+    If not, use biotype from a dictionary of valid types. If biotype not 
+    present in dictionary, use other_annot label.
+
+    append:
+        If set append to set BED file, do not overwrite it.
+    custom_annot_dic:
+        Custom annotation dictionary, overwrites valid_annot_dic. Keys are
+        expected to be valid transcript biotype strings found in GTF file. 
+        
+    """
+
+    # Valid RNA annotations.
+    valid_annot_dic = {
+        "lncRNA" : "lncRNA",
+        "snRNA" : "snRNA",
+        "miRNA" : "miRNA",
+        "snoRNA" : "snoRNA",
+        "rRNA" : "rRNA",
+        "Mt_rRNA" : "rRNA",
+        "scaRNA" : "scaRNA",
+        "processed_pseudogene" : "pseudogene",
+        "unprocessed_pseudogene" : "pseudogene",
+        "transcribed_unprocessed_pseudogene" : "pseudogene",
+        "transcribed_processed_pseudogene" : "pseudogene",
+        "rRNA_pseudogene" : "pseudogene",
+        "IG_V_pseudogene" : "pseudogene",
+        "transcribed_unitary_pseudogene" : "pseudogene",
+        "unitary_pseudogene" : "pseudogene",
+        "polymorphic_pseudogene" : "pseudogene",
+        "TR_V_pseudogene" : "pseudogene",
+        "pseudogene" : "pseudogene",
+        "IG_C_pseudogene" : "pseudogene",
+        "TR_J_pseudogene" : "pseudogene",
+        "translated_processed_pseudogene" : "pseudogene",
+        "translated_unprocessed_pseudogene" : "pseudogene",
+        "IG_pseudogene" : "pseudogene",
+        "IG_C_gene" : "IG gene",
+        "IG_D_gene" : "IG gene",
+        "IG_J_gene" : "IG gene",
+        "IG_V_gene" : "IG gene",
+        "TR_C_gene" : "TR gene",
+        "TR_D_gene" : "TR gene",
+        "TR_J_gene" : "TR gene",
+        "TR_V_gene" : "TR gene"
+    }
+    if custom_annot_dic is not None:
+        valid_annot_dic = custom_annot_dic
+
+    # If transcript biotype is not in valid_annot_dic, use this annotation/ label:
+    other_annot = "other (nc)RNA"
+
+    write_op = "w"
+    if append:
+        write_op = "a"
+
+    OUTEXAN = open(out_bed, write_op)
+
+    for tio in tid2tio_dic:
+
+        if tio.cds_s is not None:
+            for exon in tio.exon_coords:
+                cds_se, utr5_se, utr3_se, cds, utr5, utr3 = get_cds_exon_overlap(tio.cds_s, tio.cds_e, exon[0], exon[1], strand=tio.tr_pol)
+                if cds:
+                    OUTEXAN.write("%s\t%i\t%i\tCDS;%s\t0\t%s\n" %(tio.chr_id, cds_se[0]-1, cds_se[1], tio.tr_id, tio_tr_pol))
+                if utr5:
+                    OUTEXAN.write("%s\t%i\t%i\t5'UTR;%s\t0\t%s\n" %(tio.chr_id, utr5_se[0]-1, utr5_se[1], tio.tr_id, tio_tr_pol))
+                if utr3:
+                    OUTEXAN.write("%s\t%i\t%i\t3'UTR;%s\t0\t%s\n" %(tio.chr_id, utr3_se[0]-1, utr3_se[1], tio.tr_id, tio_tr_pol))
+        else:
+            label = other_annot
+            if tio.tr_biotype in valid_annot_dic:
+                label = valid_annot_dic[tio.tr_biotype]
+            for exon in tio.exon_coords:
+                OUTEXAN.write("%s\t%i\t%i\t%s;%s\t0\t%s\n" %(tio.chr_id, exon[0]-1, exon[1], label, tio.tr_id, tio_tr_pol))
+
+    OUTEXAN.close()
+
+
+"""
+
+$ gtf_extract_transcript_biotypes.py Homo_sapiens.GRCh38.106.gtf.gz 
+
+protein_coding	87777
+lncRNA	51298
+retained_intron	32801
+processed_transcript	30341
+nonsense_mediated_decay	20247
+processed_pseudogene	10151
+unprocessed_pseudogene	2609
+misc_RNA	2220
+snRNA	1910
+miRNA	1877
+TEC	1147
+transcribed_unprocessed_pseudogene	953
+snoRNA	943
+transcribed_processed_pseudogene	505
+rRNA_pseudogene	496
+IG_V_pseudogene	187
+transcribed_unitary_pseudogene	151
+IG_V_gene	145
+TR_V_gene	106
+non_stop_decay	99
+unitary_pseudogene	96
+TR_J_gene	79
+polymorphic_pseudogene	71
+rRNA	53
+scaRNA	49
+IG_D_gene	37
+TR_V_pseudogene	33
+IG_C_gene	23
+Mt_tRNA	22
+pseudogene	19
+IG_J_gene	18
+IG_C_pseudogene	9
+ribozyme	8
+TR_C_gene	6
+sRNA	5
+TR_D_gene	4
+TR_J_pseudogene	4
+IG_J_pseudogene	3
+translated_processed_pseudogene	2
+translated_unprocessed_pseudogene	2
+Mt_rRNA	2
+scRNA	1
+vault_RNA	1
+IG_pseudogene	1
+
+
+$ gtf_extract_transcript_biotypes.py gencode.v44.annotation.gtf.gz 
+protein_coding	89067
+lncRNA	56357
+retained_intron	34128
+protein_coding_CDS_not_defined	26483
+nonsense_mediated_decay	21384
+processed_pseudogene	10147
+unprocessed_pseudogene	2610
+misc_RNA	2212
+snRNA	1901
+miRNA	1879
+processed_transcript	1352
+TEC	1145
+transcribed_unprocessed_pseudogene	961
+snoRNA	942
+transcribed_processed_pseudogene	512
+rRNA_pseudogene	497
+IG_V_pseudogene	187
+transcribed_unitary_pseudogene	155
+IG_V_gene	145
+TR_V_gene	107
+non_stop_decay	103
+unitary_pseudogene	99
+TR_J_gene	79
+protein_coding_LoF	73
+scaRNA	49
+rRNA	47
+IG_D_gene	37
+TR_V_pseudogene	33
+IG_C_gene	23
+Mt_tRNA	22
+artifact	19
+IG_J_gene	18
+pseudogene	15
+IG_C_pseudogene	9
+ribozyme	8
+TR_C_gene	6
+sRNA	5
+TR_D_gene	5
+TR_J_pseudogene	4
+IG_J_pseudogene	3
+translated_processed_pseudogene	2
+Mt_rRNA	2
+scRNA	1
+vault_RNA	1
+IG_pseudogene	1
+
+"""
+
+################################################################################
+
+def get_region_annotations(overlap_annotations_bed,
+                           reg_ids_dic=None):
+    """
+    Get region annotations from overlapping genomic regions with exon / intron 
+    / transript biotype annotations.
+
+    reg_ids_dic:
+        If set, compare genomic region IDs with IDs in dictionary. If region ID 
+        from dictionary not in overlap_annotations_bed, set label "intergenic".
+
+    """
+
+    assert os.path.exists(overlap_annotations_bed), "file %s does not exist" %(overlap_annotations_bed)
+
+    reg2maxol_dic = {}
+    reg2annot_dic = {}
+
+    with open(overlap_annotations_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            reg_id = cols[3]
+            annot_ids = cols[9].split(";")
+            assert len(annot_ids) == 2, "len(annot_ids) != 2 (expected ; separated string, but got: \"%s\")" %(col[9])
+            annot_id = annot_ids[0]
+            tr_id = annot_ids[1]
+            c_overlap_nts = cols[12]
+            if reg_id not in reg2maxol_dic:
+                reg2maxol_dic[reg_id] = c_overlap_nts
+                reg2annot_dic[reg_id] = [annot_id, tr_id]
+            else:
+                if c_overlap_nts > reg2maxol_dic[reg_id]:
+                    reg2maxol_dic[reg_id] = c_overlap_nts
+                    reg2annot_dic[reg_id][0] = annot_id
+                    reg2annot_dic[reg_id][1] = tr_id
+    f.closed
+
+    if reg_ids_dic is not None:
+        for reg_id in reg_ids_dic:
+            if reg_id not in reg2annot_dic:
+                reg2annot_dic[reg_id] = ["intergenic", False]
+
+    return reg2annot_dic
+
+
+"""
+$ intersectBed -a regions.bed -b introns.bed -s -wo -f 0.5
+chr1	1980	2020	s1	0	+	chr1	1000	2000	exon	0	+	20
+chr1	1980	2020	s1	0	+	chr1	2000	3000	intron	0	+	20
+
+"""
+
+
+################################################################################
+
 def read_ids_into_dic(ids_file,
                       check_dic=True,
                       ids_dic=False):
@@ -1113,6 +1735,84 @@ def read_ids_into_dic(ids_file,
     if check_dic:
         assert ids_dic, "IDs dictionary ids_dic empty"
     return ids_dic
+
+
+################################################################################
+
+def gtf_check_exon_order(in_gtf):
+    """
+    Check exon_number ordering. Return True if ordering for minus strand
+    and plus strand is different (i.e. for minus exon_number 1 is most downstream).
+    Return False, if upstream to downstream order numbering is used for both
+    plus and minus strand transcripts.
+
+    >>> test_true_gtf = "test_data/test_order_true.gtf"
+    >>> test_false_gtf = "test_data/test_order_false.gtf"
+    >>> gtf_check_exon_order(test_true_gtf)
+    True
+    >>> gtf_check_exon_order(test_false_gtf)
+    False
+
+    """
+    tr2exon_nr_dic = {}
+    tr2exon_s_dic = {}
+
+    check = 6666
+
+    if re.search(".+\.gz$", in_gtf):
+        f = gzip.open(in_gtf, 'rt')
+    else:
+        f = open(in_gtf, "r")
+    for line in f:
+        # Skip header.
+        if re.search("^#", line):
+            continue
+        cols = line.strip().split("\t")
+        chr_id = cols[0]
+        feature = cols[2]
+        feat_s = int(cols[3])
+        feat_e = int(cols[4])
+        feat_pol = cols[6]
+        infos = cols[8]
+
+        if feature != "exon":
+            continue
+
+        # Transcript ID.
+        m = re.search('transcript_id "(.+?)"', infos)
+        assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
+        transcript_id = m.group(1)
+        # Exon number.
+        m = re.search('exon_number "(\d+?)"', infos)
+        # Try GENCODE encoding.
+        if not m:
+            m = re.search('exon_number (\d+?);', infos)
+        assert m, "exon_number entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
+        exon_nr = int(m.group(1))
+
+        # Check whether exon numbers are incrementing for each transcript ID.
+        if transcript_id not in tr2exon_nr_dic:
+            tr2exon_nr_dic[transcript_id] = exon_nr
+        else:
+            assert tr2exon_nr_dic[transcript_id] < exon_nr, "transcript ID \"%s\" without increasing exon number order in GTF file \"%s\"" %(transcript_id, in_gtf)
+            tr2exon_nr_dic[transcript_id] = exon_nr
+
+        # Check ordering of exons for minus strand transcripts.
+        if transcript_id not in tr2exon_s_dic:
+            tr2exon_s_dic[transcript_id] = feat_s
+        else:
+            if feat_pol == "-":
+                if tr2exon_s_dic[transcript_id] > feat_s:
+                    check = True
+                else:
+                    check = False
+                break
+            elif feat_pol == "+":
+                assert tr2exon_s_dic[transcript_id] < feat_s, "transcript ID \"%s\" on plus strand but exon region coordinates are decreasing" %(transcript_id)
+    f.close()
+
+    assert check != 6666, "no minus strand exon regions found in GTF file %s" %(in_gtf)
+    return check
 
 
 ################################################################################
@@ -1598,6 +2298,8 @@ def bed_filter_extend_bed(in_bed, out_bed,
                           reg2sc_dic=None,
                           score_col=5,
                           chr_ids_dic=None,
+                          bed_chr_ids_dic=None,
+                          use_region_ids=False,
                           unstranded=False):
     """
     Filter / extend in_bed BED file, output to out_bed.
@@ -1605,6 +2307,9 @@ def bed_filter_extend_bed(in_bed, out_bed,
     remove_dupl:
         Remove duplicated regions, i.e., regions with same 
         chr_id, reg_s, reg_e, reg_pol
+    use_region_ids:
+        If True set column 4 region ID to location ID, in style: "chr20:62139082-62139128(-)",
+        or ""chr20:62139082-62139128" if unstranded=True.
     unstranded:
         If True, output both strands of each region (+ and -), so given one 
         input region, two output regions are generated.
@@ -1642,6 +2347,17 @@ def bed_filter_extend_bed(in_bed, out_bed,
                 if chr_id not in chr_ids_dic:
                     c_chr_filter += 1
                     continue
+
+            # Record present IDs.
+            if bed_chr_ids_dic is not None:
+                bed_chr_ids_dic[chr_id] = 1
+
+            # Use "chr20:62139082-62139128(-)" style.
+            if use_region_ids:
+                if unstranded:
+                    reg_id = "%s:%i-%i" %(chr_id, reg_s, reg_e)
+                else:
+                    reg_id = "%s:%i-%i(%s)" %(chr_id, reg_s, reg_e, reg_pol)
 
             """
             If unstranded = True, add both strands for each region.
