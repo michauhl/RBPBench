@@ -2093,6 +2093,13 @@ def main_search(args):
                                                                 empty_check=False)
 
             assert tid2tio_dic, "no transcript infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
+
+            # (in)sanity checks.
+            for tr_id in tr_ids_dic:
+                assert tr_id in tid2tio_dic, "transcript ID %s not in tid2tio_dic"
+            for tr_id in tid2tio_dic:
+                assert tr_id in tr_ids_dic, "transcript ID %s not in tr_ids_dic"
+
             c_tr_infos = len(tid2tio_dic)
             print("# transcript features read in from --gtf:", c_tr_infos)
 
@@ -2132,15 +2139,22 @@ def main_search(args):
             print("Output region annotations ... ")
             
             OUTRAN = open(reg_annot_table_file, "w")
-            OUTRAN.write("region_id\tgene_id\tgene_name\ttranscript_id\tregion_annotation\n")
+            OUTRAN.write("region_id\tgene_id\tgene_name\ttranscript_id\tregion_annotation\ttranscript_biotype\n")
 
             for reg_id in reg2annot_dic:
                 annot = reg2annot_dic[reg_id][0]
                 tr_id = reg2annot_dic[reg_id][1]
-                gene_id = tr2gid_dic[tr_id]
-                gene_info = gid2gio_dic[gene_id]
-                gene_name = gene_info.gene_name
-                OUTRAN.write("%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot))
+                gene_id = "-"
+                gene_name = "-"
+                tr_biotype = "-"
+                if tr_id:
+                    gene_id = tr2gid_dic[tr_id]
+                    gene_info = gid2gio_dic[gene_id]
+                    tr_biotype = tid2tio_dic[tr_id].tr_biotype
+                    gene_name = gene_info.gene_name
+                else:
+                    tr_id = "-"
+                OUTRAN.write("%s\t%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot, tr_biotype))
             OUTRAN.close()
 
         plots_subfolder = "html_report_plots"
@@ -2227,6 +2241,8 @@ def main_search(args):
     print("RBP region occupancies .tsv:\n%s" %(rbp_reg_occ_table_out))
     print("RBP hit stats .tsv:\n%s" %(rbp_stats_out))
     print("Motif hit stats .tsv:\n%s" %(motif_stats_out))
+    if reg_annot_table_file is not None:
+        print("Region nnotations .tsv:\n%s" %(reg_annot_table_file))
     if args.plot_motifs:
         print("Motif plots and hit statistics .html:\n%s" %(html_motif_plots_out))
     if args.report:

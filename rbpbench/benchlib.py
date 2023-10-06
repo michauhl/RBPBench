@@ -1859,8 +1859,14 @@ def select_mpts_from_gene_infos(gid2gio_dic,
         If True only report transcripts with TSL 1-5 (excluding "NA").
     tr_min_len:
         If length set, only report transcripts with length >= tr_min_len.
-    
-        
+
+
+    >>> test_gtf = "test_data/test_mpt_selection.gtf"
+    >>> gid2gio_dic = gtf_read_in_gene_infos(test_gtf)
+    >>> tr_ids_dic = select_mpts_from_gene_infos(gid2gio_dic, basic_tag=False, ensembl_canonical_tag=False, only_tsl=False)
+    >>> tr_ids_dic
+    {'ENST00000357266': 'ENSG00000096060'}
+
     """
 
     # Comparison dictionary.
@@ -1882,10 +1888,12 @@ def select_mpts_from_gene_infos(gid2gio_dic,
         mpt_ec = 0
 
         for idx, tr_id in enumerate(gene_info.tr_ids):
+            # print("mpt_id:", mpt_id, "tr_id:", tr_id)
             tr_tsl = gene_info.tr_tsls[idx]  # 1-5 or NA
             tr_bt = gene_info.tr_basic_tags[idx]  # 0 or 1
             tr_ec = gene_info.tr_ensembl_canonical_tags[idx]  # 0 or 1
             tr_length = gene_info.tr_lengths[idx]
+            # print(tr_id, tr_bt, tr_ec, tr_length, tr_tsl)
             if basic_tag:
                 if not tr_bt:
                     continue
@@ -1903,7 +1911,10 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                 mpt_id = tr_id
                 mpt_tsl = tr_tsl
                 mpt_len = tr_length
+                mpt_bt = tr_bt
+                mpt_ec = tr_ec
             elif id2sc[tr_tsl] == id2sc[mpt_tsl]:
+                # print("Now equal, comparing tr_id %s with mpt_id %s" %(tr_id, mpt_id))
                 # If transcript has basic tag, use this.
                 if tr_bt > mpt_bt:
                     mpt_id = tr_id
@@ -3558,6 +3569,17 @@ No upset plot generated since set --upset-plot-min-subset-size (%i) > maximum su
 &nbsp;
 
 """ %(upset_plot_min_subset_size, count)
+
+        elif reason == "len(rbp_id_list) == 1":
+
+            mdtext += """
+
+No upset plot generated since number of selected RBPs == 1.
+
+&nbsp;
+
+"""
+
         else:
             assert False, "invalid reason given for not plotting upset plot"
 
@@ -3664,19 +3686,27 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
     """
 
     df_up = df.groupby(rbp_id_list).size()
-    # Check if set min_degree and min_subset_size are too high (to prevent plotting error).
-    df_up_check = df_up[df_up.index.map(sum) >= min_degree]
-    if df_up_check.empty:
-        # Set min_degree too high.
-        return False, "min_degree", 0
-    max_subset_size = 0
-    for elem_c in df_up_check:
-        if elem_c > max_subset_size:
-            max_subset_size = elem_c
-    if max_subset_size < min_subset_size:
-        # Set min_subset_size too high.
-        return False, "min_subset_size", max_subset_size
 
+    # Check if set min_degree and min_subset_size are too high (to prevent plotting error).
+    if len(rbp_id_list) > 1:
+        df_up_check = df_up[df_up.index.map(sum) >= min_degree]
+        if df_up_check.empty:
+            # Set min_degree too high.
+            return False, "min_degree", 0
+        max_subset_size = 0
+        for elem_c in df_up_check:
+            if elem_c > max_subset_size:
+                max_subset_size = elem_c
+        if max_subset_size < min_subset_size:
+            # Set min_subset_size too high.
+            return False, "min_subset_size", max_subset_size
+    else:
+        # if min_degree > 1:
+        #     return False, "min_degree", 0
+        # max_subset_size = len(rbp2regidx_dic[rbp_id_list[0]])
+        # if max_subset_size < min_subset_size:
+        #     return False, "min_subset_size", max_subset_size
+        return False, "len(rbp_id_list) == 1", 0
 
     """
     Plot with GTF annotations (if reg2annot_dic given),
@@ -3787,7 +3817,8 @@ def create_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_
 
     df = pd.DataFrame(data_dic)
 
-    ax = df.set_index('rbp_id').plot(kind='barh', stacked=True, legend=False, edgecolor="lightgrey", figsize=(fwidth, fheight))
+    ax = df.set_index('rbp_id').plot(kind='barh', stacked=True, legend=False, edgecolor="none", figsize=(fwidth, fheight))
+    # ax = df.set_index('rbp_id').plot(kind='barh', stacked=True, legend=False, edgecolor="lightgrey", figsize=(fwidth, fheight))
 
     plt.xlabel('Annotation overlap')
     ax.set_ylabel('')
