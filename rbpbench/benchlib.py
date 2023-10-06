@@ -13,8 +13,10 @@ import pandas as pd
 import plotly.express as px
 from math import log10
 import textdistance
-from upsetplot import plot
 import numpy as np
+# from upsetplot import plot
+from upsetplot import UpSet
+from matplotlib import cm
 
 
 """
@@ -924,10 +926,10 @@ def gtf_read_in_gene_infos(in_gtf,
         if not chr_id:
             continue
 
-        assert feat_e > feat_s, "feature end <= feature start in GTF file \"%s\", line \"%s\". Since both coordinates are expected to have 1-based index, this should not happen" %(in_gtf, line)
+        assert feat_e >= feat_s, "feature end < feature start in GTF file \"%s\", line \"%s\". Since both coordinates are expected to have 1-based index, this should not happen" %(in_gtf, line)
 
         if check_chr_ids_dic is not None:
-            assert chr_id in check_chr_ids_dic, "chromosme ID %s from in GTF file \"%s\" not found in --genome FASTA file. Make sure GTF + FASTA + BED files use compatible chromosome IDs" %(chr_id, in_gtf)
+            assert chr_id in check_chr_ids_dic, "chromosme ID \"%s\" from GTF file \"%s\" not found in --genome FASTA file. Make sure GTF + FASTA + BED files use compatible chromosome IDs" %(chr_id, in_gtf)
 
         if feature == "gene":
 
@@ -947,7 +949,7 @@ def gtf_read_in_gene_infos(in_gtf,
             # assert m, "gene_biotype / gene_type entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             # gene_biotype = m.group(1)
 
-            gene_infos = GeneInfo(gene_id, gene_name, gene_biotype, new_chr_id, feat_s, feat_e, feat_pol)
+            gene_infos = GeneInfo(gene_id, gene_name, gene_biotype, chr_id, feat_s, feat_e, feat_pol)
 
             assert gene_id not in gid2gio_dic, "gene feature with gene ID %s already encountered in GTF file \"%s\"" %(gene_id, in_gtf)
             gid2gio_dic[gene_id] = gene_infos
@@ -958,7 +960,7 @@ def gtf_read_in_gene_infos(in_gtf,
             assert m, "gene_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             gene_id = m.group(1)
             m = re.search('transcript_id "(.+?)"', infos)
-            assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(args.in_gtf, line)
+            assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             tr_id = m.group(1)
             assert gene_id in gid2gio_dic, "gene_id %s belonging to transcript ID %s not (yet) encountered. Gene feature expected to come before transcript and exon features in GTF file \"%s\"" %(gene_id, tr_id, in_gtf)
 
@@ -1085,7 +1087,7 @@ def gtf_read_in_transcript_infos(in_gtf,
             assert m, "gene_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             gene_id = m.group(1)
             m = re.search('transcript_id "(.+?)"', infos)
-            assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(args.in_gtf, line)
+            assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             tr_id = m.group(1)
 
             tr_ids_seen_dic[tr_id] = 1
@@ -1101,7 +1103,7 @@ def gtf_read_in_transcript_infos(in_gtf,
             if m:
                 tr_biotype = m.group(1)
 
-            tr_infos = TranscriptInfo(tr_id, tr_biotype, new_chr_id, feat_s, feat_e, feat_pol, gene_id,
+            tr_infos = TranscriptInfo(tr_id, tr_biotype, chr_id, feat_s, feat_e, feat_pol, gene_id,
                                       tr_length=0,
                                       exon_c=0)
             assert tr_id not in tid2tio_dic, "transcript feature with transcript ID %s already encountered in GTF file \"%s\"" %(tr_id, in_gtf)
@@ -1179,6 +1181,7 @@ def gtf_read_in_transcript_infos(in_gtf,
 def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
                                               output_mode=1,
                                               report_counts=True,
+                                              add_tr_id=True,
                                               empty_check=False):
     """
     Output exon and/or intron regions to BED given a dictionary of TranscriptInfo 
@@ -1188,7 +1191,10 @@ def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
         1: output exon + intron regions to BED.
         2: output exon regions only.
         3: output intron regions only.
-
+    add_tr_id:
+        If True, add transcript ID after exon intron label (BED column 4), 
+        format: intron;tr_id
+        
     """
     assert tid2tio_dic, "given tid2tio_dic empty"
 
@@ -1218,18 +1224,30 @@ def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
         if output_mode == 1:
             for exon in exon_coords:
                 c_exon_out += 1
-                OUTBED.write("%s\t%i\t%i\texon\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], tr_pol))
+                if add_tr_id:
+                    OUTBED.write("%s\t%i\t%i\texon;%s\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], tr_id, tr_pol))
+                else:
+                    OUTBED.write("%s\t%i\t%i\texon\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], tr_pol))
             for intron in intron_coords:
                 c_intron_out += 1
-                OUTBED.write("%s\t%i\t%i\texon\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], tr_pol))
+                if add_tr_id:
+                    OUTBED.write("%s\t%i\t%i\tintron;%s\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], tr_id, tr_pol))
+                else:
+                    OUTBED.write("%s\t%i\t%i\tintron\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], tr_pol))
         elif output_mode == 2:
             for exon in exon_coords:
                 c_exon_out += 1
-                OUTBED.write("%s\t%i\t%i\texon\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], tr_pol))
+                if add_tr_id:
+                    OUTBED.write("%s\t%i\t%i\texon;%s\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], tr_id, tr_pol))
+                else:
+                    OUTBED.write("%s\t%i\t%i\texon\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], tr_pol))
         elif output_mode == 3:
             for intron in intron_coords:
                 c_intron_out += 1
-                OUTBED.write("%s\t%i\t%i\texon\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], tr_pol))
+                if add_tr_id:
+                    OUTBED.write("%s\t%i\t%i\tintron;%s\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], tr_id, tr_pol))
+                else:
+                    OUTBED.write("%s\t%i\t%i\tintron\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], tr_pol))
 
     OUTBED.close()
 
@@ -1397,11 +1415,11 @@ def get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e,
     >>> cds_s, cds_e = 200, 300
     >>> exon_s, exon_e = 150, 250
     >>> get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e)
-    ((200, 250), (150, 199), False, "CDS", 5'UTR, False)
+    ((200, 250), (150, 199), False, 'CDS', "5'UTR", False)
     >>> cds_s, cds_e = 200, 220
     >>> exon_s, exon_e = 150, 250
     >>> get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e)
-    ((200, 220), (150, 199), (221, 250), "CDS", "5'UTR", "3'UTR")
+    ((200, 220), (150, 199), (221, 250), 'CDS', "5'UTR", "3'UTR")
     >>> cds_s, cds_e = 50, 100
     >>> exon_s, exon_e = 150, 250
     >>> get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e)
@@ -1536,23 +1554,24 @@ def output_exon_annotations(tid2tio_dic, out_bed,
 
     OUTEXAN = open(out_bed, write_op)
 
-    for tio in tid2tio_dic:
+    for tid in tid2tio_dic:
+        tio = tid2tio_dic[tid]
 
         if tio.cds_s is not None:
             for exon in tio.exon_coords:
                 cds_se, utr5_se, utr3_se, cds, utr5, utr3 = get_cds_exon_overlap(tio.cds_s, tio.cds_e, exon[0], exon[1], strand=tio.tr_pol)
                 if cds:
-                    OUTEXAN.write("%s\t%i\t%i\tCDS;%s\t0\t%s\n" %(tio.chr_id, cds_se[0]-1, cds_se[1], tio.tr_id, tio_tr_pol))
+                    OUTEXAN.write("%s\t%i\t%i\tCDS;%s\t0\t%s\n" %(tio.chr_id, cds_se[0]-1, cds_se[1], tio.tr_id, tio.tr_pol))
                 if utr5:
-                    OUTEXAN.write("%s\t%i\t%i\t5'UTR;%s\t0\t%s\n" %(tio.chr_id, utr5_se[0]-1, utr5_se[1], tio.tr_id, tio_tr_pol))
+                    OUTEXAN.write("%s\t%i\t%i\t5'UTR;%s\t0\t%s\n" %(tio.chr_id, utr5_se[0]-1, utr5_se[1], tio.tr_id, tio.tr_pol))
                 if utr3:
-                    OUTEXAN.write("%s\t%i\t%i\t3'UTR;%s\t0\t%s\n" %(tio.chr_id, utr3_se[0]-1, utr3_se[1], tio.tr_id, tio_tr_pol))
+                    OUTEXAN.write("%s\t%i\t%i\t3'UTR;%s\t0\t%s\n" %(tio.chr_id, utr3_se[0]-1, utr3_se[1], tio.tr_id, tio.tr_pol))
         else:
             label = other_annot
             if tio.tr_biotype in valid_annot_dic:
                 label = valid_annot_dic[tio.tr_biotype]
             for exon in tio.exon_coords:
-                OUTEXAN.write("%s\t%i\t%i\t%s;%s\t0\t%s\n" %(tio.chr_id, exon[0]-1, exon[1], label, tio.tr_id, tio_tr_pol))
+                OUTEXAN.write("%s\t%i\t%i\t%s;%s\t0\t%s\n" %(tio.chr_id, exon[0]-1, exon[1], label, tio.tr_id, tio.tr_pol))
 
     OUTEXAN.close()
 
@@ -1680,7 +1699,7 @@ def get_region_annotations(overlap_annotations_bed,
             cols = line.strip().split("\t")
             reg_id = cols[3]
             annot_ids = cols[9].split(";")
-            assert len(annot_ids) == 2, "len(annot_ids) != 2 (expected ; separated string, but got: \"%s\")" %(col[9])
+            assert len(annot_ids) == 2, "len(annot_ids) != 2 (expected ; separated string, but got: \"%s\")" %(cols[9])
             annot_id = annot_ids[0]
             tr_id = annot_ids[1]
             c_overlap_nts = cols[12]
@@ -1826,8 +1845,9 @@ def select_mpts_from_gene_infos(gid2gio_dic,
     """
     Select most prominent transcripts from GeneInfo objects. 
     Selection is based on transcript support level (TSL), 
-    with lower value == better.
-    If several transcripts with lowest TSL, select longest transcript.
+    with lower value == better, as well as preference for basic tag + 
+    Ensembl canonical.
+    If several transcripts with lowest TSL / same tags, select longest transcript.
     Depending on filter settings, there might be genes for which no TSL 
     is reported.
     
@@ -1858,11 +1878,13 @@ def select_mpts_from_gene_infos(gid2gio_dic,
         mpt_id = "-"
         mpt_tsl = "NA"
         mpt_len = 0
+        mpt_bt = 0
+        mpt_ec = 0
 
         for idx, tr_id in enumerate(gene_info.tr_ids):
-            tr_tsl = gene_info.tr_tsls[idx]
-            tr_bt = gene_info.tr_basic_tags[idx]
-            tr_ec = gene_info.tr_ensembl_canonical_tags[idx]
+            tr_tsl = gene_info.tr_tsls[idx]  # 1-5 or NA
+            tr_bt = gene_info.tr_basic_tags[idx]  # 0 or 1
+            tr_ec = gene_info.tr_ensembl_canonical_tags[idx]  # 0 or 1
             tr_length = gene_info.tr_lengths[idx]
             if basic_tag:
                 if not tr_bt:
@@ -1882,10 +1904,30 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                 mpt_tsl = tr_tsl
                 mpt_len = tr_length
             elif id2sc[tr_tsl] == id2sc[mpt_tsl]:
-                if tr_length > mpt_len:
+                # If transcript has basic tag, use this.
+                if tr_bt > mpt_bt:
                     mpt_id = tr_id
                     mpt_tsl = tr_tsl
                     mpt_len = tr_length
+                    mpt_bt = tr_bt
+                    mpt_ec = tr_ec
+                    continue
+                # If transcript has Ensembl canonical tag, use this.
+                if tr_ec > mpt_ec:
+                    mpt_id = tr_id
+                    mpt_tsl = tr_tsl
+                    mpt_len = tr_length
+                    mpt_bt = tr_bt
+                    mpt_ec = tr_ec
+                    continue
+                # If same basic/Ensembl canonical tag combination.
+                if tr_ec == mpt_ec and tr_bt == mpt_bt:
+                    if tr_length > mpt_len:
+                        mpt_id = tr_id
+                        mpt_tsl = tr_tsl
+                        mpt_len = tr_length
+                        mpt_bt = tr_bt
+                        mpt_ec = tr_ec
 
         if not mpt_len:
             continue
@@ -3269,7 +3311,8 @@ def search_generate_html_report(df_corr, df_pval, pval_cont_lll,
                                 id2name_dic, out_folder, 
                                 benchlib_path,
                                 rbp2regidx_dic,
-                                c_regions,
+                                reg_ids_list,
+                                reg2annot_dic=None,
                                 upset_plot_min_degree=2,
                                 upset_plot_max_degree=None,
                                 upset_plot_min_subset_size=10,
@@ -3296,6 +3339,9 @@ def search_generate_html_report(df_corr, df_pval, pval_cont_lll,
     md_out = out_folder + "/" + "report.rbpbench_search.md"
     if html_report_out:
         html_out = html_report_out
+
+    # Number of genomic regions.
+    c_regions = len(reg_ids_list)
 
     # Makes tables sortable.
     sorttable_js_path = benchlib_path + "/content/sorttable.js"
@@ -3326,6 +3372,11 @@ by RBPBench (rbpbench search --report):
 - [RBP co-occurrences heat map](#cooc-heat-map)
 - [RBP correlations heat map](#corr-heat-map)
 - [RBP combinations upset plot](#rbp-comb-upset-plot)"""
+
+    # Additional plot if GTF annotations given.
+    if reg2annot_dic is not None:
+        mdtext += "\n"
+        mdtext += "- [Region annotations per RBP](#annot-rbp-plot)\n"
 
     mdtext += "\n&nbsp;\n"
 
@@ -3454,7 +3505,8 @@ D: NOT RBP1 AND NOT RBP2.
     rbp_reg_occ_upset_plot =  "rbp_region_occupancies.upset_plot.png"
     rbp_reg_occ_upset_plot_out = plots_out_folder + "/" + rbp_reg_occ_upset_plot
 
-    plotted, reason, count = create_rbp_reg_occ_upset_plot(rbp2regidx_dic, c_regions,
+    plotted, reason, count = create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list, 
+                                  reg2annot_dic=reg2annot_dic,
                                   min_degree=upset_plot_min_degree,
                                   max_degree=upset_plot_max_degree,
                                   min_subset_size=upset_plot_min_subset_size,
@@ -3477,8 +3529,9 @@ D: NOT RBP1 AND NOT RBP2.
 Intersection size == how often a specific RBP combination is found in the regions dataset.
 For example, if two regions in the input set contain motif hits for RBP1, RBP3, and RBP5, then the RBP combination RBP1,RBP3,RBP5 will get a count (== Intersection size) of 2.
 Minimum occurrence number for a combination to be reported = %i (command line parameter: --upset-plot-min-subset-size). 
-How many RBPs a combination must contain to be reported (--up) = %i (command line parameter: --upset-plot-min-degree).
-The numbers on left side for each RBP tell how many genomic regions have motif hits (1 or more) of the respective RBP.
+How many RBPs a combination must contain to be reported = %i (command line parameter: --upset-plot-min-degree).
+The numbers on the left side for each RBP tell how many genomic regions have motif hits (1 or more) of the respective RBP. 
+If a GTF file was given, bar charts become stacked bar charts, showing what GTF annotations the regions overlap with (see legend for region types).
 
 &nbsp;
 
@@ -3509,7 +3562,35 @@ No upset plot generated since set --upset-plot-min-subset-size (%i) > maximum su
             assert False, "invalid reason given for not plotting upset plot"
 
 
-    # ALAMO upset plot
+
+    if reg2annot_dic is not None:
+
+        annot_stacked_bars_plot =  "annotation_stacked_bars_plot.png"
+        annot_stacked_bars_plot_out = plots_out_folder + "/" + annot_stacked_bars_plot
+
+
+        mdtext += """
+## Region annotations per RBP ### {#annot-rbp-plot}
+
+"""
+        create_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
+                                            plot_out=annot_stacked_bars_plot_out)
+
+        plot_path = plots_folder + "/" + annot_stacked_bars_plot
+
+        mdtext += '<img src="' + plot_path + '" alt="Annotation stacked bars plot"' + "\n"
+        # mdtext += 'title="Annotation stacked bars plot" width="800" />' + "\n"
+        mdtext += 'title="Annotation stacked bars plot" />' + "\n"
+        mdtext += """
+**Figure:** For each RBP, a stacked bar shows the corresponding region annotations 
+(from --gtf GTF file, see legend for region types) for the genomic regions 
+with motif hits for the respective RBP. 
+Total bar height equals to the number of genomic regions with >= 1 motif hit of the RBP.
+
+&nbsp;
+
+"""
+    # ALAMO
 
     # Convert mdtext to html.
     md2html = markdown(mdtext, extensions=['attr_list', 'tables'])
@@ -3532,7 +3613,8 @@ No upset plot generated since set --upset-plot-min-subset-size (%i) > maximum su
 
 ################################################################################
 
-def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, c_regions,
+def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
+                                  reg2annot_dic=None,
                                   min_degree=2,
                                   max_degree=None,
                                   min_subset_size=10,
@@ -3550,8 +3632,9 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, c_regions,
     """
 
     # All regions (# regions).
+    c_regions = len(reg_ids_list)
     assert c_regions > 0, "c_regions must be >= 0"
-    rbp_idx_list = []
+    rbp_idx_list = []  # region indices list [0, 1, 2, ... c_regions-1]
     for i in range(c_regions):
         rbp_idx_list.append(i)
 
@@ -3576,8 +3659,11 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, c_regions,
 
     df = pd.DataFrame(bool_ll, columns=rbp_id_list)
 
-    df_up = df.groupby(rbp_id_list).size()
+    """
+    Some checks about degrees and subset sizes.
+    """
 
+    df_up = df.groupby(rbp_id_list).size()
     # Check if set min_degree and min_subset_size are too high (to prevent plotting error).
     df_up_check = df_up[df_up.index.map(sum) >= min_degree]
     if df_up_check.empty:
@@ -3587,23 +3673,139 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, c_regions,
     for elem_c in df_up_check:
         if elem_c > max_subset_size:
             max_subset_size = elem_c
-
     if max_subset_size < min_subset_size:
         # Set min_subset_size too high.
         return False, "min_subset_size", max_subset_size
 
-    # Move on to plotting.
-    print("Plotting upset plot ... ")
-    upset_plot = plot(df_up, orientation='horizontal', 
-                    min_degree=min_degree,  # number of RBPs in set (e.g. 2 -> at least 2 RBP pairs, not single RBPs)
-                    max_degree=max_degree,
-                    min_subset_size=min_subset_size,  # min size of a set to be reported.
-                    show_counts=True,
-                    sort_by="cardinality")
 
-    plt.savefig(plot_out, dpi=125)
+    """
+    Plot with GTF annotations (if reg2annot_dic given),
+    which includes adding a stacked bar plot,
+    or without.
+
+    https://upsetplot.readthedocs.io/en/latest/auto_examples/plot_discrete.html
+    """
+
+    if reg2annot_dic is not None:
+        assert len(reg2annot_dic) == c_regions, "len(reg2annot_dic) != c_regions"
+        # List of annotations.
+        annot_ids_list = []
+        for reg_id in reg_ids_list:
+            annot_id = reg2annot_dic[reg_id][0]
+            annot_ids_list.append(annot_id)
+        df['annot'] = annot_ids_list
+        # Set indices (== RBP ID columns).
+        df = df.set_index(rbp_id_list)
+        # Move on to plotting.
+        print("Plotting upset plot with GTF annotations ... ")
+        upset = UpSet(df, orientation='horizontal', 
+                        min_degree=min_degree,  # number of RBPs in set (e.g. 2 -> at least 2 RBP pairs, not single RBPs)
+                        max_degree=max_degree,
+                        min_subset_size=min_subset_size,  # min size of a set to be reported.
+                        show_counts=True,
+                        intersection_plot_elements=0,  # disable the default bar chart.
+                        sort_by="cardinality")
+        upset.add_stacked_bars(by="annot", colors=cm.Pastel1,
+                        title="Intersection size", elements=10)  # elements (ticks) of plotting axis it seems.
+        upset.plot()
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.5)
+
+    else:
+        df = df.set_index(rbp_id_list)
+        print("Plotting upset plot ... ")
+        upset = UpSet(df, orientation='horizontal', 
+                      min_degree=min_degree,  # number of RBPs in set (e.g. 2 -> at least 2 RBP pairs, not single RBPs)
+                      max_degree=max_degree,
+                      min_subset_size=min_subset_size,  # min size of a set to be reported.
+                      show_counts=True,
+                      sort_by="cardinality")
+        upset.plot()
+
+    plt.savefig(plot_out, dpi=125, bbox_inches='tight')
     plt.close()
     return True, "yowza", 0
+
+
+################################################################################
+
+def create_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
+                                        plot_out="annotation_stacked_bars_plot.png"):
+    """
+    Create a stacked bars plot, with each bar showing the annotations for one RBPs,
+    i.e. with which GTF annotations the sites with motifs of the RBP overlap.
+
+    rbp2regidx_dic:
+        RBP ID -> [indices of regions with RBP motif hits]
+    reg_ids_list:
+        Region IDs list.
+    reg2annot_dic:
+        Region ID -> [assigned annotation, transcript ID]
+
+    """
+    assert rbp2regidx_dic, "given rbp2regidx_dic empty"
+    assert reg_ids_list, "given reg_ids_list empty"
+    assert reg2annot_dic, "given reg2annot_dic empty"
+
+    # Scale plot height depending on # of features.
+    c_ids = len(rbp2regidx_dic)
+    fheight = 1 * c_ids
+    fwidth = 10
+
+    # Get all annotation IDs in dataset.
+    annot_dic = {}
+    for reg_id in reg2annot_dic:
+        annot = reg2annot_dic[reg_id][0]
+        if annot not in annot_dic:
+            annot_dic[annot] = 1
+        else:
+            annot_dic[annot] += 1
+
+    rbp_id_list = []
+    rbp2idx_dic = {}
+    idx = 0
+    for rbp_id, rbp_list in sorted(rbp2regidx_dic.items(), reverse=True):
+        rbp_id_list.append(rbp_id)
+        rbp2idx_dic[rbp_id] = idx
+        idx += 1
+
+    data_dic = {}
+    for annot in annot_dic:
+        data_dic[annot] = []
+        for rbp_id in rbp_id_list:
+            data_dic[annot].append(0)
+
+    data_dic["rbp_id"] = []
+    for rbp_id in rbp_id_list:
+        data_dic["rbp_id"].append(rbp_id)
+
+    for rbp_id in rbp2regidx_dic:
+        for hit_idx in rbp2regidx_dic[rbp_id]:
+            reg_id = reg_ids_list[hit_idx]
+            annot = reg2annot_dic[reg_id][0]
+            rbp_idx = rbp2idx_dic[rbp_id]
+            data_dic[annot][rbp_idx] += 1
+
+    df = pd.DataFrame(data_dic)
+
+    ax = df.set_index('rbp_id').plot(kind='barh', stacked=True, legend=False, edgecolor="lightgrey", figsize=(fwidth, fheight))
+
+    plt.xlabel('Annotation overlap')
+    ax.set_ylabel('')
+    ax.yaxis.grid(False)
+    ax.xaxis.grid(True)
+    ax.set_axisbelow(True)
+
+    # Remove border lines.
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+
+    # plt.legend(loc=(1.01, 0.4), fontsize=12, framealpha=0)
+    # plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.5)
+    plt.legend(bbox_to_anchor=(1.01, 1), loc='upper left')
+
+    plt.savefig(plot_out, dpi=125, bbox_inches='tight')
+    plt.close()
 
 
 ################################################################################
@@ -3657,6 +3859,30 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plotly_js_path, plot_out):
     plot.write_html(plot_out,
                     full_html=False,
                     include_plotlyjs=plotly_js_path)
+
+
+################################################################################
+
+def boundary_check(value, min, max):
+    """
+    Return if value is within integer/float boundaries.
+
+    >>> value = 0.5
+    >>> min = 1E-9
+    >>> max = 1.0
+    >>> boundary_check(value, min, max)
+    True
+    >>> value = 0.0
+    >>> min = 1E-9
+    >>> max = 1.0
+    >>> boundary_check(value, min, max)
+    False
+
+    """
+    if value >= min and value <= max:
+        return True
+    else:
+        return False
 
 
 ################################################################################

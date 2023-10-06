@@ -236,8 +236,13 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    nargs='+',
-                   required=True,
-                   help="List of transcript biotypes to consider in upset plot. By default an internal selection of transcript biotypes are used (in addition to intron, CDS, UTR, intergenic). Note that provided biotype strings need to be in GTF file")
+                   help="List of transcript biotypes to consider in upset plot. By default an internal selection of transcript biotypes is used (in addition to intron, CDS, UTR, intergenic). Note that provided biotype strings need to be in GTF file")
+    p_s.add_argument("--gtf-feat-min-overlap",
+                   dest="gtf_feat_min_overlap",
+                   type=float,
+                   metavar='float',
+                   default=0.1,
+                   help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\") (default: 0.1)")
     p_s.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
@@ -635,7 +640,10 @@ def main_search(args):
     if args.upset_plot_max_degree is not None:
         assert args.upset_plot_max_degree >= args.upset_plot_min_degree, "set --upset-plot-max-degree needs to be >= --upset-plot-min-degree"
     if args.tr_list:
-        assert args.in_gtf, "--tr-list set requires --gtf GTF file"
+        assert args.in_gtf, "set --tr-list requires --gtf GTF file"
+    assert benchlib.boundary_check(args.gtf_feat_min_overlap, 1E-9, 1.0), "set --gtf-feat-min-overlap expected to be >= 1E-9 and <= 1.0"
+    if args.in_gtf:
+        assert args.report, "set --gtf requires --report to be effective"
 
     """
     Library path.
@@ -2031,14 +2039,19 @@ def main_search(args):
         RNA type /region type (ncRNA, CDS, UTR ...).
 
         """
+        reg2annot_dic = None
+        reg_annot_table_file = None
+
         if args.in_gtf:
+
+            reg_annot_table_file = args.out_folder + "/" + "region_annotations.tsv"
 
             # Get gene infos.
             print("Read in gene features from --gtf ... ")
             tr2gid_dic = {}
             gid2gio_dic = benchlib.gtf_read_in_gene_infos(args.in_gtf,
                                                           tr2gid_dic=tr2gid_dic,
-                                                          check_chr_ids_dic=bed_chr_ids_dic,
+                                                          check_chr_ids_dic=chr_ids_dic,
                                                           chr_style=chr_style,
                                                           empty_check=False)
             assert gid2gio_dic, "no gene infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
@@ -2089,6 +2102,7 @@ def main_search(args):
             benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
                                               output_mode=3,  # only introns.
                                               report_counts=True,
+                                              add_tr_id=True,
                                               empty_check=False)
 
             # Custom transcript biotypes for upset plot.
@@ -2105,51 +2119,29 @@ def main_search(args):
 
             # Overlap with input regions.
             print("Overlap annotations with input regions ... ")
+            params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
             overlap_annotations_bed = args.out_folder + "/overlap_annotations.tmp.bed"
             benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_out_bed, 
                                          overlap_annotations_bed,
-                                         params="-s -wo -f 0.5")
+                                         params=params)
             
-            reg2annot_dic = get_region_annotations(overlap_annotations_bed,
-                                                   reg_ids_dic=reg_ids_dic)
+            reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
+                                                            reg_ids_dic=reg_ids_dic)
 
-            # Give reg2annot_dic to plotting function.
-            # How to upset plot with this info?
+            # Output assignments.
+            print("Output region annotations ... ")
             
+            OUTRAN = open(reg_annot_table_file, "w")
+            OUTRAN.write("region_id\tgene_id\tgene_name\ttranscript_id\tregion_annotation\n")
 
-def get_region_annotations(overlap_annotations_bed,
-                           reg_ids_dic=None):
-
-            # rbp2regidx_dic
-
-
-def bed_intersect_files(a_bed, b_bed, out_bed,
-                                    params="-s -u"):
-
-            # Get regions located in exons (CDS UTR or transcript biotype).
-
-            # ALAMO
-
-
-            # intersectBed -a regions.bed -b introns.bed -s -wo -f 0.5
-
-def get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e, 
-                         strand="+"):
-
-
-            #     filtered_sites_bed = args.out_folder + "/in_sites.filtered.bed"
-
-
-
-            # Remaining regions (without overlap hit) label as intergenic.
-
-
-
-            # Some function to assign UTR regions based on CDS features
-            # For rem
-
-            # ALAMO
-
+            for reg_id in reg2annot_dic:
+                annot = reg2annot_dic[reg_id][0]
+                tr_id = reg2annot_dic[reg_id][1]
+                gene_id = tr2gid_dic[tr_id]
+                gene_info = gid2gio_dic[gene_id]
+                gene_name = gene_info.gene_name
+                OUTRAN.write("%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot))
+            OUTRAN.close()
 
         plots_subfolder = "html_report_plots"
         benchlib_path = os.path.dirname(benchlib.__file__)
@@ -2161,7 +2153,8 @@ def get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e,
                                          id2name_dic, args.out_folder, 
                                          benchlib_path,
                                          rbp2regidx_dic,
-                                         len(reg_ids_list),
+                                         reg_ids_list,
+                                         reg2annot_dic=reg2annot_dic,
                                          upset_plot_min_degree=args.upset_plot_min_degree,
                                          upset_plot_max_degree=args.upset_plot_max_degree,
                                          upset_plot_min_subset_size=args.upset_plot_min_subset_size,
@@ -3776,8 +3769,12 @@ def main_dist(args):
     filtered_sites_bed = args.out_folder + "/in_sites.filtered.bed"
     filtered_sites_fa = args.out_folder + "/in_sites.filtered.fa"
     motif_plot_out = args.out_folder + "/nt_dist_zero_pos.png"
+    if os.path.exists(motif_plot_out):
+        os.remove(motif_plot_out)
     if args.plot_pdf:
         motif_plot_out = args.out_folder + "/nt_dist_zero_pos.pdf"
+        if os.path.exists(motif_plot_out):
+            os.remove(motif_plot_out)
 
     """
     Get chromosome IDs from --genome.
