@@ -201,6 +201,12 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Visualize selected sequence motifs, by outputting sequence logos and motif hit statistics into a separate .html file (default: False)")
+    p_s.add_argument("--motif-max-dist",
+                   dest="motif_max_dist",
+                   type=int,
+                   metavar='int',
+                   default = None,
+                   help = "Set maximum motif distance in nt for calculating RBP co-occurrences on genomic regions (e.g. --motif-max-dist 50 to focus on possible complex binding). If set, additional co-occurrences will be calculated as well as plotted (if --report set) (default: None)")
     p_s.add_argument("--upset-plot-min-degree",
                    dest="upset_plot_min_degree",
                    type=int,
@@ -253,7 +259,7 @@ def setup_argument_parser():
     Batch mode.
     """
     p_b = subparsers.add_parser('batch',
-                                  help='Search motifs on > 1 dataset')
+                                help='Search motifs on > 1 dataset')
     p_b.set_defaults(which='batch')
     # Add required arguments group.
     p_bm = p_b.add_argument_group("required arguments")
@@ -767,6 +773,7 @@ def main_search(args):
     rbp_stats_out = args.out_folder + "/rbp_hit_stats.tsv"
     motif_stats_out = args.out_folder + "/motif_hit_stats.tsv"
     con_res_out_tsv = args.out_folder + "/contingency_table_results.tsv"
+    con_res_maxd_out_tsv = args.out_folder + "/contingency_table_results.max_dist.tsv"
     settings_file = args.out_folder + "/settings.find_motifs.out"
     rbp_reg_occ_table_out = args.out_folder + "/rbp_region_occupancies.tsv"
 
@@ -991,7 +998,7 @@ def main_search(args):
 
     # Filter / extend --in BED.
     print("Preprocess --in sites ... ")
-    reg2sc_dic = {}
+    reg2sc_dic = {}  # Used to store region scores for Wilcoxon rank-sum test.
     bed_chr_ids_dic = {}
     reg_stats_dic = benchlib.bed_filter_extend_bed(args.in_sites, filtered_sites_bed,
                                           ext_up=ext_up,
@@ -1403,7 +1410,7 @@ def main_search(args):
         seen_ids_dic = {}
         # CHECK?
         for reg_id in reg2sc_dic:
-            reg_sc = reg2sc_dic[reg_id] # float value.
+            reg_sc = reg2sc_dic[reg_id]  # float value.
 
             # If --unstranded, count regions only once as hit or no hit.
             if args.unstranded and not args.unstranded_ct:
@@ -1587,17 +1594,8 @@ def main_search(args):
             reg_ids_list.append(seq_id)
             reg_ids_dic[seq_id] = 1
 
-    """
-    Store RBP binding information for each input region.
-    Format region_rbp_binds_dic:
-    region_id -> [False, True, False ... ] 
-    with list number of RBP IDs (len_rbp_list), alphabetically sorted.
-
-    """
-
     rbp_list.sort()
     len_rbp_list = len(rbp_list)
-    region_rbp_binds_dic = {}
     # Store rbp_id -> for each region if hit: 1, else: 0, i.e.: [1,0,0,0,0]
     reg_hits_dic = {}
     add_count = False # Add # of motif hits in region or just add 1 (if False)
@@ -1671,18 +1669,32 @@ def main_search(args):
     #     OUTOCC.write("%s\n" %(occ_row))
     # OUTOCC.close()
 
+    """
+    Store RBP binding information for each input region.
+    Format region_rbp_binds_dic:
+    region_id -> [False, True, False ... ] 
+    with list number of RBP IDs (len_rbp_list), alphabetically sorted.
+    Format region_rbp_motif_pos_dic:
+    Region ID -> RBP ID -> motif hit center positions (None if no hits for RBP ID in region ID).
+    We can use region_rbp_motif_pos_dic to calculate distances between motifs inside a region, 
+    by storing center positions of the motif hits. This can give us info on complex formation, 
+    e.g. if --motif-max-dist is set (and set reasonably small, e.g. 50).
+    
+    """
+    region_rbp_binds_dic = {}
+    region_rbp_motif_pos_dic = {}
 
-    # Init region_rbp_binds_dic, over all regions.
-    seen_ids_dic = {}
-    for reg_id in reg2sc_dic:
+    # Checks (make sure use_region_ids=True in bed_filter_extend_bed() function).
+    for reg_id in out_seqs_dic:
+        assert reg_id in reg2sc_dic, "region ID \"%s\" from out_seqs_dic not found in reg2sc_dic" %(reg_id)
         if args.unstranded and not args.unstranded_ct:
-            core_id = benchlib.reg_get_core_id(reg_id)
-            if core_id not in seen_ids_dic:
+            core_id = benchlib.reg_get_core_id(reg_id)  # If --unstranded (and not --unstranded-ct), get core ID to count region as one.
+            if core_id not in region_rbp_binds_dic:
                 region_rbp_binds_dic[core_id] = [False]*len_rbp_list
-                seen_ids_dic[core_id] = 1
-
+                region_rbp_motif_pos_dic[core_id] = {}
         else:
             region_rbp_binds_dic[reg_id] = [False]*len_rbp_list
+            region_rbp_motif_pos_dic[reg_id] = {}
 
     """
     Output motif region stats (1 row for each motif hit).
@@ -1702,22 +1714,40 @@ def main_search(args):
 
     # hit_id = "%s:%s-%s(%s),%s" %(cols[7], cols[8], cols[9], cols[10], cols[6])
 
+
+    # ALAMO
+
     for fh in fimo_hits_list:
 
         rbp_id = id2name_dic[fh.motif_id]
         region_id = fh.seq_name
         region_len = benchlib.get_length_from_seq_name(fh.seq_name)
         # genomic motif region string.
-        fh_str = repr(fh) 
+        fh_str = repr(fh)
         uniq_count = unique_motifs_dic[rbp_id][fh_str]
         # Store binding info of RBP in region.
         rbp_idx = rbp2idx_dic[rbp_id]
 
+        # Center position of motif hit.
+        motif_hit_s = fh.start - 1
+        motif_hit_e = fh.end
+        center_pos = benchlib.get_center_position(motif_hit_s, motif_hit_e)
+        
         if args.unstranded and not args.unstranded_ct:
             core_id = benchlib.reg_get_core_id(region_id)
             region_rbp_binds_dic[core_id][rbp_idx] = True
+            if rbp_id in region_rbp_motif_pos_dic[core_id]:
+                region_rbp_motif_pos_dic[core_id][rbp_id].append(center_pos)
+            else:
+                region_rbp_motif_pos_dic[core_id][rbp_id] = [center_pos]
+
         else:
             region_rbp_binds_dic[region_id][rbp_idx] = True
+            if rbp_id in region_rbp_motif_pos_dic[region_id]:
+                region_rbp_motif_pos_dic[region_id][rbp_id].append(center_pos)
+            else:
+                region_rbp_motif_pos_dic[region_id][rbp_id] = [center_pos]
+
 
         motif_db_out = loaded_motif_ids_dic[fh.motif_id]
 
@@ -1763,11 +1793,26 @@ def main_search(args):
         # Store binding info of RBP in region.
         rbp_idx = rbp2idx_dic[rbp_id]
 
+        # Center position of motif hit.
+        motif_hit_s = cmsh.start - 1
+        motif_hit_e = cmsh.end
+        center_pos = benchlib.get_center_position(motif_hit_s, motif_hit_e)
+        
         if args.unstranded and not args.unstranded_ct:
             core_id = benchlib.reg_get_core_id(region_id)
             region_rbp_binds_dic[core_id][rbp_idx] = True
+            if rbp_id in region_rbp_motif_pos_dic[core_id]:
+                region_rbp_motif_pos_dic[core_id][rbp_id].append(center_pos)
+            else:
+                region_rbp_motif_pos_dic[core_id][rbp_id] = [center_pos]
+
         else:
             region_rbp_binds_dic[region_id][rbp_idx] = True
+            if rbp_id in region_rbp_motif_pos_dic[region_id]:
+                region_rbp_motif_pos_dic[region_id][rbp_id].append(center_pos)
+            else:
+                region_rbp_motif_pos_dic[region_id][rbp_id] = [center_pos]
+
 
         motif_db_out = loaded_motif_ids_dic[cmsh.motif_id]
 
@@ -1848,20 +1893,25 @@ def main_search(args):
 
     """
     # Store p-values in 2d-list.
-    pval_ll = [] # p-values (fisher exact).
-    or_ll = [] # odds ratios.
+    pval_ll = []  # p-values (Fisher exact test).
+    or_ll = []  # odds ratios.
     pval_cont_lll = []
+    # If --motif-max-dist set.
+    pval_maxd_ll = []  # p-values (Fisher exact test + --motif-max-dist set).
+    pval_cont_maxd_lll = []
 
     for rbp_id in rbp_list:
         pval_ll.append([1.0]*len_rbp_list)
+        pval_maxd_ll.append([1.0]*len_rbp_list)
         pval_cont_lll.append([]*len_rbp_list)
+        pval_cont_maxd_lll.append([]*len_rbp_list)
         # pval_cont_lll.append([["1.0","-", "-"]]*len_rbp_list)
         or_ll.append([0.0]*len_rbp_list)
 
     for i in range(len_rbp_list):
         for j in range(len_rbp_list):
             pval_cont_lll[i].append(["1.0","-", "-"])
-
+            pval_cont_maxd_lll[i].append(["1.0","-", "-", 0])
 
     # Add p-values of 1.0 in diagonal.
     # for idx, rbp_id in enumerate(rbp_list):
@@ -1931,8 +1981,10 @@ def main_search(args):
         or_ll[idx1][idx2] = odds_ratio
         or_ll[idx2][idx1] = odds_ratio
 
+    """
+    Print out RBPs sorted by KS p-value.
 
-    # Print out RBPs sorted by KS p-value.
+    """ 
     sorted_con_pval_dic = dict(sorted(con_pval_dic.items(), key=lambda item: item[1], reverse=False))
 
     print("Co-occurrence contigency table format: [A, B], [C, D]")
@@ -1961,6 +2013,80 @@ def main_search(args):
     # Print table to file.
     benchlib.output_con_table_results(con_res_out_tsv, pval_ll, rbp_list)
 
+
+    """
+    Calculate co-occurrences AGAIN if --motif-max-dist is set.
+    So calculate with restriction that two motifs of two different RBPs have to 
+    be within distance (center positions of motifs) of <= --motif-max-dist.
+
+    Format region_rbp_motif_pos_dic:
+    Region ID -> RBP ID -> motif hit center positions (None if no hits for RBP ID in region ID).
+
+    """
+    if args.motif_max_dist is not None:
+
+        con_pval_maxd_dic = {}
+        con_table_maxd_dic = {}
+        pair_str_maxd_dic = {}
+
+        print("Compute motif region co-occurrences between RBP pairs (--motif-max-dist %i) ... " %(args.motif_max_dist))
+        for pair in rbp_pairs:
+            pair = list(pair)
+            pair.sort()
+            idx1 = rbp2idx_dic[pair[0]]
+            idx2 = rbp2idx_dic[pair[1]]
+            pair_str = ",".join(pair)
+            pair_str_maxd_dic[pair_str] = [pair[0], pair[1]]
+
+            table, c_out = benchlib.make_contingency_table_max_dist_2x2(region_rbp_motif_pos_dic, pair[0], pair[1],
+                                                                 motif_max_dist=args.motif_max_dist)
+            odds_ratio, p_value = fisher_exact(table, alternative="two-sided")
+
+            con_pval_maxd_dic[pair_str] = p_value
+            con_table_maxd_dic[pair_str] = [table, c_out]
+            table_str = str(table)
+
+            pval_maxd_ll[idx1][idx2] = p_value
+            pval_maxd_ll[idx2][idx1] = p_value
+            pval_cont_maxd_lll[idx2][idx1][0] = str(p_value)
+            pval_cont_maxd_lll[idx2][idx1][1] = pair_str
+            pval_cont_maxd_lll[idx2][idx1][2] = table_str
+            pval_cont_maxd_lll[idx2][idx1][3] = c_out
+
+        """
+        Print out RBPs sorted by KS p-value for --motif-max-dist setting.
+
+        """ 
+        sorted_con_pval_maxd_dic = dict(sorted(con_pval_maxd_dic.items(), key=lambda item: item[1], reverse=False))
+
+        print("Co-occurrence contigency table format: [A, B], [C, D]")
+        print("A: RBP1 AND RBP2 (if <= --motif-max-dist)")
+        print("B: NOT RBP1 AND RBP2")
+        print("C: RBP1 AND NOT RBP2")
+        print("D: NOT RBP1 AND NOT RBP2")
+        print("Co-occurrence of motifs (RBP IDs (RBP1,RBP2), # hits, contingency table, # <=max-dist overlaps, Fisher p-value <=0.05):")
+        c_reported = 0
+
+        for pair_str, p_value in sorted_con_pval_maxd_dic.items():
+            if p_value > 0.05:
+                break
+            c_reported += 1
+            rbp1 = pair_str_maxd_dic[pair_str][0]
+            rbp2 = pair_str_maxd_dic[pair_str][1]
+            con_table = con_table_maxd_dic[pair_str][0]
+            c_out = con_table_maxd_dic[pair_str][1]
+            rbp1_hits = search_rbps_dic[rbp1].c_uniq_motif_hits
+            rbp2_hits = search_rbps_dic[rbp2].c_uniq_motif_hits
+            print("%s\t%i,%i\t%s\t%i\t%s" %(pair_str, rbp1_hits, rbp2_hits, str(con_table), c_out, str(p_value)))
+
+        if not c_reported:
+            print("NO SIGNIFICANT CO-OCCURRENCES FOUND!")
+        print("")
+
+        # Print table to file.
+        benchlib.output_con_table_results(con_res_maxd_out_tsv, pval_maxd_ll, rbp_list)
+
+
     """
     Correlation.
 
@@ -1971,7 +2097,6 @@ def main_search(args):
     html_report_out = args.out_folder + "/" + "report.rbpbench_search.html"
     if args.plot_abs_paths:
         html_report_out = os.path.abspath(args.out_folder) + "/" + "report.rbpbench_search.html"
-
 
     if args.report:
 
@@ -2086,8 +2211,10 @@ def main_search(args):
                 print("Reverse order encountered ... ")
             # Get transcript infos.
             print("Read in transcript infos from --gtf ... ")
+            tr_types_dic = {}  # Store transcript biotypes in GTF file.
             tid2tio_dic = benchlib.gtf_read_in_transcript_infos(args.in_gtf, 
                                                                 tr_ids_dic=tr_ids_dic,
+                                                                tr_types_dic=tr_types_dic,
                                                                 correct_min_ex_order=correct_min_ex_order,
                                                                 chr_style=chr_style,
                                                                 empty_check=False)
@@ -2116,6 +2243,7 @@ def main_search(args):
             custom_annot_dic = None
             if args.tr_types_list:
                 for tr_type in args.tr_types_list:
+                    assert tr_type in tr_types_dic, "given transcript biotype ID \"%s\" not found in GTF file"
                     custom_annot_dic[tr_type] = tr_type
 
             # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.

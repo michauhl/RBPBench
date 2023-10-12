@@ -68,6 +68,32 @@ def calc_edit_dist_query_list(query_str, lst):
 
 ################################################################################
 
+def get_colormap_hex_colors(cm_id):
+    """
+    Get all colors of a matplotlib colormap (provided ID cm_id), as HEX values.
+    E.g. "Pastel1", "Spectral", ...
+    Return list of HEX color values.
+    
+    Also see:
+    https://matplotlib.org/stable/gallery/color/colormap_reference.html
+
+    """
+
+    import matplotlib
+
+    cmap = plt.cm.get_cmap(cm_id)
+    colors = cmap(np.linspace(0,1,cmap.N))
+
+    hex_colors = []
+    for color in colors:
+        hex_color = matplotlib.colors.rgb2hex(color)
+        hex_colors.append(hex_color)
+
+    return(hex_colors)
+
+
+################################################################################
+
 def calc_edit_dist(s1, s2):
     """
     Calculate edit distance (Levenshtein distance) between two strings s1, s2.
@@ -142,6 +168,50 @@ def dir_get_files(file_dir,
         return sorted(new_files)
     else:
         return sorted(dir_files)
+
+
+################################################################################
+
+def make_contingency_table_max_dist_2x2(region_rbp_motif_pos_dic, rbp_id1, rbp_id2,
+                                        motif_max_dist=50):
+
+    """
+    Make a contingency table 2x2, but only count regions as occupied by both 
+    RBPs if any of their motifs are <= motif_max_dist away from each other.
+    Count regions with > motif_max_dist as c_out.
+    
+    """
+
+    cont_a = 0
+    cont_b = 0
+    cont_c = 0
+    cont_d = 0
+    c_out = 0
+
+    for reg_id in region_rbp_motif_pos_dic:
+        if rbp_id1 in region_rbp_motif_pos_dic[reg_id]:
+            if rbp_id2 in region_rbp_motif_pos_dic[reg_id]:
+                # Compare motif distances between rbp_id1 + rbp_id2.
+                found_pair = False
+                for p1 in region_rbp_motif_pos_dic[reg_id][rbp_id1]:
+                    for p2 in region_rbp_motif_pos_dic[reg_id][rbp_id2]:
+                        if abs(p1 - p2) <= motif_max_dist:
+                            found_pair = True
+                            break
+                if found_pair:
+                    cont_a += 1
+                else:
+                    c_out += 1
+            else:
+                cont_c += 1
+        else:
+            if rbp_id2 in region_rbp_motif_pos_dic[reg_id]:
+                cont_b += 1
+            else:
+                cont_d += 1
+
+    table = [[cont_a, cont_b], [cont_c, cont_d]]
+    return table, c_out
 
 
 ################################################################################
@@ -882,6 +952,7 @@ add_chr_names_dic = {
 
 def gtf_read_in_gene_infos(in_gtf,
                            tr2gid_dic=None,
+                           tr_types_dic=None,
                            check_chr_ids_dic=None,
                            chr_style=0,
                            empty_check=False):
@@ -892,6 +963,10 @@ def gtf_read_in_gene_infos(in_gtf,
 
     Assuming gtf file with order: gene,transcript(s),exon(s) ...
 
+    tr_types_dic:
+        Store transcript biotype IDs and number of appearances.
+        transcript biotype ID -> # appearances
+    
     chr_style:
         0: do not change
         1: change to chr1, chr2 ...
@@ -974,6 +1049,13 @@ def gtf_read_in_gene_infos(in_gtf,
             # assert m, "transcript_biotype / transcript_type entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             if m:
                 tr_biotype = m.group(1)
+
+            if tr_types_dic is not None:
+                if tr_biotype in tr_types_dic:
+                    tr_types_dic[tr_biotype] += 1
+                else:
+                    tr_types_dic[tr_biotype] = 1
+
             # Basic tag.
             basic_tag = 0
             m = re.search('tag "basic"', infos)
@@ -2361,8 +2443,8 @@ def bed_filter_extend_bed(in_bed, out_bed,
         Remove duplicated regions, i.e., regions with same 
         chr_id, reg_s, reg_e, reg_pol
     use_region_ids:
-        If True set column 4 region ID to location ID, in style: "chr20:62139082-62139128(-)",
-        or ""chr20:62139082-62139128" if unstranded=True.
+        If True set column 4 region ID to location ID, in style: "chr20:62139082-62139128(-)".
+        This way we get FASTA headers == BED col4 IDs. 
     unstranded:
         If True, output both strands of each region (+ and -), so given one 
         input region, two output regions are generated.
@@ -2406,11 +2488,11 @@ def bed_filter_extend_bed(in_bed, out_bed,
                 bed_chr_ids_dic[chr_id] = 1
 
             # Use "chr20:62139082-62139128(-)" style.
-            if use_region_ids:
-                if unstranded:
-                    reg_id = "%s:%i-%i" %(chr_id, reg_s, reg_e)
-                else:
-                    reg_id = "%s:%i-%i(%s)" %(chr_id, reg_s, reg_e, reg_pol)
+            # if use_region_ids:
+            #     if unstranded:
+            #         reg_id = "%s:%i-%i" %(chr_id, reg_s, reg_e)
+            #     else:
+            #         reg_id = "%s:%i-%i(%s)" %(chr_id, reg_s, reg_e, reg_pol)
 
             """
             If unstranded = True, add both strands for each region.
@@ -2447,8 +2529,12 @@ def bed_filter_extend_bed(in_bed, out_bed,
                 reg_len_sum += reg_len*2
                 c_out += 2
 
-                OUTBED.write("%s\t%s\t%s\t%s\t%s\t+\n" % (chr_id, new_s, new_e, reg_id, reg_sc))
-                OUTBED.write("%s\t%s\t%s\t%s\t%s\t-\n" % (chr_id, new_s, new_e, reg_id, reg_sc))
+                if use_region_ids:
+                    OUTBED.write("%s\t%i\t%i\t%s:%i-%i(+)\t%s\t+\n" % (chr_id, new_s, new_e, chr_id, new_s, new_e, reg_sc))
+                    OUTBED.write("%s\t%i\t%i\t%s:%i-%i(-)\t%s\t-\n" % (chr_id, new_s, new_e, chr_id, new_s, new_e, reg_sc))
+                else:
+                    OUTBED.write("%s\t%i\t%i\t%s\t%s\t+\n" % (chr_id, new_s, new_e, reg_id, reg_sc))
+                    OUTBED.write("%s\t%i\t%i\t%s\t%s\t-\n" % (chr_id, new_s, new_e, reg_id, reg_sc)) 
 
             else:
 
@@ -2476,8 +2562,11 @@ def bed_filter_extend_bed(in_bed, out_bed,
                 reg_len_sum += reg_len
 
                 c_out += 1
-                
-                OUTBED.write("%s\t%s\t%s\t%s\t%s\t%s\n" % (chr_id, new_s, new_e, reg_id, reg_sc, reg_pol))
+
+                if use_region_ids:
+                    OUTBED.write("%s\t%i\t%i\t%s:%i-%i(%s)\t%s\t%s\n" % (chr_id, new_s, new_e, chr_id, new_s, new_e, reg_pol, reg_sc, reg_pol))
+                else:
+                    OUTBED.write("%s\t%i\t%i\t%s\t%s\t%s\n" % (chr_id, new_s, new_e, reg_id, reg_sc, reg_pol))
 
     f.closed
     OUTBED.close()
@@ -3607,7 +3696,7 @@ No upset plot generated since number of selected RBPs == 1.
 **Figure:** For each RBP, a stacked bar shows the corresponding region annotations 
 (from --gtf GTF file, see legend for region types) for the genomic regions 
 with motif hits for the respective RBP. 
-Total bar height equals to the number of genomic regions with >= 1 motif hit of the RBP.
+Total bar height equals to the number of genomic regions with >= 1 motif hit for the RBP.
 
 &nbsp;
 
