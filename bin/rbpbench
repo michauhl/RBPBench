@@ -132,7 +132,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, human_v0.1), 2: human RBP motifs full (low frequencies not rounded, human_v0.1_no_round), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, human_eclip_v0.1) (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.0.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.0.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
     p_s.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -201,12 +201,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Visualize selected sequence motifs, by outputting sequence logos and motif hit statistics into a separate .html file (default: False)")
-    p_s.add_argument("--motif-max-dist",
-                   dest="motif_max_dist",
-                   type=int,
-                   metavar='int',
-                   default = None,
-                   help = "Set maximum motif distance in nt for calculating RBP co-occurrences on genomic regions (e.g. --motif-max-dist 50 to focus on possible complex binding). If set, additional co-occurrences will be calculated as well as plotted (if --report set) (default: None)")
     p_s.add_argument("--upset-plot-min-degree",
                    dest="upset_plot_min_degree",
                    type=int,
@@ -331,7 +325,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, human_v0.1), 2: human RBP motifs full (low frequencies not rounded, human_v0.1_no_round), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, human_eclip_v0.1) (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.0.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.0.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
     p_b.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -436,7 +430,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, human_v0.1), 2: human RBP motifs full (low frequencies not rounded, human_v0.1_no_round), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, human_eclip_v0.1) (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.0.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.0.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
     p_oe.add_argument("--fimo-nt-freqs",
                    dest="fimo_nt_freqs",
                    type=str,
@@ -481,7 +475,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, human_v0.1), 2: human RBP motifs full (low frequencies not rounded, human_v0.1_no_round), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, human_eclip_v0.1) (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.0.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.0.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
     p_i.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -576,9 +570,9 @@ def specify_motif_db(motif_db_nr, db_path="./"):
     motif database string
 
     motif_db_nr: motif database string
-    1: human_v0.1
-    2: human_v0.1_no_round
-    3: human_eclip_v0.1
+    1: catrapid.omics.v2.0.human.6plus
+    2: catrapid.omics.v2.0.human.6plus.noround
+    3: s6_refined_ic010.human.rounded.encode_rbps
 
     catRAPID_omics_v2.0_6plus_motifs.meme
     catRAPID_omics_v2.0_6plus_motifs.weak_rounded.meme
@@ -589,14 +583,14 @@ def specify_motif_db(motif_db_nr, db_path="./"):
     seq_motifs_db_file = db_path + "/catRAPID_omics_v2.0_6plus_motifs.weak_rounded.meme"
     str_motifs_db_file = db_path + "/str_motifs.cm"
     rbp2ids_file = db_path + "/rbp_motif2name_ids.full.txt"
-    motif_db_str = "human_v0.1"
+    motif_db_str = "catrapid.omics.v2.0.human.6plus"
     if motif_db_nr == 2:
         seq_motifs_db_file = db_path + "/catRAPID_omics_v2.0_6plus_motifs.meme"
-        motif_db_str = "human_v0.1_no_round"
+        motif_db_str = "catrapid.omics.v2.0.human.6plus.noround"
     if motif_db_nr == 3:
         seq_motifs_db_file = db_path + "/s6_refined_ic010_rounded_ENCODE_RBPs.meme"
         rbp2ids_file = db_path + "/rbp_motif2name_ids.txt"
-        motif_db_str = "human_eclip_v0.1"
+        motif_db_str = "s6_refined_ic010.human.rounded.encode_rbps"
     return seq_motifs_db_file, str_motifs_db_file, rbp2ids_file, motif_db_str
 
 
@@ -773,7 +767,6 @@ def main_search(args):
     rbp_stats_out = args.out_folder + "/rbp_hit_stats.tsv"
     motif_stats_out = args.out_folder + "/motif_hit_stats.tsv"
     con_res_out_tsv = args.out_folder + "/contingency_table_results.tsv"
-    con_res_maxd_out_tsv = args.out_folder + "/contingency_table_results.max_dist.tsv"
     settings_file = args.out_folder + "/settings.find_motifs.out"
     rbp_reg_occ_table_out = args.out_folder + "/rbp_region_occupancies.tsv"
 
@@ -1077,6 +1070,9 @@ def main_search(args):
 
     assert out_seqs_dic, "no sequences extracted from FASTA file for --in BED sites. Make sure to use compatible FASTA/BED files!"
 
+    # Get region strands/polarities for motif distance calculations.
+    reg2pol_dic = benchlib.extract_pol_from_seq_ids(out_seqs_dic)
+
     # Effective number of regions used for motif search.
     c_regions = len(out_seqs_dic)
     """
@@ -1286,9 +1282,9 @@ def main_search(args):
         search_rbps_dic[rbp_id].c_no_hit_reg = c_regions
 
     for rbp_id in regions_with_motifs_dic:
-        # number of --in regions with RBP motif hits.
+        # Number of --in regions with RBP motif hits.
         c_hit_reg = len(regions_with_motifs_dic[rbp_id])
-        # Cont hit regions if --unstranded and not --unstranded-ct.
+        # Count hit regions if --unstranded and not --unstranded-ct.
         if args.unstranded and not args.unstranded_ct:
             c_hit_reg = 0
             seen_ids_dic = {}
@@ -1298,7 +1294,7 @@ def main_search(args):
                     c_hit_reg += 1
                     seen_ids_dic[core_id] = 1
 
-        # number of motif hits on --in regions in total.
+        # Number of motif hits on --in regions in total.
         c_motif_hits = 0
         for reg_id in regions_with_motifs_dic[rbp_id]:
             c_motif_hits += regions_with_motifs_dic[rbp_id][reg_id]
@@ -1675,11 +1671,10 @@ def main_search(args):
     region_id -> [False, True, False ... ] 
     with list number of RBP IDs (len_rbp_list), alphabetically sorted.
     Format region_rbp_motif_pos_dic:
-    Region ID -> RBP ID -> motif hit center positions (None if no hits for RBP ID in region ID).
+    Region ID -> RBP motif ID -> motif hit center positions (None if no hits for RBP motif ID in region ID).
     We can use region_rbp_motif_pos_dic to calculate distances between motifs inside a region, 
-    by storing center positions of the motif hits. This can give us info on complex formation, 
-    e.g. if --motif-max-dist is set (and set reasonably small, e.g. 50).
-    
+    by storing center positions of the motif hits. 
+
     """
     region_rbp_binds_dic = {}
     region_rbp_motif_pos_dic = {}
@@ -1714,9 +1709,6 @@ def main_search(args):
 
     # hit_id = "%s:%s-%s(%s),%s" %(cols[7], cols[8], cols[9], cols[10], cols[6])
 
-
-    # ALAMO
-
     for fh in fimo_hits_list:
 
         rbp_id = id2name_dic[fh.motif_id]
@@ -1737,16 +1729,16 @@ def main_search(args):
             core_id = benchlib.reg_get_core_id(region_id)
             region_rbp_binds_dic[core_id][rbp_idx] = True
             if rbp_id in region_rbp_motif_pos_dic[core_id]:
-                region_rbp_motif_pos_dic[core_id][rbp_id].append(center_pos)
+                region_rbp_motif_pos_dic[core_id][fh.motif_id].append(center_pos)
             else:
-                region_rbp_motif_pos_dic[core_id][rbp_id] = [center_pos]
+                region_rbp_motif_pos_dic[core_id][fh.motif_id] = [center_pos]
 
         else:
             region_rbp_binds_dic[region_id][rbp_idx] = True
             if rbp_id in region_rbp_motif_pos_dic[region_id]:
-                region_rbp_motif_pos_dic[region_id][rbp_id].append(center_pos)
+                region_rbp_motif_pos_dic[region_id][fh.motif_id].append(center_pos)
             else:
-                region_rbp_motif_pos_dic[region_id][rbp_id] = [center_pos]
+                region_rbp_motif_pos_dic[region_id][fh.motif_id] = [center_pos]
 
 
         motif_db_out = loaded_motif_ids_dic[fh.motif_id]
@@ -1802,16 +1794,16 @@ def main_search(args):
             core_id = benchlib.reg_get_core_id(region_id)
             region_rbp_binds_dic[core_id][rbp_idx] = True
             if rbp_id in region_rbp_motif_pos_dic[core_id]:
-                region_rbp_motif_pos_dic[core_id][rbp_id].append(center_pos)
+                region_rbp_motif_pos_dic[core_id][cmsh.motif_id].append(center_pos)
             else:
-                region_rbp_motif_pos_dic[core_id][rbp_id] = [center_pos]
+                region_rbp_motif_pos_dic[core_id][cmsh.motif_id] = [center_pos]
 
         else:
             region_rbp_binds_dic[region_id][rbp_idx] = True
             if rbp_id in region_rbp_motif_pos_dic[region_id]:
-                region_rbp_motif_pos_dic[region_id][rbp_id].append(center_pos)
+                region_rbp_motif_pos_dic[region_id][cmsh.motif_id].append(center_pos)
             else:
-                region_rbp_motif_pos_dic[region_id][rbp_id] = [center_pos]
+                region_rbp_motif_pos_dic[region_id][cmsh.motif_id] = [center_pos]
 
 
         motif_db_out = loaded_motif_ids_dic[cmsh.motif_id]
@@ -1896,22 +1888,17 @@ def main_search(args):
     pval_ll = []  # p-values (Fisher exact test).
     or_ll = []  # odds ratios.
     pval_cont_lll = []
-    # If --motif-max-dist set.
-    pval_maxd_ll = []  # p-values (Fisher exact test + --motif-max-dist set).
-    pval_cont_maxd_lll = []
 
     for rbp_id in rbp_list:
         pval_ll.append([1.0]*len_rbp_list)
-        pval_maxd_ll.append([1.0]*len_rbp_list)
         pval_cont_lll.append([]*len_rbp_list)
-        pval_cont_maxd_lll.append([]*len_rbp_list)
         # pval_cont_lll.append([["1.0","-", "-"]]*len_rbp_list)
         or_ll.append([0.0]*len_rbp_list)
 
     for i in range(len_rbp_list):
         for j in range(len_rbp_list):
-            pval_cont_lll[i].append(["1.0","-", "-"])
-            pval_cont_maxd_lll[i].append(["1.0","-", "-", 0])
+            # Storing [p-value_str, pair_str, table_str, correlation_str].
+            pval_cont_lll[i].append(["1.0","-", "-", "-"])  
 
     # Add p-values of 1.0 in diagonal.
     # for idx, rbp_id in enumerate(rbp_list):
@@ -1981,6 +1968,7 @@ def main_search(args):
         or_ll[idx1][idx2] = odds_ratio
         or_ll[idx2][idx1] = odds_ratio
 
+
     """
     Print out RBPs sorted by KS p-value.
 
@@ -2015,90 +2003,25 @@ def main_search(args):
 
 
     """
-    Calculate co-occurrences AGAIN if --motif-max-dist is set.
-    So calculate with restriction that two motifs of two different RBPs have to 
-    be within distance (center positions of motifs) of <= --motif-max-dist.
-
-    Format region_rbp_motif_pos_dic:
-    Region ID -> RBP ID -> motif hit center positions (None if no hits for RBP ID in region ID).
-
+    Generate HTML report (--report).
+    
     """
-    if args.motif_max_dist is not None:
 
-        con_pval_maxd_dic = {}
-        con_table_maxd_dic = {}
-        pair_str_maxd_dic = {}
-
-        print("Compute motif region co-occurrences between RBP pairs (--motif-max-dist %i) ... " %(args.motif_max_dist))
-        for pair in rbp_pairs:
-            pair = list(pair)
-            pair.sort()
-            idx1 = rbp2idx_dic[pair[0]]
-            idx2 = rbp2idx_dic[pair[1]]
-            pair_str = ",".join(pair)
-            pair_str_maxd_dic[pair_str] = [pair[0], pair[1]]
-
-            table, c_out = benchlib.make_contingency_table_max_dist_2x2(region_rbp_motif_pos_dic, pair[0], pair[1],
-                                                                 motif_max_dist=args.motif_max_dist)
-            odds_ratio, p_value = fisher_exact(table, alternative="two-sided")
-
-            con_pval_maxd_dic[pair_str] = p_value
-            con_table_maxd_dic[pair_str] = [table, c_out]
-            table_str = str(table)
-
-            pval_maxd_ll[idx1][idx2] = p_value
-            pval_maxd_ll[idx2][idx1] = p_value
-            pval_cont_maxd_lll[idx2][idx1][0] = str(p_value)
-            pval_cont_maxd_lll[idx2][idx1][1] = pair_str
-            pval_cont_maxd_lll[idx2][idx1][2] = table_str
-            pval_cont_maxd_lll[idx2][idx1][3] = c_out
-
-        """
-        Print out RBPs sorted by KS p-value for --motif-max-dist setting.
-
-        """ 
-        sorted_con_pval_maxd_dic = dict(sorted(con_pval_maxd_dic.items(), key=lambda item: item[1], reverse=False))
-
-        print("Co-occurrence contigency table format: [A, B], [C, D]")
-        print("A: RBP1 AND RBP2 (if <= --motif-max-dist)")
-        print("B: NOT RBP1 AND RBP2")
-        print("C: RBP1 AND NOT RBP2")
-        print("D: NOT RBP1 AND NOT RBP2")
-        print("Co-occurrence of motifs (RBP IDs (RBP1,RBP2), # hits, contingency table, # <=max-dist overlaps, Fisher p-value <=0.05):")
-        c_reported = 0
-
-        for pair_str, p_value in sorted_con_pval_maxd_dic.items():
-            if p_value > 0.05:
-                break
-            c_reported += 1
-            rbp1 = pair_str_maxd_dic[pair_str][0]
-            rbp2 = pair_str_maxd_dic[pair_str][1]
-            con_table = con_table_maxd_dic[pair_str][0]
-            c_out = con_table_maxd_dic[pair_str][1]
-            rbp1_hits = search_rbps_dic[rbp1].c_uniq_motif_hits
-            rbp2_hits = search_rbps_dic[rbp2].c_uniq_motif_hits
-            print("%s\t%i,%i\t%s\t%i\t%s" %(pair_str, rbp1_hits, rbp2_hits, str(con_table), c_out, str(p_value)))
-
-        if not c_reported:
-            print("NO SIGNIFICANT CO-OCCURRENCES FOUND!")
-        print("")
-
-        # Print table to file.
-        benchlib.output_con_table_results(con_res_maxd_out_tsv, pval_maxd_ll, rbp_list)
-
-
-    """
-    Correlation.
-
-    Setting add_count = True changes correlations a bit (use motif hit counts 
-    instead of 1 for any number of hits)
-
-    """
     html_report_out = args.out_folder + "/" + "report.rbpbench_search.html"
     if args.plot_abs_paths:
         html_report_out = os.path.abspath(args.out_folder) + "/" + "report.rbpbench_search.html"
 
     if args.report:
+
+        """
+        Correlation.
+
+        Setting add_count = True changes correlations a bit (use motif hit counts 
+        instead of 1 for any number of hits)
+
+        ALAMO
+
+        """
 
         print("Calculate correlations ... ")
         # Correlation between RBPs dataframe.
@@ -2118,6 +2041,12 @@ def main_search(args):
             for j,rbp_j in enumerate(rbp_list):
                 if j > i:
                     df_corr.loc[rbp_i][rbp_j] = None
+                else:
+                    # Round correlation values if != 1.0.
+                    if df_corr.loc[rbp_i][rbp_j] == 1.0:
+                        pval_cont_lll[i][j][3] = str(df_corr.loc[rbp_i][rbp_j])
+                    else:
+                        pval_cont_lll[i][j][3] = "{:.8f}".format(df_corr.loc[rbp_i][rbp_j])
 
         for i,rbp_i in enumerate(rbp_list):
             for j,rbp_j in enumerate(rbp_list):
@@ -2138,7 +2067,6 @@ def main_search(args):
         # Log transform p-values.
         benchlib.log_tf_df(df_pval, convert_zero_pv=True, rbp_list=rbp_list)
         # print("df_pval:", df_pval)
-
 
         # print("df:", df)
         # print("df.corr():", df.corr(method='pearson'))
@@ -2289,7 +2217,7 @@ def main_search(args):
         benchlib_path = os.path.dirname(benchlib.__file__)
 
         print("Create report ... ")
-        benchlib.search_generate_html_report(df_corr, df_pval, pval_cont_lll,
+        benchlib.search_generate_html_report(df_pval, pval_cont_lll,
                                          search_rbps_dic,
                                          fimo_hits_list, cmsearch_hits_list,
                                          id2name_dic, args.out_folder, 

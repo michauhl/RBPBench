@@ -16,7 +16,7 @@ import textdistance
 import numpy as np
 # from upsetplot import plot
 from upsetplot import UpSet
-from matplotlib import cm
+# from matplotlib import cm
 
 
 """
@@ -78,7 +78,6 @@ def get_colormap_hex_colors(cm_id):
     https://matplotlib.org/stable/gallery/color/colormap_reference.html
 
     """
-
     import matplotlib
 
     cmap = plt.cm.get_cmap(cm_id)
@@ -173,12 +172,14 @@ def dir_get_files(file_dir,
 ################################################################################
 
 def make_contingency_table_max_dist_2x2(region_rbp_motif_pos_dic, rbp_id1, rbp_id2,
-                                        motif_max_dist=50):
+                                        motif_max_dist=50,
+                                        count_to_d=True):
 
     """
     Make a contingency table 2x2, but only count regions as occupied by both 
     RBPs if any of their motifs are <= motif_max_dist away from each other.
-    Count regions with > motif_max_dist as c_out.
+    Count regions with > motif_max_dist as c_out, but also add them to D (otherwise
+    we get different total counts for each RBP pair).
     
     """
 
@@ -202,6 +203,8 @@ def make_contingency_table_max_dist_2x2(region_rbp_motif_pos_dic, rbp_id1, rbp_i
                     cont_a += 1
                 else:
                     c_out += 1
+                    if count_to_d:
+                        cont_d += 1
             else:
                 cont_c += 1
         else:
@@ -2426,6 +2429,28 @@ def bed_read_rows_into_dic(in_bed, to_list=False):
 
 ################################################################################
 
+def extract_pol_from_seq_ids(out_seqs_dic):
+    """
+    Extract strand/polarity info from FASTA sequence header ID.
+
+    out_seqs_dic:
+        FASTA header ID -> sequence.
+        Header ID format:
+        chr20:62139082-62139128(-)
+
+    """
+    reg2pol_dic = {}
+    for seq_id in out_seqs_dic:
+        if re.search("\w+:\d+-\d+\([+|-]\)", seq_id):
+            m = re.search("\w+:\d+-\d+\(([+|-])\)", seq_id)
+            reg2pol_dic[seq_id] = m.group(1)
+        else:
+            assert False, "region ID has invalid format (%s). Please contact developers" %(reg_id)
+    return reg2pol_dic
+
+
+################################################################################
+
 def bed_filter_extend_bed(in_bed, out_bed,
                           ext_up=0,
                           ext_down=0,
@@ -2448,7 +2473,9 @@ def bed_filter_extend_bed(in_bed, out_bed,
     unstranded:
         If True, output both strands of each region (+ and -), so given one 
         input region, two output regions are generated.
-        
+    reg2sc_dic:
+        region ID -> column score_col BED score
+
     """
 
     OUTBED = open(out_bed, "w")
@@ -3405,7 +3432,7 @@ def convert_sci_not_to_decimal(sn_value):
 
 ################################################################################
 
-def search_generate_html_report(df_corr, df_pval, pval_cont_lll,
+def search_generate_html_report(df_pval, pval_cont_lll,
                                 search_rbps_dic,
                                 fimo_hits_list, cmsearch_hits_list,
                                 id2name_dic, out_folder, 
@@ -3470,7 +3497,6 @@ by RBPBench (rbpbench search --report):
 
 - [RBP motif enrichment statistics](#rbp-enrich-stats)
 - [RBP co-occurrences heat map](#cooc-heat-map)
-- [RBP correlations heat map](#corr-heat-map)
 - [RBP combinations upset plot](#rbp-comb-upset-plot)"""
 
     # Additional plot if GTF annotations given.
@@ -3550,52 +3576,15 @@ with format [[A, B], [C, D]], where
 A: RBP1 AND RBP2, 
 B: NOT RBP1 AND RBP2
 C: RBP1 AND NOT RBP2
-D: NOT RBP1 AND NOT RBP2. 
-
-&nbsp;
-
-"""
-
-    """
-    Correlation heat map.
-
-    """
-
-    corr_plot_plotly =  "correlation_plot.plotly.html"
-    corr_plot_plotly_out = plots_out_folder + "/" + corr_plot_plotly
-
-    create_corr_plot_plotly(df_corr, pval_cont_lll,
-                            plotly_js_path, corr_plot_plotly_out)
-
-    plot_path = plots_folder + "/" + corr_plot_plotly
-
-    mdtext += """
-## RBP correlations heat map ### {#corr-heat-map}
-
-"""
-
-    mdtext += '<div class=class="container-fluid" style="margin-top:40px">' + "\n"
-    mdtext += '<iframe src="' + plot_path + '" width="1200" height="1200"></iframe>' + "\n"
-    mdtext += '</div>'
-    mdtext += """
-
-**Figure:** Heat map of correlations (Pearson correlation coefficients) between RBPs. 
+D: NOT RBP1 AND NOT RBP2.
+6) Correlation: Pearson correlation coefficients between RBPs. 
 Genomic regions are labelled 1 or 0 (RBP motif present or not), resulting in a vector of 1s and 0s for each RBP.
 Correlations are then calculated by comparing vectors for every pair of RBPs.
-Legend color: Pearson correlation coefficient. 
-Hover box: 1) RBP1. 2) RBP2.
-3) RBPs compaired. 5) Counts[]: Contingency table of co-occurrence counts (i.e., number of genomic regions with/without shared motif hits) between compaired RBPs, 
-with format [[A, B], [C, D]], where 
-A: RBP1 AND RBP2, 
-B: NOT RBP1 AND RBP2
-C: RBP1 AND NOT RBP2
-D: NOT RBP1 AND NOT RBP2. 
+7) -log10 of p-value, used as color values.
 
 &nbsp;
 
 """
-
-
 
     """
     RBP region occupancies upset plot.
@@ -3824,7 +3813,7 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
                         show_counts=True,
                         intersection_plot_elements=0,  # disable the default bar chart.
                         sort_by="cardinality")
-        upset.add_stacked_bars(by="annot", colors=cm.Pastel1,
+        upset.add_stacked_bars(by="annot", colors=None,
                         title="Intersection size", elements=10)  # elements (ticks) of plotting axis it seems.
         upset.plot()
         plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.5)
@@ -3888,7 +3877,7 @@ def create_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_
         idx += 1
 
     data_dic = {}
-    for annot in annot_dic:
+    for annot in sorted(annot_dic, reverse=True):  # make reverse sort to have same color coding as upset plot.
         data_dic[annot] = []
         for rbp_id in rbp_id_list:
             data_dic[annot].append(0)
@@ -3974,7 +3963,7 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plotly_js_path, plot_out):
 
     plot = px.imshow(df)
     plot.update(data=[{'customdata': pval_cont_lll,
-                    'hovertemplate': 'RBP1: %{x}<br>RBP2: %{y}<br>p-value: %{customdata[0]}<br>RBPs: %{customdata[1]}<br>Counts: %{customdata[2]}<br>-log10(p-value): %{z}<extra></extra>'}])
+                    'hovertemplate': 'RBP1: %{x}<br>RBP2: %{y}<br>p-value: %{customdata[0]}<br>RBPs: %{customdata[1]}<br>Counts: %{customdata[2]}<br>Correlation: %{customdata[3]}<br>-log10(p-value): %{z}<extra></extra>'}])
     plot.update_layout(plot_bgcolor='white')
     plot.write_html(plot_out,
                     full_html=False,
