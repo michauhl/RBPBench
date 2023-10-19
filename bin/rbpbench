@@ -645,6 +645,12 @@ def main_search(args):
     if args.in_gtf:
         assert args.report, "set --gtf requires --report to be effective"
 
+    # Check if FIMO version is >= 5.5.4 (need to add --no-pgc option to produce same results!).
+    fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text"
+    check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
+    if check:
+        fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
+
     """
     Library path.
     """
@@ -1132,7 +1138,7 @@ def main_search(args):
                     pval_thr=args.fimo_pval,
                     nt_freqs_file=fimo_freqs_file,
                     call_dic=call_dic,
-                    params="--norc --verbosity 1 --skip-matched-sequence --text",
+                    params=fimo_params,
                     error_check=False)
 
         """
@@ -2347,6 +2353,12 @@ def main_batch(args):
         assert False, "no --bed arguments supplied"
     assert bed_list, "bed_list empty"
 
+    # Check if FIMO version is >= 5.5.4 (need to add --no-pgc option to produce same results!).
+    fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text"
+    check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
+    if check:
+        fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
+
     """
     Check other list inputs and store.
 
@@ -2785,7 +2797,7 @@ def main_batch(args):
                         pval_thr=args.fimo_pval,
                         nt_freqs_file=fimo_freqs_file,
                         call_dic=call_dic,
-                        params="--norc --verbosity 1 --skip-matched-sequence --text",
+                        params=fimo_params,
                         error_check=False)
 
             """
@@ -3210,6 +3222,12 @@ def main_optex(args):
     rbp_id = benchlib.remove_special_chars_from_str(args.rbp_id)
     assert rbp_id, "empty string after removing special chars from given --rbp-id %s. Please provide alphanumeric string for RBP ID (- or _ are okay as well)" %(args.rbp_id)
 
+    # Check if FIMO version is >= 5.5.4 (need to add --no-pgc option to produce same results!).
+    fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text"
+    check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
+    if check:
+        fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
+
     """
     Library path.
     """
@@ -3514,7 +3532,7 @@ def main_optex(args):
                         pval_thr=args.fimo_pval,
                         nt_freqs_file=fimo_freqs_file,
                         call_dic=call_dic,
-                        params="--norc --verbosity 1 --skip-matched-sequence --text",
+                        params=fimo_params,
                         error_check=False)
 
             """
@@ -4341,10 +4359,9 @@ if __name__ == '__main__':
     # Show some banner.
     print(benchlib.print_some_banner())
 
-    # Are my tools ready?
-    # assert hoodlib.is_tool("bedtools"), "bedtools not in PATH"
-    # assert hoodlib.is_tool("twoBitToFa"), "twoBitToFa not in PATH"
-    # assert hoodlib.is_tool("twoBitInfo"), "twoBitInfo not in PATH"
+    # Doctor: Are my tools ready?
+    assert benchlib.is_tool("meme"), "meme not in PATH"
+    check, meme_version = benchlib.check_tool_version("meme -version", "5.0"), "RBPBench requires meme version >= 5.0 (installed version: %s)" %(meme_version)
 
     # Run selected mode.
     if args.which == 'search':

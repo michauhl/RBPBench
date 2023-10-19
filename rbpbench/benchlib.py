@@ -17,6 +17,7 @@ import numpy as np
 # from upsetplot import plot
 from upsetplot import UpSet
 # from matplotlib import cm
+from packaging import version
 
 
 """
@@ -64,6 +65,28 @@ def calc_edit_dist_query_list(query_str, lst):
         pair_dist_dic[s2] = d
 
     return pair_dist_dic
+
+
+################################################################################
+
+def check_tool_version(tool_call, min_version):
+    """
+    Check if version of a command line tool is >= min_version.
+    Use tool_call to provide command line call which produces version number.
+    E.g. check_tool_version("meme -version", "5.3.0")
+
+    Using:
+    from packaging import version
+
+    """
+
+    output = subprocess.getoutput(tool_call)
+    # version_string = output.split('\n')[0]
+    version_string = output.strip()
+    tool_version = version.parse(version_string)
+    min_version = version.parse(min_version)
+    check = tool_version >= min_version
+    return check, tool_version
 
 
 ################################################################################
@@ -404,11 +427,16 @@ def read_cm_acc(in_cm):
 
 ################################################################################
 
-def get_fasta_headers(in_fa):
+def get_fasta_headers(in_fa,
+                      full_header=False):
     """
     Get FASTA header IDs.
     This grep version appears to be much faster than reading in file via 
     Python line by line.
+
+    full_header:
+        If true, use whole header (after >) as ID. By default, use ID up to 
+        first space character.
 
     >>> in_fa = "test_data/test.fa"
     >>> get_fasta_headers(in_fa)
@@ -422,9 +450,14 @@ def get_fasta_headers(in_fa):
     seq_ids_dic = {}
     for line in output.split('\n'):
         if re.search("^>", line):
-            m = re.search(">(.+)", line)
-            seq_id = m.group(1)
-            seq_ids_dic[seq_id] = 1
+            if full_header:
+                m = re.search(">(.+)", line)
+                seq_id = m.group(1)
+                seq_ids_dic[seq_id] = 1
+            else:
+                m = re.search(">(\S+)", line)
+                seq_id = m.group(1)
+                seq_ids_dic[seq_id] = 1
 
     assert seq_ids_dic, "no FASTA header IDs read in from in_fa %s" %(in_fa)
     return seq_ids_dic
@@ -606,6 +639,7 @@ def read_fasta_into_dic(fasta_file,
                         seqs_dic=False,
                         ids_dic=False,
                         dna=False,
+                        full_header=False,
                         report=1,
                         all_uc=False,
                         empty_check=True,
@@ -615,6 +649,10 @@ def read_fasta_into_dic(fasta_file,
     """
     Read in FASTA sequences, store in dictionary and return dictionary.
     FASTA file can be plain text or gzipped (watch out for .gz ending).
+
+    full_header:
+        If true, use whole header (after >) as ID. By default, use ID up to 
+        first space character.
 
     >>> test_fasta = "test_data/test.fa"
     >>> read_fasta_into_dic(test_fasta)
@@ -632,8 +670,15 @@ def read_fasta_into_dic(fasta_file,
         f = open(fasta_file, "r")
     for line in f:
         if re.search(">.+", line):
-            m = re.search(">(.+)", line)
+            m = False
+            if full_header:
+                m = re.search(">(.+)", line)
+            else:
+                m = re.search(">(\S+)", line)
+
+            assert m, "header ID extraction failed for FASTA header line \"%s\"" %(line)
             seq_id = m.group(1)
+
             if id_check:
                 assert seq_id not in seqs_dic, "non-unique FASTA header \"%s\" in \"%s\"" % (seq_id, fasta_file)
             if ids_dic:
