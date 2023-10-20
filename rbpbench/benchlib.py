@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import gzip
+import shutil
 import matplotlib.pyplot as plt
 from matplotlib_venn import venn2, venn3
 from venn import venn
@@ -3484,6 +3485,7 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 benchlib_path,
                                 rbp2regidx_dic,
                                 reg_ids_list,
+                                motif_db_str=False,
                                 reg2annot_dic=None,
                                 upset_plot_min_degree=2,
                                 upset_plot_max_degree=None,
@@ -4215,6 +4217,7 @@ def plot_nt_distribution_zero_pos(ppm, ext_lr,
 def search_generate_html_motif_plots(search_rbps_dic, 
                                      seq_motif_blocks_dic, str_motif_blocks_dic,
                                      out_folder, benchlib_path, motif2db_dic,
+                                     motif_db_str=False,
                                      html_report_out="motif_plots.rbpbench_search.html",
                                      plot_abs_paths=False,
                                      plots_subfolder="html_motif_plots"):
@@ -4231,8 +4234,11 @@ def search_generate_html_motif_plots(search_rbps_dic,
     if plot_abs_paths:
         plots_folder = plots_out_folder
 
-    if not os.path.exists(plots_out_folder):
-        os.makedirs(plots_out_folder)
+    # Delete plots if already present.
+    if os.path.exists(plots_out_folder):
+        shutil.rmtree(plots_out_folder)
+    os.makedirs(plots_out_folder)
+
     html_out = out_folder + "/" + "motif_plots.rbpbench_search.html"
     md_out = out_folder + "/" + "motif_plots.rbpbench_search.md"
     if html_report_out:
@@ -4330,8 +4336,15 @@ RBP "%s" only contains structure motifs, which are currently not available for p
             motif_plot_out = plots_out_folder + "/" + motif_plot
             plot_path = plots_folder + "/" + motif_plot
 
-            create_motif_plot(motif_id, seq_motif_blocks_dic,
-                              motif_plot_out)
+            # Check if motif in motif database folder.
+            if motif_db_str:
+                db_motif_path = benchlib_path + "/content/%s_motif_plots/%s" %(motif_db_str, motif_plot)
+                if os.path.exists(db_motif_path):
+                    shutil.copy(db_motif_path, motif_plot_out)
+
+            if not os.path.exists(motif_plot_out):
+                create_motif_plot(motif_id, seq_motif_blocks_dic,
+                                  motif_plot_out)
 
             mdtext += '<img src="' + plot_path + '" alt="' + "sequence motif plot %s" %(motif_id) + "\n"
             mdtext += 'title="' + "sequence motif plot %s" %(motif_id) + '" width="500" />' + "\n"

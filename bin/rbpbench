@@ -645,7 +645,7 @@ def main_search(args):
     if args.in_gtf:
         assert args.report, "set --gtf requires --report to be effective"
 
-    # Check if FIMO version is >= 5.5.4 (need to add --no-pgc option to produce same results!).
+    # Check if MEME version is >= 5.5.4 (need to add fimo --no-pgc option to produce same results!).
     fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text"
     check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
     if check:
@@ -2025,8 +2025,6 @@ def main_search(args):
         Setting add_count = True changes correlations a bit (use motif hit counts 
         instead of 1 for any number of hits)
 
-        ALAMO
-
         """
 
         print("Calculate correlations ... ")
@@ -2230,6 +2228,7 @@ def main_search(args):
                                          benchlib_path,
                                          rbp2regidx_dic,
                                          reg_ids_list,
+                                         motif_db_str=motif_db_str,
                                          reg2annot_dic=reg2annot_dic,
                                          upset_plot_min_degree=args.upset_plot_min_degree,
                                          upset_plot_max_degree=args.upset_plot_max_degree,
@@ -2258,6 +2257,7 @@ def main_search(args):
         benchlib.search_generate_html_motif_plots(search_rbps_dic, seq_motif_blocks_dic, 
                                          str_motif_blocks_dic, args.out_folder, 
                                          benchlib_path, loaded_motif_ids_dic,
+                                         motif_db_str=motif_db_str,
                                          html_report_out=html_motif_plots_out,
                                          plot_abs_paths=args.plot_abs_paths,
                                          plots_subfolder=plots_subfolder)
@@ -2353,7 +2353,7 @@ def main_batch(args):
         assert False, "no --bed arguments supplied"
     assert bed_list, "bed_list empty"
 
-    # Check if FIMO version is >= 5.5.4 (need to add --no-pgc option to produce same results!).
+    # Check if MEME version is >= 5.5.4 (need to add fimo --no-pgc option to produce same results!).
     fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text"
     check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
     if check:
@@ -3222,7 +3222,7 @@ def main_optex(args):
     rbp_id = benchlib.remove_special_chars_from_str(args.rbp_id)
     assert rbp_id, "empty string after removing special chars from given --rbp-id %s. Please provide alphanumeric string for RBP ID (- or _ are okay as well)" %(args.rbp_id)
 
-    # Check if FIMO version is >= 5.5.4 (need to add --no-pgc option to produce same results!).
+    # Check if MEME version is >= 5.5.4 (need to add fimo --no-pgc option to produce same results!).
     fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text"
     check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
     if check:
@@ -4361,7 +4361,8 @@ if __name__ == '__main__':
 
     # Doctor: Are my tools ready?
     assert benchlib.is_tool("meme"), "meme not in PATH"
-    check, meme_version = benchlib.check_tool_version("meme -version", "5.0"), "RBPBench requires meme version >= 5.0 (installed version: %s)" %(meme_version)
+    check, meme_version = benchlib.check_tool_version("meme -version", "5.0")
+    assert check, "RBPBench requires meme version >= 5.0 (installed version: %s)" %(meme_version)
 
     # Run selected mode.
     if args.which == 'search':
