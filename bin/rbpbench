@@ -132,7 +132,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.0.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.0.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.1.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.1.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
     p_s.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -248,6 +248,12 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Store plot files with absolute paths in HTML files. Default is relative paths (default: False)")
+    p_s.add_argument("--plotly-js-source",
+                   dest="plotly_js_source",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Choose which source of plotly .js to use. 1: use \"cdn\", which requires internet connection. 2: use plotly .js part stored as part of package (works offline too) (default: 1)")
 
     """
     Batch mode.
@@ -325,7 +331,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.0.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.0.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.1.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.1.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
     p_b.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -430,7 +436,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.0.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.0.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.1.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.1.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
     p_oe.add_argument("--fimo-nt-freqs",
                    dest="fimo_nt_freqs",
                    type=str,
@@ -475,7 +481,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.0.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.0.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.1.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.1.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
     p_i.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -570,8 +576,8 @@ def specify_motif_db(motif_db_nr, db_path="./"):
     motif database string
 
     motif_db_nr: motif database string
-    1: catrapid.omics.v2.0.human.6plus
-    2: catrapid.omics.v2.0.human.6plus.noround
+    1: catrapid.omics.v2.1.human.6plus
+    2: catrapid.omics.v2.1.human.6plus.noround
     3: s6_refined_ic010.human.rounded.encode_rbps
 
     catRAPID_omics_v2.0_6plus_motifs.meme
@@ -580,13 +586,13 @@ def specify_motif_db(motif_db_nr, db_path="./"):
 
     """
 
-    seq_motifs_db_file = db_path + "/catRAPID_omics_v2.0_6plus_motifs.weak_rounded.meme"
+    seq_motifs_db_file = db_path + "/catRAPID_omics_v2.1_6plus_motifs.weak_rounded.meme"
     str_motifs_db_file = db_path + "/str_motifs.cm"
     rbp2ids_file = db_path + "/rbp_motif2name_ids.full.txt"
-    motif_db_str = "catrapid.omics.v2.0.human.6plus"
+    motif_db_str = "catrapid.omics.v2.1.human.6plus"
     if motif_db_nr == 2:
-        seq_motifs_db_file = db_path + "/catRAPID_omics_v2.0_6plus_motifs.meme"
-        motif_db_str = "catrapid.omics.v2.0.human.6plus.noround"
+        seq_motifs_db_file = db_path + "/catRAPID_omics_v2.1_6plus_motifs.meme"
+        motif_db_str = "catrapid.omics.v2.1.human.6plus.noround"
     if motif_db_nr == 3:
         seq_motifs_db_file = db_path + "/s6_refined_ic010_rounded_ENCODE_RBPs.meme"
         rbp2ids_file = db_path + "/rbp_motif2name_ids.txt"
@@ -2235,6 +2241,7 @@ def main_search(args):
                                          upset_plot_min_subset_size=args.upset_plot_min_subset_size,
                                          html_report_out=html_report_out,
                                          plot_abs_paths=args.plot_abs_paths,
+                                         plotly_js_source=args.plotly_js_source,
                                          plots_subfolder=plots_subfolder)
 
     # ALAMO

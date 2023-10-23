@@ -16,6 +16,6 @@ setup(
     license='MIT',
     scripts=['bin/rbpbench'],
     packages=['rbpbench'],
-    package_data={'rbpbench': ['content/*', 'content/catrapid.omics.v2.0.human.6plus_motif_plots/*']},
+    package_data={'rbpbench': ['content/*', 'content/catrapid.omics.v2.1.human.6plus_motif_plots/*']},
     zip_safe=False,
 )

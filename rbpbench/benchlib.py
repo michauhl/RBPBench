@@ -3492,6 +3492,7 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 upset_plot_min_subset_size=10,
                                 html_report_out="report.rbpbench_search.html",
                                 plot_abs_paths=False,
+                                plotly_js_source=1,
                                 plots_subfolder="html_report_plots"):
     """
     Create additional hit statistics for selected RBPs, 
@@ -3523,8 +3524,14 @@ def search_generate_html_report(df_pval, pval_cont_lll,
     # https://plotly.com/javascript/getting-started/#download
     # plotly-2.20.0.min.js
     # plotly-latest.min.js
-    plotly_js_path = benchlib_path + "/content/plotly-2.20.0.min.js"
-    assert os.path.exists(plotly_js_path), "plotly js %s not found" %(plotly_js_path)
+    plotly_js_path = "cdn"
+    if plotly_js_source == 1:
+       plotly_js_path = "cdn"
+    elif plotly_js_source == 2:
+        plotly_js_path = benchlib_path + "/content/plotly-2.20.0.min.js"
+        assert os.path.exists(plotly_js_path), "plotly js %s not found" %(plotly_js_path)
+    else:
+        assert False, "invalid plotly_js_path set"
 
     # Create theme-specific HTML header.
     mdtext = """
