@@ -4006,9 +4006,6 @@ In case of an empty table, try to lower --motif-min-pair-count (current value: %
             # mdtext += "\n"
             mdtext += "\n&nbsp;\n"
 
-
-            # ALAMO ALAMO
-
             if plotted:
 
                 plot_path = plots_folder + "/" + single_motif_dist_plot_plotly
@@ -4037,29 +4034,6 @@ Only motifs with a pair count of >= %i appear in the plot.
 &nbsp;
 
 """ %(motif_id, motif_min_pair_count)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
     # Convert mdtext to html.

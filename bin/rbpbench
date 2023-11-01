@@ -18,7 +18,6 @@ from scipy.stats import mannwhitneyu
 # import subprocess
 # from scipy.stats import ks_2samp
 # from scipy.stats import wilcoxon
-# import benchlib
 # import uuid
 
 
@@ -2248,9 +2247,6 @@ def main_search(args):
         plots_subfolder = "html_report_plots"
         benchlib_path = os.path.dirname(benchlib.__file__)
 
-
-        # ALAMO
-
         print("Create report ... ")
         benchlib.search_generate_html_report(df_pval, pval_cont_lll,
                                          search_rbps_dic,
@@ -2275,7 +2271,6 @@ def main_search(args):
                                          plot_abs_paths=args.plot_abs_paths,
                                          plotly_js_source=args.plotly_js_source,
                                          plots_subfolder=plots_subfolder)
-
 
 
     """
