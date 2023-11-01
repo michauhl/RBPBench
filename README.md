@@ -50,7 +50,7 @@ co-occurrence analysis, to benchmarking CLIP-seq peak caller methods.
 
 ## Introduction
 
-[CLIP-seq](https://doi.org/10.1038/s43586-021-00018-1) is the by far most common experimental method to identify the RNA binding sites of an RNA-binding protein (RBP) on a transcriptome-wide scale. Various popular protocol variants exist, such as PAR-CLIP, iCLIP, or eCLIP. In order to identify the binding sites from the mapped CLIP-seq read data, tools termed peak callers are applied on the read data. Regions with enriched read numbers in the CLIP-seq libraries (i.e., peak regions), typically compared to one or more control libraries, are subsequently defined as RBP binding sites. Various peak callers exist, applying various techniques in order to define the binding sites.
+[CLIP-seq](https://doi.org/10.1038/s43586-021-00018-1) is the by far most common experimental method to identify the RNA binding sites of an RNA-binding protein (RBP) on a transcriptome-wide scale. Various popular protocol variants exist, such as PAR-CLIP, iCLIP, or eCLIP. In order to identify the binding sites from the mapped CLIP-seq read data, tools termed peak callers are applied on the read data. Regions with enriched read numbers in the CLIP-seq library (i.e., peak regions), typically compared to a control library, are subsequently defined as RBP binding sites. Various peak callers exist, applying various techniques in order to define the binding sites.
 
 As no ground truth (i.e., set of true transcriptome-wide binding sites of an RBP) exists, one obvious way to quantify the performance of a peak caller is to look for the enrichment of known RBP binding motifs in the binding site (peak region) data. 
 Since there exists no automated solution for this task yet, we implemented RBPBench:
@@ -60,7 +60,7 @@ RBPBench can be used for benchmarking CLIP-seq peak callers, but it works just a
 one can e.g. look for RBP binding motifs in any set of genomic regions (selecting any number of RBPs of interest, including user-supplied motifs),
 and check for RBP motif co-occurrences (to see which RBPs bind similar regions).
 RBPBench is easy to use and freely available via conda (command line usage) or on Galaxy.
-Comprehensive statistics and informative plots allow for easy comparisons across multiple RBPs and peak callers.
+Comprehensive statistics and informative plots allow for easy comparisons of RBP binding across multiple RBPs and peak callers.
 Last but not least, RBPBench comes with an extensive manual, including many usage examples.
 
 
