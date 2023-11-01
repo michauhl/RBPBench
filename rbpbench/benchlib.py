@@ -15,9 +15,7 @@ import plotly.express as px
 from math import log10
 import textdistance
 import numpy as np
-# from upsetplot import plot
 from upsetplot import UpSet
-# from matplotlib import cm
 from packaging import version
 
 
