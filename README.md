@@ -210,13 +210,13 @@ rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps SLBP --out SLBP_test_search_
 we get a significant enrichment of motif hits (Wilcoxon p-value: 6.87978e-09), 
 meaning that input regions with SLBP motif hits also feature significantly higher scores.
 
-The second test addresses **RBP motif co-occurrences** (i.e., between two different RBPs), 
+The second test applies to multiple provided RBPs and addresses **RBP motif co-occurrences** (i.e., between two different RBPs), 
 using Fisher's exact test. For this a 2x2 contingency table is constructed between 
 each input RBP pair, and the co-occurrence information can also be plotted as an **interactive heat map** (see example [below](#search-with-multiple-rbps)). 
 
-Other informative statistics (examples [below](#search-with-multiple-rbps)) include an **upset plot**, showcasing which 
+Other informative statistics for multiple provided RBPs (examples [below](#search-with-multiple-rbps)) include an **upset plot**, showcasing which 
 **combinations of RBP motifs** occur in the data, and their relative amounts.
-If a `--gtf` file is provided, regions appearing in the various combinations will also be colored by the **genomic region annotations** they overlap with.
+If a GTF file is provided (via(`--gtf` ), regions appearing in the various combinations will also be colored by the **genomic region annotations** they overlap with.
 Moreover, **motif distances** between a specified RBP (defined via `--set-rbp-id`) and all other selected RBPs can be plotted.
 
 
