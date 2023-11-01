@@ -212,11 +212,12 @@ meaning that input regions with SLBP motif hits also feature significantly highe
 
 The second test addresses **RBP motif co-occurrences** (i.e., between two different RBPs), 
 using Fisher's exact test. For this a 2x2 contingency table is constructed between 
-each input RBP pair, and the co-occurrence information can also be plotted as an interactive heat map (see [example with multiple RBPs](#search-with-multiple-rbps) below). 
+each input RBP pair, and the co-occurrence information can also be plotted as an **interactive heat map** (see [example with multiple RBPs](#search-with-multiple-rbps) below). 
 
-Other informative statistics (examples [below](#search-with-multiple-rbps)) include an upset plot, showcasing which combinations of RBP motifs occur in the data, and their relative amounts.
-If a `--gtf` file is provided, regions appearing in the various combinations will also be colored by the genomic region annotations they overlap with.
-Moreover, motif distances between a specified RBP (defined via `--set-rbp-id`) and all other selected RBPs can be plotted.
+Other informative statistics (examples [below](#search-with-multiple-rbps)) include an **upset plot**, showcasing which 
+**combinations of RBP motifs** occur in the data, and their relative amounts.
+If a `--gtf` file is provided, regions appearing in the various combinations will also be colored by the **genomic region annotations** they overlap with.
+Moreover, **motif distances** between a specified RBP (defined via `--set-rbp-id`) and all other selected RBPs can be plotted.
 
 
 #### Additional search options
