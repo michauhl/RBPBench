@@ -312,7 +312,7 @@ This produces the following upset plot:
 **Fig. 2**: Upset plot showing RBP motif combinations (plus set sizes) found in the genomic input regions.
 
 
-For more details on how to read the plot, see the produced HTML report. In this example we use a GTF file downloaded from [Ensembl](http://www.ensembl.org/info/data/ftp/index.html), but you can also provide a GTF file from  e.g. [GENCODE](https://www.gencodegenes.org/human/). There are several parameters to define the sizes of combinations to include in the upset plot (`--upset-plot-min-degree`, `--upset-plot-max-degree`, `--upset-plot-min-subset-size`). By default, the most prominent transcripts are used for annotation. Alternatively, a list of transcripts can be provided via `--tr-list`. Which region annotations are to be considered can be further defined via `--tr-types`, and the minimum region annotation overlap can be set via ` --gtf-feat-min-overlap`.
+For more details on how to read the plot, see the produced HTML report. In this example we use a GTF file downloaded from [Ensembl](http://www.ensembl.org/info/data/ftp/index.html), but you can also provide a GTF file from  e.g. [GENCODE](https://www.gencodegenes.org/human/). There are several parameters to define the sizes of combinations to include in the upset plot (`--upset-plot-min-degree`, `--upset-plot-max-degree`, `--upset-plot-min-subset-size`). By default, the most prominent transcripts are used for annotation. Alternatively, a list of transcripts can be provided via `--tr-list`. Which region annotations are to be considered can be further defined via `--tr-types`, and the minimum region annotation overlap can be set via `--gtf-feat-min-overlap`.
 
 
 In addition to the upset plot, a plot containing the genomic regions annotations for each single RBP is generated:
@@ -539,7 +539,7 @@ In the `PUM1` example, the produced Venn diagram looks like this:
 <img src="docs/venn_diagram.method_comp.k562_eclip,human_v0.1,PUM1.png" alt="PUM1 example Venn diagram"
 	title="PUM1 example Venn diagram" width="600" />
 
-**Fig. 2**: Venn diagram of motif hits by peak calling methods CLIPper IDR and DEWSeq (PUM1 eCLIP K562 data). 
+**Fig. 5**: Venn diagram of motif hits by peak calling methods CLIPper IDR and DEWSeq (PUM1 eCLIP K562 data). 
 Motif hit numbers and percentages of total motif hits are shown for each region (method exclusive and intersection).
 
 We can see that the overlap is not particularly high for the PUM1 dataset. In contrast, the overlap is higher for the `PUM2` dataset:
@@ -547,7 +547,7 @@ We can see that the overlap is not particularly high for the PUM1 dataset. In co
 <img src="docs/venn_diagram.method_comp.k562_eclip,human_v0.1,PUM2.png" alt="PUM2 example Venn diagram"
 	title="PUM2 example Venn diagram" width="600" />
 
-**Fig. 3**: Venn diagram of motif hits by peak calling methods CLIPper IDR and DEWSeq (PUM2 eCLIP K562 data). 
+**Fig. 6**: Venn diagram of motif hits by peak calling methods CLIPper IDR and DEWSeq (PUM2 eCLIP K562 data). 
 Motif hit numbers and percentages of total motif hits are shown for each region (method exclusive and intersection).
 
 
@@ -595,7 +595,7 @@ the produced Venn diagram looks the following:
 <img src="docs/venn_diagram.data_comp.clipper_idr,human_v0.1,RBFOX2.png" alt="RBFOX2 example Venn diagram"
 	title="RBFOX2 example Venn diagram" width="600" />
 
-**Fig. 4**: Venn diagram of motif hits for RBFOX2 in two cell lines HepG2 and K562 (peak calling method CLIPper IDR).
+**Fig. 7**: Venn diagram of motif hits for RBFOX2 in two cell lines HepG2 and K562 (peak calling method CLIPper IDR).
 Motif hit numbers and percentages of total motif hits are shown for each region (method exclusive and intersection).
 
 
@@ -632,7 +632,7 @@ The generated plot (`test_dist_out/nt_dist_zero_pos.png`) looks the following:
 <img src="docs/nt_dist_zero_pos.stop_codons.png" alt="Nucleotide distribution at stop codons"
 	title="Nucleotide distribution at stop codons" width="500" />
 
-**Fig. 5**: Nucleotide distribution (position probability matrix) at genomic stop codon positions (human transcript annotations, ENSEMBL GRCh38 release 110).
+**Fig. 8**: Nucleotide distribution (position probability matrix) at genomic stop codon positions (human transcript annotations, ENSEMBL GRCh38 release 110).
 
 We can clearly identify the known stop codon triplet sequences (in DNA: TAA, TAG, TGA), starting 
 at position 0.
@@ -858,5 +858,4 @@ are described in the example section [above](#search-with-multiple-rbps).
 
 #### No FIMO hits
 
-This can e.g. happen if you have an old MEME version installed (v4). RBPBench was implemented using v5, so please install MEME v5 (e.g. 5.5.3). 
-To make this work you can also try the `mamba` or `micromamba` package manager to install RBPBench (instead of `conda`, see [above](#conda-package-installation)).
+This can e.g. happen if you have an old MEME version installed (v4). RBPBench was implemented using v5, and as of v0.2 throws an error if anything below MEME v5 is installed. 
