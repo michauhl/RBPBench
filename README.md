@@ -703,7 +703,7 @@ Evaluate CLIP-seq and other genomic region data using a comprehensive
 collection of known RBP binding motifs (RNA sequence + structure). RBPBench
 can be used for a variety of purposes, from RBP motif search in genomic
 regions, over motif co-occurrence analysis, to benchmarking CLIP-seq peak
-callers.
+callers, as well as comparisons across cell types and CLIP-seq protocols.
 
 positional arguments:
   {search,batch,optex,info,dist,compare}
