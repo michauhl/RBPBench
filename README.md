@@ -307,7 +307,7 @@ rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps RBFOX2 PUM1 PUM2 --out test_
 This produces the following upset plot:
 
 <img src="docs/rbp_region_occupancies.upset_plot.png" alt="RBP motif combinations example plot"
-	title="RBP motif combinations example plot" width="500" />
+	title="RBP motif combinations example plot" width="600" />
 
 **Fig. 2**: Upset plot showing RBP motif combinations (plus set sizes) found in the genomic input regions.
 
@@ -319,7 +319,7 @@ In addition to the upset plot, a plot containing the genomic regions annotations
 
 
 <img src="docs/annotation_stacked_bars_plot.png" alt="Region annotations per RBP example plot"
-	title="Region annotations per RBP example plot" width="600" />
+	title="Region annotations per RBP example plot" width="700" />
 
 
 **Fig. 3**: Plot showing the genomic region annotations per RBP.
