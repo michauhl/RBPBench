@@ -311,7 +311,10 @@ def read_in_cm_blocks(cm_file,
             elif re.search("^ACC\s+\w+", line):
                 m = re.search("ACC\s+(\w+)", line)
                 acc_id = m.group(1)
-                acc_list.append(acc_id)
+                # Remove special characters from motif/accession ID.
+                new_acc_id = remove_special_chars_from_str(acc_id)
+                assert new_acc_id, "no characters left after removal of special characters from covariance model accession ID \"%s\". Please use valid covariance model accession IDs (i.e., modify ACC column strings in .cm file)" %(acc_id)
+                acc_list.append(new_acc_id)
                 blocks_list[idx] += line
             else:
                 blocks_list[idx] += line
@@ -813,6 +816,9 @@ def extract_motif_blocks(raw_text):
         if re.search("MOTIF\s\w+", l):
             m = re.search("MOTIF (\w+)", l)
             motif_id = m.group(1)
+            new_motif_id = remove_special_chars_from_str(motif_id)
+            assert new_motif_id, "no characters left after removal of special characters from motif ID \"%s\". Please use valid MEME XML motif IDs (i.e., modify MOTIF column strings in motifs xml file)" %(motif_id)
+            motif_id = new_motif_id
         else:
             if motif_id and l:
                 if motif_id in motif_blocks_dic:
@@ -1163,6 +1169,7 @@ def gtf_read_in_gene_infos(in_gtf,
 
 def gtf_read_in_transcript_infos(in_gtf,
                                  tr_ids_dic=None,
+                                 tr_types_dic=None,
                                  correct_min_ex_order=True,
                                  chr_style=0,
                                  empty_check=True):
@@ -1233,6 +1240,12 @@ def gtf_read_in_transcript_infos(in_gtf,
                 m = re.search('transcript_type "(.+?)"', infos)
             if m:
                 tr_biotype = m.group(1)
+
+            if tr_types_dic is not None:
+                if tr_biotype not in tr_types_dic:
+                    tr_types_dic[tr_biotype] = 1
+                else:
+                    tr_types_dic[tr_biotype] += 1
 
             tr_infos = TranscriptInfo(tr_id, tr_biotype, chr_id, feat_s, feat_e, feat_pol, gene_id,
                                       tr_length=0,
@@ -1858,6 +1871,51 @@ chr1	1980	2020	s1	0	+	chr1	1000	2000	exon	0	+	20
 chr1	1980	2020	s1	0	+	chr1	2000	3000	intron	0	+	20
 
 """
+
+
+################################################################################
+
+def get_hex_colors_list(min_len=0):
+    """
+    Get list of distinct hex color values for plotting.
+
+    matplotlib color maps:
+    https://matplotlib.org/stable/gallery/color/colormap_reference.html
+
+    How to get from colormap to hex colors:
+
+    import matplotlib.pyplot as plt
+    import matplotlib
+    import numpy as np
+
+    cmap = plt.cm.get_cmap('tab20b') # colormap tab20b
+    colors = cmap(np.linspace(0,1,cmap.N))
+
+    hex_colors = []
+    for color in colors:
+        hex_color = matplotlib.colors.rgb2hex(color)
+        hex_colors.append(hex_color)
+
+    """
+
+    assert min_len < 1000, "provide reasonable min_len"
+
+    hex_colors_tab20_list = ['#1f77b4', '#aec7e8', '#ff7f0e', '#ffbb78', '#2ca02c', '#98df8a', '#d62728', '#ff9896', '#9467bd', '#c5b0d5', '#8c564b', '#c49c94', '#e377c2', '#f7b6d2', '#7f7f7f', '#c7c7c7', '#bcbd22', '#dbdb8d', '#17becf', '#9edae5']
+    hex_colors_tab20b_list = ['#393b79', '#5254a3', '#6b6ecf', '#9c9ede', '#637939', '#8ca252', '#b5cf6b', '#cedb9c', '#8c6d31', '#bd9e39', '#e7ba52', '#e7cb94', '#843c39', '#ad494a', '#d6616b', '#e7969c', '#7b4173', '#a55194', '#ce6dbd', '#de9ed6']
+    hex_colors_Pastel1_list = ['#fbb4ae', '#b3cde3', '#ccebc5', '#decbe4', '#fed9a6', '#ffffcc', '#e5d8bd', '#fddaec', '#f2f2f2']
+
+    hex_colors_list = []
+    for hc in hex_colors_tab20_list:
+        hex_colors_list.append(hc)
+    for hc in hex_colors_tab20b_list:
+        hex_colors_list.append(hc)
+    for hc in hex_colors_Pastel1_list:
+        hex_colors_list.append(hc)
+
+    while len(hex_colors_list) < min_len:
+        hex_colors_list = hex_colors_list*2
+
+    return hex_colors_list
 
 
 ################################################################################
@@ -3480,12 +3538,19 @@ def convert_sci_not_to_decimal(sn_value):
 
 def search_generate_html_report(df_pval, pval_cont_lll,
                                 search_rbps_dic,
-                                fimo_hits_list, cmsearch_hits_list,
-                                id2name_dic, out_folder, 
+                                id2name_dic, name2ids_dic,
+                                region_rbp_motif_pos_dic,
+                                reg2pol_dic,
+                                out_folder, 
                                 benchlib_path,
                                 rbp2regidx_dic,
                                 reg_ids_list,
+                                set_rbp_id=None,
                                 motif_db_str=False,
+                                seq_motif_blocks_dic=None,
+                                motif_distance_plot_range=50,
+                                motif_min_pair_count=10,
+                                rbp_min_pair_count=10,
                                 reg2annot_dic=None,
                                 upset_plot_min_degree=2,
                                 upset_plot_max_degree=None,
@@ -3499,6 +3564,7 @@ def search_generate_html_report(df_pval, pval_cont_lll,
     e.g. correlation / co-occurrence between RBPs.
 
     """
+
     # Use absolute paths?
     if plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
@@ -3557,8 +3623,18 @@ by RBPBench (rbpbench search --report):
     if reg2annot_dic is not None:
         mdtext += "\n"
         mdtext += "- [Region annotations per RBP](#annot-rbp-plot)\n"
+    # If --set-rbp-id given.
+    if set_rbp_id is not None:
+        if reg2annot_dic is None:
+            mdtext += "\n"
+        mdtext += "- [Set RBP %s motifs distance statistics](#rbp-motif-dist-stats)\n" %(set_rbp_id)
+        # mdtext += "- [Set RBP %s motif distance plot](#rbp-motif-dist-plot)\n" %(set_rbp_id)
+        for idx, motif_id in enumerate(name2ids_dic[set_rbp_id]):
+            mdtext += "    - [Motif %s distance statistics](#single-motif-%i-dist-stats)\n" %(motif_id, idx)
+            # mdtext += "    - [Single motif %s distance plot](#single-motif-%i-dist-plot)\n" %(motif_id, idx)
 
     mdtext += "\n&nbsp;\n"
+
 
     """
     RBP motif enrichment statistics
@@ -3598,8 +3674,8 @@ input genomic regions are all the same, p-values become meaningless (i.e., they 
     mdtext += '**% hit regions** -> percentage of hit regions over all regions (i.e. how many input regions contain >= 1 RBP binding motif), '
     mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
     mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
+    mdtext += "\n&nbsp;\n"
 
-    # ALAMO
     """
     Co-occurrence heat map.
 
@@ -3625,7 +3701,7 @@ input genomic regions are all the same, p-values become meaningless (i.e., they 
 **Figure:** Heat map of co-occurrences (Fisher's exact test p-values) between RBPs. 
 Legend color: negative logarithm (base 10) of Fisher's exact test p-value.
 Hover box: 1) RBP1. 2) RBP2. 3) p-value: Fisher's exact test p-value (calculated based on contingency table between RBP1 and RBP2). 
-4) RBPs compaired. 5) Counts[]: Contingency table of co-occurrence counts (i.e., number of genomic regions with/without shared motif hits) between compaired RBPs, 
+4) RBPs compaired. 5) Counts[]: contingency table of co-occurrence counts (i.e., number of genomic regions with/without shared motif hits) between compaired RBPs, 
 with format [[A, B], [C, D]], where 
 A: RBP1 AND RBP2, 
 B: NOT RBP1 AND RBP2
@@ -3744,7 +3820,247 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
 &nbsp;
 
 """
-    # ALAMO
+
+    """
+    Set RBP motif distance stats + plot.
+
+    """
+    if set_rbp_id is not None:
+
+        rbp_motif_dist_plot_plotly =  "%s.motif_dist.plotly.html" %(set_rbp_id)
+        rbp_motif_dist_plot_plotly_out = plots_out_folder + "/" + rbp_motif_dist_plot_plotly
+
+        plotted, pc_dic, in_dic, out_dic = plot_motif_dist_rbp_level(set_rbp_id,
+            region_rbp_motif_pos_dic,
+            id2name_dic,
+            name2ids_dic,
+            reg2pol_dic,
+            html_out=rbp_motif_dist_plot_plotly_out,
+            plotly_js_path=plotly_js_path,
+            line_plot_range=motif_distance_plot_range,
+            min_pair_count=rbp_min_pair_count)
+
+        mdtext += """
+## Set RBP %s motifs distance statistics ### {#rbp-motif-dist-stats}
+
+**Table:** Motif distance statistics between set RBP ID (%s) motifs and other RBP ID motifs (including itself). 
+Note that the statistics are generated by focussing (i.e., centering) on the highest-scoring motif of the set RBP 
+(lowest p-value for sequence motifs, highest bit score for structure motifs) in each input region.
+In case of an empty table, try to lower --rbp-min-pair-count (current value: %i).
+
+""" %(set_rbp_id, set_rbp_id, rbp_min_pair_count)
+        mdtext += '| Set RBP ID | Other RBP ID | Pair count | # near motifs | # distant motifs |' + " \n"
+        mdtext += "| :-: | :-: | :-: | :-: | :-: |\n"
+
+        top_c = 0
+        for rbp_id, pair_c in sorted(pc_dic.items(), key=lambda item: item[1], reverse=True):
+            if pair_c >= rbp_min_pair_count:
+                top_c += 1
+                mdtext += "| %s | %s | %i | %i | %i |\n" %(set_rbp_id, rbp_id, pair_c, in_dic[rbp_id], out_dic[rbp_id])
+
+        mdtext += "\n&nbsp;\n&nbsp;\n"
+        mdtext += "\nColumn IDs have the following meanings: "
+        mdtext += "**Set RBP ID** -> set RBP ID (specified via --set-rbp-id), "
+        mdtext += "**Other RBP ID** -> other RBP ID that set RBP ID is compared to, "
+        mdtext += "**Pair count** -> number of input regions with motif hits from both RBP IDs (minimum pair count to be reported: %i (set by --rbp-min-pair-count)), " %(rbp_min_pair_count)
+        mdtext += '**# near motifs** -> ' + "number of other RBP ID motifs within specified distance (----motif-distance-plot-range %i) of the centered set RBP ID motifs, " %(motif_distance_plot_range)
+        mdtext += '**# distant motifs** -> ' + "number of other RBP ID motifs outside specified distance (----motif-distance-plot-range %i) of the centered set RBP ID motifs." %(motif_distance_plot_range)
+        # mdtext += "\n"
+        mdtext += "\n&nbsp;\n"
+
+#         mdtext += """
+# ## %s motif distance plot ### {#rbp-motif-dist-plot}
+
+# """ %(set_rbp_id)
+
+        if plotted:
+
+            plot_path = plots_folder + "/" + rbp_motif_dist_plot_plotly
+
+            mdtext += '<div class=class="container-fluid" style="margin-top:40px">' + "\n"
+            mdtext += '<iframe src="' + plot_path + '" width="1200" height="700"></iframe>' + "\n"
+            mdtext += '</div>'
+            mdtext += """
+
+**Figure:** Line plot showing motif distances between set RBP ID (%s) motifs (using highest-scoring %s motif for each input region) and other RBP ID motifs (including itself).
+Coverage corresponds to positions occupied by RBP motifs. 
+The plot is centered on the highest-scoring %s motif (lowest p-value for sequence or highest bit score) for each region containing >= 1 %s motif.
+Each RBP with a pair count (definition see table above) of >= %i is shown, and the coverage of the RBP is the accumulation of its individual motif coverages.
+
+&nbsp;
+
+""" %(set_rbp_id, set_rbp_id, set_rbp_id, set_rbp_id, rbp_min_pair_count)
+
+        else:
+
+            mdtext += """
+
+<em>No motif distance plot generated for set RBP %s. Try to lower --rbp-min-pair-count (current value: %i).</em>
+
+&nbsp;
+
+""" %(set_rbp_id, rbp_min_pair_count)
+
+        """
+        Set RBP single motif distance stats + plots.
+        
+        """
+
+        for idx, motif_id in enumerate(name2ids_dic[set_rbp_id]):
+
+            single_motif_dist_plot_plotly =  "%s.motif_dist.plotly.html" %(motif_id)
+            single_motif_dist_plot_plotly_out = plots_out_folder + "/" + single_motif_dist_plot_plotly
+
+            plotted, pc_dic, in_dic, out_dic = plot_motif_dist_motif_level(motif_id,
+                region_rbp_motif_pos_dic,
+                name2ids_dic,
+                reg2pol_dic,
+                html_out=single_motif_dist_plot_plotly_out,
+                plotly_js_path=plotly_js_path,
+                line_plot_range=motif_distance_plot_range,
+                min_pair_count=motif_min_pair_count)
+
+
+            mdtext += """
+### Motif %s distance statistics ### {#single-motif-%i-dist-stats}
+
+""" %(motif_id, idx)
+
+            # Plot motif (if sequence motif).
+            if motif_id in seq_motif_blocks_dic:
+
+                motif_plot = "%s.%s.png" %(set_rbp_id, motif_id)
+                motif_plot_out = plots_out_folder + "/" + motif_plot
+                plot_path = plots_folder + "/" + motif_plot
+
+                # Check if motif in motif database folder.
+                if motif_db_str:
+                    db_motif_path = benchlib_path + "/content/%s_motif_plots/%s" %(motif_db_str, motif_plot)
+                    if os.path.exists(db_motif_path):
+                        shutil.copy(db_motif_path, motif_plot_out)
+
+                if not os.path.exists(motif_plot_out):
+                    create_motif_plot(motif_id, seq_motif_blocks_dic,
+                                      motif_plot_out)
+
+                mdtext += '<img src="' + plot_path + '" alt="' + "sequence motif plot %s" %(motif_id) + "\n"
+                mdtext += 'title="' + "sequence motif plot %s" %(motif_id) + '" width="500" />' + "\n"
+                mdtext += """
+
+**Figure:** Sequence motif %s.
+
+&nbsp;
+
+""" %(motif_id)
+
+            mdtext += """
+
+**Table:** Motif distance statistics between motif %s (RBP: %s) and other motifs (from any RBP). 
+Note that the statistics are generated by focussing (i.e., centering) on the highest-scoring hit of motif %s 
+(lowest p-value for sequence motifs, highest bit score for structure motifs) in each input region.
+In case of an empty table, try to lower --motif-min-pair-count (current value: %i).
+
+""" %(motif_id, set_rbp_id, motif_id, motif_min_pair_count)
+
+            mdtext += '| Motif ID | Other motif ID | &nbsp; Other motif ID plot &nbsp; | Pair count | # near motifs | # distant motifs |' + " \n"
+            mdtext += "| :-: | :-: | :-: | :-: | :-: | :-: |\n"
+
+            for other_motif_id, pair_c in sorted(pc_dic.items(), key=lambda item: item[1], reverse=True):
+
+                if pair_c >= motif_min_pair_count:
+
+                    # Plot motif (if sequence motif).
+                    plot_str = "-"
+                    if other_motif_id in seq_motif_blocks_dic:
+
+                        other_rbp_id = id2name_dic[other_motif_id]
+                        motif_plot = "%s.%s.png" %(other_rbp_id, other_motif_id)
+                        motif_plot_out = plots_out_folder + "/" + motif_plot
+                        plot_path = plots_folder + "/" + motif_plot
+
+                        # Check if motif in motif database folder.
+                        if motif_db_str:
+                            db_motif_path = benchlib_path + "/content/%s_motif_plots/%s" %(motif_db_str, motif_plot)
+                            if os.path.exists(db_motif_path):
+                                shutil.copy(db_motif_path, motif_plot_out)
+
+                        if not os.path.exists(motif_plot_out):
+                            create_motif_plot(other_motif_id, seq_motif_blocks_dic,
+                                              motif_plot_out)
+
+                        plot_str = '<image src = "' + plot_path + '" width="300px"></image>'
+
+                    else:
+                        print("Motif ID %s not in seq_motif_blocks_dic ... " %(seq_motif_blocks_dic))
+
+                    mdtext += "| %s | %s | %s | %i | %i | %i |\n" %(motif_id, other_motif_id, plot_str, pair_c, in_dic[other_motif_id], out_dic[other_motif_id])
+
+            mdtext += "\n&nbsp;\n&nbsp;\n"
+            mdtext += "\nColumn IDs have the following meanings: "
+            mdtext += "**Motif ID** -> motif ID (motif belonging to set RBP), "
+            mdtext += "**Other motif ID** -> other motif ID that set RBP motif ID is compared to, "
+            mdtext += "**Other motif ID plot** -> other motif ID sequence motif plot (if motif is sequence motif), "
+            mdtext += "**Pair count** -> number of input regions containing hits for both motifs (minimum pair count to be reported: %i (set by --motif-min-pair-count)), " %(motif_min_pair_count)
+            mdtext += '**# near motifs** -> ' + "number of other motifs within specified distance (----motif-distance-plot-range %i) of the centered motif belonging to set RBP, " %(motif_distance_plot_range)
+            mdtext += '**# distant motifs** -> ' + "number of other motifs outside specified distance (----motif-distance-plot-range %i) of the centered motif belonging to set RBP." %(motif_distance_plot_range)
+            # mdtext += "\n"
+            mdtext += "\n&nbsp;\n"
+
+
+            # ALAMO ALAMO
+
+            if plotted:
+
+                plot_path = plots_folder + "/" + single_motif_dist_plot_plotly
+
+                mdtext += '<div class=class="container-fluid" style="margin-top:40px">' + "\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1200" height="700"></iframe>' + "\n"
+                mdtext += '</div>'
+                mdtext += """
+
+**Figure:** Line plot showing motif distances between motif %s (using highest-scoring hit of motif %s for each input region) and other motifs (from same and different RBPs).
+Coverage corresponds to positions occupied by motifs.
+The plot is centered on the highest-scoring hit of motif %s (lowest p-value for sequence or highest bit score) for each region containing >= 1 hit of motif %s.
+Only motifs with a pair count of >= %i appear in the plot.
+
+&nbsp;
+
+""" %(motif_id, motif_id, motif_id, motif_id, motif_min_pair_count)
+
+
+            else:
+
+                mdtext += """
+
+<em>No motif distance plot generated for motif %s. Try to lower --motif-min-pair-count (current value: %i).</em>
+
+&nbsp;
+
+""" %(motif_id, motif_min_pair_count)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     # Convert mdtext to html.
     md2html = markdown(mdtext, extensions=['attr_list', 'tables'])
@@ -3763,6 +4079,301 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
     if output:
         error = True
     assert error == False, "sed command returned error:\n%s" %(output)
+
+
+################################################################################
+
+def plot_motif_dist_rbp_level(set_rbp_id,
+                              region_rbp_motif_pos_dic,
+                              id2name_dic,
+                              rbp2mids_dic,
+                              reg2pol_dic,
+                              html_out="rbp_motif_distances.plotly.html",
+                              plotly_js_path="cdn",
+                              line_plot_range=30,
+                              min_pair_count=1):
+    """
+    Make motif distances plot on RBP level, relative to given RBP ID set_rbp.
+
+    """
+
+    # Initialize pair counts for each RBP ID, relative to set_rbp.
+    set_rbp_other_rbp_pair_count_dic = {}
+    rbp_out_range_c_dic = {}
+    rbp_in_range_c_dic = {}
+
+    for rbp_id in rbp2mids_dic:
+        set_rbp_other_rbp_pair_count_dic[rbp_id] = 0
+        rbp_out_range_c_dic[rbp_id] = 0
+        rbp_in_range_c_dic[rbp_id] = 0
+
+    # Plot position counts per RBP ID.
+    set_rbp_counts_dic = {}
+    for rbp_id in rbp2mids_dic:
+        set_rbp_counts_dic[rbp_id] = [0]*(2*line_plot_range+1)
+
+    for reg_id in region_rbp_motif_pos_dic:
+
+        # Choose best set_rbp motif in region as center.
+        best_motif_id = ""
+        best_motif_str = ""
+        best_motif_s = 0
+        best_motif_e = 0
+        best_motif_pval = 1000
+
+        for motif_str in region_rbp_motif_pos_dic[reg_id]:
+            motif_id, s, e, p = motif_str.split(",")
+            if id2name_dic[motif_id] != set_rbp_id:
+                continue
+            pval = float(p)
+            if pval < best_motif_pval:
+                best_motif_id = motif_id
+                best_motif_str = motif_str
+                best_motif_s = int(s)
+                best_motif_e = int(e)
+                best_motif_pval = pval
+
+        # If no set_rbp motif hit in region, continue.
+        if not best_motif_id:
+            continue
+        # If set_rbp motif hit is only hit.
+        if len(region_rbp_motif_pos_dic[reg_id]) == 1:
+            continue
+
+        # Center position of best motif used for centering plot.
+        best_motif_cp = get_center_position(best_motif_s-1, best_motif_e)
+
+        # print("best_motif_id:", best_motif_id)
+        # print("best_motif_cp:", best_motif_cp)
+
+        # Record counts.
+        reg_pol = reg2pol_dic[reg_id]
+
+        paired_rbp_ids_dic = {}
+
+        for motif_str in region_rbp_motif_pos_dic[reg_id]:
+            if motif_str == best_motif_str:
+                continue
+            motif_id, s, e, p = motif_str.split(",")
+            rbp_id = id2name_dic[motif_id]
+            paired_rbp_ids_dic[rbp_id] = 1
+
+            s = int(s)
+            e = int(e)
+
+            # Record for every motif position.
+            inside_plot_range = False
+
+            for pos in range(s, e+1):
+                dist = pos - best_motif_cp
+                # If on minus strand, reverse distance.
+                if reg_pol == "-":
+                    dist = -1*dist
+                if abs(dist) <= line_plot_range:
+                    set_rbp_counts_dic[rbp_id][line_plot_range+dist] += 1
+                    inside_plot_range = True
+                # else:
+                #     print("distance %i > line_plot_range")
+
+            if inside_plot_range:
+                rbp_in_range_c_dic[rbp_id] += 1
+            else:
+                rbp_out_range_c_dic[rbp_id] += 1
+
+        for rbp_id in paired_rbp_ids_dic:
+            set_rbp_other_rbp_pair_count_dic[rbp_id] += 1
+
+
+    # Plot top x pair RBPs (pair with set_rbp) only (can also be set_rbp).
+    for rbp_id, pair_c in sorted(set_rbp_other_rbp_pair_count_dic.items(), key=lambda item: item[1], reverse=True):
+        # print(rbp_id, pair_c)
+        if pair_c < min_pair_count:
+            # print("Remove %s from plotting ... " %(rbp_id))
+            del set_rbp_counts_dic[rbp_id]
+
+    # If not keys remain after min_pair_count filtering.
+    if not set_rbp_counts_dic:
+        return False, set_rbp_other_rbp_pair_count_dic, rbp_in_range_c_dic, rbp_out_range_c_dic
+
+    line_plot_index = list(range(-line_plot_range, line_plot_range+1))
+
+    # print("set_rbp_counts_dic:", set_rbp_counts_dic)
+
+    df = pd.DataFrame(set_rbp_counts_dic, index=line_plot_index)
+
+
+    df_reset = df.reset_index()
+    df_melt = df_reset.melt(id_vars='index')
+
+    # print("df_melt:", df_melt)
+    # index variable  value
+
+    df_melt.columns = ['position', 'rbp_id', 'coverage']
+
+    fig = px.line(df_melt, x='position', y='coverage', color='rbp_id')
+    fig.update_layout(
+        xaxis_title='RBP ID motif positions relative to RBP ID "%s" motif centers' %(set_rbp_id),
+        yaxis_title='Coverage',
+        autosize=True,
+        legend_title_text='RBP IDs')
+
+    fig.write_html(html_out,
+        full_html=False,
+        include_plotlyjs=plotly_js_path)
+
+    return True, set_rbp_other_rbp_pair_count_dic, rbp_in_range_c_dic, rbp_out_range_c_dic
+
+
+################################################################################
+
+def plot_motif_dist_motif_level(set_motif_id,
+                              region_rbp_motif_pos_dic,
+                              rbp2mids_dic,
+                              reg2pol_dic,
+                              html_out="motif_distances.plotly.html",
+                              plotly_js_path="cdn",
+                              line_plot_range=30,
+                              min_pair_count=1,
+                              mode=1):
+    """
+    Make motif distances plot on motif level, using set_motif_id motif ID.
+    
+    mode:
+        1: if several set_motif_id motif hits in one region, choose one with 
+        best p-value as center.
+        2: if several set_motif_id motif hits in one region, use every motif 
+        as center once.
+    
+    """
+
+    # Initialize pair counts for each motif ID, relative best set_rbp motif.
+    set_motif_other_motif_pair_count_dic = {}
+    motif_out_range_c_dic = {}
+    motif_in_range_c_dic = {}
+
+    for rbp_id in rbp2mids_dic:
+        for motif_id in rbp2mids_dic[rbp_id]:
+            set_motif_other_motif_pair_count_dic[motif_id] = 0
+            motif_out_range_c_dic[motif_id] = 0
+            motif_in_range_c_dic[motif_id] = 0
+
+    # Plot position counts per motif ID.
+    set_motif_counts_dic = {}
+    for rbp_id in rbp2mids_dic:
+        for motif_id in rbp2mids_dic[rbp_id]:
+            set_motif_counts_dic[motif_id] = [0]*(2*line_plot_range+1)
+
+
+    for reg_id in region_rbp_motif_pos_dic:
+
+        # I case several set_motif_id motif hits in region, select best.
+        best_motif_id = ""
+        best_motif_str = ""
+        best_motif_s = 0
+        best_motif_e = 0
+        best_motif_pval = 1000
+
+        for motif_str in region_rbp_motif_pos_dic[reg_id]:
+            motif_id, s, e, p = motif_str.split(",")
+            if motif_id != set_motif_id:
+                continue
+            pval = float(p)
+            if pval < best_motif_pval:
+                best_motif_id = motif_id
+                best_motif_str = motif_str
+                best_motif_s = int(s)
+                best_motif_e = int(e)
+                best_motif_pval = pval
+
+        # If no set_motif_id motif hit in region, go to next region.
+        if not best_motif_id:
+            continue
+        # If set_motif_id motif hit is only hit.
+        if len(region_rbp_motif_pos_dic[reg_id]) == 1:
+            continue
+
+        # Center position of best motif used for centering plot.
+        best_motif_cp = get_center_position(best_motif_s-1, best_motif_e)
+
+        # print("reg_id:", reg_id)
+        # print("best_motif_id:", best_motif_id)
+        # print("best_motif_cp:", best_motif_cp)
+        # print("best_motif_str:", best_motif_str)
+
+        # Record counts.
+        reg_pol = reg2pol_dic[reg_id]
+        paired_motif_ids_dic = {}
+
+        for motif_str in region_rbp_motif_pos_dic[reg_id]:
+            # Do not compare with motif hit itself.
+            if motif_str == best_motif_str:
+                continue
+            motif_id, s, e, p = motif_str.split(",")
+            paired_motif_ids_dic[motif_id] = 1
+
+            s = int(s)
+            e = int(e)
+
+            # Record for every motif position.
+            inside_plot_range = False
+
+            for pos in range(s, e+1):
+                dist = pos - best_motif_cp
+                # If on minus strand, reverse distance.
+                if reg_pol == "-":
+                    dist = -1*dist
+                if abs(dist) <= line_plot_range:
+                    set_motif_counts_dic[motif_id][line_plot_range+dist] += 1
+                    inside_plot_range = True
+                # else:
+                #     print("distance %i > line_plot_range" %(dist))
+
+            if inside_plot_range:
+                motif_in_range_c_dic[motif_id] += 1
+            else:
+                motif_out_range_c_dic[motif_id] += 1
+
+        for motif_id in paired_motif_ids_dic:
+            set_motif_other_motif_pair_count_dic[motif_id] += 1
+
+
+    # Plot top x pair motifs (pair with set_rbp) only (can also be set_rbp).
+    for motif_id, pair_c in sorted(set_motif_other_motif_pair_count_dic.items(), key=lambda item: item[1], reverse=True):
+        # print(rbp_id, pair_c)
+        if pair_c < min_pair_count:
+            # print("Remove %s from plotting (pair_c = %i) ... " %(motif_id, pair_c))
+            del set_motif_counts_dic[motif_id]
+
+    # If not keys remain after min_pair_count filtering.
+    if not set_motif_counts_dic:
+        return False, set_motif_other_motif_pair_count_dic, motif_in_range_c_dic, motif_out_range_c_dic
+
+    line_plot_index = list(range(-line_plot_range, line_plot_range+1))
+
+    # print("set_rbp_counts_dic:", set_rbp_counts_dic)
+
+    df = pd.DataFrame(set_motif_counts_dic, index=line_plot_index)
+
+    df_reset = df.reset_index()
+    df_melt = df_reset.melt(id_vars='index')
+
+    # print("df_melt:", df_melt)
+    # index variable  value
+
+    df_melt.columns = ['position', 'motif_id', 'coverage']
+
+    fig = px.line(df_melt, x='position', y='coverage', color='motif_id')
+    fig.update_layout(
+        xaxis_title='Motif positions relative to "%s" motif centers' %(set_motif_id), 
+        yaxis_title='Coverage',
+        autosize=True,
+        legend_title_text='Motif IDs')
+
+    fig.write_html(html_out,
+        full_html=False,
+        include_plotlyjs=plotly_js_path)
+
+    return True, set_motif_other_motif_pair_count_dic, motif_in_range_c_dic, motif_out_range_c_dic
 
 
 ################################################################################
@@ -3802,16 +4413,20 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
 
     # Create boolean list of lists to convert to pandas DataFrame.
     bool_ll = []
+    idx_with_hits_dic = {}
+
     for idx in rbp_idx_list:
         bool_l = []
         for rbp_id, rbp_set in sorted(rbp2regidx_dic.items()):
             if idx in rbp_set:
+                idx_with_hits_dic[idx] = 1
                 bool_l.append(True)
             else:
                 bool_l.append(False)        
         bool_ll.append(bool_l)
 
     df = pd.DataFrame(bool_ll, columns=rbp_id_list)
+
 
     """
     Some checks about degrees and subset sizes.
@@ -3852,10 +4467,27 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
         assert len(reg2annot_dic) == c_regions, "len(reg2annot_dic) != c_regions"
         # List of annotations.
         annot_ids_list = []
-        for reg_id in reg_ids_list:
+        annot_with_hits_dic = {}
+
+        for idx, reg_id in enumerate(reg_ids_list):
             annot_id = reg2annot_dic[reg_id][0]
             annot_ids_list.append(annot_id)
+            if idx in idx_with_hits_dic:
+                annot_with_hits_dic[annot_id] = 1
         df['annot'] = annot_ids_list
+
+        # df = df.sort_values('annot', ascending=False) # Sorting does not change plot.
+
+        # Get annotation ID -> hex color dictionary.
+        annot2color_dic = {}
+        hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
+        idx = 0
+        for annot in sorted(annot_with_hits_dic, reverse=False):
+            hc = hex_colors[idx]
+            # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
+            annot2color_dic[annot] = hex_colors[idx]
+            idx += 1
+        
         # Set indices (== RBP ID columns).
         df = df.set_index(rbp_id_list)
         # Move on to plotting.
@@ -3867,7 +4499,7 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
                         show_counts=True,
                         intersection_plot_elements=0,  # disable the default bar chart.
                         sort_by="cardinality")
-        upset.add_stacked_bars(by="annot", colors=None,
+        upset.add_stacked_bars(by="annot", colors=annot2color_dic,
                         title="Intersection size", elements=10)  # elements (ticks) of plotting axis it seems.
         upset.plot()
         plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.5)
@@ -3940,16 +4572,33 @@ def create_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_
     for rbp_id in rbp_id_list:
         data_dic["rbp_id"].append(rbp_id)
 
+    annot_with_hits_dic = {}
+
     for rbp_id in rbp2regidx_dic:
         for hit_idx in rbp2regidx_dic[rbp_id]:
             reg_id = reg_ids_list[hit_idx]
             annot = reg2annot_dic[reg_id][0]
+            annot_with_hits_dic[annot] = 1
             rbp_idx = rbp2idx_dic[rbp_id]
             data_dic[annot][rbp_idx] += 1
 
     df = pd.DataFrame(data_dic)
+    # Remove annotation columns with no counts.
+    df = df.loc[:, (df != 0).any(axis=0)]
 
-    ax = df.set_index('rbp_id').plot(kind='barh', stacked=True, legend=False, edgecolor="none", figsize=(fwidth, fheight))
+    # Get annotation ID -> hex color mapping for plotting.
+    annot2color_dic = {}
+
+    hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
+
+    idx = 0
+    for annot in sorted(annot_with_hits_dic, reverse=False):
+        hc = hex_colors[idx]
+        # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
+        annot2color_dic[annot] = hex_colors[idx]
+        idx += 1
+
+    ax = df.set_index('rbp_id').plot(kind='barh', stacked=True, legend=False, color=annot2color_dic, edgecolor="none", figsize=(fwidth, fheight))
     # ax = df.set_index('rbp_id').plot(kind='barh', stacked=True, legend=False, edgecolor="lightgrey", figsize=(fwidth, fheight))
 
     plt.xlabel('Annotation overlap')
