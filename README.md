@@ -337,7 +337,7 @@ Last but not least, motif distances can be plotted for a specified RBP (defined 
 
 There are several command line parameters for fine-tuning this plot as well (`--motif-distance-plot-range`, `--motif-min-pair-count`, `--rbp-min-pair-count`). 
 More details on how the plot is produced and read can be found in the HTML report.
-One thing that the plot shows is that PUM2 motifs are very similar to PUM1 motifs, explaining the PUM2 motif hits overlapping with the centered PUM1 motif hits.
+One thing that the plot shows is that PUM2 motifs are very similar to PUM1 motifs, explaining the PUM2 motif hits overlapping with the centered highest-scoring PUM1 motif hits.
 Apart from RBP level motif distances, a plot is produced for each single motif of the set RBP.
 
 
