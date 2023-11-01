@@ -319,7 +319,7 @@ In addition to the upset plot, a plot containing the genomic regions annotations
 
 
 <img src="docs/annotation_stacked_bars_plot.png" alt="Region annotations per RBP example plot"
-	title="Region annotations per RBP example plot" width="500" />
+	title="Region annotations per RBP example plot" width="600" />
 
 
 **Fig. 3**: Plot showing the genomic region annotations per RBP.
@@ -331,7 +331,7 @@ Last but not least, motif distances can be plotted for a specified RBP (defined 
 
 
 <img src="docs/set_rbp_motif_distances.png" alt="Set RBP motif distance plot"
-	title="Set RBP motif distance plot" width="500" />
+	title="Set RBP motif distance plot" width="700" />
 
 **Fig. 4**: Set RBP motif distance plot.
 
