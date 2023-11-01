@@ -324,17 +324,16 @@ In addition to the upset plot, a plot containing the genomic regions annotations
 
 **Fig. 3**: Plot showing the genomic region annotations per RBP.
 
-Interestingly, we can see that the majority of PUM1 eCLIP regions containing PUM1 motifs are located in CDS regions.
+Interestingly, we can see that the majority of PUM1 K562 eCLIP regions containing PUM1 motifs are located in CDS regions.
 
 
-Last but not least, motif distances can be plotted for a specified RBP (defined by `--set-rbp-id`). On the RBP level, this results in the following plot:
+Last but not least, motif distances can be plotted for a specified RBP (defined by `--set-rbp-id`). On the RBP level, this results in the following plot (by adding `--set-rbp-id PUM1` to the previous call):
 
 
 <img src="docs/set_rbp_motif_distances.png" alt="Set RBP motif distance plot"
 	title="Set RBP motif distance plot" width="700" />
 
-**Fig. 4**: Set RBP motif distance plot.
-
+**Fig. 4**: Set RBP PUM1 motif distance plot.
 
 There are several command line parameters for fine-tuning this plot as well (`--motif-distance-plot-range`, `--motif-min-pair-count`, `--rbp-min-pair-count`). 
 More details on how the plot is produced and read can be found in the HTML report.
