@@ -24,6 +24,7 @@ co-occurrence analysis, to benchmarking CLIP-seq peak caller methods.
         - [Search with multiple RBPs](#search-with-multiple-rbps)
         - [Search with all database RBPs](#search-with-all-database-rbps)
         - [User-provided motif search](#user-provided-motif-search)
+        - [Custom motif database](#custom-motif-database)
         - [Unstranded motif search](#unstranded-motif-search)
     - [Batch-processing multiple datasets](#batch-processing-multiple-datasets)
         - [Multiple BED input files](#multiple-bed-input-files)
@@ -69,7 +70,7 @@ RBPBench was developed and tested on Linux (Ubuntu 22.04 LTS). Currently only Li
 
 ### Conda
 
-If you do not have Conda on your system yet, you can e.g. install miniconda, a free + lightweight Conda installer. Get miniconda [here](https://docs.conda.io/en/latest/miniconda.html), choose the latest Miniconda3 Python Linux 64-bit installer and follow the installation instructions. In the end, Conda should be evocable on the command line via (possibly in a different version):
+If you do not have Conda on your system yet, you can e.g. install Miniconda, a free + lightweight Conda installer. Get Miniconda [here](https://docs.conda.io/en/latest/miniconda.html), choose the latest Miniconda3 Python Linux 64-bit installer and follow the installation instructions. In the end, Conda should be evocable on the command line via (possibly in a different version):
 
 ```
 $ conda --version
@@ -192,6 +193,9 @@ The first file (RBP hit stats) contains comprehensive hit statistics for each RB
 while the motif hits stats file contains hit statistics for each single motif hit 
 (one row per motif hit). 
 We can see that out of the 161 input regions, 27 contain a motif hit.
+Other output files that are produced include: genomic regions BED + FASTA file, 
+motif hits BED file, plus a RBP region occupancies table file.
+
 
 
 #### Informative statistics
@@ -375,6 +379,47 @@ In the same way, we can supply sequence motif(s) (PUM1) via `--user-meme-xml`, a
 ```
 rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps USER PUM2 RBFOX2 --out PUM1_user_search_out --genome hg38.fa --user-meme-xml path_to_test/PUM1_USER.xml --user-rbp-id PUM1_USER
 ```
+
+#### Custom motif database
+
+Apart from the built-in motif database and the option of user-supplied RBP motifs, 
+it is also possible to define a custom motif database, which we can then use just like the built-in motif database. 
+The following command line parameters deal with defining of a custom motif database:
+
+```
+  --custom-db str       Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme-xml, --custom-
+                        db-cm, --custom-db-info
+  --custom-db-id str    Set ID/name for provided custom motif database via --custom-db (default: "custom")
+  --custom-db-meme-xml str
+                        Provide custom motif database MEME/DREME XML file containing sequence motifs
+  --custom-db-cm str    Provide custom motif database covariance model (.cm) file containing covariance model(s)
+  --custom-db-info str  Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments
+```
+
+The database can be input as a folder (`--custom-db db_folder_path`), which needs to contain an `info.txt` file, 
+as well as a sequence motifs file (`seq_motifs.meme`, MEME/DREME XML format), and/or
+a structure motifs file (`str_motifs.cm`, covariance model format). 
+The `info.txt` is a table file containing the RBP ID to motif ID mappings. 
+Here is an example of a valid `info.txt` file content:
+
+```
+$ cat db_folder_path/info.txt
+RBP_motif_id	RBP_name	Motif_type	Organism
+A1CF_1	A1CF	meme_xml	human
+A1CF_2	A1CF	meme_xml	human
+ACIN1_1	ACIN1	meme_xml	human
+ACIN1_2	ACIN1	meme_xml	human
+ACO1_1	ACO1	meme_xml	human
+RF00032	SLBP	cm	human
+```
+
+The `Organism` column is optional, while `Motif_type` defines whether a motif 
+is a sequence motif (to be found in `seq_motifs.meme`), or a structure motif 
+(to be found in `str_motifs.cm`). The custom database ID / name needs to be defined via `--custom-db-id`.
+
+Alternatively, the files can be input separatly via `--custom-db-info`, 
+`--custom-db-meme-xml`, and `--custom-db-cm`.
+
 
 #### Unstranded motif search
 
