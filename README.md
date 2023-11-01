@@ -216,7 +216,7 @@ each input RBP pair, and the co-occurrence information can also be plotted as an
 
 Other informative statistics for multiple RBPs (examples [below](#search-with-multiple-rbps)) include an **upset plot**, showcasing which 
 **combinations of RBP motifs** occur in the data, and their relative amounts.
-If a GTF file is provided (via(`--gtf` ), regions appearing in the various combinations will also be colored by the **genomic region annotations** they overlap with.
+If a GTF file is provided (via `--gtf` ), regions appearing in the various combinations will also be colored by the **genomic region annotations** they overlap with.
 Moreover, **motif distances** between a specified RBP (defined via `--set-rbp-id`) and all other selected RBPs can be plotted.
 
 
@@ -297,8 +297,8 @@ RBP pair IDs, Fisher's exact test p-value (calculated based on contingency table
 The contingency table counts are the numbers of input genomic regions with/without shared motif hits between the compaired RBPs, with the format: [[A, B], [C, D]], where A: RBP1 AND RBP2, B: NOT RBP1 AND RBP2 C: RBP1 AND NOT RBP2 D: NOT RBP1 AND NOT RBP2.
 
 To inform about **occurrences of RBP motif combinations** in the genomic input regions, an **upset plot** is produced.
-In addition, if we supply a **GTF file** in addition ( (`--gtf`)), we get **genomic region annotation** coloring.
-We can extend our previous call like:
+In addition, if we supply a **GTF file** in addition (`--gtf`), we get **genomic region annotation** coloring.
+For this extend our previous call:
 
 ```
 rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps RBFOX2 PUM1 PUM2 --out test_pum1_out --genome hg38.fa --report --gtf Homo_sapiens.GRCh38.110.gtf.gz --upset-plot-min-subset-size 3 --upset-plot-min-degree 1
@@ -309,10 +309,10 @@ This produces the following upset plot:
 <img src="docs/rbp_region_occupancies.upset_plot.png" alt="RBP motif combinations example plot"
 	title="RBP motif combinations example plot" width="500" />
 
-**Fig. 2**: Upset plot showing the RBP motif combinations found in the genomic input sites.
+**Fig. 2**: Upset plot showing RBP motif combinations (plus set sizes) found in the genomic input regions.
 
 
-For more details on how to read the plot, see the produced HTML report. In this example we use a GTF file downloaded from [Ensembl](http://www.ensembl.org/info/data/ftp/index.html), but you can also provide e.g. a GTF file from [GENCODE](https://www.gencodegenes.org/human/). There are several parameters to define the sizes of combinations to include in the upset plot (`--upset-plot-min-degree`, `--upset-plot-max-degree`, `--upset-plot-min-subset-size`). By default, the most prominent transcripts are used for annotation. Alternatively, a list of transcript can be provided via `--tr-list`. Which region annotations are to be considered can be further defined via `--tr-types`, and the minimum region annotation overlap can be set via ` --gtf-feat-min-overlap`.
+For more details on how to read the plot, see the produced HTML report. In this example we use a GTF file downloaded from [Ensembl](http://www.ensembl.org/info/data/ftp/index.html), but you can also provide a GTF file from  e.g. [GENCODE](https://www.gencodegenes.org/human/). There are several parameters to define the sizes of combinations to include in the upset plot (`--upset-plot-min-degree`, `--upset-plot-max-degree`, `--upset-plot-min-subset-size`). By default, the most prominent transcripts are used for annotation. Alternatively, a list of transcripts can be provided via `--tr-list`. Which region annotations are to be considered can be further defined via `--tr-types`, and the minimum region annotation overlap can be set via ` --gtf-feat-min-overlap`.
 
 
 In addition to the upset plot, a plot containing the genomic regions annotations for each single RBP is generated:
@@ -335,9 +335,9 @@ Last but not least, motif distances can be plotted for a specified RBP (defined 
 
 **Fig. 4**: Set RBP motif distance plot.
 
-Detailed information on how the plo
 
-More details on how the plot is produced and read can be found in the HTML report. 
+There are several command line parameters for fine-tuning this plot as well (`--motif-distance-plot-range`, `--motif-min-pair-count`, `--rbp-min-pair-count`). 
+More details on how the plot is produced and read can be found in the HTML report.
 One thing that the plot shows is that PUM2 motifs are very similar to PUM1 motifs, explaining the PUM2 motif hits overlapping with the centered PUM1 motif hits.
 Apart from RBP level motif distances, a plot is produced for each single motif of the set RBP.
 
