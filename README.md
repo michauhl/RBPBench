@@ -54,9 +54,9 @@ co-occurrence analysis, to benchmarking CLIP-seq peak caller methods.
 As no ground truth (i.e., set of true transcriptome-wide binding sites of an RBP) exists, one obvious way to quantify the performance of a peak caller is to look for the enrichment of known RBP binding motifs in the binding site (peak region) data. 
 Since there exists no automated solution for this task yet, we implemented RBPBench:
 RBPBench is multi-function tool to evaluate CLIP-seq and other genomic region data 
-using a comprehensive collection of known high-confidence RBP binding motifs (release v0.1: 259 RBPs comprising 605 motifs).
+using a comprehensive collection of known high-confidence RBP binding motifs (as of RBPBench v0.2: 259 RBPs comprising 605 motifs).
 RBPBench can be used for benchmarking CLIP-seq peak callers, but it works just as well for other RBP-related research questions:
-one can e.g. look for RBP binding motifs in any set of genomic regions (selecting any number of RBPs of interest, including user supplied motifs),
+one can e.g. look for RBP binding motifs in any set of genomic regions (selecting any number of RBPs of interest, including user-supplied motifs),
 and check for RBP motif co-occurrences (to see which RBPs bind similar regions).
 RBPBench is easy to use and freely available via conda (command line usage) or on Galaxy.
 Comprehensive statistics and informative plots allow for easy comparisons across multiple RBPs and peak callers.
@@ -126,8 +126,7 @@ rbpbench -h
 
 ### RBPBench on Galaxy
 
-RBPBench will soon be available on Galaxy.
-
+RBPBench will soon be available on [Galaxy](https://usegalaxy.eu/).
 
 
 ## Example runs
@@ -327,7 +326,7 @@ In addition to the upset plot, a plot containing the genomic regions annotations
 Interestingly, we can see that the majority of PUM1 K562 eCLIP regions containing PUM1 motifs are located in CDS regions.
 
 
-Last but not least, motif distances can be plotted for a specified RBP (defined by `--set-rbp-id`). On the RBP level, this results in the following plot (by adding `--set-rbp-id PUM1` to the previous call):
+Last but not least, **motif distances** can be plotted for a specified RBP (defined by `--set-rbp-id`). On the RBP level, this results in the following plot (by adding `--set-rbp-id PUM1` to the previous call):
 
 
 <img src="docs/set_rbp_motif_distances.png" alt="Set RBP motif distance plot"
