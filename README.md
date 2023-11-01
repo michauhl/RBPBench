@@ -383,8 +383,8 @@ rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps USER PUM2 RBFOX2 --out PUM1_
 #### Custom motif database
 
 Apart from the built-in motif database and the option of user-supplied RBP motifs, 
-it is also possible to define a custom motif database, which we can then use just like the built-in motif database. 
-The following command line parameters deal with defining of a custom motif database:
+it is also possible to define a custom motif database, which we can then be applied just like the built-in motif database. 
+The following command line parameters deal with defining a custom motif database:
 
 ```
   --custom-db str       Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme-xml, --custom-
@@ -413,11 +413,11 @@ ACO1_1	ACO1	meme_xml	human
 RF00032	SLBP	cm	human
 ```
 
-The `Organism` column is optional, while `Motif_type` defines whether a motif 
-is a sequence motif (to be found in `seq_motifs.meme`), or a structure motif 
-(to be found in `str_motifs.cm`). The custom database ID / name needs to be defined via `--custom-db-id`.
-
-Alternatively, the files can be input separatly via `--custom-db-info`, 
+The `Organism` column is currently optional, while `Motif_type` defines whether a motif 
+is a sequence motif (expected to be found in `seq_motifs.meme`), or a structure motif 
+(expected to be found in `str_motifs.cm`). 
+An ID / name for the custom database needs to be defined as well via `--custom-db-id`.
+Alternatively, the files can be input separately via `--custom-db-info`, 
 `--custom-db-meme-xml`, and `--custom-db-cm`.
 
 
