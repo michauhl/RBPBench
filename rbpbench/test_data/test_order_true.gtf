@@ -1,0 +1,10 @@
+chr1	StringTie	transcript	149054033	149082430	.	-	.	transcript_id "ENST00000613595.4"; gene_id "MSTRG.1496"; gene_name "NBPF9"; xloc "XLOC_004117"; ref_gene_id "ENSG00000269713.7"; cmp_ref "ENST00000613595.4"; class_code "="; tss_id "TSS10003";
+chr1	StringTie	exon	149061332	149061383	.	-	.	transcript_id "ENST00000613595.4"; gene_id "MSTRG.1496"; exon_number "1";
+chr1	StringTie	exon	149060523	149060695	.	-	.	transcript_id "ENST00000613595.4"; gene_id "MSTRG.1496"; exon_number "2";
+chr1	StringTie	exon	149056512	149056620	.	-	.	transcript_id "ENST00000613595.4"; gene_id "MSTRG.1496"; exon_number "3";
+chr1	StringTie	exon	149054033	149055899	.	-	.	transcript_id "ENST00000613595.4"; gene_id "MSTRG.1496"; exon_number "4";
+chr19	StringTie	transcript	3359583	3469217	.	+	.	transcript_id "MSTRG.11612.3"; gene_id "MSTRG.11612"; gene_name "NFIC"; xloc "XLOC_025438"; cmp_ref "ENST00000641145.1"; class_code "j"; tss_id "TSS63599";
+chr19	StringTie	exon	3359583	3359685	.	+	.	transcript_id "MSTRG.11612.3"; gene_id "MSTRG.11612"; exon_number "1";
+chr19	StringTie	exon	3381712	3382243	.	+	.	transcript_id "MSTRG.11612.3"; gene_id "MSTRG.11612"; exon_number "2";
+chr19	StringTie	exon	3425106	3425177	.	+	.	transcript_id "MSTRG.11612.3"; gene_id "MSTRG.11612"; exon_number "3";
+chr19	StringTie	exon	3433518	3433592	.	+	.	transcript_id "MSTRG.11612.3"; gene_id "MSTRG.11612"; exon_number "4";

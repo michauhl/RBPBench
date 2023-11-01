@@ -7,7 +7,7 @@ from setuptools import setup
 
 setup(
     name='rbpbench',
-    version='0.1',
+    version='0.2',
     description='Evaluate CLIP-seq and other genomic region data using a comprehensive collection of known RBP binding motifs',
     long_description=open('README.md').read(),
     author='Michael Uhl',
@@ -16,6 +16,6 @@ setup(
     license='MIT',
     scripts=['bin/rbpbench'],
     packages=['rbpbench'],
-    package_data={'rbpbench': ['content/*']},
+    package_data={'rbpbench': ['content/*', 'content/catrapid.omics.v2.1.human.6plus_motif_plots/*']},
     zip_safe=False,
 )

@@ -1,8 +1,12 @@
 # RBPBench
+
+[![GitHub](https://img.shields.io/github/tag/michauhl/RBPBench.svg)](https://github.com/michauhl/RBPBench)
+[![Bioconda](https://anaconda.org/bioconda/rbpbench/badges/version.svg)](https://anaconda.org/bioconda/rbpbench)
+
 RBPBench is multi-function tool to evaluate CLIP-seq and other genomic region data 
 using a comprehensive collection of known RBP binding motifs. RBPBench can be used for a variety of
 purposes, from RBP motif search (database or user-supplied RBPs) in genomic regions, over motif 
-co-occurrence analysis, to benchmarking CLIP-seq peak caller methods. 
+co-occurrence analysis, to benchmarking CLIP-seq peak caller methods as well as comparisons across cell types and CLIP-seq protocols.
 
 ## Table of contents
 
@@ -20,6 +24,7 @@ co-occurrence analysis, to benchmarking CLIP-seq peak caller methods.
         - [Search with multiple RBPs](#search-with-multiple-rbps)
         - [Search with all database RBPs](#search-with-all-database-rbps)
         - [User-provided motif search](#user-provided-motif-search)
+        - [Custom motif database](#custom-motif-database)
         - [Unstranded motif search](#unstranded-motif-search)
     - [Batch-processing multiple datasets](#batch-processing-multiple-datasets)
         - [Multiple BED input files](#multiple-bed-input-files)
@@ -45,17 +50,17 @@ co-occurrence analysis, to benchmarking CLIP-seq peak caller methods.
 
 ## Introduction
 
-[CLIP-seq](https://doi.org/10.1038/s43586-021-00018-1) is the by far most common experimental method to identify the RNA binding sites of an RNA-binding protein (RBP) on a transcriptome-wide scale. Various popular protocol variants exist, such as PAR-CLIP, iCLIP, or eCLIP. In order to identify the binding sites from the mapped CLIP-seq read data, tools termed peak callers are applied on the read data. Regions with enriched read numbers in the CLIP-seq libraries (i.e., peak regions), typically compared to one or more control libraries, are subsequently defined as RBP binding sites. Various peak callers exist, applying various techniques in order to define the binding sites.
+[CLIP-seq](https://doi.org/10.1038/s43586-021-00018-1) is the by far most common experimental method to identify the RNA binding sites of an RNA-binding protein (RBP) on a transcriptome-wide scale. Various popular protocol variants exist, such as PAR-CLIP, iCLIP, or eCLIP. In order to identify the binding sites from the mapped CLIP-seq read data, tools termed peak callers are applied on the read data. Regions with enriched read numbers in the CLIP-seq read library (i.e., peak regions), typically compared to a control library, are subsequently defined as RBP binding sites. Various peak callers exist, applying various techniques in order to define the binding sites.
 
 As no ground truth (i.e., set of true transcriptome-wide binding sites of an RBP) exists, one obvious way to quantify the performance of a peak caller is to look for the enrichment of known RBP binding motifs in the binding site (peak region) data. 
 Since there exists no automated solution for this task yet, we implemented RBPBench:
 RBPBench is multi-function tool to evaluate CLIP-seq and other genomic region data 
-using a comprehensive collection of known high-confidence RBP binding motifs (release v0.1: 259 RBPs comprising 605 motifs).
+using a comprehensive collection of known high-confidence RBP binding motifs (as of RBPBench v0.2: 259 RBPs comprising 605 motifs).
 RBPBench can be used for benchmarking CLIP-seq peak callers, but it works just as well for other RBP-related research questions:
-one can e.g. look for RBP binding motifs in any set of genomic regions (selecting any number of RBPs of interest, including user supplied motifs),
+one can e.g. look for RBP binding motifs in any set of genomic regions (selecting any number of RBPs of interest, including user-supplied motifs),
 and check for RBP motif co-occurrences (to see which RBPs bind similar regions).
 RBPBench is easy to use and freely available via conda (command line usage) or on Galaxy.
-Comprehensive statistics and informative plots allow for easy comparisons across multiple RBPs and peak callers.
+Comprehensive statistics and informative plots allow for easy comparisons of RBP binding across multiple RBPs and peak callers.
 Last but not least, RBPBench comes with an extensive manual, including many usage examples.
 
 
@@ -65,7 +70,7 @@ RBPBench was developed and tested on Linux (Ubuntu 22.04 LTS). Currently only Li
 
 ### Conda
 
-If you do not have Conda on your system yet, you can e.g. install miniconda, a free + lightweight Conda installer. Get miniconda [here](https://docs.conda.io/en/latest/miniconda.html), choose the latest Miniconda3 Python Linux 64-bit installer and follow the installation instructions. In the end, Conda should be evocable on the command line via (possibly in a different version):
+If you do not have Conda on your system yet, you can e.g. install Miniconda, a free + lightweight Conda installer. Get Miniconda [here](https://docs.conda.io/en/latest/miniconda.html), choose the latest Miniconda3 Python Linux 64-bit installer and follow the installation instructions. In the end, Conda should be evocable on the command line via (possibly in a different version):
 
 ```
 $ conda --version
@@ -84,11 +89,11 @@ conda activate rbpbench
 conda install -c bioconda rbpbench
 ```
 
-If `conda install` is taking too long, you can also try `mamba` or `micromamba`.
+If `conda install` is taking too long, one way to speed up the process is to replace the solver of Conda with the Mamba solver.
 
 ```
-conda install -c conda-forge micromamba
-micromamba install -c bioconda rbpbench
+conda install -n base conda-libmamba-solver
+conda config --set solver libmamba
 ```
 
 RBPBench should now be available inside the environment:
@@ -102,7 +107,7 @@ rbpbench -h
 Manual installation of RBPBench is only slightly more work. First we create the Conda environment with all necessary dependencies:
 
 ```
-conda create -n rbpbench -c conda-forge -c bioconda logomaker markdown meme scipy plotly textdistance venn matplotlib-venn infernal bedtools
+conda create -n rbpbench -c conda-forge -c bioconda logomaker markdown meme scipy plotly textdistance venn matplotlib-venn infernal bedtools upsetplot
 ```
 
 Next we activate the environment, clone the RBPBench repository, and install RBPBench:
@@ -122,8 +127,7 @@ rbpbench -h
 
 ### RBPBench on Galaxy
 
-RBPBench will soon be available on Galaxy.
-
+RBPBench will soon be available on [Galaxy](https://usegalaxy.eu/).
 
 
 ## Example runs
@@ -189,6 +193,9 @@ The first file (RBP hit stats) contains comprehensive hit statistics for each RB
 while the motif hits stats file contains hit statistics for each single motif hit 
 (one row per motif hit). 
 We can see that out of the 161 input regions, 27 contain a motif hit.
+Other output files that are produced include: genomic regions BED + FASTA file, 
+motif hits BED file, plus a RBP region occupancies table file.
+
 
 
 #### Informative statistics
@@ -206,9 +213,14 @@ rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps SLBP --out SLBP_test_search_
 we get a significant enrichment of motif hits (Wilcoxon p-value: 6.87978e-09), 
 meaning that input regions with SLBP motif hits also feature significantly higher scores.
 
-The second test addresses **RBP motif co-occurrences** (i.e., between two different RBPs), 
+The second test applies **if multiple RBPs are selected** and addresses **RBP motif co-occurrences** (i.e., between two different RBPs), 
 using Fisher's exact test. For this a 2x2 contingency table is constructed between 
-each input RBP pair, and the co-occurrence information can also be plotted as an interactive heat map (see [example with multiple RBPs](#search-with-multiple-rbps) below). In addition to the co-occurrence statistics, the HTML report also includes a heat map plot of the **correlations between RBPs** (Pearson correlation coefficients). For this genomic input regions are labelled 1 or 0 (RBP motif present or not), resulting in a vector of 1s and 0s for each RBP. Correlations are then calculated by comparing vectors for every pair of RBPs. 
+each input RBP pair, and the co-occurrence information can also be plotted as an **interactive heat map** (see example [below](#search-with-multiple-rbps)). 
+
+Other informative statistics for multiple RBPs (examples [below](#search-with-multiple-rbps)) include an **upset plot**, showcasing which 
+**combinations of RBP motifs** occur in the data, and their relative amounts.
+If a GTF file is provided (via `--gtf` ), regions appearing in the various combinations will also be colored by the **genomic region annotations** they overlap with.
+Moreover, **motif distances** between a specified RBP (defined via `--set-rbp-id`) and all other selected RBPs can be plotted.
 
 
 #### Additional search options
@@ -244,7 +256,7 @@ wget https://www.encodeproject.org/files/ENCFF094MQV/@@download/ENCFF094MQV.bed.
 gunzip -c ENCFF094MQV.bed.gz | awk '{print $1"\t"$2"\t"$3"\t"$4"\t"$7"\t"$6}' > PUM1_K562_IDR_peaks.bed
 ```
 
-When searching with multiple RBPs, motif hit co-occurences and correlations might become of interest (besides the provided individual RBP statistics). For this we can also output an HTML report file, including hit statistics and interactive plots (`--report`).
+When searching with multiple RBPs, motif hit co-occurences might become of interest (besides the provided individual RBP statistics). For this we can also output an HTML report file, including hit statistics and interactive plots (`--report`).
 
 ```
 rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps RBFOX2 PUM1 PUM2 --out test_pum1_out --genome hg38.fa --report
@@ -253,6 +265,8 @@ rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps RBFOX2 PUM1 PUM2 --out test_
 The following output files are produced:
 
 ```
+Run parameter settings:
+test_pum1_out/settings.find_motifs.out
 Co-occurrence p-values for each RBP pair .tsv:
 test_pum1_out/contingency_table_results.tsv
 Filtered input regions .bed:
@@ -261,6 +275,8 @@ Filtered input regions .fa:
 test_pum1_out/in_sites.filtered.fa
 Motif hits .bed:
 test_pum1_out/motif_hits.rbpbench_search.bed
+RBP region occupancies .tsv:
+test_pum1_out/rbp_region_occupancies.tsv
 RBP hit stats .tsv:
 test_pum1_out/rbp_hit_stats.tsv
 Motif hit stats .tsv:
@@ -269,12 +285,13 @@ Search report .html:
 test_pum1_out/report.rbpbench_search.html
 ```
 
-The search report `report.rbpbench_search.html` contains a table of motif 
-enrichment statistics, as well as the interactive RBP co-occurrences and correlations heat maps.
+The search report `report.rbpbench_search.html` contains a table with motif 
+enrichment statistics, as well as an interactive **RBP co-occurrences heat map**,
+aplus some more informative statistics (see example figures below).
 We can see that PUM1 binding regions with motif hits have significantly higher scores 
 (Wilcoxon p-value = 0.00175), and that PUM1 and PUM2 have a significant co-occurrence 
 p-value (Fisher's exact test) of 2.48116e-31. In contrast, RBFOX2 co-occurrence p-values
-with PUM1 or PUM2 are not significant (0.15234, 0.52303). 
+with PUM1 or PUM2 are not significant (0.15234, 0.52303).
 The produced co-occurrence heat map in the report looks the following:
 
 <img src="docs/co-occurrence_heat_map_example.png" alt="Co-occurrence heat map example screenshot"
@@ -284,16 +301,58 @@ The produced co-occurrence heat map in the report looks the following:
 
 We can see that the interactive co-occurrence heat map gives us the following information for each RBP pair: 
 RBP pair IDs, Fisher's exact test p-value (calculated based on contingency table between RBP1 and RBP2), contingency table counts between RBP1 and RBP2, -log10 of Fisher's exact test p-value (used as coloring/scale value). 
-The contingency table counts are the numbers of input genomic regions with/without shared motif hits between the compaired RBPs, with the format: [[A, B], [C, D]], where A: RBP1 AND RBP2, B: NOT RBP1 AND RBP2 C: RBP1 AND NOT RBP2 D: NOT RBP1 AND NOT RBP2
+The contingency table counts are the numbers of input genomic regions with/without shared motif hits between the compaired RBPs, with the format: [[A, B], [C, D]], where A: RBP1 AND RBP2, B: NOT RBP1 AND RBP2 C: RBP1 AND NOT RBP2 D: NOT RBP1 AND NOT RBP2.
 
-Similarly, we can output an HTML report (`motif_plots.rbpbench_search.html`) including the used sequence logos and motif hit statistics (`--plot-motifs`):
+To inform about **occurrences of RBP motif combinations** in the genomic input regions, an **upset plot** is produced.
+In addition, once we supply a **GTF file** (`--gtf`), we get **genomic region annotation** coloring.
+For this we extend our previous call:
+
+```
+rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps RBFOX2 PUM1 PUM2 --out test_pum1_out --genome hg38.fa --report --gtf Homo_sapiens.GRCh38.110.gtf.gz --upset-plot-min-subset-size 3 --upset-plot-min-degree 1
+```
+
+This produces the following upset plot:
+
+<img src="docs/rbp_region_occupancies.upset_plot.png" alt="RBP motif combinations example plot"
+	title="RBP motif combinations example plot" width="550" />
+
+**Fig. 2**: Upset plot showing RBP motif combinations (plus set sizes) found in the genomic input regions.
+
+
+For more details on how to read the plot, see the produced HTML report. In this example we use a GTF file downloaded from [Ensembl](http://www.ensembl.org/info/data/ftp/index.html), but you can also provide a GTF file from  e.g. [GENCODE](https://www.gencodegenes.org/human/). There are several parameters to define the sizes of combinations to include in the upset plot (`--upset-plot-min-degree`, `--upset-plot-max-degree`, `--upset-plot-min-subset-size`). By default, the most prominent transcripts are used for annotation (one transcript selected for each gene in the GTF file). Alternatively, a list of transcripts can be provided via `--tr-list`. Which region annotations are to be considered can be further defined via `--tr-types`, and the minimum region annotation overlap can be set via `--gtf-feat-min-overlap`.
+
+
+In addition to the upset plot, a plot containing the genomic regions annotations for each single RBP is generated:
+
+
+<img src="docs/annotation_stacked_bars_plot.png" alt="Region annotations per RBP example plot"
+	title="Region annotations per RBP example plot" width="700" />
+
+
+**Fig. 3**: Plot showing the genomic region annotations per RBP.
+
+Interestingly, we can see that the majority of PUM1 K562 eCLIP regions containing PUM1 motifs are located in CDS regions.
+
+
+Last but not least, **motif distances** can be plotted for a specified RBP (defined by `--set-rbp-id`). On the RBP level, this results in the following plot (by adding `--set-rbp-id PUM1` to the previous call):
+
+
+<img src="docs/set_rbp_motif_distances.png" alt="Set RBP motif distance plot"
+	title="Set RBP motif distance plot" width="700" />
+
+**Fig. 4**: Set RBP PUM1 motif distance plot.
+
+There are several command line parameters for fine-tuning this plot as well (`--motif-distance-plot-range`, `--motif-min-pair-count`, `--rbp-min-pair-count`). 
+More details on how the plot is produced and read can be found in the HTML report.
+One thing that the plot shows is that PUM2 motifs are very similar to PUM1 motifs, explaining the high number of PUM2 motif hits overlapping with the centered highest-scoring PUM1 motif hits.
+Apart from RBP level motif distances, a plot is produced for each single motif of the set RBP.
+
+
+In addition to the described HTML report, we can output a **motif information based HTML report** (`motif_plots.rbpbench_search.html`), including the used sequence logos and motif hit statistics (`--plot-motifs`):
 
 ```
 rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps RBFOX2 PUM1 PUM2 --out test_pum1_out --genome hg38.fa --report --plot-motifs
 ```
-
-Note that this can take a bit if the whole database (`--rbps ALL`) is used for search (see below).
-
 
 
 #### Search with all database RBPs
@@ -304,7 +363,7 @@ To use all database RBPs for motif search, we just need to specify `--rbps ALL`:
 rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps ALL --out SLBP_all_search_out --genome hg38.fa --report
 ```
 
-This uses all 259 database RBPs (default database: `human_v0.1`, 605 RBP motifs all together). 
+This uses all 259 database RBPs (default database: `catrapid.omics.v2.1.human.6plus`, 605 RBP motifs all together). 
 Note that SLBP has the lowest Wilcoxon p-value (6.87978e-09) of all 259 RBPs, 
 demonstrating the plausibility and usefulness of the provided statistics.
 
@@ -324,6 +383,47 @@ In the same way, we can supply sequence motif(s) (PUM1) via `--user-meme-xml`, a
 ```
 rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps USER PUM2 RBFOX2 --out PUM1_user_search_out --genome hg38.fa --user-meme-xml path_to_test/PUM1_USER.xml --user-rbp-id PUM1_USER
 ```
+
+#### Custom motif database
+
+Apart from the built-in motif database and the option of user-supplied RBP motifs, 
+it is also possible to define a custom motif database, which can then be applied just like the built-in motif database. 
+The following command line parameters deal with defining a custom motif database:
+
+```
+  --custom-db str       Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme-xml, --custom-
+                        db-cm, --custom-db-info
+  --custom-db-id str    Set ID/name for provided custom motif database via --custom-db (default: "custom")
+  --custom-db-meme-xml str
+                        Provide custom motif database MEME/DREME XML file containing sequence motifs
+  --custom-db-cm str    Provide custom motif database covariance model (.cm) file containing covariance model(s)
+  --custom-db-info str  Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments
+```
+
+The database can be input as a folder (`--custom-db db_folder_path`), which needs to contain an `info.txt` file, 
+as well as a sequence motifs file (`seq_motifs.meme`, MEME/DREME XML format), and/or
+a structure motifs file (`str_motifs.cm`, covariance model format). 
+The `info.txt` is a table file containing the RBP ID to motif ID mappings. 
+Here is an example of a valid `info.txt` file content:
+
+```
+$ cat db_folder_path/info.txt
+RBP_motif_id	RBP_name	Motif_type	Organism
+A1CF_1	A1CF	meme_xml	human
+A1CF_2	A1CF	meme_xml	human
+ACIN1_1	ACIN1	meme_xml	human
+ACIN1_2	ACIN1	meme_xml	human
+ACO1_1	ACO1	meme_xml	human
+RF00032	SLBP	cm	human
+```
+
+The `Organism` column is currently optional, while `Motif_type` defines whether a motif 
+is a sequence motif (expected to be found in `seq_motifs.meme`), or a structure motif 
+(expected to be found in `str_motifs.cm`). 
+An ID / name for the custom database needs to be defined as well via `--custom-db-id`.
+Alternatively, the files can be input separately via `--custom-db-info`, 
+`--custom-db-meme-xml`, and `--custom-db-cm`.
+
 
 #### Unstranded motif search
 
@@ -486,7 +586,7 @@ In the `PUM1` example, the produced Venn diagram looks like this:
 <img src="docs/venn_diagram.method_comp.k562_eclip,human_v0.1,PUM1.png" alt="PUM1 example Venn diagram"
 	title="PUM1 example Venn diagram" width="600" />
 
-**Fig. 2**: Venn diagram of motif hits by peak calling methods CLIPper IDR and DEWSeq (PUM1 eCLIP K562 data). 
+**Fig. 5**: Venn diagram of motif hits by peak calling methods CLIPper IDR and DEWSeq (PUM1 eCLIP K562 data). 
 Motif hit numbers and percentages of total motif hits are shown for each region (method exclusive and intersection).
 
 We can see that the overlap is not particularly high for the PUM1 dataset. In contrast, the overlap is higher for the `PUM2` dataset:
@@ -494,7 +594,7 @@ We can see that the overlap is not particularly high for the PUM1 dataset. In co
 <img src="docs/venn_diagram.method_comp.k562_eclip,human_v0.1,PUM2.png" alt="PUM2 example Venn diagram"
 	title="PUM2 example Venn diagram" width="600" />
 
-**Fig. 3**: Venn diagram of motif hits by peak calling methods CLIPper IDR and DEWSeq (PUM2 eCLIP K562 data). 
+**Fig. 6**: Venn diagram of motif hits by peak calling methods CLIPper IDR and DEWSeq (PUM2 eCLIP K562 data). 
 Motif hit numbers and percentages of total motif hits are shown for each region (method exclusive and intersection).
 
 
@@ -542,7 +642,7 @@ the produced Venn diagram looks the following:
 <img src="docs/venn_diagram.data_comp.clipper_idr,human_v0.1,RBFOX2.png" alt="RBFOX2 example Venn diagram"
 	title="RBFOX2 example Venn diagram" width="600" />
 
-**Fig. 4**: Venn diagram of motif hits for RBFOX2 in two cell lines HepG2 and K562 (peak calling method CLIPper IDR).
+**Fig. 7**: Venn diagram of motif hits for RBFOX2 in two cell lines HepG2 and K562 (peak calling method CLIPper IDR).
 Motif hit numbers and percentages of total motif hits are shown for each region (method exclusive and intersection).
 
 
@@ -579,7 +679,7 @@ The generated plot (`test_dist_out/nt_dist_zero_pos.png`) looks the following:
 <img src="docs/nt_dist_zero_pos.stop_codons.png" alt="Nucleotide distribution at stop codons"
 	title="Nucleotide distribution at stop codons" width="500" />
 
-**Fig. 5**: Nucleotide distribution (position probability matrix) at genomic stop codon positions (human transcript annotations, ENSEMBL GRCh38 release 110).
+**Fig. 8**: Nucleotide distribution (position probability matrix) at genomic stop codon positions (human transcript annotations, ENSEMBL GRCh38 release 110).
 
 We can clearly identify the known stop codon triplet sequences (in DNA: TAA, TAG, TGA), starting 
 at position 0.
@@ -588,7 +688,7 @@ at position 0.
 
 ## Documentation
 
-This documentation provides further details on RBPBench (version 0.1).
+This documentation provides further details on RBPBench (version 0.2).
 
 ### Program modes
 
@@ -602,20 +702,20 @@ usage: rbpbench [-h] [-v] {search,batch,optex,info,dist,compare} ...
 Evaluate CLIP-seq and other genomic region data using a comprehensive
 collection of known RBP binding motifs (RNA sequence + structure). RBPBench
 can be used for a variety of purposes, from RBP motif search in genomic
-regions, over motif co-occurence analysis, to benchmarking CLIP-seq peak
+regions, over motif co-occurrence analysis, to benchmarking CLIP-seq peak
 callers.
 
 positional arguments:
   {search,batch,optex,info,dist,compare}
                         Program modes
     search              Search motifs in genomic sites
-    batch               Find motifs on > 1 dataset
+    batch               Search motifs on > 1 dataset
     optex               Investigate optimal extension
     info                Print out RBP IDs in database
     dist                Plot nt distribution at genomic positions
     compare             Compare different search results
 
-options:
+optional arguments:
   -h, --help            show this help message and exit
   -v, --version         show program's version number and exit
 
@@ -805,5 +905,4 @@ are described in the example section [above](#search-with-multiple-rbps).
 
 #### No FIMO hits
 
-This can e.g. happen if you have an old MEME version installed (v4). RBPBench was implemented using v5, so please install MEME v5 (e.g. 5.5.3). 
-To make this work you can also try the `mamba` or `micromamba` package manager to install RBPBench (instead of `conda`, see [above](#conda-package-installation)).
+This can e.g. happen if you have an old MEME version installed (v4). RBPBench was implemented using v5, and as of v0.2 throws an error if anything below MEME v5 is installed. 
