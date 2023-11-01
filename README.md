@@ -296,7 +296,7 @@ RBP pair IDs, Fisher's exact test p-value (calculated based on contingency table
 The contingency table counts are the numbers of input genomic regions with/without shared motif hits between the compaired RBPs, with the format: [[A, B], [C, D]], where A: RBP1 AND RBP2, B: NOT RBP1 AND RBP2 C: RBP1 AND NOT RBP2 D: NOT RBP1 AND NOT RBP2.
 
 To inform about **occurrences of RBP motif combinations** in the genomic input regions, an **upset plot** is produced.
-In addition, if we supply a **GTF file** in addition (`--gtf`), we get **genomic region annotation** coloring.
+In addition, once we supply a **GTF file** (`--gtf`), we get **genomic region annotation** coloring.
 For this extend our previous call:
 
 ```
