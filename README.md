@@ -340,7 +340,7 @@ One thing that the plot shows is that PUM2 motifs are very similar to PUM1 motif
 Apart from RBP level motif distances, a plot is produced for each single motif of the set RBP.
 
 
-In addition to the described HTML report, we can output an **additional motif information based report** (`motif_plots.rbpbench_search.html`), including the used sequence logos and motif hit statistics (`--plot-motifs`):
+In addition to the described HTML report, we can output a **motif information based HTML report** (`motif_plots.rbpbench_search.html`), including the used sequence logos and motif hit statistics (`--plot-motifs`):
 
 ```
 rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps RBFOX2 PUM1 PUM2 --out test_pum1_out --genome hg38.fa --report --plot-motifs
