@@ -33,6 +33,7 @@ Run doctests
 ~~~~~~~~~~~~~
 
 python3 -m doctest benchlib.py
+python3 -m doctest -v benchlib.py
 
 
 
