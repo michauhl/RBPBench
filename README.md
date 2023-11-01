@@ -212,7 +212,7 @@ meaning that input regions with SLBP motif hits also feature significantly highe
 
 The second test addresses **RBP motif co-occurrences** (i.e., between two different RBPs), 
 using Fisher's exact test. For this a 2x2 contingency table is constructed between 
-each input RBP pair, and the co-occurrence information can also be plotted as an **interactive heat map** (see [example with multiple RBPs](#search-with-multiple-rbps) below). 
+each input RBP pair, and the co-occurrence information can also be plotted as an **interactive heat map** (see example [below](#search-with-multiple-rbps)). 
 
 Other informative statistics (examples [below](#search-with-multiple-rbps)) include an **upset plot**, showcasing which 
 **combinations of RBP motifs** occur in the data, and their relative amounts.
