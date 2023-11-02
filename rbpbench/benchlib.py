@@ -2169,7 +2169,7 @@ def get_rbp_id_mappings(rbp2ids_file):
     ...
     RF00032	SLBP	cm	human
 
-    RBPBench v0.2:
+    RBPBench v0.3:
     Currently ignore Organism column / do not use this information.
 
     """

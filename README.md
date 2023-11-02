@@ -55,7 +55,7 @@ co-occurrence analysis, to benchmarking CLIP-seq peak caller methods as well as 
 As no ground truth (i.e., set of true transcriptome-wide binding sites of an RBP) exists, one obvious way to quantify the performance of a peak caller is to look for the enrichment of known RBP binding motifs in the binding site (peak region) data. 
 Since there exists no automated solution for this task yet, we implemented RBPBench:
 RBPBench is multi-function tool to evaluate CLIP-seq and other genomic region data 
-using a comprehensive collection of known high-confidence RBP binding motifs (as of RBPBench v0.2: 259 RBPs comprising 605 motifs).
+using a comprehensive collection of known high-confidence RBP binding motifs (as of RBPBench v0.3: 259 RBPs comprising 605 motifs).
 RBPBench can be used for benchmarking CLIP-seq peak callers, but it works just as well for other RBP-related research questions:
 one can e.g. look for RBP binding motifs in any set of genomic regions (selecting any number of RBPs of interest, including user-supplied motifs),
 and check for RBP motif co-occurrences (to see which RBPs bind similar regions).
@@ -687,7 +687,7 @@ at position 0.
 
 ## Documentation
 
-This documentation provides further details on RBPBench (version 0.2).
+This documentation provides further details on RBPBench (version 0.3).
 
 ### Program modes
 
@@ -904,4 +904,4 @@ are described in the example section [above](#search-with-multiple-rbps).
 
 #### No FIMO hits
 
-This can e.g. happen if you have an old MEME version installed (v4). RBPBench was implemented using v5, and as of v0.2 throws an error if anything below MEME v5 is installed. 
+This can e.g. happen if you have an old MEME version installed (v4). RBPBench was implemented using v5, and as of v0.3 throws an error if anything below MEME v5 is installed. 
