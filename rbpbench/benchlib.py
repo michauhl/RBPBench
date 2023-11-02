@@ -81,8 +81,9 @@ def check_tool_version(tool_call, min_version):
     """
 
     output = subprocess.getoutput(tool_call)
-    # version_string = output.split('\n')[0]
-    version_string = output.strip()
+    # Extract last output line, in case of warnings printed.
+    version_string = output.split('\n')[-1]
+    version_string = version_string.strip()
     tool_version = version.parse(version_string)
     min_version = version.parse(min_version)
     check = tool_version >= min_version
