@@ -84,9 +84,8 @@ RBPBench is available as a Conda package, which makes installation a breeze.
 We simply create a Conda environment and install RBPBench inside the environment:
 
 ```
-conda create -n rbpbench -c conda-forge -c bioconda
+conda create -n rbpbench -c conda-forge -c bioconda rbpbench
 conda activate rbpbench
-conda install -c bioconda rbpbench
 ```
 
 If `conda install` is taking too long, one way to speed up the process is to replace the solver of Conda with the Mamba solver.
