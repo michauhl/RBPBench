@@ -3574,8 +3574,11 @@ def search_generate_html_report(df_pval, pval_cont_lll,
     if plot_abs_paths:
         plots_folder = plots_out_folder
 
-    if not os.path.exists(plots_out_folder):
-        os.makedirs(plots_out_folder)
+    # Delete folder if already present.
+    if os.path.exists(plots_out_folder):
+        shutil.rmtree(plots_out_folder)
+    os.makedirs(plots_out_folder)
+
     html_out = out_folder + "/" + "report.rbpbench_search.html"
     md_out = out_folder + "/" + "report.rbpbench_search.md"
     if html_report_out:
