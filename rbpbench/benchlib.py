@@ -1059,7 +1059,7 @@ def gtf_read_in_gene_infos(in_gtf,
         assert feat_e >= feat_s, "feature end < feature start in GTF file \"%s\", line \"%s\". Since both coordinates are expected to have 1-based index, this should not happen" %(in_gtf, line)
 
         if check_chr_ids_dic is not None:
-            assert chr_id in check_chr_ids_dic, "chromosme ID \"%s\" from GTF file \"%s\" not found in --genome FASTA file. Make sure GTF + FASTA + BED files use compatible chromosome IDs" %(chr_id, in_gtf)
+            assert chr_id in check_chr_ids_dic, "chromosome ID \"%s\" from GTF file \"%s\" not found in --genome FASTA file. Make sure input GTF + FASTA + BED files use compatible chromosome IDs" %(chr_id, in_gtf)
 
         if feature == "gene":
 
@@ -3536,6 +3536,19 @@ def convert_sci_not_to_decimal(sn_value):
 
 ################################################################################
 
+def read_file_content_into_str_var(file):
+    """
+    Read in file content and store in string variable.
+    """
+    str_var = ""
+    with open(file, 'r') as f:
+        str_var = f.read()
+    f.closed
+    return str_var
+
+
+################################################################################
+
 def search_generate_html_report(df_pval, pval_cont_lll,
                                 search_rbps_dic,
                                 id2name_dic, name2ids_dic,
@@ -3557,7 +3570,10 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 upset_plot_min_subset_size=10,
                                 html_report_out="report.rbpbench_search.html",
                                 plot_abs_paths=False,
-                                plotly_js_source=1,
+                                sort_js_mode=1,
+                                plotly_js_mode=1,
+                                plotly_embed_style=1,
+                                plotly_full_html=False,
                                 plots_subfolder="html_report_plots"):
     """
     Create additional hit statistics for selected RBPs, 
@@ -3587,31 +3603,78 @@ def search_generate_html_report(df_pval, pval_cont_lll,
     # Number of genomic regions.
     c_regions = len(reg_ids_list)
 
-    # Makes tables sortable.
-    sorttable_js_path = benchlib_path + "/content/sorttable.js"
-    # plotly js path.
-    # https://plotly.com/javascript/getting-started/#download
-    # plotly-2.20.0.min.js
-    # plotly-latest.min.js
-    plotly_js_path = "cdn"
-    if plotly_js_source == 1:
-       plotly_js_path = "cdn"
-    elif plotly_js_source == 2:
-        plotly_js_path = benchlib_path + "/content/plotly-2.20.0.min.js"
-        assert os.path.exists(plotly_js_path), "plotly js %s not found" %(plotly_js_path)
-    else:
-        assert False, "invalid plotly_js_path set"
+    """
+    Setup sorttable.js to make tables in HTML sortable.
 
-    # Create theme-specific HTML header.
-    mdtext = """
+    """
+    sorttable_js_path = benchlib_path + "/content/sorttable.js"
+    assert os.path.exists(sorttable_js_path), "sorttable.js not at %s" %(sorttable_js_path)
+    sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    if sort_js_mode == 2:
+        shutil.copy(sorttable_js_path, plots_out_folder)
+        sorttable_js_path = plots_folder + "/sorttable.js"
+        sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    elif sort_js_mode == 3:
+        js_code = read_file_content_into_str_var(sorttable_js_path)
+        sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
+
+    """
+    Setup plotly .js to support plotly plots.
+
+    https://plotly.com/javascript/getting-started/#download
+    plotly-latest.min.js
+    Packaged version: plotly-2.20.0.min.js
+    
+    """
+
+    include_plotlyjs = "cdn"
+    # plotly_full_html = False
+    plotly_js_html = ""
+    plotly_js_path = benchlib_path + "/content/plotly-2.20.0.min.js"
+    assert os.path.exists(plotly_js_path), "plotly .js %s not found" %(plotly_js_path)
+    if plotly_js_mode == 2:
+        include_plotlyjs = plotly_js_path
+    elif plotly_js_mode == 3:
+        shutil.copy(plotly_js_path, plots_out_folder)
+        include_plotlyjs = "plotly-2.20.0.min.js" # Or plots_folder + "/plotly-2.20.0.min.js" ?
+    elif plotly_js_mode == 4:
+        include_plotlyjs = True
+        # plotly_full_html = False # Don't really need full html (head body ..) in plotly html.
+    elif plotly_js_mode == 5:
+        plotly_js_web = "https://cdn.plot.ly/plotly-2.25.2.min.js"
+        plotly_js_html = '<script src="' + plotly_js_web + '"></script>' + "\n"
+        include_plotlyjs = False
+        # plotly_full_html = True
+    elif plotly_js_mode == 6:
+        shutil.copy(plotly_js_path, plots_out_folder)
+        plotly_js = plots_folder + "/plotly-2.20.0.min.js"
+        plotly_js_html = '<script src="' + plotly_js + '"></script>' + "\n"
+        include_plotlyjs = False
+    elif plotly_js_mode == 7:
+        js_code = read_file_content_into_str_var(plotly_js_path)
+        plotly_js_html = "<script>\n" + js_code + "\n</script>\n"
+        include_plotlyjs = False
+        # plotly_full_html = True
+
+    # HTML head section.
+    html_head = """<!DOCTYPE html>
+<html>
 <head>
 <title>RBPBench - Search Report</title>
-<script src="%s" type="text/javascript"></script>
+%s
+%s
 </head>
-""" %(sorttable_js_path)
+<body>
+""" %(sorttable_js_html, plotly_js_html)
 
-    # Add first section markdown.
-    mdtext += """
+    # HTML tail section.
+    html_tail = """
+</body>
+</html>
+"""
+
+    # Markdown part.
+    mdtext = """
 
 # Search report
 
@@ -3655,9 +3718,11 @@ by RBPBench (rbpbench search --report):
 
 **Table:** RBP motif enrichment statistics. Given a score for each genomic region (# input regions = %i), 
 RBPbench checks whether motifs are enriched 
-in higher-scoring regions (using Wilcoxon rank-sum test). A low Wilcoxon rank-sum test p-value for a given RBP thus indicates 
+in higher-scoring regions (using Wilcoxon rank-sum test). 
+A low Wilcoxon rank-sum test p-value for a given RBP thus indicates 
 that higher-scoring regions are more likely to contain motif hits of the respective RBP. NOTE that if scores associated to 
 input genomic regions are all the same, p-values become meaningless (i.e., they result in p-values of 1.0).
+By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
 
 
 """ %(c_in_regions)
@@ -3687,8 +3752,9 @@ input genomic regions are all the same, p-values become meaningless (i.e., they 
     cooc_plot_plotly =  "co-occurrence_plot.plotly.html"
     cooc_plot_plotly_out = plots_out_folder + "/" + cooc_plot_plotly
 
-    create_cooc_plot_plotly(df_pval, pval_cont_lll,
-                            plotly_js_path, cooc_plot_plotly_out)
+    create_cooc_plot_plotly(df_pval, pval_cont_lll, cooc_plot_plotly_out,
+                            include_plotlyjs=include_plotlyjs,
+                            full_html=plotly_full_html)
 
     plot_path = plots_folder + "/" + cooc_plot_plotly
 
@@ -3696,9 +3762,22 @@ input genomic regions are all the same, p-values become meaningless (i.e., they 
 ## RBP co-occurrences heat map ### {#cooc-heat-map}
 
 """
-    mdtext += '<div class=class="container-fluid" style="margin-top:40px">' + "\n"
-    mdtext += '<iframe src="' + plot_path + '" width="1200" height="1200"></iframe>' + "\n"
-    mdtext += '</div>'
+    if plotly_js_mode in [5, 6, 7]:
+        # Read in plotly code.
+        # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+        js_code = read_file_content_into_str_var(cooc_plot_plotly_out)
+        js_code = js_code.replace("height:100%; width:100%;", "height:1200px; width:1200px;")
+        mdtext += js_code + "\n"
+        # mdtext += '</div>'
+    else:
+        if plotly_embed_style == 1:
+            # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+            mdtext += "<div>\n"
+            mdtext += '<iframe src="' + plot_path + '" width="1200" height="1200"></iframe>' + "\n"
+            mdtext += '</div>'
+        elif plotly_embed_style == 2:
+            mdtext += '<object data="' + plot_path + '" width="1200" height="1200"> </object>' + "\n"
+
     mdtext += """
 
 **Figure:** Heat map of co-occurrences (Fisher's exact test p-values) between RBPs. 
@@ -3710,10 +3789,10 @@ A: RBP1 AND RBP2,
 B: NOT RBP1 AND RBP2
 C: RBP1 AND NOT RBP2
 D: NOT RBP1 AND NOT RBP2.
-6) Correlation: Pearson correlation coefficients between RBPs. 
+6) Correlation: Pearson correlation coefficient between RBP1 and RBP2. 
 Genomic regions are labelled 1 or 0 (RBP motif present or not), resulting in a vector of 1s and 0s for each RBP.
 Correlations are then calculated by comparing vectors for every pair of RBPs.
-7) -log10 of p-value, used as color values.
+7) -log10 of p-value, used for color decoding.
 
 &nbsp;
 
@@ -3749,7 +3828,7 @@ Correlations are then calculated by comparing vectors for every pair of RBPs.
 
 **Figure:** Upset plot of RBP combinations found in the given set of genomic regions (# of regions = %i). 
 Intersection size == how often a specific RBP combination is found in the regions dataset.
-For example, if two regions in the input set contain motif hits for RBP1, RBP3, and RBP5, then the RBP combination RBP1,RBP3,RBP5 will get a count (== Intersection size) of 2.
+For example, if two regions in the input set contain motif hits for RBP1, RBP3, and RBP5, then the RBP combination "RBP1,RBP3,RBP5" will get a count (i.e., Intersection size) of 2.
 Minimum occurrence number for a combination to be reported = %i (command line parameter: --upset-plot-min-subset-size). 
 How many RBPs a combination must contain to be reported = %i (command line parameter: --upset-plot-min-degree).
 The numbers on the left side for each RBP tell how many genomic regions have motif hits (1 or more) of the respective RBP. 
@@ -3801,7 +3880,6 @@ No upset plot generated since number of selected RBPs == 1.
         annot_stacked_bars_plot =  "annotation_stacked_bars_plot.png"
         annot_stacked_bars_plot_out = plots_out_folder + "/" + annot_stacked_bars_plot
 
-
         mdtext += """
 ## Region annotations per RBP ### {#annot-rbp-plot}
 
@@ -3839,7 +3917,8 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
             name2ids_dic,
             reg2pol_dic,
             html_out=rbp_motif_dist_plot_plotly_out,
-            plotly_js_path=plotly_js_path,
+            include_plotlyjs=include_plotlyjs,
+            full_html=plotly_full_html,
             line_plot_range=motif_distance_plot_range,
             min_pair_count=rbp_min_pair_count)
 
@@ -3878,11 +3957,22 @@ In case of an empty table, try to lower --rbp-min-pair-count (current value: %i)
 
         if plotted:
 
-            plot_path = plots_folder + "/" + rbp_motif_dist_plot_plotly
+            if plotly_js_mode in [5, 6, 7]:
+                js_code = read_file_content_into_str_var(rbp_motif_dist_plot_plotly_out)
+                js_code = js_code.replace("height:100%; width:100%;", "height:700px; width:1200px;")
+                mdtext += js_code + "\n"
 
-            mdtext += '<div class=class="container-fluid" style="margin-top:40px">' + "\n"
-            mdtext += '<iframe src="' + plot_path + '" width="1200" height="700"></iframe>' + "\n"
-            mdtext += '</div>'
+            else:
+
+                plot_path = plots_folder + "/" + rbp_motif_dist_plot_plotly
+
+                if plotly_embed_style == 1:
+                    mdtext += "<div>\n"
+                    mdtext += '<iframe src="' + plot_path + '" width="1200" height="700"></iframe>' + "\n"
+                    mdtext += '</div>'
+                elif plotly_embed_style == 2:
+                    mdtext += '<object data="' + plot_path + '" width="1200" height="700"> </object>' + "\n"
+
             mdtext += """
 
 **Figure:** Line plot showing motif distances between set RBP ID (%s) motifs (using highest-scoring %s motif for each input region) and other RBP ID motifs (including itself).
@@ -3919,7 +4009,8 @@ Each RBP with a pair count (definition see table above) of >= %i is shown, and t
                 name2ids_dic,
                 reg2pol_dic,
                 html_out=single_motif_dist_plot_plotly_out,
-                plotly_js_path=plotly_js_path,
+                include_plotlyjs=include_plotlyjs,
+                full_html=plotly_full_html,
                 line_plot_range=motif_distance_plot_range,
                 min_pair_count=motif_min_pair_count)
 
@@ -4011,11 +4102,21 @@ In case of an empty table, try to lower --motif-min-pair-count (current value: %
 
             if plotted:
 
-                plot_path = plots_folder + "/" + single_motif_dist_plot_plotly
+                if plotly_js_mode in [5, 6, 7]:
+                    js_code = read_file_content_into_str_var(single_motif_dist_plot_plotly_out)
+                    js_code = js_code.replace("height:100%; width:100%;", "height:700px; width:1200px;")
+                    mdtext += js_code + "\n"
 
-                mdtext += '<div class=class="container-fluid" style="margin-top:40px">' + "\n"
-                mdtext += '<iframe src="' + plot_path + '" width="1200" height="700"></iframe>' + "\n"
-                mdtext += '</div>'
+                else:
+                    plot_path = plots_folder + "/" + single_motif_dist_plot_plotly
+
+                    if plotly_embed_style == 1:
+                        mdtext += '<div class=class="container-fluid" style="margin-top:40px">' + "\n"
+                        mdtext += '<iframe src="' + plot_path + '" width="1200" height="700"></iframe>' + "\n"
+                        mdtext += '</div>'
+                    elif plotly_embed_style == 2:
+                        mdtext += '<object data="' + plot_path + '" width="1200" height="700"> </object>' + "\n"
+
                 mdtext += """
 
 **Figure:** Line plot showing motif distances between motif %s (using highest-scoring hit of motif %s for each input region) and other motifs (from same and different RBPs).
@@ -4042,11 +4143,14 @@ Only motifs with a pair count of >= %i appear in the plot.
     # Convert mdtext to html.
     md2html = markdown(mdtext, extensions=['attr_list', 'tables'])
 
-    OUTMD = open(md_out,"w")
-    OUTMD.write("%s\n" %(mdtext))
-    OUTMD.close()
+    # OUTMD = open(md_out,"w")
+    # OUTMD.write("%s\n" %(mdtext))
+    # OUTMD.close()
+
+    html_content = html_head + md2html + html_tail
+
     OUTHTML = open(html_out,"w")
-    OUTHTML.write("%s\n" %(md2html))
+    OUTHTML.write("%s\n" %(html_content))
     OUTHTML.close()
 
     # change <table> to sortable.
@@ -4066,7 +4170,8 @@ def plot_motif_dist_rbp_level(set_rbp_id,
                               rbp2mids_dic,
                               reg2pol_dic,
                               html_out="rbp_motif_distances.plotly.html",
-                              plotly_js_path="cdn",
+                              include_plotlyjs="cdn",
+                              full_html=False,
                               line_plot_range=30,
                               min_pair_count=1):
     """
@@ -4195,8 +4300,8 @@ def plot_motif_dist_rbp_level(set_rbp_id,
         legend_title_text='RBP IDs')
 
     fig.write_html(html_out,
-        full_html=False,
-        include_plotlyjs=plotly_js_path)
+        full_html=full_html,
+        include_plotlyjs=include_plotlyjs)
 
     return True, set_rbp_other_rbp_pair_count_dic, rbp_in_range_c_dic, rbp_out_range_c_dic
 
@@ -4208,7 +4313,8 @@ def plot_motif_dist_motif_level(set_motif_id,
                               rbp2mids_dic,
                               reg2pol_dic,
                               html_out="motif_distances.plotly.html",
-                              plotly_js_path="cdn",
+                              include_plotlyjs="cdn",
+                              full_html=False,
                               line_plot_range=30,
                               min_pair_count=1,
                               mode=1):
@@ -4347,8 +4453,8 @@ def plot_motif_dist_motif_level(set_motif_id,
         legend_title_text='Motif IDs')
 
     fig.write_html(html_out,
-        full_html=False,
-        include_plotlyjs=plotly_js_path)
+        full_html=full_html,
+        include_plotlyjs=include_plotlyjs)
 
     return True, set_motif_other_motif_pair_count_dic, motif_in_range_c_dic, motif_out_range_c_dic
 
@@ -4519,7 +4625,7 @@ def create_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_
 
     # Scale plot height depending on # of features.
     c_ids = len(rbp2regidx_dic)
-    fheight = 1 * c_ids
+    fheight = 0.8 * c_ids
     fwidth = 10
 
     # Get all annotation IDs in dataset.
@@ -4593,51 +4699,19 @@ def create_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_
     # plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.5)
     plt.legend(bbox_to_anchor=(1.01, 1), loc='upper left')
 
-    plt.savefig(plot_out, dpi=125, bbox_inches='tight')
+    plt.savefig(plot_out, dpi=110, bbox_inches='tight')
     plt.close()
 
 
 ################################################################################
 
-def create_corr_plot_plotly(df, pval_cont_lll, plotly_js_path, plot_out):
-    """
-    Plot correlations as heat map with plotly.
-
-
-    ax_labels_dic = {rank_df : x_label, ws_sc_df : y_label}
-
-    plot = px.scatter(data_frame=df, x=rank_df, y=ws_sc_df, hover_name=seq_id_df,
-                      labels=ax_labels_dic,
-                      hover_data=[sal_peak_pos_df, sal_peak_sc_df, sal_win_coords_df, sal_win_seq_df, seq_df],
-                      color_discrete_sequence=[dot_col])
-    """
-
-    plot = px.imshow(df)
-    # plot.show()
-    # plot.layout.template = 'seaborn'
-    # plot.update_layout(hoverlabel=dict(font_size=11))
-    # plot.update_traces(marker=dict(size=3))
-    # plot.update_traces(marker=dict(size=3))
-    #fig.update_traces(hovertemplate='GDP: %{x} <br>Life Expectancy: %{y}')
-
-    plot.update(data=[{'customdata': pval_cont_lll,
-                    'hovertemplate': 'RBP1: %{x}<br>RBP2: %{y}<br>RBPs: %{customdata[1]}<br>Counts: %{customdata[2]}<br>Correlation: %{z}<extra></extra>'}])
-    # plot.update(data=[{'customdata': pval_cont_lll,
-    #                 'hovertemplate': 'RBP1: %{x}<br>RBP2: %{y}<br>RBPs: %{customdata[1]}<br>Counts: %{customdata[2]}<br>Color: %{z}<extra></extra>'}])
-    # plot.update_layout(plot_bgcolor='white', legend_title_text='Correlation')
-    # plot.update_traces(colorbar_title='Correlation')
-    # plot.update_traces(marker=dict(colorbar={"title": "Correlation"}))
-    plot.update_layout(plot_bgcolor='white')
-    plot.write_html(plot_out,
-                    full_html=False,
-                    include_plotlyjs=plotly_js_path)
-    
-
-################################################################################
-
-def create_cooc_plot_plotly(df, pval_cont_lll, plotly_js_path, plot_out):
+def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
+                            include_plotlyjs="cdn",
+                            full_html=False):
     """
     Plot co-occurrences as heat map with plotly.
+
+    https://plotly.github.io/plotly.py-docs/generated/plotly.io.write_html.html
 
     """
 
@@ -4646,8 +4720,8 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plotly_js_path, plot_out):
                     'hovertemplate': 'RBP1: %{x}<br>RBP2: %{y}<br>p-value: %{customdata[0]}<br>RBPs: %{customdata[1]}<br>Counts: %{customdata[2]}<br>Correlation: %{customdata[3]}<br>-log10(p-value): %{z}<extra></extra>'}])
     plot.update_layout(plot_bgcolor='white')
     plot.write_html(plot_out,
-                    full_html=False,
-                    include_plotlyjs=plotly_js_path)
+                    full_html=full_html,
+                    include_plotlyjs=include_plotlyjs)
 
 
 ################################################################################
@@ -4853,6 +4927,7 @@ def search_generate_html_motif_plots(search_rbps_dic,
                                      motif_db_str=False,
                                      html_report_out="motif_plots.rbpbench_search.html",
                                      plot_abs_paths=False,
+                                     sort_js_mode=1,
                                      plots_subfolder="html_motif_plots"):
     """
     Create motif plots for selected RBPs.
@@ -4877,18 +4952,44 @@ def search_generate_html_motif_plots(search_rbps_dic,
     if html_report_out:
         html_out = html_report_out
 
-    sorttable_js_path = benchlib_path + "/content/sorttable.js"
 
-    # Create theme-specific HTML header.
-    mdtext = """
+    """
+    Setup sorttable.js to make tables in HTML sortable.
+
+    """
+    sorttable_js_path = benchlib_path + "/content/sorttable.js"
+    assert os.path.exists(sorttable_js_path), "sorttable.js not at %s" %(sorttable_js_path)
+    sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    if sort_js_mode == 2:
+        shutil.copy(sorttable_js_path, plots_out_folder)
+        sorttable_js_path = plots_folder + "/sorttable.js"
+        sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    elif sort_js_mode == 3:
+        js_code = read_file_content_into_str_var(sorttable_js_path)
+        sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
+
+
+    # ALAMO
+
+
+    # HTML head section.
+    html_head = """<!DOCTYPE html>
+<html>
 <head>
 <title>RBPBench - Motif Plots and Hit Statistics</title>
-<script src="%s" type="text/javascript"></script>
+%s
 </head>
-""" %(sorttable_js_path)
+<body>
+""" %(sorttable_js_html)
 
-    # Add first section markdown.
-    mdtext += """
+    # HTML tail section.
+    html_tail = """
+</body>
+</html>
+"""
+
+    # Markdown part.
+    mdtext = """
 
 # Motif Plots and Hit Statistics
 
@@ -5000,11 +5101,13 @@ RBP "%s" only contains structure motifs, which are currently not available for p
     # Convert mdtext to html.
     md2html = markdown(mdtext, extensions=['attr_list', 'tables'])
 
-    OUTMD = open(md_out,"w")
-    OUTMD.write("%s\n" %(mdtext))
-    OUTMD.close()
+    # OUTMD = open(md_out,"w")
+    # OUTMD.write("%s\n" %(mdtext))
+    # OUTMD.close()
+
+    html_content = html_head + md2html + html_tail
     OUTHTML = open(html_out,"w")
-    OUTHTML.write("%s\n" %(md2html))
+    OUTHTML.write("%s\n" %(html_content))
     OUTHTML.close()
 
     # change <table> to sortable.
@@ -5100,6 +5203,7 @@ def compare_generate_html_report(compare_methods_dic, compare_datasets_dic,
                                  out_folder, benchlib_path,
                                  html_report_out="report.rbpbench_compare.html",
                                  plot_abs_paths=False,
+                                 sort_js_mode=1,
                                  plots_subfolder="html_plots"):
     """
     Create comparison statistics and HTML report.
@@ -5121,25 +5225,41 @@ def compare_generate_html_report(compare_methods_dic, compare_datasets_dic,
     if html_report_out:
         html_out = html_report_out
 
-    # # Logo paths.
-    # logo1_path = benchlib_path + "/content/logo1.png"
-    # logo2_path = benchlib_path + "/content/logo2.png"
+
+    """
+    Setup sorttable.js to make tables in HTML sortable.
+
+    """
     sorttable_js_path = benchlib_path + "/content/sorttable.js"
-    # # plotly js path.
-    # plotly_js_path = benchlib_path + "/content/plotly-latest.min.js"
-    # assert os.path.exists(plotly_js_path), "plotly js %s not found" %(plotly_js_path)
+    assert os.path.exists(sorttable_js_path), "sorttable.js not at %s" %(sorttable_js_path)
+    sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    if sort_js_mode == 2:
+        shutil.copy(sorttable_js_path, plots_out_folder)
+        sorttable_js_path = plots_folder + "/sorttable.js"
+        sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    elif sort_js_mode == 3:
+        js_code = read_file_content_into_str_var(sorttable_js_path)
+        sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
 
 
-    # Create theme-specific HTML header.
-    mdtext = """
+    # HTML head section.
+    html_head = """<!DOCTYPE html>
+<html>
 <head>
 <title>RBPBench - Motif Search Comparison Report</title>
-<script src="%s" type="text/javascript"></script>
+%s
 </head>
-""" %(sorttable_js_path)
+<body>
+""" %(sorttable_js_html)
 
-    # Add first section markdown.
-    mdtext += """
+    # HTML tail section.
+    html_tail = """
+</body>
+</html>
+"""
+
+    # Markdown part.
+    mdtext = """
 
 # Comparison Report
 
@@ -5369,7 +5489,7 @@ Any given motif hit can either be found only in one dataset, or be common to any
         mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="700" />' + "\n"
         mdtext += """
 
-**Figure:** Venn diagram of motif hit occurrences for %i different datasets (%s) with identical combined ID (%s) + corresponding percentages of total motif hits for each region (method exclusive and intersection(s)).
+**Figure:** Venn diagram of motif hit occurrences for %i different datasets (%s) with identical combined ID (%s) + corresponding percentages of total motif hits for each region (dataset exclusive and intersection(s)).
 
 &nbsp;
 
@@ -5393,12 +5513,15 @@ Any given motif hit can either be found only in one dataset, or be common to any
     # Convert mdtext to html.
     md2html = markdown(mdtext, extensions=['attr_list', 'tables'])
 
-    OUTMD = open(md_out,"w")
-    OUTMD.write("%s\n" %(mdtext))
-    OUTMD.close()
+    # OUTMD = open(md_out,"w")
+    # OUTMD.write("%s\n" %(mdtext))
+    # OUTMD.close()
+
+    html_content = html_head + md2html + html_tail
     OUTHTML = open(html_out,"w")
-    OUTHTML.write("%s\n" %(md2html))
+    OUTHTML.write("%s\n" %(html_content))
     OUTHTML.close()
+
 
     # change <table> to sortable.
     check_cmd = "sed -i 's/<table>/<table class=" + '"sortable"' + ">/g' " + html_out
