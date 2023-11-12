@@ -3830,9 +3830,14 @@ Correlations are then calculated by comparing vectors for every pair of RBPs.
 Intersection size == how often a specific RBP combination is found in the regions dataset.
 For example, if two regions in the input set contain motif hits for RBP1, RBP3, and RBP5, then the RBP combination "RBP1,RBP3,RBP5" will get a count (i.e., Intersection size) of 2.
 Minimum occurrence number for a combination to be reported = %i (command line parameter: --upset-plot-min-subset-size). 
-How many RBPs a combination must contain to be reported = %i (command line parameter: --upset-plot-min-degree).
+How many RBPs a combination must at least contain to be reported = %i (command line parameter: --upset-plot-min-degree).
 The numbers on the left side for each RBP tell how many genomic regions have motif hits (1 or more) of the respective RBP. 
 If a GTF file was given, bar charts become stacked bar charts, showing what GTF annotations the regions overlap with (see legend for region types).
+NOTE that currently (v0.8) upsetplot only supports distinct mode (no intersect or union modes yet). 
+In distinct mode, the reported intersection/subset size for a combination is the number of times 
+this distinct RBP combination shows up in the data. For example, if the combination "RBP1,RBP3,RBP5" has a count of 2,
+it means that there are two regions in the input set which contain motif hits exclusively by RBP1, RBP2, and RBP5 (and no other RBPs!).
+This is why the more RBPs are selected, the smaller intersection sizes typically become for specific combinations (down to counts of 1).
 
 &nbsp;
 
@@ -3845,6 +3850,11 @@ If a GTF file was given, bar charts become stacked bar charts, showing what GTF 
             mdtext += """
 
 No upset plot generated since set --upset-plot-min-degree > maximum degree found in the RBP combination set. Please use lower number for --upset-plot-min-degree parameter.
+Also NOTE that currently (v0.8) upsetplot only supports distinct mode (no intersect or union modes yet). 
+In distinct mode, the reported intersection/subset size for a combination is the number of times 
+this distinct RBP combination shows up in the data. For example, if the combination "RBP1,RBP3,RBP5" has a count of 2,
+it means that there are two regions in the input set which contain motif hits exclusively by RBP1, RBP2, and RBP5 (and no other RBPs!).
+This is why the more RBPs are selected, the smaller intersection sizes typically become for specific combinations (down to counts of 1).
 
 &nbsp;
 
@@ -3855,6 +3865,11 @@ No upset plot generated since set --upset-plot-min-degree > maximum degree found
             mdtext += """
 
 No upset plot generated since set --upset-plot-min-subset-size (%i) > maximum subset size (%i) found in the RBP combination set. Please use lower number for --upset-plot-min-subset-size parameter.
+Also NOTE that currently (v0.8) upsetplot only supports distinct mode (no intersect or union modes yet). 
+In distinct mode, the reported intersection/subset size for a combination is the number of times 
+this distinct RBP combination shows up in the data. For example, if the combination "RBP1,RBP3,RBP5" has a count of 2,
+it means that there are two regions in the input set which contain motif hits exclusively by RBP1, RBP2, and RBP5 (and no other RBPs!).
+This is why the more RBPs are selected, the smaller intersection sizes typically become for specific combinations (down to counts of 1).
 
 &nbsp;
 

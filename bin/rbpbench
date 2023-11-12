@@ -2030,7 +2030,7 @@ def main_search(args):
     """ 
     sorted_con_pval_dic = dict(sorted(con_pval_dic.items(), key=lambda item: item[1], reverse=False))
 
-    print("Co-occurrence contigency table format: [A, B], [C, D]")
+    print("Co-occurrence contingency table format: [A, B], [C, D]")
     print("A: RBP1 AND RBP2")
     print("B: NOT RBP1 AND RBP2")
     print("C: RBP1 AND NOT RBP2")
