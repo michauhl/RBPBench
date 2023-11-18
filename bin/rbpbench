@@ -2365,7 +2365,7 @@ def main_search(args):
     print("RBP hit stats .tsv:\n%s" %(rbp_stats_out))
     print("Motif hit stats .tsv:\n%s" %(motif_stats_out))
     if reg_annot_table_file is not None:
-        print("Region nnotations .tsv:\n%s" %(reg_annot_table_file))
+        print("Region annotations .tsv:\n%s" %(reg_annot_table_file))
     if args.plot_motifs:
         print("Motif plots and hit statistics .html:\n%s" %(html_motif_plots_out))
     if args.report:
