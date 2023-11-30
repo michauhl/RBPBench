@@ -3965,7 +3965,7 @@ No plot generated since number of selected RBPs == 1.
 
             mdtext += """
 
-No plot generated since no motif hits found in the input regions.
+No plot generated since no motif hits found in input regions.
 
 &nbsp;
 
@@ -3988,7 +3988,7 @@ No plot generated since no motif hits found in the input regions.
         if no_region_hits:
             mdtext += """
 
-No plot generated since no motif hits found in the input regions.
+No plot generated since no motif hits found in input regions.
 
 &nbsp;
 
@@ -4023,7 +4023,7 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
         mdtext += """
 ## Set RBP %s motifs distance statistics ### {#rbp-motif-dist-stats}
 
-No motif distance statistics and plots generated since no motif hits found in the input regions.
+No motif distance statistics and plots generated since no motif hits found in input regions.
 
 
 """
