@@ -2056,6 +2056,11 @@ def select_mpts_from_gene_infos(gid2gio_dic,
     >>> tr_ids_dic = select_mpts_from_gene_infos(gid2gio_dic, basic_tag=False, ensembl_canonical_tag=False, only_tsl=False, prior_basic_tag=True)
     >>> tr_ids_dic
     {'ENST00000530167': 'ENSG00000188486'}
+    >>> test_gtf = "test_data/test_mpt_selection3.gtf"
+    >>> gid2gio_dic = gtf_read_in_gene_infos(test_gtf)
+    >>> tr_ids_dic = select_mpts_from_gene_infos(gid2gio_dic, basic_tag=False, ensembl_canonical_tag=False, only_tsl=False, prior_basic_tag=True)
+    >>> tr_ids_dic
+    {'g1_t2': 'g1', 'g2_t1': 'g2'}
 
     """
 
@@ -2101,7 +2106,7 @@ def select_mpts_from_gene_infos(gid2gio_dic,
 
             if id2sc[tr_tsl] < id2sc[mpt_tsl]:
                 if prior_basic_tag:
-                    if tr_bt > mpt_bt:
+                    if tr_bt >= mpt_bt:
                         mpt_id = tr_id
                         mpt_tsl = tr_tsl
                         mpt_len = tr_length

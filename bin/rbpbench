@@ -21,7 +21,7 @@ from scipy.stats import mannwhitneyu
 # import uuid
 
 
-__version__ = "0.5"
+__version__ = "0.6"
 
 
 ################################################################################
