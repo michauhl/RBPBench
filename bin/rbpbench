@@ -247,7 +247,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = None,
-                   help = "Set RBP ID to plot motif distances relative to motifs from this RBP (needs to be one of the selected RBP IDs!). Motif plot will be centered on best scoring motif of the RBP for each region")
+                   help = "Set reference RBP ID to plot motif distances relative to motifs from this RBP (needs to be one of the selected RBP IDs!). Motif plot will be centered on best scoring motif of the RBP for each region")
     p_s.add_argument("--motif-distance-plot-range",
                    dest="motif_distance_plot_range",
                    type=int,
@@ -902,7 +902,6 @@ def main_search(args):
                     assert False, "provided --rbps ID %s not in internal motif database (%s). Please provide RBP name present in database. Did you mean (any of) the following database ID(s) (top 10 hits based on string similarity): %s ?" %(rbp_id, motif_db_str, suggested_rbps_str)
                 # assert rbp_id in name2ids_dic, "provided --rbps ID %s not in internal motif database. Please provide RBP name present in database" %(rbp_id)
                 loaded_rbps_dic[rbp_id] = motif_db_str
-
 
     # Motif IDs for search.
     loaded_motif_ids_dic = {}
@@ -2149,7 +2148,7 @@ def main_search(args):
 
         """
 
-        if args.in_gtf:
+        if args.in_gtf and c_regions_with_hits:
 
             reg_annot_table_file = args.out_folder + "/" + "region_annotations.tsv"
 
@@ -2182,6 +2181,7 @@ def main_search(args):
                 tr_ids_dic = benchlib.select_mpts_from_gene_infos(gid2gio_dic,
                                         basic_tag=False,  # do not be strict (only_tsl=False too).
                                         ensembl_canonical_tag=False,
+                                        prior_basic_tag=True,  # Prioritize basic tag transcript.
                                         only_tsl=False)
                 assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
                 print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
@@ -2266,6 +2266,9 @@ def main_search(args):
                     tr_id = "-"
                 OUTRAN.write("%s\t%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot, tr_biotype))
             OUTRAN.close()
+
+        elif args.in_gtf and not c_regions_with_hits:
+            print("No need to read in --gtf since no motif hits found .. ")
 
         plots_subfolder = "html_report_plots"
         benchlib_path = os.path.dirname(benchlib.__file__)
@@ -2822,7 +2825,7 @@ def main_batch(args):
             len_list.append(seq_len)
 
         # Length statistics.
-        reg_len_median = int(statistics.median(len_list))
+        reg_len_median = statistics.median(len_list)
         reg_len_mean = statistics.mean(len_list)
         reg_len_mean = round(reg_len_mean, 2)
         reg_len_min = min(len_list)

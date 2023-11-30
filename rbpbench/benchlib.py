@@ -1122,6 +1122,7 @@ def gtf_read_in_gene_infos(in_gtf,
             if m:
                 ensembl_canonical = 1
             # Transcript support level (TSL).
+            # transcript_support_level "NA (assigned to previous version 1)"
             m = re.search('transcript_support_level "(.+?)"', infos)
             tsl_id = "NA"
             if m:
@@ -1295,12 +1296,6 @@ def gtf_read_in_transcript_infos(in_gtf,
             if tr_ids_dic is not None:
                 if tr_id not in tr_ids_dic:
                     continue
-
-            m = re.search('transcript_id "(.+?)"', infos)
-            assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)    
-            tr_id = m.group(1)
-
-            assert tr_id in tr_ids_seen_dic, "transcript ID %s in exon feature not (yet) encountered. Transcript feature expected to come before exon features in GTF file \"%s\"" %(tr_id, in_gtf)
 
             # Store/update CDS genomic start and end coordinates.
             if tid2tio_dic[tr_id].cds_s is None:
@@ -1947,7 +1942,7 @@ def read_ids_into_dic(ids_file,
 
 ################################################################################
 
-def gtf_check_exon_order(in_gtf):
+def gtf_check_exon_order(in_gtf, check_minus=False):
     """
     Check exon_number ordering. Return True if ordering for minus strand
     and plus strand is different (i.e. for minus exon_number 1 is most downstream).
@@ -2029,6 +2024,7 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                                 basic_tag=True,
                                 ensembl_canonical_tag=False,
                                 only_tsl=False,
+                                prior_basic_tag=True,
                                 tr_min_len=False
                                 ):
     """
@@ -2055,6 +2051,11 @@ def select_mpts_from_gene_infos(gid2gio_dic,
     >>> tr_ids_dic = select_mpts_from_gene_infos(gid2gio_dic, basic_tag=False, ensembl_canonical_tag=False, only_tsl=False)
     >>> tr_ids_dic
     {'ENST00000357266': 'ENSG00000096060'}
+    >>> test_gtf = "test_data/test_mpt_selection2.gtf"
+    >>> gid2gio_dic = gtf_read_in_gene_infos(test_gtf)
+    >>> tr_ids_dic = select_mpts_from_gene_infos(gid2gio_dic, basic_tag=False, ensembl_canonical_tag=False, only_tsl=False, prior_basic_tag=True)
+    >>> tr_ids_dic
+    {'ENST00000530167': 'ENSG00000188486'}
 
     """
 
@@ -2082,6 +2083,8 @@ def select_mpts_from_gene_infos(gid2gio_dic,
             tr_bt = gene_info.tr_basic_tags[idx]  # 0 or 1
             tr_ec = gene_info.tr_ensembl_canonical_tags[idx]  # 0 or 1
             tr_length = gene_info.tr_lengths[idx]
+
+            # print(tr_id, "BT:", tr_bt, "TSL:", tr_tsl)
             # print(tr_id, tr_bt, tr_ec, tr_length, tr_tsl)
             if basic_tag:
                 if not tr_bt:
@@ -2097,11 +2100,20 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                     continue
 
             if id2sc[tr_tsl] < id2sc[mpt_tsl]:
-                mpt_id = tr_id
-                mpt_tsl = tr_tsl
-                mpt_len = tr_length
-                mpt_bt = tr_bt
-                mpt_ec = tr_ec
+                if prior_basic_tag:
+                    if tr_bt > mpt_bt:
+                        mpt_id = tr_id
+                        mpt_tsl = tr_tsl
+                        mpt_len = tr_length
+                        mpt_bt = tr_bt
+                        mpt_ec = tr_ec
+                else:
+                    mpt_id = tr_id
+                    mpt_tsl = tr_tsl
+                    mpt_len = tr_length
+                    mpt_bt = tr_bt
+                    mpt_ec = tr_ec
+
             elif id2sc[tr_tsl] == id2sc[mpt_tsl]:
                 # print("Now equal, comparing tr_id %s with mpt_id %s" %(tr_id, mpt_id))
                 # If transcript has basic tag, use this.
@@ -2128,6 +2140,14 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                         mpt_len = tr_length
                         mpt_bt = tr_bt
                         mpt_ec = tr_ec
+            else:
+                # If transcript has worse TSL but basic tag and current MPT has not.
+                if prior_basic_tag and tr_bt > mpt_bt:
+                    mpt_id = tr_id
+                    mpt_tsl = tr_tsl
+                    mpt_len = tr_length
+                    mpt_bt = tr_bt
+                    mpt_ec = tr_ec
 
         if not mpt_len:
             continue
@@ -2918,7 +2938,7 @@ class RBPStats:
                  rbp_id = "-",
                  c_regions = 0,
                  mean_reg_len = 0.0,
-                 median_reg_len = 0,
+                 median_reg_len = 0.0,
                  min_reg_len = 0,
                  max_reg_len = 0,
                  called_reg_size = 0,
@@ -3003,7 +3023,7 @@ def read_in_rbp_stats(in_file,
             rbp_stats.rbp_id = cols[4]
             rbp_stats.c_regions = int(cols[5])
             rbp_stats.mean_reg_len = float(cols[6])
-            rbp_stats.median_reg_len = int(cols[7])
+            rbp_stats.median_reg_len = float(cols[7])
             rbp_stats.min_reg_len = int(cols[8])
             rbp_stats.max_reg_len = int(cols[9])
             rbp_stats.called_reg_size = int(cols[10])
@@ -3603,6 +3623,13 @@ def search_generate_html_report(df_pval, pval_cont_lll,
     # Number of genomic regions.
     c_regions = len(reg_ids_list)
 
+    # Check if no regions have motif hits.
+    no_region_hits = True
+    for rbp_id in rbp2regidx_dic:
+        if rbp2regidx_dic[rbp_id]:
+            no_region_hits = False 
+            break
+
     """
     Setup sorttable.js to make tables in HTML sortable.
 
@@ -3662,16 +3689,16 @@ def search_generate_html_report(df_pval, pval_cont_lll,
 <head>
 <title>RBPBench - Search Report</title>
 %s
-%s
 </head>
 <body>
-""" %(sorttable_js_html, plotly_js_html)
+""" %(plotly_js_html)
 
     # HTML tail section.
     html_tail = """
+%s
 </body>
 </html>
-"""
+""" %(sorttable_js_html)
 
     # Markdown part.
     mdtext = """
@@ -3724,17 +3751,49 @@ that higher-scoring regions are more likely to contain motif hits of the respect
 input genomic regions are all the same, p-values become meaningless (i.e., they result in p-values of 1.0).
 By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
 
-
 """ %(c_in_regions)
-    mdtext += '| RBP ID | # hit regions | % hit regions | # motif hits | p-value |' + " \n"
-    mdtext += "| :-: | :-: | :-: | :-: | :-: |\n"
+
+#     mdtext += """
+# <table id="table1" class="sortable">
+# <thead>
+# <tr>
+# <th style="text-align: center;" onclick="sortTable('table1', 0, false)">RBP ID</th>
+# <th style="text-align: center;" onclick="sortTable('table1', 1, true)"># hit regions</th>
+# <th style="text-align: center;" onclick="sortTable('table1', 2, true)">% hit regions</th>
+# <th style="text-align: center;" onclick="sortTable('table1', 3, true)"># motif hits</th>
+# <th style="text-align: center;" onclick="sortTable('table1', 4, true)">p-value</th>
+# </tr>
+# </thead>
+# <tbody>
+# """
+
+    pval_dic = {}
     for rbp_id in search_rbps_dic:
         wc_pval = search_rbps_dic[rbp_id].wc_pval
+        pval_dic[rbp_id] = wc_pval
+
+    # for rbp_id, wc_pval in sorted(pval_dic.items(), key=lambda item: item[1], reverse=False):
+    #     wc_pval_str = convert_sci_not_to_decimal(wc_pval)  # Convert scientific notation to decimal string for sorting to work.
+    #     c_hit_reg = search_rbps_dic[rbp_id].c_hit_reg
+    #     perc_hit_reg = search_rbps_dic[rbp_id].perc_hit_reg
+    #     c_uniq_motif_hits = search_rbps_dic[rbp_id].c_uniq_motif_hits
+    #     mdtext += '<tr>' + "\n"
+    #     mdtext += '<td style="text-align: center;"' + ">%s</td>\n" %(rbp_id)
+    #     mdtext += '<td style="text-align: center;"' + ">%i</td>\n" %(c_hit_reg) 
+    #     mdtext += '<td style="text-align: center;"' + ">%.2f</td>\n" %(perc_hit_reg) 
+    #     mdtext += '<td style="text-align: center;"' + ">%i</td>\n" %(c_uniq_motif_hits) 
+    #     mdtext += '<td style="text-align: center;"' + ">" + str(wc_pval) + "</td>\n"
+    #     mdtext += '</tr>' + "\n"
+
+    # # ALAMO.
+    mdtext += '| RBP ID | # hit regions | % hit regions | # motif hits | p-value |' + " \n"
+    mdtext += "| :-: | :-: | :-: | :-: | :-: |\n"
+    for rbp_id, wc_pval in sorted(pval_dic.items(), key=lambda item: item[1], reverse=False):
         wc_pval_str = convert_sci_not_to_decimal(wc_pval)  # Convert scientific notation to decimal string for sorting to work.
         c_hit_reg = search_rbps_dic[rbp_id].c_hit_reg
         perc_hit_reg = search_rbps_dic[rbp_id].perc_hit_reg
         c_uniq_motif_hits = search_rbps_dic[rbp_id].c_uniq_motif_hits
-        mdtext += "| %s | %i | %.2f | %i | %s |\n" %(rbp_id, c_hit_reg, perc_hit_reg, c_uniq_motif_hits, wc_pval_str)
+        mdtext += "| %s | %i | %.2f | %i | %s |\n" %(rbp_id, c_hit_reg, perc_hit_reg, c_uniq_motif_hits, wc_pval)
     mdtext += "\n&nbsp;\n&nbsp;\n"
     mdtext += "\nColumn IDs have the following meanings: "
     mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
@@ -3743,6 +3802,23 @@ By default, BED genomic regions input file column 5 is used as the score column 
     mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
     mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
     mdtext += "\n&nbsp;\n"
+
+
+
+#     mdtext += """
+# </tbody>
+# </table>
+# """
+
+#     mdtext += "\n&nbsp;\n&nbsp;\n"
+#     mdtext += "\nColumn IDs have the following meanings: "
+#     mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
+#     mdtext += '**# hit regions** -> number of input genomic regions with motif hits (after filtering and optional extension), '
+#     mdtext += '**% hit regions** -> percentage of hit regions over all regions (i.e. how many input regions contain >= 1 RBP binding motif), '
+#     mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
+#     mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
+#     mdtext += "\n&nbsp;\n"
+
 
     """
     Co-occurrence heat map.
@@ -3831,7 +3907,7 @@ Intersection size == how often a specific RBP combination is found in the region
 For example, if two regions in the input set contain motif hits for RBP1, RBP3, and RBP5, then the RBP combination "RBP1,RBP3,RBP5" will get a count (i.e., Intersection size) of 2.
 Minimum occurrence number for a combination to be reported = %i (command line parameter: --upset-plot-min-subset-size). 
 How many RBPs a combination must at least contain to be reported = %i (command line parameter: --upset-plot-min-degree).
-The numbers on the left side for each RBP tell how many genomic regions have motif hits (1 or more) of the respective RBP. 
+The numbers on the left side for each RBP tell how many genomic regions have motif hits of the respective RBP. 
 If a GTF file was given, bar charts become stacked bar charts, showing what GTF annotations the regions overlap with (see legend for region types).
 NOTE that currently (v0.8) upsetplot only supports distinct mode (no intersect or union modes yet). 
 In distinct mode, the reported intersection/subset size for a combination is the number of times 
@@ -3879,7 +3955,17 @@ This is why the more RBPs are selected, the smaller intersection sizes typically
 
             mdtext += """
 
-No upset plot generated since number of selected RBPs == 1.
+No plot generated since number of selected RBPs == 1.
+
+&nbsp;
+
+"""
+
+        elif reason == "no_region_hits":
+
+            mdtext += """
+
+No plot generated since no motif hits found in the input regions.
 
 &nbsp;
 
@@ -3899,15 +3985,25 @@ No upset plot generated since number of selected RBPs == 1.
 ## Region annotations per RBP ### {#annot-rbp-plot}
 
 """
-        create_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
-                                            plot_out=annot_stacked_bars_plot_out)
+        if no_region_hits:
+            mdtext += """
 
-        plot_path = plots_folder + "/" + annot_stacked_bars_plot
+No plot generated since no motif hits found in the input regions.
 
-        mdtext += '<img src="' + plot_path + '" alt="Annotation stacked bars plot"' + "\n"
-        # mdtext += 'title="Annotation stacked bars plot" width="800" />' + "\n"
-        mdtext += 'title="Annotation stacked bars plot" />' + "\n"
-        mdtext += """
+&nbsp;
+
+"""
+        else:
+
+            create_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
+                                                plot_out=annot_stacked_bars_plot_out)
+
+            plot_path = plots_folder + "/" + annot_stacked_bars_plot
+
+            mdtext += '<img src="' + plot_path + '" alt="Annotation stacked bars plot"' + "\n"
+            # mdtext += 'title="Annotation stacked bars plot" width="800" />' + "\n"
+            mdtext += 'title="Annotation stacked bars plot" />' + "\n"
+            mdtext += """
 **Figure:** For each RBP, a stacked bar shows the corresponding region annotations 
 (from --gtf GTF file, see legend for region types) for the genomic regions 
 with motif hits for the respective RBP. 
@@ -3921,6 +4017,18 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
     Set RBP motif distance stats + plot.
 
     """
+
+    # If --set-rbp-id and no motif hits, disable set_rbp_id again.
+    if set_rbp_id is not None and no_region_hits:
+        mdtext += """
+## Set RBP %s motifs distance statistics ### {#rbp-motif-dist-stats}
+
+No motif distance statistics and plots generated since no motif hits found in the input regions.
+
+
+"""
+        set_rbp_id = None
+
     if set_rbp_id is not None:
 
         rbp_motif_dist_plot_plotly =  "%s.motif_dist.plotly.html" %(set_rbp_id)
@@ -4154,7 +4262,6 @@ Only motifs with a pair count of >= %i appear in the plot.
 
 """ %(motif_id, motif_min_pair_count)
 
-
     # Convert mdtext to html.
     md2html = markdown(mdtext, extensions=['attr_list', 'tables'])
 
@@ -4167,14 +4274,6 @@ Only motifs with a pair count of >= %i appear in the plot.
     OUTHTML = open(html_out,"w")
     OUTHTML.write("%s\n" %(html_content))
     OUTHTML.close()
-
-    # change <table> to sortable.
-    check_cmd = "sed -i 's/<table>/<table class=" + '"sortable"' + ">/g' " + html_out
-    output = subprocess.getoutput(check_cmd)
-    error = False
-    if output:
-        error = True
-    assert error == False, "sed command returned error:\n%s" %(output)
 
 
 ################################################################################
@@ -4497,6 +4596,16 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
     # All regions (# regions).
     c_regions = len(reg_ids_list)
     assert c_regions > 0, "c_regions must be >= 0"
+
+    # Check if there are regions that have motif hits.
+    no_region_hits = True
+    for rbp_id in rbp2regidx_dic:
+        if rbp2regidx_dic[rbp_id]:
+            no_region_hits = False 
+            break
+    if no_region_hits:
+        return False, "no_region_hits", 0
+
     rbp_idx_list = []  # region indices list [0, 1, 2, ... c_regions-1]
     for i in range(c_regions):
         rbp_idx_list.append(i)
@@ -4984,24 +5093,21 @@ def search_generate_html_motif_plots(search_rbps_dic,
         sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
 
 
-    # ALAMO
-
-
     # HTML head section.
     html_head = """<!DOCTYPE html>
 <html>
 <head>
 <title>RBPBench - Motif Plots and Hit Statistics</title>
-%s
 </head>
 <body>
-""" %(sorttable_js_html)
+""" 
 
     # HTML tail section.
     html_tail = """
+%s
 </body>
 </html>
-"""
+""" %(sorttable_js_html)
 
     # Markdown part.
     mdtext = """
@@ -5125,35 +5231,6 @@ RBP "%s" only contains structure motifs, which are currently not available for p
     OUTHTML.write("%s\n" %(html_content))
     OUTHTML.close()
 
-    # change <table> to sortable.
-    check_cmd = "sed -i 's/<table>/<table class=" + '"sortable"' + ">/g' " + html_out
-    output = subprocess.getoutput(check_cmd)
-    error = False
-    if output:
-        error = True
-    assert error == False, "sed command returned error:\n%s" %(output)
-
-"""
-                 internal_id: str,
-                 seq_motif_ids = None,
-                 str_motif_ids = None,
-                 seq_motif_hits = None,
-                 str_motif_hits = None,
-                 c_hit_reg = 0, # # regions with motif hits.
-                 perc_hit_reg = 0.0, # % hit regions over all regions (i.e. how many input regions contain >= 1 RBP motif).
-                 c_motif_hits = 0, # # motif hits.
-                 c_uniq_motif_hits = 0, # # unique motif hits.
-                 c_uniq_motif_nts = 0, # # unique motif nucleotides.
-                 perc_uniq_motif_nts_eff_reg = 0.0, # % unique motif nts over effective region length.
-                 perc_uniq_motif_nts_cal_reg = 0.0, # % unique motif nts over called region length.
-                 uniq_motif_hits_eff_1000nt = 0.0, # unique motif hits per effective 1000 nt.
-                 uniq_motif_hits_cal_1000nt = 0.0, # unique motif hits per called 1000 nt.
-                 # ks_pval = 1.0, # Kolmogorov-Smirnov (KS) statistic p-value (are higher scoring sites enriched with motifs).
-                 wc_pval = 1.0, # Wilcoxon rank-sum test (Mann-Whitney U test) statistic p-value (are higher scoring sites enriched with motifs).
-                 wc_pval_less = 1.0, # Wilcoxon rank-sum test (Mann-Whitney U test) statistic p-value (are lower scoring sites enriched with motifs).
-                 organism: Optional[str] = None) -> None:
-"""
-
 
 ################################################################################
 
@@ -5256,22 +5333,21 @@ def compare_generate_html_report(compare_methods_dic, compare_datasets_dic,
         js_code = read_file_content_into_str_var(sorttable_js_path)
         sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
 
-
     # HTML head section.
     html_head = """<!DOCTYPE html>
 <html>
 <head>
 <title>RBPBench - Motif Search Comparison Report</title>
-%s
 </head>
 <body>
-""" %(sorttable_js_html)
+""" 
 
     # HTML tail section.
     html_tail = """
+%s
 </body>
 </html>
-"""
+""" %(sorttable_js_html)
 
     # Markdown part.
     mdtext = """
@@ -5329,7 +5405,6 @@ by RBPBench (rbpbench compare):
         data_plot_ids_dic[comp_id] = tab_id
         mdtext += "- [%s dataset comparison plot](#%s)\n" %(comp_id, tab_id)
     mdtext += "\n&nbsp;\n"
-
 
     # Method comparison tables.
     for comp_id, data in sorted(compare_methods_dic.items()):
@@ -5536,15 +5611,6 @@ Any given motif hit can either be found only in one dataset, or be common to any
     OUTHTML = open(html_out,"w")
     OUTHTML.write("%s\n" %(html_content))
     OUTHTML.close()
-
-
-    # change <table> to sortable.
-    check_cmd = "sed -i 's/<table>/<table class=" + '"sortable"' + ">/g' " + html_out
-    output = subprocess.getoutput(check_cmd)
-    error = False
-    if output:
-        error = True
-    assert error == False, "sed command returned error:\n%s" %(output)
 
 
 ################################################################################
