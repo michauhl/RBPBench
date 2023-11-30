@@ -4026,7 +4026,8 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
 No motif distance statistics and plots generated since no motif hits found in input regions.
 
 
-"""
+""" %(set_rbp_id)
+        
         set_rbp_id = None
 
     if set_rbp_id is not None:
@@ -4111,7 +4112,7 @@ Each RBP with a pair count (definition see table above) of >= %i is shown, and t
 
             mdtext += """
 
-<em>No motif distance plot generated for set RBP %s. Try to lower --rbp-min-pair-count (current value: %i).</em>
+<em>No motif distance plot generated for set RBP %s. Try to lower --rbp-min-pair-count (current value: %i). Other reasons: only one motif hit found in total or no regions with > 1 motif.</em>
 
 &nbsp;
 
@@ -4256,7 +4257,7 @@ Only motifs with a pair count of >= %i appear in the plot.
 
                 mdtext += """
 
-<em>No motif distance plot generated for motif %s. Try to lower --motif-min-pair-count (current value: %i).</em>
+<em>No motif distance plot generated for motif %s. Try to lower --motif-min-pair-count (current value: %i). Other reasons: only one motif hit found in total or no regions with > 1 motif.</em>
 
 &nbsp;
 
