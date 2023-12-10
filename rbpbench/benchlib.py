@@ -2783,7 +2783,7 @@ def get_genomic_coords_from_seq_name(seq_name, motif_s, motif_e,
 
         return [chr_id, gen_motif_s, gen_motif_e, strand]
     else:
-        assert False, "invalid seq_name format given (%s)" %(seq_name)
+        assert False, "invalid seq_name format given (%s). This error could be due to --meme-no-check set and MEME >= v5.5.4 installed. In this case, please set --meme-no-pgc" %(seq_name)
 
 
 ################################################################################
@@ -3714,17 +3714,23 @@ List of available statistics and plots generated
 by RBPBench (rbpbench search --report):
 
 - [RBP motif enrichment statistics](#rbp-enrich-stats)
-- [RBP co-occurrences heat map](#cooc-heat-map)
-- [RBP combinations upset plot](#rbp-comb-upset-plot)"""
+- [RBP co-occurrences heat map](#cooc-heat-map)"""
+
+    mdtext += "\n"
+
 
     # Additional plot if GTF annotations given.
     if reg2annot_dic is not None:
-        mdtext += "\n"
         mdtext += "- [Region annotations per RBP](#annot-rbp-plot)\n"
+
+    # Upset plot.
+    # mdtext += "\n"
+    mdtext += "- [RBP combinations upset plot](#rbp-comb-upset-plot)\n"
+
     # If --set-rbp-id given.
     if set_rbp_id is not None:
-        if reg2annot_dic is None:
-            mdtext += "\n"
+        # if reg2annot_dic is None:
+        #     mdtext += "\n"
         mdtext += "- [Set RBP %s motifs distance statistics](#rbp-motif-dist-stats)\n" %(set_rbp_id)
         # mdtext += "- [Set RBP %s motif distance plot](#rbp-motif-dist-plot)\n" %(set_rbp_id)
         for idx, motif_id in enumerate(name2ids_dic[set_rbp_id]):
@@ -3790,7 +3796,6 @@ By default, BED genomic regions input file column 5 is used as the score column 
     #     mdtext += '<td style="text-align: center;"' + ">" + str(wc_pval) + "</td>\n"
     #     mdtext += '</tr>' + "\n"
 
-    # # ALAMO.
     mdtext += '| RBP ID | # hit regions | % hit regions | # motif hits | p-value |' + " \n"
     mdtext += "| :-: | :-: | :-: | :-: | :-: |\n"
     for rbp_id, wc_pval in sorted(pval_dic.items(), key=lambda item: item[1], reverse=False):
@@ -3878,6 +3883,49 @@ Correlations are then calculated by comparing vectors for every pair of RBPs.
 &nbsp;
 
 """
+
+    """
+    Region annotations per RBP plot.
+
+    """
+
+    if reg2annot_dic is not None:
+
+        annot_stacked_bars_plot =  "annotation_stacked_bars_plot.png"
+        annot_stacked_bars_plot_out = plots_out_folder + "/" + annot_stacked_bars_plot
+
+        mdtext += """
+## Region annotations per RBP ### {#annot-rbp-plot}
+
+"""
+        if no_region_hits:
+            mdtext += """
+
+No plot generated since no motif hits found in input regions.
+
+&nbsp;
+
+"""
+        else:
+
+            create_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
+                                                plot_out=annot_stacked_bars_plot_out)
+
+            plot_path = plots_folder + "/" + annot_stacked_bars_plot
+
+            mdtext += '<img src="' + plot_path + '" alt="Annotation stacked bars plot"' + "\n"
+            # mdtext += 'title="Annotation stacked bars plot" width="800" />' + "\n"
+            mdtext += 'title="Annotation stacked bars plot" />' + "\n"
+            mdtext += """
+**Figure:** For each RBP, a stacked bar shows the corresponding region annotations 
+(from --gtf GTF file, see legend for region types) for the genomic regions 
+with motif hits for the respective RBP. 
+Total bar height equals to the number of genomic regions with >= 1 motif hit for the RBP.
+
+&nbsp;
+
+"""
+
 
     """
     RBP region occupancies upset plot.
@@ -3980,43 +4028,6 @@ No plot generated since no motif hits found in input regions.
             assert False, "invalid reason given for not plotting upset plot"
 
 
-
-    if reg2annot_dic is not None:
-
-        annot_stacked_bars_plot =  "annotation_stacked_bars_plot.png"
-        annot_stacked_bars_plot_out = plots_out_folder + "/" + annot_stacked_bars_plot
-
-        mdtext += """
-## Region annotations per RBP ### {#annot-rbp-plot}
-
-"""
-        if no_region_hits:
-            mdtext += """
-
-No plot generated since no motif hits found in input regions.
-
-&nbsp;
-
-"""
-        else:
-
-            create_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
-                                                plot_out=annot_stacked_bars_plot_out)
-
-            plot_path = plots_folder + "/" + annot_stacked_bars_plot
-
-            mdtext += '<img src="' + plot_path + '" alt="Annotation stacked bars plot"' + "\n"
-            # mdtext += 'title="Annotation stacked bars plot" width="800" />' + "\n"
-            mdtext += 'title="Annotation stacked bars plot" />' + "\n"
-            mdtext += """
-**Figure:** For each RBP, a stacked bar shows the corresponding region annotations 
-(from --gtf GTF file, see legend for region types) for the genomic regions 
-with motif hits for the respective RBP. 
-Total bar height equals to the number of genomic regions with >= 1 motif hit for the RBP.
-
-&nbsp;
-
-"""
 
     """
     Set RBP motif distance stats + plot.
@@ -5364,69 +5375,53 @@ List of available comparison statistics generated
 by RBPBench (rbpbench compare):
 
 """
-    # Comparison based on method ID: tables.
-    method_table_ids_dic = {}
+
+    # Comparisons based on method ID.
+    method_ids_dic = {}
     idx = 0
     for comp_id, data in sorted(compare_methods_dic.items()):
         # mdtext += "\n"
         if len(data) < 2:
             continue
         idx += 1
-        tab_id = "method-tab-%i" %(idx)
-        method_table_ids_dic[comp_id] = tab_id
-        mdtext += "- [%s method comparison table](#%s)\n" %(comp_id, tab_id)
+        tab_id = "method-%i" %(idx)
+        method_ids_dic[comp_id] = tab_id
+        mdtext += "- [%s method ID comparison](#%s)\n" %(comp_id, tab_id)
 
-    # Comparison based on data ID: tables.
-    data_table_ids_dic = {}
+    # Comparisons based on data ID.
+    data_ids_dic = {}
     idx = 0
     for comp_id, data in sorted(compare_datasets_dic.items()):
         # mdtext += "\n"
         if len(data) < 2:
             continue
         idx += 1
-        tab_id = "data-tab-%i" %(idx)
-        data_table_ids_dic[comp_id] = tab_id
-        mdtext += "- [%s dataset comparison table](#%s)\n" %(comp_id, tab_id)
+        tab_id = "data-%i" %(idx)
+        data_ids_dic[comp_id] = tab_id
+        mdtext += "- [%s data ID comparison](#%s)\n" %(comp_id, tab_id)
 
-    # Comparison based on method ID: Venn diagrams.
-    method_plot_ids_dic = {}
-    idx = 0
-    for comp_id, data in sorted(compare_methods_dic.items()):
-        if len(data) < 2:
-            continue
-        idx += 1
-        tab_id = "method-venn-%i" %(idx)
-        method_plot_ids_dic[comp_id] = tab_id
-        mdtext += "- [%s method comparison plot](#%s)\n" %(comp_id, tab_id)
-
-    # Comparison based on data ID: Venn diagrams.
-    data_plot_ids_dic = {}
-    idx = 0
-    for comp_id, data in sorted(compare_datasets_dic.items()):
-        # mdtext += "\n"
-        if len(data) < 2:
-            continue
-        idx += 1
-        tab_id = "data-venn-%i" %(idx)
-        data_plot_ids_dic[comp_id] = tab_id
-        mdtext += "- [%s dataset comparison plot](#%s)\n" %(comp_id, tab_id)
     mdtext += "\n&nbsp;\n"
 
-    # Method comparison tables.
-    for comp_id, data in sorted(compare_methods_dic.items()):
-        if len(data) < 2:
-            continue
-        tab_id = method_table_ids_dic[comp_id]
-        mdtext += """
-## %s method comparison statistics ### {#%s}
 
-**Table:** RBP motif hit statistics for combined ID "%s" (data ID, motif database ID, RBP ID) over different methods (method ID column).
+    """
+    Method comparisons.
+
+    """
+
+    for comp_id, method_dic in sorted(compare_methods_dic.items()):
+        if len(method_dic) < 2:
+            continue
+        tab_id = method_ids_dic[comp_id]
+        mdtext += """
+## %s method ID comparison ### {#%s}
+
+**Table:** RBP motif hit statistics for combined ID "%s" (includes data ID, motif database ID, RBP ID) over different methods (method ID column).
 
 """ %(comp_id, tab_id, comp_id)
         mdtext += '| Method ID | # regions | # motif hits | % regions with motifs | % motif nucleotides | # motif hits per 1000 nt |' + " \n"
         mdtext += "| :-: | :-: | :-: | :-: | :-: | :-: |\n"
-        for method_id in data:
-            int_id = data[method_id]
+        for method_id in method_dic:
+            int_id = method_dic[method_id]
             c_regions = rbp_stats_dic[int_id].c_regions
             c_uniq_motif_hits = rbp_stats_dic[int_id].c_uniq_motif_hits
             perc_reg_with_hits = rbp_stats_dic[int_id].perc_reg_with_hits
@@ -5442,44 +5437,11 @@ by RBPBench (rbpbench compare):
         mdtext += '**% motif nucleotides** -> percentage of unique motif nucleotides over effective peak region size (overlapping regions merged), '
         mdtext += '**# motif hits per 1000 nt** -> number of motif hits over 1000 nt of called peak region size (overlapping regions NOT merged).' + "\n"
 
-    # Dataset comparison tables.
-    for comp_id, data in sorted(compare_datasets_dic.items()):
-        if len(data) < 2:
-            continue
-        tab_id = data_table_ids_dic[comp_id]
-        mdtext += """
-## %s dataset comparison statistics ### {#%s}
 
-**Table:** RBP motif hit statistics for combined ID "%s" (method ID, motif database ID, RBP ID) over different datasets (data ID column).
+        """
+        Venn diagram for method ID comparison.
 
-""" %(comp_id, tab_id, comp_id)
-        mdtext += '| Data ID | # regions | # motif hits | % regions with motifs | % motif nucleotides | # motif hits per 1000 nt |' + " \n"
-        mdtext += "| :-: | :-: | :-: | :-: | :-: | :-: |\n"
-        for dataset_id in data:
-            int_id = data[dataset_id]
-            c_regions = rbp_stats_dic[int_id].c_regions
-            c_uniq_motif_hits = rbp_stats_dic[int_id].c_uniq_motif_hits
-            perc_reg_with_hits = rbp_stats_dic[int_id].perc_reg_with_hits
-            perc_uniq_motif_nts_eff_reg = rbp_stats_dic[int_id].perc_uniq_motif_nts_eff_reg
-            uniq_motif_hits_cal_1000nt = rbp_stats_dic[int_id].uniq_motif_hits_cal_1000nt
-            mdtext += "| %s | %i | %i | %.2f | %.2f | %.2f |\n" %(dataset_id, c_regions, c_uniq_motif_hits, perc_reg_with_hits, perc_uniq_motif_nts_eff_reg, uniq_motif_hits_cal_1000nt)
-        mdtext += "\n&nbsp;\n&nbsp;\n"
-        mdtext += "\nColumn IDs have the following meanings: "
-        mdtext += "**Data ID** -> data ID set for dataset (typically describing CLIP data, e.g. CLIP method + cell type combination), "
-        mdtext += '**# regions** -> number of peak regions used for motif search, '
-        mdtext += '**# motif hits** -> number of unique motif hits in peak regions (removed double counts), '
-        mdtext += '**% regions with motifs** -> percentage of peak regions with motif hits, '
-        mdtext += '**% motif nucleotides** -> percentage of unique motif nucleotides over effective peak region size (overlapping regions merged), '
-        mdtext += '**# motif hits per 1000 nt** -> number of motif hits over 1000 nt of called peak region size (overlapping regions NOT merged).' + "\n"
-
-    """
-    Venn diagrams for method ID comparisons.
-
-    """
-    for comp_id, method_dic in sorted(compare_methods_dic.items()):
-        if len(method_dic) < 2:
-            continue
-        tab_id = method_plot_ids_dic[comp_id]
+        """
 
         int_ids = []
         method_ids = []
@@ -5513,32 +5475,58 @@ by RBPBench (rbpbench compare):
         else:
             assert False, "two many methods to compare (comp_id: %s). Please use less methods for plotting (current limit: 24)" %(comp_id)
 
-
-        mdtext += """
-## %s method comparison plot ### {#%s}
-
-Based on the same combined ID "%s" (data ID, motif database ID, RBP ID), motif hit occurrences for %i different methods (%s) are compared via Venn diagram.
-Any given motif hit can either be found only by one method, or be identified by any set (>=2) of methods (intersection areas).
-
-""" %(comp_id, tab_id, comp_id, c_methods, method_ids_str)
         mdtext += '<img src="' + plot_path + '" alt="' + "dataset comparison plot %s" %(comp_id) + "\n"
         mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="700" />' + "\n"
         mdtext += """
 
-**Figure:** Venn diagram of motif hit occurrences for %i different methods (%s) with identical combined ID (%s) + corresponding percentages of total motif hits for each region (method exclusive and intersection(s)).
+**Figure:** Venn diagram of motif hit occurrences for the %i different methods (%s) with identical combined ID "%s" + corresponding percentages 
+of total motif hits for each region (method exclusive and intersection(s)).
+Any given motif hit can either be found only by one method, or be identified by any set (>=2) of methods (intersection areas).
 
 &nbsp;
 
 """ %(c_methods, method_ids_str, comp_id)
 
-    """
-    Venn diagrams for data ID comparisons.
 
     """
+    Data comparisons.
+
+    """
+
     for comp_id, data_dic in sorted(compare_datasets_dic.items()):
         if len(data_dic) < 2:
             continue
-        tab_id = data_plot_ids_dic[comp_id]
+        tab_id = data_ids_dic[comp_id]
+        mdtext += """
+## %s data ID comparison ### {#%s}
+
+**Table:** RBP motif hit statistics for combined ID "%s" (includes method ID, motif database ID, RBP ID) over different datasets (data ID column).
+
+""" %(comp_id, tab_id, comp_id)
+        mdtext += '| Data ID | # regions | # motif hits | % regions with motifs | % motif nucleotides | # motif hits per 1000 nt |' + " \n"
+        mdtext += "| :-: | :-: | :-: | :-: | :-: | :-: |\n"
+        for dataset_id in data_dic:
+            int_id = data_dic[dataset_id]
+            c_regions = rbp_stats_dic[int_id].c_regions
+            c_uniq_motif_hits = rbp_stats_dic[int_id].c_uniq_motif_hits
+            perc_reg_with_hits = rbp_stats_dic[int_id].perc_reg_with_hits
+            perc_uniq_motif_nts_eff_reg = rbp_stats_dic[int_id].perc_uniq_motif_nts_eff_reg
+            uniq_motif_hits_cal_1000nt = rbp_stats_dic[int_id].uniq_motif_hits_cal_1000nt
+            mdtext += "| %s | %i | %i | %.2f | %.2f | %.2f |\n" %(dataset_id, c_regions, c_uniq_motif_hits, perc_reg_with_hits, perc_uniq_motif_nts_eff_reg, uniq_motif_hits_cal_1000nt)
+        mdtext += "\n&nbsp;\n&nbsp;\n"
+        mdtext += "\nColumn IDs have the following meanings: "
+        mdtext += "**Data ID** -> data ID set for dataset (typically describing CLIP data, e.g. CLIP method + cell type combination), "
+        mdtext += '**# regions** -> number of peak regions used for motif search, '
+        mdtext += '**# motif hits** -> number of unique motif hits in peak regions (removed double counts), '
+        mdtext += '**% regions with motifs** -> percentage of peak regions with motif hits, '
+        mdtext += '**% motif nucleotides** -> percentage of unique motif nucleotides over effective peak region size (overlapping regions merged), '
+        mdtext += '**# motif hits per 1000 nt** -> number of motif hits over 1000 nt of called peak region size (overlapping regions NOT merged).' + "\n"
+
+
+        """
+        Venn diagram for data ID comparison.
+
+        """
 
         int_ids = []
         data_ids = []
@@ -5574,22 +5562,18 @@ Any given motif hit can either be found only by one method, or be identified by 
 
         method_id = comp_id.split(",")[0]
 
-        mdtext += """
-## %s dataset comparison plot ### {#%s}
-
-Based on the same method combination ID "%s" (method ID, motif database ID, RBP ID), motif hit occurrences in %i different datasets (%s) are compared via Venn diagram.
-Any given motif hit can either be found only in one dataset, or be common to any >= 2 datasets (intersection areas).
-
-""" %(comp_id, tab_id, comp_id, c_data_ids, data_ids_str)
         mdtext += '<img src="' + plot_path + '" alt="' + "dataset comparison plot %s" %(comp_id) + "\n"
         mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="700" />' + "\n"
         mdtext += """
 
-**Figure:** Venn diagram of motif hit occurrences for %i different datasets (%s) with identical combined ID (%s) + corresponding percentages of total motif hits for each region (dataset exclusive and intersection(s)).
+**Figure:** Venn diagram of motif hit occurrences for the %i different datasets (%s) with identical combined ID "%s" + corresponding percentages 
+of total motif hits for each region (dataset exclusive and intersection(s)).
+Any given motif hit can either be found only in one dataset, or be common to any >= 2 datasets (intersection areas).
 
 &nbsp;
 
 """ %(c_data_ids, data_ids_str, comp_id)
+
 
     """
     Method comparisons.

@@ -21,7 +21,7 @@ from scipy.stats import mannwhitneyu
 # import uuid
 
 
-__version__ = "0.7"
+__version__ = "0.8"
 
 
 ################################################################################
@@ -271,6 +271,16 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Store plot files with absolute paths in HTML files. Default is relative paths (default: False)")
+    p_s.add_argument("--meme-no-check",
+                   dest="meme_disable_check",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable MEME version check. Make sure --meme-no-pgc is set if MEME version >= 5.5.4 is installed! (default: False)")
+    p_s.add_argument("--meme-no-pgc",
+                   dest="meme_no_pgc",
+                   default = False,
+                   action = "store_true",
+                   help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
     p_s.add_argument("--plotly-js-mode",
                    dest="plotly_js_mode",
                    type=int,
@@ -294,6 +304,8 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3],
                    help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to plots output folder. 3: include .js code in HTML (default: 1)")
+
+
 
     """
     Batch mode.
@@ -430,6 +442,16 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Count each --in region twice for RBP hit statistics when --unstranded is enabled. By default, two strands of one region are counted as one region for RBP hit statistics")
+    p_b.add_argument("--meme-no-check",
+                   dest="meme_disable_check",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable MEME version check. Make sure --meme-no-pgc is set if MEME version >= 5.5.4 is installed! (default: False)")
+    p_b.add_argument("--meme-no-pgc",
+                   dest="meme_no_pgc",
+                   default = False,
+                   action = "store_true",
+                   help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
 
     """
     Optimal extension mode.
@@ -507,8 +529,16 @@ def setup_argument_parser():
                    metavar='int',
                    nargs='+',
                    help="List of extensions to test (e.g. --ext-list 0 10 20 30 40 50). Internally, all combinations will be tested")
-
-
+    p_oe.add_argument("--meme-no-check",
+                   dest="meme_disable_check",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable MEME version check. Make sure --meme-no-pgc is set if MEME version >= 5.5.4 is installed! (default: False)")
+    p_oe.add_argument("--meme-no-pgc",
+                   dest="meme_no_pgc",
+                   default = False,
+                   action = "store_true",
+                   help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
     """
     Info mode.
     """
@@ -697,10 +727,19 @@ def main_search(args):
     if args.in_gtf:
         assert args.report, "set --gtf requires --report to be effective"
 
+    # Is MEME >= v5 installed?
+    if not args.meme_disable_check:
+        assert benchlib.is_tool("meme"), "meme not in PATH"
+        check, meme_version = benchlib.check_tool_version("meme -version", "5.0")
+        assert check, "RBPBench requires meme version >= 5.0 (installed version: %s)" %(meme_version)
+
     # Check if MEME version is >= 5.5.4 (need to add fimo --no-pgc option to produce same results!).
     fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text"
-    check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
-    if check:
+    if not args.meme_disable_check:
+        check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
+        if check:
+            fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
+    if args.meme_no_pgc:
         fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
 
     """
@@ -2417,10 +2456,19 @@ def main_batch(args):
         assert False, "no --bed arguments supplied"
     assert bed_list, "bed_list empty"
 
+    # Is MEME >= v5 installed?
+    if not args.meme_disable_check:
+        assert benchlib.is_tool("meme"), "meme not in PATH"
+        check, meme_version = benchlib.check_tool_version("meme -version", "5.0")
+        assert check, "RBPBench requires meme version >= 5.0 (installed version: %s)" %(meme_version)
+
     # Check if MEME version is >= 5.5.4 (need to add fimo --no-pgc option to produce same results!).
     fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text"
-    check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
-    if check:
+    if not args.meme_disable_check:
+        check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
+        if check:
+            fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
+    if args.meme_no_pgc:
         fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
 
     """
@@ -3286,10 +3334,19 @@ def main_optex(args):
     rbp_id = benchlib.remove_special_chars_from_str(args.rbp_id)
     assert rbp_id, "empty string after removing special chars from given --rbp-id %s. Please provide alphanumeric string for RBP ID (- or _ are okay as well)" %(args.rbp_id)
 
+    # Is MEME >= v5 installed?
+    if not args.meme_disable_check:
+        assert benchlib.is_tool("meme"), "meme not in PATH"
+        check, meme_version = benchlib.check_tool_version("meme -version", "5.0")
+        assert check, "RBPBench requires meme version >= 5.0 (installed version: %s)" %(meme_version)
+
     # Check if MEME version is >= 5.5.4 (need to add fimo --no-pgc option to produce same results!).
     fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text"
-    check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
-    if check:
+    if not args.meme_disable_check:
+        check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
+        if check:
+            fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
+    if args.meme_no_pgc:
         fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
 
     """
@@ -4422,11 +4479,6 @@ if __name__ == '__main__':
 
     # Show some banner.
     print(benchlib.print_some_banner())
-
-    # Doctor: Are my tools ready?
-    assert benchlib.is_tool("meme"), "meme not in PATH"
-    check, meme_version = benchlib.check_tool_version("meme -version", "5.0")
-    assert check, "RBPBench requires meme version >= 5.0 (installed version: %s)" %(meme_version)
 
     # Run selected mode.
     if args.which == 'search':

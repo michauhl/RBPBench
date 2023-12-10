@@ -97,6 +97,16 @@ def setup_argument_parser():
                    default=False,
                    action="store_true",
                    help="Count each --in region twice for RBP hit statistics when --unstranded is enabled. By default, two strands of one region are counted as one region for RBP hit statistics")
+    p.add_argument("--meme-no-check",
+                   dest="meme_disable_check",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable MEME version check. Make sure --meme-no-pgc is set if MEME version >= 5.5.4 is installed! (default: False)")
+    p.add_argument("--meme-no-pgc",
+                   dest="meme_no_pgc",
+                   default = False,
+                   action = "store_true",
+                   help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
     return p
 
 
@@ -218,6 +228,10 @@ if __name__ == '__main__':
         batch_call += " --unstranded"
     if args.unstranded_ct:
         batch_call += " --unstranded-ct"
+    if args.meme_disable_check:
+        batch_call += " --meme-no-check"
+    if args.meme_no_pgc:
+        batch_call += " --meme-no-pgc"
 
     rbp_ids = (" ").join(id_collect_dic["rbp_id"])
     method_ids = (" ").join(id_collect_dic["method_id"])
