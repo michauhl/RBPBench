@@ -5436,7 +5436,7 @@ by RBPBench (rbpbench compare):
         mdtext += '**% regions with motifs** -> percentage of peak regions with motif hits, '
         mdtext += '**% motif nucleotides** -> percentage of unique motif nucleotides over effective peak region size (overlapping regions merged), '
         mdtext += '**# motif hits per 1000 nt** -> number of motif hits over 1000 nt of called peak region size (overlapping regions NOT merged).' + "\n"
-
+        mdtext += "\n&nbsp;\n"
 
         """
         Venn diagram for method ID comparison.
@@ -5521,7 +5521,7 @@ Any given motif hit can either be found only by one method, or be identified by 
         mdtext += '**% regions with motifs** -> percentage of peak regions with motif hits, '
         mdtext += '**% motif nucleotides** -> percentage of unique motif nucleotides over effective peak region size (overlapping regions merged), '
         mdtext += '**# motif hits per 1000 nt** -> number of motif hits over 1000 nt of called peak region size (overlapping regions NOT merged).' + "\n"
-
+        mdtext += "\n&nbsp;\n"
 
         """
         Venn diagram for data ID comparison.
