@@ -613,7 +613,7 @@ gunzip -c ENCFF871NYM.bed.gz | awk '{print $1"\t"$2"\t"$3"\t"$4"\t"$7"\t"$6}' > 
 Next we search for motifs in both using `rbpbench batch`:
 
 ```
-rbpbench batch --bed RBFOX2_HepG2_IDR_peaks.bed RBFOX2_K562_IDR_peaks.bed --genome hg38.fa --rbp-list RBFOX2 RBFOX2 --data-list k562_eclip hepg2_eclip --method-id clipper_idr --out rbfox2_clipper_idr_batch_out
+rbpbench batch --bed RBFOX2_HepG2_IDR_peaks.bed RBFOX2_K562_IDR_peaks.bed --genome hg38.fa --rbp-list RBFOX2 RBFOX2 --data-list hepg2_eclip k562_eclip --method-id clipper_idr --out rbfox2_clipper_idr_batch_out
 ```
 
 And for the comparison:
@@ -622,15 +622,15 @@ And for the comparison:
 rbpbench compare --in rbfox2_clipper_idr_batch_out --out rbfox2_clipper_idr_compare_out
 ```
 
-This gives us one dataset comparison (RBP: RBFOX2, data IDs `k562_eclip` and `hepg2_eclip`), 
+This gives us one dataset comparison (RBP: RBFOX2, data IDs `hepg2_eclip` and `k562_eclip`), 
 with the resulting table:
 
 | Data ID | # regions | # motif hits | % regions with motifs | % motif nucleotides | # motif hits per 1000 nt |
 |:--------------:|:--------------:|:--------------:|:--------------:|:--------------:|:--------------:|
-| k562_eclip | 7477 | 7706 | 41.65 | 4.32 | 14.48 |
-| hepg2_eclip | 3525 | 2594 | 29.33 | 2.93 | 9.81 |
+| hepg2_eclip | 7477 | 7706 | 41.65 | 4.32 | 14.48 |
+| k562_eclip | 3525 | 2594 | 29.33 | 2.93 | 9.81 |
 
-We can see that the eCLIP data from the K562 cell line in general contains more 
+We can see that the eCLIP data from the HepG2 cell line in general contains more 
 motif hits (absolute and percentage-wise), 
 which can hint at the quality of the experimental data.
 
