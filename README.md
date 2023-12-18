@@ -15,7 +15,7 @@ co-occurrence analysis, to benchmarking CLIP-seq peak caller methods as well as 
     - [Conda](#conda)
     - [Conda package installation](#conda-package-installation)
     - [Manual installation](#manual-installation)
-    - [RBPBench on Galaxy](#rbpbench-on-galaxy)
+    - [RBPBench webserver](#rbpbench-webserver)
 - [Example runs](#example-runs)
     - [Searching for RBP motifs](#searching-for-rbp-motifs)
         - [Search with single RBPs](#search-with-single-rbps)
@@ -124,9 +124,9 @@ RBPBench should now be available inside the environment:
 rbpbench -h
 ```
 
-### RBPBench on Galaxy
+### RBPBench webserver
 
-RBPBench will soon be available on [Galaxy](https://usegalaxy.eu/).
+RBPBench is also available as a webserver on Galaxy (more information [here](https://backofenlab.github.io/RBPBench/)).
 
 
 ## Example runs
