@@ -4085,8 +4085,8 @@ In case of an empty table, try to lower --rbp-min-pair-count (current value: %i)
         mdtext += "**Set RBP ID** -> set RBP ID (specified via --set-rbp-id), "
         mdtext += "**Other RBP ID** -> other RBP ID that set RBP ID is compared to, "
         mdtext += "**Pair count** -> number of input regions with motif hits from both RBP IDs (minimum pair count to be reported: %i (set by --rbp-min-pair-count)), " %(rbp_min_pair_count)
-        mdtext += '**# near motifs** -> ' + "number of other RBP ID motifs within specified distance (----motif-distance-plot-range %i) of the centered set RBP ID motifs, " %(motif_distance_plot_range)
-        mdtext += '**# distant motifs** -> ' + "number of other RBP ID motifs outside specified distance (----motif-distance-plot-range %i) of the centered set RBP ID motifs." %(motif_distance_plot_range)
+        mdtext += '**# near motifs** -> ' + "number of other RBP ID motifs within specified distance (--motif-distance-plot-range %i) of the centered set RBP ID motifs, " %(motif_distance_plot_range)
+        mdtext += '**# distant motifs** -> ' + "number of other RBP ID motifs outside specified distance (--motif-distance-plot-range %i) of the centered set RBP ID motifs." %(motif_distance_plot_range)
         # mdtext += "\n"
         mdtext += "\n&nbsp;\n"
 
@@ -4235,8 +4235,8 @@ In case of an empty table, try to lower --motif-min-pair-count (current value: %
             mdtext += "**Other motif ID** -> other motif ID that set RBP motif ID is compared to, "
             mdtext += "**Other motif ID plot** -> other motif ID sequence motif plot (if motif is sequence motif), "
             mdtext += "**Pair count** -> number of input regions containing hits for both motifs (minimum pair count to be reported: %i (set by --motif-min-pair-count)), " %(motif_min_pair_count)
-            mdtext += '**# near motifs** -> ' + "number of other motifs within specified distance (----motif-distance-plot-range %i) of the centered motif belonging to set RBP, " %(motif_distance_plot_range)
-            mdtext += '**# distant motifs** -> ' + "number of other motifs outside specified distance (----motif-distance-plot-range %i) of the centered motif belonging to set RBP." %(motif_distance_plot_range)
+            mdtext += '**# near motifs** -> ' + "number of other motifs within specified distance (--motif-distance-plot-range %i) of the centered motif belonging to set RBP, " %(motif_distance_plot_range)
+            mdtext += '**# distant motifs** -> ' + "number of other motifs outside specified distance (--motif-distance-plot-range %i) of the centered motif belonging to set RBP." %(motif_distance_plot_range)
             # mdtext += "\n"
             mdtext += "\n&nbsp;\n"
 
