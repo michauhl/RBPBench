@@ -15,10 +15,8 @@ from scipy.stats import mannwhitneyu
 
 # from distutils.spawn import find_executable
 # from typing import Optional
-# import subprocess
 # from scipy.stats import ks_2samp
 # from scipy.stats import wilcoxon
-
 
 __version__ = "0.9"
 
