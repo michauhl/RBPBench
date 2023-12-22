@@ -18,7 +18,6 @@ from scipy.stats import mannwhitneyu
 # import subprocess
 # from scipy.stats import ks_2samp
 # from scipy.stats import wilcoxon
-# import uuid
 
 
 __version__ = "0.9"
