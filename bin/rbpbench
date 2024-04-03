@@ -284,24 +284,12 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3, 4, 5, 6, 7],
                    help = "Define how to provide plotly .js file. 1: use online version via \"cdn\" (requires internet connection). 2: link to packaged plotly .js file. 3: copy plotly .js file to plots output folder. 4: include plotly .js code in plotly HTML. 5: put web version link and plotly plot codes into main HTML. 6: put local version link and plotly plot codes in main HTML. 7: put plotly js and plotly plot codes into main HTML! (default: 1)")
-    p_s.add_argument("--plotly-embed-style",
-                   dest="plotly_embed_style",
-                   type=int,
-                   default=1,
-                   choices=[1, 2],
-                   help = "Define how to embed plotly .html plots into HTML report 1: via iframe. 2: via object (default: 1)")
-    p_s.add_argument("--plotly-full-html",
-                   dest="plotly_full_html",
-                   default = False,
-                   action = "store_true",
-                   help = "Set plotly full_html parameter (default: False)")
     p_s.add_argument("--sort-js-mode",
                    dest="sort_js_mode",
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
                    help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to plots output folder. 3: include .js code in HTML (default: 1)")
-
 
 
     """
@@ -439,6 +427,52 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Count each --in region twice for RBP hit statistics when --unstranded is enabled. By default, two strands of one region are counted as one region for RBP hit statistics")
+    p_b.add_argument("--report",
+                   dest="report",
+                   default = False,
+                   action = "store_true",
+                   help = "Generate an .html report containing various plots to compare input datasets (default: False)")
+    p_b.add_argument("--kmer-size",
+                   dest="kmer_size",
+                   type=int,
+                   metavar='int',
+                   default=5,
+                   help="K-mer size for comparative plots (default: 5)")
+    p_b.add_argument("--gtf",
+                   dest="in_gtf",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Input GTF file with genomic annotations to generate genomic regions annotation plots for each input BED file (output to HTML report). By default the most prominent transcripts will be extracted and used for functional annotation. Alternatively, provide a list of expressed transcripts via --tr-list (together with --gtf containing the transcripts). Note that only features on standard chromosomes (1,2,..,X,Y,MT) are currently used for annotation")
+    p_b.add_argument("--tr-list",
+                   dest="tr_list",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Supply file with transcript IDs (one ID per row) to define which transcripts to use from --gtf for genomic regions annotations plots")
+    p_b.add_argument("--tr-types",
+                   dest="tr_types_list",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   help="List of transcript biotypes to consider in genomic regions annotations plot. By default an internal selection of transcript biotypes is used (in addition to intron, CDS, UTR, intergenic). Note that provided biotype strings need to be in --gtf GTF file")
+    p_b.add_argument("--gtf-feat-min-overlap",
+                   dest="gtf_feat_min_overlap",
+                   type=float,
+                   metavar='float',
+                   default=0.1,
+                   help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\") (default: 0.1)")
+    p_b.add_argument("--plot-abs-paths",
+                   dest="plot_abs_paths",
+                   default = False,
+                   action = "store_true",
+                   help = "Store plot files with absolute paths in HTML files. Default is relative paths (default: False)")
+    p_b.add_argument("--plotly-js-mode",
+                   dest="plotly_js_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3, 4, 5, 6, 7],
+                   help = "Define how to provide plotly .js file. 1: use online version via \"cdn\" (requires internet connection). 2: link to packaged plotly .js file. 3: copy plotly .js file to plots output folder. 4: include plotly .js code in plotly HTML. 5: put web version link and plotly plot codes into main HTML. 6: put local version link and plotly plot codes in main HTML. 7: put plotly js and plotly plot codes into main HTML! (default: 1)")
     p_b.add_argument("--meme-no-check",
                    dest="meme_disable_check",
                    default = False,
@@ -2131,7 +2165,8 @@ def main_search(args):
         for i,rbp_i in enumerate(rbp_list):
             for j,rbp_j in enumerate(rbp_list):
                 if j > i:
-                    df_corr.loc[rbp_i][rbp_j] = None
+                    # df_corr.loc[rbp_i][rbp_j] = None  # FutureWarning: ChainedAssignmentError: behaviour will change in pandas 3.0!
+                    df_corr.loc[rbp_i, rbp_j] = None
                 else:
                     # Round correlation values if != 1.0.
                     if df_corr.loc[rbp_i][rbp_j] == 1.0:
@@ -2142,7 +2177,7 @@ def main_search(args):
         for i,rbp_i in enumerate(rbp_list):
             for j,rbp_j in enumerate(rbp_list):
                 if j > i:
-                    df_pval.loc[rbp_i][rbp_j] = None
+                    df_pval.loc[rbp_i, rbp_j] = None
 
         # for i in range(len(rbp_list)):
         #     for j in range(len(rbp_list)):
@@ -2333,8 +2368,6 @@ def main_search(args):
                                          plot_abs_paths=args.plot_abs_paths,
                                          sort_js_mode=args.sort_js_mode,
                                          plotly_js_mode=args.plotly_js_mode,
-                                         plotly_embed_style=args.plotly_embed_style,
-                                         plotly_full_html=args.plotly_full_html,
                                          plots_subfolder=plots_subfolder)
 
 
@@ -2467,6 +2500,15 @@ def main_batch(args):
             fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
     if args.meme_no_pgc:
         fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
+
+    # --report / --gtf checks.
+    if args.tr_list:
+        assert args.in_gtf, "--tr-list set, but --gtf not set. Please provide --gtf file"
+    assert benchlib.boundary_check(args.gtf_feat_min_overlap, 1E-9, 1.0), "set --gtf-feat-min-overlap expected to be >= 1E-9 and <= 1.0"
+    if args.in_gtf:
+        assert os.path.exists(args.in_gtf), "set --gtf file not found"
+        assert args.report, "--gtf set but not --report. --report needed to generate region annotation plots"
+    assert benchlib.boundary_check(args.kmer_size, 1, 6), "set --kmer-size expected to be >= 1 and <= 6"
 
     """
     Check other list inputs and store.
@@ -2694,6 +2736,26 @@ def main_batch(args):
 
 
     """
+    Guess chromosome ID style.
+
+    chr_style:
+        1: chr1, chr2, ..., chrX, chrM
+        2: 1, 2, ... , X, MT
+
+    """
+    chr_style = 0  # no changes to chromosome IDs in GTF files.
+    
+    if "1" in chr_ids_dic:
+        assert "chr1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
+    if "chr1" in chr_ids_dic:
+        assert "1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
+    if "chr1" in chr_ids_dic:
+        chr_style = 1
+    if "1" in chr_ids_dic:
+        chr_style = 2
+
+
+    """
     Region extensions.
 
     """
@@ -2711,6 +2773,97 @@ def main_batch(args):
     else:
         assert False, "invalid --ext argument provided (correct format: --ext 10 OR --ext 20,10)"
 
+
+    """
+    If --gtf file, read in GTF info.
+
+    """
+    intron_exon_out_bed = args.out_folder + "/intron_exon_regions.tmp.bed"
+    # ALAMO
+
+    if args.in_gtf:
+    
+        # Get gene infos.
+        print("Read in gene features from --gtf ... ")
+        tr2gid_dic = {}
+        tr_types_dic = {}  # Store transcript biotypes in GTF file.
+        gid2gio_dic = benchlib.gtf_read_in_gene_infos(args.in_gtf,
+                                                        tr2gid_dic=tr2gid_dic,
+                                                        tr_types_dic=tr_types_dic,
+                                                        check_chr_ids_dic=chr_ids_dic,
+                                                        chr_style=chr_style,
+                                                        empty_check=False)
+
+        assert gid2gio_dic, "no gene infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
+        c_gene_infos = len(gid2gio_dic)
+        print("# gene features read in from --gtf:", c_gene_infos)
+
+        # If --tr-list given.
+        tr_ids_dic = {}
+        if args.tr_list:
+            tr_ids_dic = benchlib.read_ids_into_dic(args.tr_list,
+                                                    check_dic=False)
+            assert tr_ids_dic, "no IDs read in from provided --tr-list file. Please provide a valid IDs file (one ID per row)"
+            for tr_id in tr_ids_dic:
+                assert tr_id in tr2gid_dic, "transcript ID \"%s\" from provided --tr-list file does not appear in --gtf file. Please provide compatible files" %(tr_id)
+                tr_ids_dic[tr_id] = tr2gid_dic[tr_id]
+            print("# of transcript IDs (read in from --tr-list): ", len(tr_ids_dic))
+        else:
+            # Get most prominent transcripts from gene infos.
+            tr_ids_dic = benchlib.select_mpts_from_gene_infos(gid2gio_dic,
+                                    basic_tag=False,  # do not be strict (only_tsl=False too).
+                                    ensembl_canonical_tag=False,
+                                    prior_basic_tag=True,  # Prioritize basic tag transcript.
+                                    only_tsl=False)
+            assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
+            print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
+
+        # Check exon order (return True if minus strand exon 1 is most downstream, not most upstream, which is the correct way).
+        print("Check minus-strand exon order in --gtf ... ")
+        correct_min_ex_order = benchlib.gtf_check_exon_order(args.in_gtf)
+        if correct_min_ex_order:
+            print("Correct order encountered ... ")
+        else:
+            print("Reverse order encountered ... ")
+        # Get transcript infos.
+        print("Read in transcript infos from --gtf ... ")
+        tid2tio_dic = benchlib.gtf_read_in_transcript_infos(args.in_gtf, 
+                                                            tr_ids_dic=tr_ids_dic,
+                                                            correct_min_ex_order=correct_min_ex_order,
+                                                            chr_style=chr_style,
+                                                            empty_check=False)
+
+        assert tid2tio_dic, "no transcript infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
+
+        # (in)sanity checks.
+        for tr_id in tr_ids_dic:
+            assert tr_id in tid2tio_dic, "transcript ID %s not in tid2tio_dic"
+        for tr_id in tid2tio_dic:
+            assert tr_id in tr_ids_dic, "transcript ID %s not in tr_ids_dic"
+
+        c_tr_infos = len(tid2tio_dic)
+        print("# transcript features read in from --gtf:", c_tr_infos)
+
+        # Extract exon + intron regions of selected transcripts from transcript infos.
+        print("Output intron annotations to BED ... ")
+        benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
+                                            output_mode=3,  # only introns.
+                                            report_counts=True,
+                                            add_tr_id=True,
+                                            empty_check=False)
+
+        # Custom transcript biotypes for upset plot.
+        custom_annot_dic = None
+        if args.tr_types_list:
+            for tr_type in args.tr_types_list:
+                assert tr_type in tr_types_dic, "given transcript biotype ID \"%s\" not found in GTF file"
+                custom_annot_dic[tr_type] = tr_type
+
+        # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.
+        print("Output exon annotations to BED ... ")
+        benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
+                                            custom_annot_dic=custom_annot_dic,
+                                            append=True)
 
 
     """
@@ -2749,6 +2902,15 @@ def main_batch(args):
 
     """
     call_dic = {}
+    id2reg_annot_dic = {}  # Store internal ID to region annotation dictionary (all sites, with and without hits).
+    id2hit_reg_annot_dic = {}  # Store internal ID to region annotation dictionary (only sites with hits).
+    id2infos_dic = {}  # Store internal ID to list containing RBP ID, data ID, method ID, database ID, BED file path.
+    # id2kmer_dic = {}  # Store internal ID to k-mer dictionary.
+    c_all_hits = 0  # Sum up hits for all RBPs.
+    kmer_freqs_ll = []  # For PCA plot.
+    dataset_ids_list = []  # For PCA plot.
+    dataset_idx = 0  # For PCA plot.
+    # ALAMO.
 
     for idx, bed_file in enumerate(bed_list):
 
@@ -2786,6 +2948,8 @@ def main_batch(args):
         print("Method ID:     ", method_id)
         print("Internal ID:   ", internal_id)
 
+        id2infos_dic[internal_id] = [rbp_id, data_id, method_id, motif_db_str, bed_file_path]
+
         rbp = benchlib.RBP(rbp_id, internal_id)
 
         for motif_id in name2ids_dic[rbp_id]:
@@ -2813,6 +2977,7 @@ def main_batch(args):
                                             reg2sc_dic=reg2sc_dic,
                                             score_col=args.bed_score_col,
                                             chr_ids_dic=chr_ids_dic,
+                                            use_region_ids=True,
                                             unstranded=args.unstranded)
 
         print("# --in regions pre-filtering:  ", reg_stats_dic["c_in"])
@@ -2962,6 +3127,7 @@ def main_batch(args):
             motif_region -> c_motif_region
 
         """
+
 
         regions_with_motifs_dic = {}
         unique_motifs_dic = {}
@@ -3265,6 +3431,77 @@ def main_batch(args):
 
             OUTMTFSTATS.write(row_str)
 
+        """
+        if --gtf is set, overlap regions with annotations.
+        
+        """
+        c_all_hits += c_hit_reg
+
+        if args.in_gtf:
+            print("--gtf file set. Overlap regions with gene annotations ... ")
+
+            # reg_ids_dic needed to complete reg2annot_dic (for regions with no overlaps).
+            reg_ids_dic = {}
+            if args.unstranded and not args.unstranded_ct:
+                for seq_id, seq in sorted(out_seqs_dic.items()):
+                    core_id = benchlib.reg_get_core_id(seq_id)
+                    reg_ids_dic[core_id] = 1
+            else:
+                for seq_id, seq in sorted(out_seqs_dic.items()):
+                    reg_ids_dic[seq_id] = 1
+
+            # Overlap with input regions.
+            print("Overlap annotations with input regions ... ")
+            params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
+            overlap_annotations_bed = args.out_folder + "/overlap_annotations.tmp.bed"
+            benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_out_bed, 
+                                         overlap_annotations_bed,
+                                         params=params)
+            
+            reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
+                                                            reg_ids_dic=reg_ids_dic)
+
+            # reg2annot_dic = {'chr22:30971326-30971352(+)': ['other (nc)RNA', 'ENST00000614234'], ...
+            # Store annotations for all regions.
+            id2reg_annot_dic[internal_id] = {}
+            for reg_id in reg2annot_dic:
+                annot = reg2annot_dic[reg_id][0]
+                if annot in id2reg_annot_dic[internal_id]:
+                    id2reg_annot_dic[internal_id][annot] += 1
+                else:
+                    id2reg_annot_dic[internal_id][annot] = 1
+            # Store annotations for regions with hits only.
+            id2hit_reg_annot_dic[internal_id] = {}
+            for reg_id in regions_with_motifs_dic:
+                annot = reg2annot_dic[reg_id][0]
+                if annot in id2hit_reg_annot_dic[internal_id]:
+                    id2hit_reg_annot_dic[internal_id][annot] += 1
+                else:
+                    id2hit_reg_annot_dic[internal_id][annot] = 1
+
+            # Get k-mer frequencies for all regions.
+            print("Calculate k-mer frequencies ... ")
+
+        if args.report:
+            # Dataset ID.
+            dataset_idx += 1
+            # dataset_id = str(dataset_idx) + "," + rbp_id + "," + motif_db_str + "," + method_id + "," + data_id
+            dataset_id = rbp_id + "," + motif_db_str + "," + method_id + "," + data_id
+            dataset_ids_list.append(dataset_id)
+
+            # ALAMO
+            kmer_dic = benchlib.seqs_dic_count_kmer_freqs(out_seqs_dic, args.kmer_size, 
+                                                          rna=False,
+                                                          convert_to_uc=True,
+                                                          return_ratios=True)
+
+            # Store the k-mer frequencies for later comparison plot in a list, sorted by key.
+            kmer_freqs_list = []
+            for kmer in sorted(kmer_dic):
+                kmer_freqs_list.append(kmer_dic[kmer])
+            kmer_freqs_ll.append(kmer_freqs_list)
+
+
     OUTRBPSTATS.close()
     OUTMTFSTATS.close()
 
@@ -3272,6 +3509,102 @@ def main_batch(args):
     for hit_id in motif_reg_dic:
         OUTBED.write("%s\n" %(motif_reg_dic[hit_id]))
     OUTBED.close()
+
+    """
+    Example id2reg_annot_dic:
+    {'1wz3Cd6R': {'CDS': 66, 'intron': 8, "3'UTR": 7, "5'UTR": 2}, 'VoSg9-Mm': {'other (nc)RNA': 1, "3'UTR": 73, 'CDS': 10, 'lncRNA': 1, 'intron': 3}}
+
+    ALAMO
+
+    """
+    # print("id2infos_dic:")
+    # print(id2infos_dic)
+    # print("id2reg_annot_dic:")
+    # print(id2reg_annot_dic)
+    # print("dataset_ids_list:")
+    # print(dataset_ids_list)
+    # print("kmer_freqs_ll:")
+    # print(kmer_freqs_ll)
+
+    html_report_out = args.out_folder + "/" + "report.rbpbench_batch.html"
+    if args.plot_abs_paths:
+        html_report_out = os.path.abspath(args.out_folder) + "/" + "report.rbpbench_batch.html"
+
+    if args.report:  # create report also if no hits ?
+
+        assert dataset_ids_list, "no dataset IDs found for report creation"
+        assert kmer_freqs_ll, "no k-mer frequencies found for report creation"
+
+        plots_subfolder = "html_report_plots"
+        benchlib_path = os.path.dirname(benchlib.__file__)
+
+        print("Create HTML report ... ")
+        benchlib.batch_generate_html_report(dataset_ids_list,
+                                            kmer_freqs_ll,
+                                            id2infos_dic, 
+                                            id2reg_annot_dic, 
+                                            id2hit_reg_annot_dic,
+                                            args.out_folder,
+                                            benchlib_path,
+                                            html_report_out=html_report_out,
+                                            plot_abs_paths=args.plot_abs_paths,
+                                            plotly_js_mode=args.plotly_js_mode,
+                                            kmer_size=args.kmer_size,
+                                            plots_subfolder=plots_subfolder)
+
+        # print("Write region annotations to file ... ")
+        # annot_out = args.out_folder + "/region_annotations.tsv"
+        # OUTANNOT = open(annot_out, "w")
+        # OUTANNOT.write("internal_id\tannotation\tcount\n")
+        # for internal_id in id2reg_annot_dic:
+        #     for annot in id2reg_annot_dic[internal_id]:
+        #         OUTANNOT.write("%s\t%s\t%i\n" %(internal_id, annot, id2reg_annot_dic[internal_id][annot]))
+        # OUTANNOT.close()
+
+    """
+        ALAMO
+    
+        plots_subfolder = "html_report_plots"
+        plots_path = args.out_folder + "/" + plots_subfolder
+
+            plots_subfolder = "html_report_plots"
+
+            benchlib_path = os.path.dirname(benchlib.__file__)
+
+            print("Create report ... ")
+            benchlib.search_generate_html_report(df_pval, pval_cont_lll,
+                                            search_rbps_dic,
+                                            id2name_dic, name2ids_dic,
+                                            region_rbp_motif_pos_dic,
+                                            reg2pol_dic,
+                                            args.out_folder,
+                                            benchlib_path,
+                                            rbp2regidx_dic,
+                                            reg_ids_list,
+                                            set_rbp_id=args.set_rbp_id,
+                                            motif_db_str=motif_db_str,
+                                            seq_motif_blocks_dic=seq_motif_blocks_dic,
+                                            motif_distance_plot_range=args.motif_distance_plot_range,
+                                            motif_min_pair_count=args.motif_min_pair_count,
+                                            rbp_min_pair_count=args.rbp_min_pair_count,
+                                            reg2annot_dic=reg2annot_dic,
+                                            upset_plot_min_degree=args.upset_plot_min_degree,
+                                            upset_plot_max_degree=args.upset_plot_max_degree,
+                                            upset_plot_min_subset_size=args.upset_plot_min_subset_size,
+                                            html_report_out=html_report_out,
+                                            plot_abs_paths=args.plot_abs_paths,
+                                            sort_js_mode=args.sort_js_mode,
+                                            plotly_js_mode=args.plotly_js_mode,
+                                            plotly_embed_style=args.plotly_embed_style,
+                                            plotly_full_html=args.plotly_full_html,
+                                            plots_subfolder=plots_subfolder)
+
+
+
+    """
+
+
+
 
 
     """
@@ -3310,6 +3643,8 @@ def main_batch(args):
     print("Motif hits .bed:\n%s" %(motif_hits_bed_out))
     print("RBP hit stats .tsv:\n%s" %(rbp_stats_out))
     print("Motif hit stats .tsv:\n%s" %(motif_stats_out))
+    if args.report:
+        print("Comparative plots report .html:\n%s" %(html_report_out))
     print("")
 
 
@@ -3863,9 +4198,9 @@ def main_optex(args):
     Take out the trash.
 
     """
-    import shutil
     print("Delete tmp folder ... ")
     if os.path.exists(tmp_out_folder):
+        import shutil
         shutil.rmtree(tmp_out_folder)
 
     """

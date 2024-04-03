@@ -17,6 +17,7 @@ import textdistance
 import numpy as np
 from upsetplot import UpSet
 from packaging import version
+from sklearn.decomposition import PCA
 
 
 """
@@ -2574,7 +2575,7 @@ def extract_pol_from_seq_ids(out_seqs_dic):
             m = re.search("\w+:\d+-\d+\(([+|-])\)", seq_id)
             reg2pol_dic[seq_id] = m.group(1)
         else:
-            assert False, "region ID has invalid format (%s). Please contact developers" %(reg_id)
+            assert False, "region ID has invalid format (%s). Please contact developers" %(seq_id)
     return reg2pol_dic
 
 
@@ -3574,6 +3575,402 @@ def read_file_content_into_str_var(file):
 
 ################################################################################
 
+def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
+                            include_plotlyjs="cdn",
+                            full_html=False):
+    """
+    Plot co-occurrences as heat map with plotly.
+
+    https://plotly.github.io/plotly.py-docs/generated/plotly.io.write_html.html
+
+    """
+
+    plot = px.imshow(df)
+    plot.update(data=[{'customdata': pval_cont_lll,
+                    'hovertemplate': 'RBP1: %{x}<br>RBP2: %{y}<br>p-value: %{customdata[0]}<br>RBPs: %{customdata[1]}<br>Counts: %{customdata[2]}<br>Correlation: %{customdata[3]}<br>-log10(p-value): %{z}<extra></extra>'}])
+    plot.update_layout(plot_bgcolor='white')
+    plot.write_html(plot_out,
+                    full_html=full_html,
+                    include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
+def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_freqs_ll, plot_out,
+                                 include_plotlyjs="cdn",
+                                 full_html=False):
+    
+    """
+    Create plotly 3d scatter plot of PCA reduced k-mer frequencies.
+
+    """
+    # ALAMO
+
+    # No .np conversion needed.
+    # data = np.array(kmer_freqs_ll)
+    pca = PCA(n_components=3)  # Reduce data to 3 dimensions.
+    data_3d_pca = pca.fit_transform(kmer_freqs_ll)
+
+    df = pd.DataFrame(data_3d_pca, columns=['PC1', 'PC2', 'PC3'])
+    df['Dataset ID'] = dataset_ids_list
+
+    explained_variance = pca.explained_variance_ratio_ * 100
+
+    fig = px.scatter_3d(
+        df,  # Use the DataFrame directly
+        x='PC1',
+        y='PC2',
+        z='PC3',
+        title='3D Visualization with Dataset IDs',
+        labels={
+            'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+            'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)',
+            'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
+        },
+        #hover_data=['Dataset ID'],  # This adds dataset IDs to the hover information
+        hover_name='Dataset ID'
+    )
+
+    # fig.update_traces(hovertemplate='%{hovertext}')  # This sets the hover template to only show the hover text
+    fig.update_scenes(aspectmode='cube')
+    fig.update_traces(marker=dict(size=3))
+    fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
+def batch_generate_html_report(dataset_ids_list,
+                               kmer_freqs_ll,
+                               id2infos_dic, 
+                               id2reg_annot_dic,
+                               id2hit_reg_annot_dic,
+                               out_folder,
+                               benchlib_path,
+                               html_report_out="report.rbpbench_batch.html",
+                               plot_abs_paths=False,
+                               plotly_js_mode=1,
+                               plotly_full_html=False,
+                               kmer_size=5,
+                               plotly_embed_style=1,
+                               plots_subfolder="html_report_plots"):
+    """
+    Create plots for RBPBench batch run results.
+
+    """
+
+    # Minimum dataset_ids_list and kmer_freqs_ll needed for plotting anything.
+    assert dataset_ids_list, "no dataset IDs found for report creation"
+    assert kmer_freqs_ll, "no k-mer frequencies found for report creation"
+
+    # Use absolute paths?
+    if plot_abs_paths:
+        out_folder = os.path.abspath(out_folder)
+
+    plots_folder = plots_subfolder
+    plots_out_folder = out_folder + "/" + plots_folder
+    if plot_abs_paths:
+        plots_folder = plots_out_folder
+
+    # Delete folder if already present.
+    if os.path.exists(plots_out_folder):
+        shutil.rmtree(plots_out_folder)
+    os.makedirs(plots_out_folder)
+
+    html_out = out_folder + "/" + "report.rbpbench_batch.html"
+    md_out = out_folder + "/" + "report.rbpbench_batch.md"
+    if html_report_out:
+        html_out = html_report_out
+
+    """
+    Setup plotly .js to support plotly plots.
+
+    https://plotly.com/javascript/getting-started/#download
+    plotly-latest.min.js
+    Packaged version: plotly-2.20.0.min.js
+    
+    """
+
+    include_plotlyjs = "cdn"
+    # plotly_full_html = False
+    plotly_js_html = ""
+    plotly_js_path = benchlib_path + "/content/plotly-2.20.0.min.js"
+    assert os.path.exists(plotly_js_path), "plotly .js %s not found" %(plotly_js_path)
+    if plotly_js_mode == 2:
+        include_plotlyjs = plotly_js_path
+    elif plotly_js_mode == 3:
+        shutil.copy(plotly_js_path, plots_out_folder)
+        include_plotlyjs = "plotly-2.20.0.min.js" # Or plots_folder + "/plotly-2.20.0.min.js" ?
+    elif plotly_js_mode == 4:
+        include_plotlyjs = True
+        # plotly_full_html = False # Don't really need full html (head body ..) in plotly html.
+    elif plotly_js_mode == 5:
+        plotly_js_web = "https://cdn.plot.ly/plotly-2.25.2.min.js"
+        plotly_js_html = '<script src="' + plotly_js_web + '"></script>' + "\n"
+        include_plotlyjs = False
+        # plotly_full_html = True
+    elif plotly_js_mode == 6:
+        shutil.copy(plotly_js_path, plots_out_folder)
+        plotly_js = plots_folder + "/plotly-2.20.0.min.js"
+        plotly_js_html = '<script src="' + plotly_js + '"></script>' + "\n"
+        include_plotlyjs = False
+    elif plotly_js_mode == 7:
+        js_code = read_file_content_into_str_var(plotly_js_path)
+        plotly_js_html = "<script>\n" + js_code + "\n</script>\n"
+        include_plotlyjs = False
+        # plotly_full_html = True
+
+
+    # HTML head section.
+    html_head = """<!DOCTYPE html>
+<html>
+<head>
+<title>RBPBench - Batch Report</title>
+%s
+</head>
+<body>
+""" %(plotly_js_html)
+
+    # HTML tail section.
+    html_tail = """
+</body>
+</html>
+"""
+
+    # Markdown part.
+    mdtext = """
+
+# Batch report
+
+List of available statistics and plots generated
+by RBPBench (rbpbench batch with provided --gtf):
+
+- [Input datasets k-mer frequencies comparative plot](#kmer-comp-plot)"""
+    mdtext += "\n"
+
+    # ALAMO
+    if id2reg_annot_dic:  # if --gtf provided.
+        data_idx = 0
+        internal_ids_list = []
+        for internal_id in id2infos_dic:
+            rbp_id = id2infos_dic[internal_id][0]
+            data_id = id2infos_dic[internal_id][1]
+            method_id = id2infos_dic[internal_id][2]
+            database_id = id2infos_dic[internal_id][3]
+            combined_id = rbp_id + "," + database_id + "," + method_id + "," + data_id
+            internal_ids_list.append(internal_id)
+            mdtext += "- [%s region annotations](#annot-plot-%i)\n" %(combined_id, data_idx)
+        mdtext += "\n&nbsp;\n"
+
+    """
+    Input datasets k-mer frequencies plot.
+
+    """
+
+
+    mdtext += """
+## Input datasets k-mer frequencies comparative plot ### {#kmer-comp-plot}
+
+"""
+
+    if len(dataset_ids_list) > 3:
+
+        kmer_comp_plot_plotly =  "kmer_comparative_plot.plotly.html"
+        kmer_comp_plot_plotly_out = plots_out_folder + "/" + kmer_comp_plot_plotly
+
+        create_kmer_comp_plot_plotly(dataset_ids_list, kmer_freqs_ll, 
+                                    kmer_comp_plot_plotly_out,
+                                    include_plotlyjs=include_plotlyjs,
+                                    full_html=plotly_full_html)
+
+        plot_path = plots_folder + "/" + kmer_comp_plot_plotly
+
+        if plotly_js_mode in [5, 6, 7]:
+            # Read in plotly code.
+            # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+            js_code = read_file_content_into_str_var(kmer_comp_plot_plotly_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1000px;")
+            mdtext += js_code + "\n"
+            # mdtext += '</div>'
+        else:
+            if plotly_embed_style == 1:
+                # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                mdtext += "<div>\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1000" height="1000"></iframe>' + "\n"
+                mdtext += '</div>'
+            elif plotly_embed_style == 2:
+                mdtext += '<object data="' + plot_path + '" width="1000" height="1000"> </object>' + "\n"
+
+        mdtext += """
+
+**Figure:** Comparison of input datasets, using k-mer (k = %i) frequencies of input region sequences (3-dimensional PCA) as features, 
+to show similarities of input datasets based on their k-mer frequencies.
+Input dataset IDs (show via hovering over data points) have following format: rbp_id,motif_database_id,method_id,data_id.
+
+&nbsp;
+
+""" %(kmer_size)
+
+    else:
+        mdtext += """
+
+No plot generated since < 4 datasets were provided.
+
+&nbsp;
+
+"""
+
+    """
+    Region annotation plots for each dataset.
+
+    """
+
+    if id2reg_annot_dic:  # if --gtf provided.
+
+        # All annotations.
+        annot_dic = {}
+        c_annot = 0
+        for internal_id in id2reg_annot_dic:
+            for annot in id2reg_annot_dic[internal_id]:
+                c_annot += 1
+                if annot not in annot_dic:
+                    annot_dic[annot] = 1
+                else:
+                    annot_dic[annot] += 1
+
+        hex_colors = get_hex_colors_list(min_len=len(annot_dic))
+
+        annot2color_dic = {}
+        idx = 0
+        for annot in sorted(annot_dic, reverse=False):
+            hc = hex_colors[idx]
+            # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
+            annot2color_dic[annot] = hex_colors[idx]
+            idx += 1
+
+        # Generate plotting sections.
+        for idx, internal_id in enumerate(internal_ids_list):
+            rbp_id = id2infos_dic[internal_id][0]
+            data_id = id2infos_dic[internal_id][1]
+            method_id = id2infos_dic[internal_id][2]
+            database_id = id2infos_dic[internal_id][3]
+            combined_id = rbp_id + "," + database_id + "," + method_id + "," + data_id
+
+            annot_stacked_bars_plot =  "annotation_stacked_bars_plot.%i.png" %(idx)
+            annot_stacked_bars_plot_out = plots_out_folder + "/" + annot_stacked_bars_plot
+
+            mdtext += """
+## %s region annotations ### {#annot-plot-%i}
+
+""" %(combined_id, idx)
+
+            # Check if no regions in dataset (i.e. no annotations).
+            if not c_annot:
+                mdtext += """
+
+No plot generated since no regions for plotting.
+
+&nbsp;
+
+"""
+
+            else:
+
+                # print("rbp2regidx_dic:")
+                # print(rbp2regidx_dic)
+                # print("reg_ids_list:")
+                # print(reg_ids_list)
+                # print("reg2annot_dic:")
+                # print(reg2annot_dic)
+
+                create_batch_annotation_stacked_bars_plot(internal_id, id2infos_dic, id2reg_annot_dic, id2hit_reg_annot_dic,
+                                                        annot2color_dic, annot_stacked_bars_plot_out)
+
+                plot_path = plots_folder + "/" + annot_stacked_bars_plot
+
+                mdtext += '<img src="' + plot_path + '" alt="Annotation stacked bars plot"' + "\n"
+                # mdtext += 'title="Annotation stacked bars plot" width="800" />' + "\n"
+                mdtext += 'title="Annotation stacked bars plot" />' + "\n"
+                mdtext += """
+**Figure:** Genomic region annotations for input dataset **%s** (rbp_id, motif_database_id, method_id, data_id). 
+Input regions are overlapped with genomic regions from GTF file and genomic region feature with highest overlap 
+is assigned to each input region. "intergenic" feature means no GTF region features overlap with input region 
+(minimum overlap amount controlled by --gtf-feat-min-overlap).
+**%s**: annotations for input regions containing %s motif hits. 
+**All**: annotations for all input regions (with or without motif hits).
+
+&nbsp;
+
+""" %(combined_id, rbp_id, rbp_id)
+
+    # ALAMO
+
+    # Convert mdtext to html.
+    md2html = markdown(mdtext, extensions=['attr_list', 'tables'])
+
+    # OUTMD = open(md_out,"w")
+    # OUTMD.write("%s\n" %(mdtext))
+    # OUTMD.close()
+
+    html_content = html_head + md2html + html_tail
+
+    OUTHTML = open(html_out,"w")
+    OUTHTML.write("%s\n" %(html_content))
+    OUTHTML.close()
+
+
+################################################################################
+
+def create_batch_annotation_stacked_bars_plot(internal_id, id2infos_dic, id2reg_annot_dic, id2hit_reg_annot_dic,
+                                              annot2color_dic, plot_out):
+    """
+    Created stacked genomic region annotation plot.
+
+    """
+    fheight = 0.8*2
+    fwidth = 10
+
+    rbp_id = id2infos_dic[internal_id][0]
+
+    data_dic = {}
+    for annot in sorted(id2reg_annot_dic[internal_id], reverse=True):
+        data_dic[annot] = []
+        data_dic[annot].append(id2reg_annot_dic[internal_id][annot])
+        if annot in id2hit_reg_annot_dic[internal_id]:
+            data_dic[annot].append(id2hit_reg_annot_dic[internal_id][annot])
+        else:
+            data_dic[annot].append(0)
+    data_dic["rbp_id"] = ["All", rbp_id]
+
+    df = pd.DataFrame(data_dic)
+
+    # print(internal_id)
+    # print(df)
+
+    ax = df.set_index('rbp_id').plot(kind='barh', stacked=True, legend=False, color=annot2color_dic, edgecolor="none", figsize=(fwidth, fheight))
+
+    plt.xlabel('Annotation overlap')
+    ax.set_ylabel('')
+    ax.yaxis.grid(False)
+    ax.xaxis.grid(True)
+    ax.set_axisbelow(True)
+
+    # Remove border lines.
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+
+    # plt.legend(loc=(1.01, 0.4), fontsize=12, framealpha=0)
+    # plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.5)
+    plt.legend(bbox_to_anchor=(1.01, 1), loc='upper left')
+
+    plt.savefig(plot_out, dpi=110, bbox_inches='tight')
+    plt.close()
+
+
+
+################################################################################
+
 def search_generate_html_report(df_pval, pval_cont_lll,
                                 search_rbps_dic,
                                 id2name_dic, name2ids_dic,
@@ -3764,19 +4161,19 @@ By default, BED genomic regions input file column 5 is used as the score column 
 
 """ %(c_in_regions)
 
-#     mdtext += """
-# <table id="table1" class="sortable">
-# <thead>
-# <tr>
-# <th style="text-align: center;" onclick="sortTable('table1', 0, false)">RBP ID</th>
-# <th style="text-align: center;" onclick="sortTable('table1', 1, true)"># hit regions</th>
-# <th style="text-align: center;" onclick="sortTable('table1', 2, true)">% hit regions</th>
-# <th style="text-align: center;" onclick="sortTable('table1', 3, true)"># motif hits</th>
-# <th style="text-align: center;" onclick="sortTable('table1', 4, true)">p-value</th>
-# </tr>
-# </thead>
-# <tbody>
-# """
+    #     mdtext += """
+    # <table id="table1" class="sortable">
+    # <thead>
+    # <tr>
+    # <th style="text-align: center;" onclick="sortTable('table1', 0, false)">RBP ID</th>
+    # <th style="text-align: center;" onclick="sortTable('table1', 1, true)"># hit regions</th>
+    # <th style="text-align: center;" onclick="sortTable('table1', 2, true)">% hit regions</th>
+    # <th style="text-align: center;" onclick="sortTable('table1', 3, true)"># motif hits</th>
+    # <th style="text-align: center;" onclick="sortTable('table1', 4, true)">p-value</th>
+    # </tr>
+    # </thead>
+    # <tbody>
+    # """
 
     pval_dic = {}
     for rbp_id in search_rbps_dic:
@@ -3908,8 +4305,8 @@ No plot generated since no motif hits found in input regions.
 """
         else:
 
-            create_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
-                                                plot_out=annot_stacked_bars_plot_out)
+            create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
+                                                       plot_out=annot_stacked_bars_plot_out)
 
             plot_path = plots_folder + "/" + annot_stacked_bars_plot
 
@@ -4746,8 +5143,8 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
 
 ################################################################################
 
-def create_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
-                                        plot_out="annotation_stacked_bars_plot.png"):
+def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
+                                               plot_out="annotation_stacked_bars_plot.png"):
     """
     Create a stacked bars plot, with each bar showing the annotations for one RBPs,
     i.e. with which GTF annotations the sites with motifs of the RBP overlap.
@@ -4810,6 +5207,11 @@ def create_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_
     # Remove annotation columns with no counts.
     df = df.loc[:, (df != 0).any(axis=0)]
 
+    # print("data_dic:")
+    # print(data_dic)
+    # print("df:")
+    # print(df)
+
     # Get annotation ID -> hex color mapping for plotting.
     annot2color_dic = {}
 
@@ -4817,7 +5219,7 @@ def create_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_
 
     idx = 0
     for annot in sorted(annot_with_hits_dic, reverse=False):
-        hc = hex_colors[idx]
+        # hc = hex_colors[idx]
         # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
         annot2color_dic[annot] = hex_colors[idx]
         idx += 1
@@ -4863,6 +5265,120 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
     plot.write_html(plot_out,
                     full_html=full_html,
                     include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
+def seqs_dic_count_kmer_freqs(seqs_dic, k,
+                              rna=False,
+                              perc=False,
+                              return_ratios=False,
+                              report_key_error=True,
+                              convert_to_uc=False):
+    """
+    Given a dictionary with sequences seqs_dic, count how many times each
+    k-mer is found over all sequences (== get k-mer frequencies).
+    Return k-mer frequencies count dictionary.
+    By default, a DNA dictionary is used, and key errors will be reported.
+
+    rna:
+    Instead of DNA dictionary, use RNA dictionary (ACGU) for counting
+    k-mers.
+    perc:
+    If True, make percentages out of ratios (*100).
+    return_ratios:
+    Return di-nucleotide ratios instead of frequencies (== counts).
+    report_key_error:
+    If True, report key error (di-nucleotide not in count_dic).
+    convert_to_uc:
+    Convert sequences to uppercase before counting.
+
+    >>> seqs_dic = {'seq1': 'AACGTC', 'seq2': 'GGACT'}
+    >>> seqs_dic_count_kmer_freqs(seqs_dic, 2)
+    {'AA': 1, 'AC': 2, 'AG': 0, 'AT': 0, 'CA': 0, 'CC': 0, 'CG': 1, 'CT': 1, 'GA': 1, 'GC': 0, 'GG': 1, 'GT': 1, 'TA': 0, 'TC': 1, 'TG': 0, 'TT': 0}
+    >>> seqs_dic = {'seq1': 'AAACGT'}
+    >>> seqs_dic_count_kmer_freqs(seqs_dic, 2, return_ratios=True, perc=True)
+    {'AA': 40.0, 'AC': 20.0, 'AG': 0.0, 'AT': 0.0, 'CA': 0.0, 'CC': 0.0, 'CG': 20.0, 'CT': 0.0, 'GA': 0.0, 'GC': 0.0, 'GG': 0.0, 'GT': 20.0, 'TA': 0.0, 'TC': 0.0, 'TG': 0.0, 'TT': 0.0}
+
+    """
+    # Checks.
+    assert seqs_dic, "given dictinary seqs_dic empty"
+    assert k, "invalid k given"
+    assert k > 0, "invalid k given"
+    # Get k-mer dictionary.
+    count_dic = get_kmer_dic(k, rna=rna)
+    # Count k-mers for all sequences in seqs_dic.
+    total_c = 0
+    for seq_id in seqs_dic:
+        seq = seqs_dic[seq_id]
+        if convert_to_uc:
+            seq = seq.upper()
+        for i in range(len(seq)-k+1):
+            kmer = seq[i:i+k]
+            if report_key_error:
+                assert kmer in count_dic, "k-mer \"%s\" not in count_dic" %(kmer)
+            if kmer in count_dic:
+                count_dic[kmer] += 1
+                total_c += 1
+    assert total_c, "no k-mers counted for given seqs_dic (sequence lengths < set k ?)"
+
+    # Calculate ratios.
+    if return_ratios:
+        for kmer in count_dic:
+            ratio = count_dic[kmer] / total_c
+            if perc:
+                count_dic[kmer] = ratio*100
+            else:
+                count_dic[kmer] = ratio
+    # Return k-mer counts or ratios.
+    return count_dic
+
+
+################################################################################
+
+def get_kmer_dic(k,
+                 fill_idx=False,
+                 rna=False):
+    """
+    Return a dictionary of k-mers. By default, DNA alphabet is used (ACGT).
+    Value for each k-mer key is set to 0.
+
+    rna:
+    Use RNA alphabet (ACGU).
+
+    >>> get_kmer_dic(1)
+    {'A': 0, 'C': 0, 'G': 0, 'T': 0}
+    >>> get_kmer_dic(2, rna=True)
+    {'AA': 0, 'AC': 0, 'AG': 0, 'AU': 0, 'CA': 0, 'CC': 0, 'CG': 0, 'CU': 0, 'GA': 0, 'GC': 0, 'GG': 0, 'GU': 0, 'UA': 0, 'UC': 0, 'UG': 0, 'UU': 0}
+    >>> get_kmer_dic(1, fill_idx=True)
+    {'A': 1, 'C': 2, 'G': 3, 'T': 4}
+    >>> get_kmer_dic(2, rna=True, fill_idx=True)
+    {'AA': 1, 'AC': 2, 'AG': 3, 'AU': 4, 'CA': 5, 'CC': 6, 'CG': 7, 'CU': 8, 'GA': 9, 'GC': 10, 'GG': 11, 'GU': 12, 'UA': 13, 'UC': 14, 'UG': 15, 'UU': 16}
+
+    """
+    # Check.
+    assert k, "invalid k given"
+    assert k > 0, "invalid k given"
+    # Dictionary.
+    mer2c_dic = {}
+    # Alphabet.
+    nts = ["A", "C", "G", "T"]
+    if rna:
+        nts = ["A", "C", "G", "U"]
+    # Recursive k-mer dictionary creation.
+    def fill(i, seq, mer2c_dic):
+        if i:
+            for nt in nts:
+                fill(i-1, seq+nt, mer2c_dic)
+        else:
+            mer2c_dic[seq] = 0
+    fill(k, "", mer2c_dic)
+    if fill_idx:
+        idx = 0
+        for kmer,c in sorted(mer2c_dic.items()):
+            idx += 1
+            mer2c_dic[kmer] = idx
+    return mer2c_dic
 
 
 ################################################################################
@@ -4946,7 +5462,7 @@ def log_tf_df(df,
                         if pv == 0:
                             pv = min_pv
                     ltf_pval = log_tf_pval(pv)
-                    df.loc[rbp_i][rbp_j] = ltf_pval
+                    df.loc[rbp_i, rbp_j] = ltf_pval
 
 
 ################################################################################
