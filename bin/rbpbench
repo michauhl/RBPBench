@@ -50,7 +50,7 @@ def setup_argument_parser():
     Search motifs mode.
     """
     p_s = subparsers.add_parser('search',
-                                  help='Search motifs in genomic sites')
+                                help='Search motifs in genomic sites')
     p_s.set_defaults(which='search')
     # Add required arguments group.
     p_sm = p_s.add_argument_group("required arguments")
@@ -177,6 +177,12 @@ def setup_argument_parser():
                    metavar='int',
                    default=5,
                    help="--in BED score column used for p-value calculations. BED score can be e.g. log2 fold change or -log10 p-value of the region (default: 5)")
+    p_s.add_argument("--fisher-mode",
+                   dest="fisher_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Defines Fisher exact test alternative hypothesis for testing co-occurrences of RBP motifs. 1: greater, 2: two-sided, 3: less (default: 1)")
     p_s.add_argument("--unstranded",
                    dest="unstranded",
                    default = False,
@@ -215,6 +221,24 @@ def setup_argument_parser():
                    metavar='int',
                    default=5,
                    help="Upset plot minimum subset size (default: 5)")
+    p_s.add_argument("--upset-plot-max-subset-rank",
+                   dest="upset_plot_max_subset_rank",
+                   type=int,
+                   metavar='int',
+                   default=25,
+                   help="Upset plot maximum subset rank to plot. All tied subsets are included (default: 25)")
+    p_s.add_argument("--upset-plot-max-rbp-rank",
+                   dest="upset_plot_max_rbp_rank",
+                   type=int,
+                   metavar='int',
+                   default=None,
+                   help="Maximum RBP hit region count rank. Set this to limit the amount of RBPs included in upset plot (+ statistic !) to top --upset-plot-max-rbp-rank RBPs. By default all RBPs are included (default: None)")
+    p_s.add_argument("--upset-plot-min-rbp-count",
+                   dest="upset_plot_min_rbp_count",
+                   type=int,
+                   metavar='int',
+                   default=0,
+                   help="Minimum amount of input sites containing motifs for an RBP in order for the RBP to be included in upset plot (+ statistic !). By default, all RBPs are included, also RBPs without hit regions (default: 0)")
     p_s.add_argument("--gtf",
                    dest="in_gtf",
                    type=str,
@@ -290,7 +314,6 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3],
                    help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to plots output folder. 3: include .js code in HTML (default: 1)")
-
 
     """
     Batch mode.
@@ -483,6 +506,157 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
+
+
+    """
+    Sequence search motifs mode.
+
+    ALAMO
+    """
+    p_ss = subparsers.add_parser('searchseq',
+                                help='Search motifs in sequences')
+    p_ss.set_defaults(which='searchseq')
+    # Add required arguments group.
+    p_ssm = p_ss.add_argument_group("required arguments")
+    # Required arguments for search.
+    p_ssm.add_argument("--in",
+                   dest="in_seqs",
+                   type=str,
+                   metavar='str',
+                   required=True,
+                   help="Input FASTA file with DNA/RNA sequences used for motif search")
+    p_ssm.add_argument("--rbps",
+                   dest="list_rbps",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   required=True,
+                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme-xml and/or --user-cm")
+    p_ssm.add_argument("--out",
+                   dest="out_folder",
+                   type=str,
+                   metavar='str',
+                   required=True,
+                   help="Results output folder")
+    # Optional arguments for search.
+    p_ss.add_argument("--data-id",
+                   dest="data_id",
+                   type=str,
+                   metavar='str',
+                   default = "data_id",
+                   help="Dataset ID to describe dataset, e.g. --data-id PUM2_eCLIP_K562, used in output tables and for generating the comparison reports (rbpbench compare)")
+    p_ss.add_argument("--method-id",
+                   dest="method_id",
+                   type=str,
+                   metavar='str',
+                   default = "method_id",
+                   help="Method ID to describe peak calling method, e.g. --method-id clipper_idr, used in output tables and for generating the comparison reports (rbpbench compare)")
+
+
+    p_ss.add_argument("--user-rbp-id",
+                   dest="user_rbp_id",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide RBP ID belonging to provided sequence or structure motif(s) (mandatory for --rbps USER)")
+    p_ss.add_argument("--user-meme-xml",
+                   dest="user_meme_xml",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide MEME/DREME XML file containing sequence motif(s) to be used for the run (needs --rbps USER)")
+    p_ss.add_argument("--user-cm",
+                   dest="user_cm",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide covariance model (.cm) file containing covariance model(s) to be used for the run (needs --rbps USER)")
+    p_ss.add_argument("--motif-db",
+                   dest="motif_db",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.1.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.1.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
+    p_ss.add_argument("--custom-db",
+                   dest="custom_db",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme-xml, --custom-db-cm, --custom-db-info")
+    p_ss.add_argument("--custom-db-id",
+                   dest="custom_db_id",
+                   type=str,
+                   metavar='str',
+                   default = "custom",
+                   help = "Set ID/name for provided custom motif database via --custom-db  (default: \"custom\")")
+    p_ss.add_argument("--custom-db-meme-xml",
+                   dest="custom_db_meme_xml",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide custom motif database MEME/DREME XML file containing sequence motifs")
+    p_ss.add_argument("--custom-db-cm",
+                   dest="custom_db_cm",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide custom motif database covariance model (.cm) file containing covariance model(s)")
+    p_ss.add_argument("--custom-db-info",
+                   dest="custom_db_info",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
+    p_ss.add_argument("--fimo-nt-freqs",
+                   dest="fimo_nt_freqs",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file optimized for human transcripts)")
+    p_ss.add_argument("--fimo-pval",
+                   dest="fimo_pval",
+                   type=float,
+                   metavar='float',
+                   default=0.001,
+                   help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
+    p_ss.add_argument("--meme-no-check",
+                   dest="meme_disable_check",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable MEME version check. Make sure --meme-no-pgc is set if MEME version >= 5.5.4 is installed! (default: False)")
+    p_ss.add_argument("--meme-no-pgc",
+                   dest="meme_no_pgc",
+                   default = False,
+                   action = "store_true",
+                   help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
+    p_ss.add_argument("--make-uniq-headers",
+                   dest="make_uniq_headers",
+                   default = False,
+                   action = "store_true",
+                   help = "Make FASTA headers unique. By default, an error is thrown if identical FASTA headers are encountered (default: False)")
+    p_ss.add_argument("--header-id",
+                   dest="header_id",
+                   type=str,
+                   metavar='str',
+                   default = "custom",
+                   help = "Constant header ID part used if --make-uniq-headers set (default: \"seq\")")
+    p_ss.add_argument("--plot-motifs",
+                   dest="plot_motifs",
+                   default = False,
+                   action = "store_true",
+                   help = "Visualize selected sequence motifs, by outputting sequence logos and motif hit statistics into .html file (default: False)")
+    p_ss.add_argument("--plot-abs-paths",
+                   dest="plot_abs_paths",
+                   default = False,
+                   action = "store_true",
+                   help = "Store plot files with absolute paths in HTML files. Default is relative paths (default: False)")
+    p_ss.add_argument("--sort-js-mode",
+                   dest="sort_js_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to plots output folder. 3: include .js code in HTML (default: 1)")
+
 
     """
     Optimal extension mode.
@@ -757,7 +931,8 @@ def main_search(args):
     assert benchlib.boundary_check(args.gtf_feat_min_overlap, 1E-9, 1.0), "set --gtf-feat-min-overlap expected to be >= 1E-9 and <= 1.0"
     if args.in_gtf:
         assert args.report, "set --gtf requires --report to be effective"
-
+    assert args.upset_plot_min_rbp_count >= 0, "set --upset-plot-min-rbp-count needs to be >= 0"
+    
     # Is MEME >= v5 installed?
     if not args.meme_disable_check:
         assert benchlib.is_tool("meme"), "meme not in PATH"
@@ -2067,7 +2242,19 @@ def main_search(args):
         pair_str_dic[pair_str] = [pair[0], pair[1]]
 
         table = benchlib.make_contingency_table_2x2(region_rbp_binds_dic, idx1, idx2)
-        odds_ratio, p_value = fisher_exact(table, alternative="two-sided")
+
+        # ALAMO FISHER
+        fisher_alt_hypo = "greater"
+        if args.fisher_mode == 1:
+            fisher_alt_hypo = "greater"
+        elif args.fisher_mode == 2:
+            fisher_alt_hypo = "two-sided"
+        elif args.fisher_mode == 3:
+            fisher_alt_hypo = "less"
+        else:
+            assert False, "Invalid Fisher mode: %i" %(args.fisher_mode)
+
+        odds_ratio, p_value = fisher_exact(table, alternative=fisher_alt_hypo)
 
         # if p_value == 0:
         #   p_value = 2.2e-308
@@ -2364,6 +2551,9 @@ def main_search(args):
                                          upset_plot_min_degree=args.upset_plot_min_degree,
                                          upset_plot_max_degree=args.upset_plot_max_degree,
                                          upset_plot_min_subset_size=args.upset_plot_min_subset_size,
+                                         upset_plot_max_subset_rank=args.upset_plot_max_subset_rank,
+                                         upset_plot_min_rbp_count=args.upset_plot_min_rbp_count,
+                                         upset_plot_max_rbp_rank=args.upset_plot_max_rbp_rank,
                                          html_report_out=html_report_out,
                                          plot_abs_paths=args.plot_abs_paths,
                                          sort_js_mode=args.sort_js_mode,
@@ -2779,7 +2969,6 @@ def main_batch(args):
 
     """
     intron_exon_out_bed = args.out_folder + "/intron_exon_regions.tmp.bed"
-    # ALAMO
 
     if args.in_gtf:
     
@@ -2910,7 +3099,6 @@ def main_batch(args):
     kmer_freqs_ll = []  # For PCA plot.
     dataset_ids_list = []  # For PCA plot.
     dataset_idx = 0  # For PCA plot.
-    # ALAMO.
 
     for idx, bed_file in enumerate(bed_list):
 
@@ -3489,7 +3677,6 @@ def main_batch(args):
             dataset_id = rbp_id + "," + motif_db_str + "," + method_id + "," + data_id
             dataset_ids_list.append(dataset_id)
 
-            # ALAMO
             kmer_dic = benchlib.seqs_dic_count_kmer_freqs(out_seqs_dic, args.kmer_size, 
                                                           rna=False,
                                                           convert_to_uc=True,
@@ -3513,8 +3700,6 @@ def main_batch(args):
     """
     Example id2reg_annot_dic:
     {'1wz3Cd6R': {'CDS': 66, 'intron': 8, "3'UTR": 7, "5'UTR": 2}, 'VoSg9-Mm': {'other (nc)RNA': 1, "3'UTR": 73, 'CDS': 10, 'lncRNA': 1, 'intron': 3}}
-
-    ALAMO
 
     """
     # print("id2infos_dic:")
@@ -3551,61 +3736,6 @@ def main_batch(args):
                                             plotly_js_mode=args.plotly_js_mode,
                                             kmer_size=args.kmer_size,
                                             plots_subfolder=plots_subfolder)
-
-        # print("Write region annotations to file ... ")
-        # annot_out = args.out_folder + "/region_annotations.tsv"
-        # OUTANNOT = open(annot_out, "w")
-        # OUTANNOT.write("internal_id\tannotation\tcount\n")
-        # for internal_id in id2reg_annot_dic:
-        #     for annot in id2reg_annot_dic[internal_id]:
-        #         OUTANNOT.write("%s\t%s\t%i\n" %(internal_id, annot, id2reg_annot_dic[internal_id][annot]))
-        # OUTANNOT.close()
-
-    """
-        ALAMO
-    
-        plots_subfolder = "html_report_plots"
-        plots_path = args.out_folder + "/" + plots_subfolder
-
-            plots_subfolder = "html_report_plots"
-
-            benchlib_path = os.path.dirname(benchlib.__file__)
-
-            print("Create report ... ")
-            benchlib.search_generate_html_report(df_pval, pval_cont_lll,
-                                            search_rbps_dic,
-                                            id2name_dic, name2ids_dic,
-                                            region_rbp_motif_pos_dic,
-                                            reg2pol_dic,
-                                            args.out_folder,
-                                            benchlib_path,
-                                            rbp2regidx_dic,
-                                            reg_ids_list,
-                                            set_rbp_id=args.set_rbp_id,
-                                            motif_db_str=motif_db_str,
-                                            seq_motif_blocks_dic=seq_motif_blocks_dic,
-                                            motif_distance_plot_range=args.motif_distance_plot_range,
-                                            motif_min_pair_count=args.motif_min_pair_count,
-                                            rbp_min_pair_count=args.rbp_min_pair_count,
-                                            reg2annot_dic=reg2annot_dic,
-                                            upset_plot_min_degree=args.upset_plot_min_degree,
-                                            upset_plot_max_degree=args.upset_plot_max_degree,
-                                            upset_plot_min_subset_size=args.upset_plot_min_subset_size,
-                                            html_report_out=html_report_out,
-                                            plot_abs_paths=args.plot_abs_paths,
-                                            sort_js_mode=args.sort_js_mode,
-                                            plotly_js_mode=args.plotly_js_mode,
-                                            plotly_embed_style=args.plotly_embed_style,
-                                            plotly_full_html=args.plotly_full_html,
-                                            plots_subfolder=plots_subfolder)
-
-
-
-    """
-
-
-
-
 
     """
     Output parameter settings.
@@ -3648,11 +3778,1632 @@ def main_batch(args):
     print("")
 
 
+
+
+################################################################################
+
+def main_searchseq(args):
+    """
+    Sequence motifs search.
+
+    """
+
+    # ALAMO
+
+    print("Running for you in SEARCHSEQ mode ... ")
+
+
+    assert os.path.exists(args.in_seqs), "--in FASTA file \"%s\" not found" % (args.in_seqs)
+
+    # Is MEME >= v5 installed?
+    if not args.meme_disable_check:
+        assert benchlib.is_tool("meme"), "meme not in PATH"
+        check, meme_version = benchlib.check_tool_version("meme -version", "5.0")
+        assert check, "RBPBench requires meme version >= 5.0 (installed version: %s)" %(meme_version)
+
+    # Check if MEME version is >= 5.5.4 (need to add fimo --no-pgc option to produce same results!).
+    fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text"
+    if not args.meme_disable_check:
+        check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
+        if check:
+            fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
+    if args.meme_no_pgc:
+        fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
+
+    """
+    Library path.
+    """
+    benchlib_path = os.path.dirname(benchlib.__file__)
+    db_path = benchlib_path + "/content"
+
+    """
+    FIMO nt frequencies.
+    """
+    fimo_freqs_file = db_path + "/fimo_nt_freqs.txt"
+    if args.fimo_nt_freqs:
+        fimo_freqs_file = args.fimo_nt_freqs
+    assert os.path.exists(fimo_freqs_file), "set FIMO nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
+
+    """
+    Motif database.
+    """
+    seq_motifs_db_file, str_motifs_db_file, rbp2ids_file, motif_db_str = specify_motif_db(args.motif_db, 
+                                                                            db_path=db_path)
+    # Custom motif database: folder given.
+    if args.custom_db:
+        assert not args.custom_db_meme_xml, "--custom-db folder set incompatible with --custom-db-meme-xml. Provide custom motif database either via folder (--custom-db) or as single files"
+        assert not args.custom_db_cm, "--custom-db folder set incompatible with --custom-db-cm. Provide custom motif database either via folder (--custom-db) or as single files"
+        assert not args.custom_db_info, "--custom-db folder set incompatible with --custom-db-info. Provide custom motif database either via folder (--custom-db) or as single files"
+        seq_motifs_db_file, str_motifs_db_file, rbp2ids_file = specify_custom_motif_db(args.custom_db)
+        motif_db_str = args.custom_db_id
+    # Custom motif database: single files given.
+    if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
+        motif_db_str = args.custom_db_id
+        assert not args.custom_db, "single custom motif database files provided not compatible with --custom-db. Provide custom motif database either via folder (--custom-db) or as single files"
+        assert args.custom_db_info, "--custom-db-info needed to define custom motif database"
+        rbp2ids_file = args.custom_db_info
+        assert args.custom_db_meme_xml or args.custom_db_cm, "--custom-db-meme-xml and/or --custom-db-cm needed to define custom motif database"
+        if args.custom_db_meme_xml:
+            seq_motifs_db_file = args.custom_db_meme_xml
+        else:
+            seq_motifs_db_file = ""  # setting to empty string results in os.path.exists -> False.
+        if args.custom_db_cm:
+            str_motifs_db_file = args.custom_db_cm
+        else:
+            str_motifs_db_file = ""
+
+    args.motif_db_str = motif_db_str
+
+    """
+    Get ID mappings
+
+    name2ids_dic:
+    RBP name -> motif IDs mapping
+    id2type_dic:
+    motif ID -> motif type (cm, meme_xml)
+    id2org_dic (ignore for now):
+    motif ID -> organism ID (so far only "human")
+
+    """
+    name2ids_dic, id2type_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    # Motif ID -> RBP name (== RBP ID) mapping.
+    id2name_dic = {}
+    for rbp_id in name2ids_dic:
+        for motif_id in name2ids_dic[rbp_id]:
+            id2name_dic[motif_id] = rbp_id
+
+    """
+    Get MEME XML database motif blocks dictionary.
+
+    """
+    seq_motif_blocks_dic = {}
+    if os.path.exists(seq_motifs_db_file):
+        seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
+                                                           empty_check=True)
+    for motif_id in seq_motif_blocks_dic:
+        assert motif_id in id2name_dic, "MEME XML motif ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+
+    """
+    Get covariance model database motif blocks dictionary.
+
+    """
+    str_motif_blocks_dic = {}
+    if os.path.exists(str_motifs_db_file):
+        str_motif_blocks_dic = benchlib.read_in_cm_blocks(str_motifs_db_file, 
+                                                        empty_check=True)
+    for motif_id in str_motif_blocks_dic:
+        assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+
+    # Remove special chars from run ID.
+    args.data_id = benchlib.remove_special_chars_from_str(args.data_id)
+    assert args.data_id, "empty string after removing special chars from --data-id. Please provide alphanumeric string for data ID (- or _ are okay as well)"
+    args.method_id = benchlib.remove_special_chars_from_str(args.method_id)
+    assert args.method_id, "empty string after removing special chars from --method-id. Please provide alphanumeric string for method ID (- or _ are okay as well)"
+    # Run ID definition.
+    run_id = "run_id"
+    # if args.run_id:
+    #     run_id = benchlib.remove_special_chars_from_str(args.run_id)
+    #     assert run_id, "empty string after removing special chars from --run-id. Please provide alphanumeric string for run ID (- or _ are okay as well)"
+    # else:
+    #     random_id = uuid.uuid4()
+    #     run_id = str(random_id)
+
+    # hash_len = max(len(run_id), len(args.data_id), len(args.method_id))
+    # print("###################" + "#"*hash_len)
+    print("Run ID:     ", run_id)
+    print("Data ID:    ", args.data_id)
+    print("Method ID:  ", args.method_id)
+    # print("###################" + "#"*hash_len)
+
+    """
+    Output folders + files.
+
+    """
+    if not os.path.exists(args.out_folder):
+        os.makedirs(args.out_folder)
+
+    # filtered_sites_bed = args.out_folder + "/in_sites.filtered.bed"  # ALAMO
+    filtered_seqs_fa = args.out_folder + "/in_sequences.filtered.fa"  # ALAMO
+    seq_motifs_xml = args.out_folder + "/seq_motifs.xml"
+    str_motifs_cm = args.out_folder + "/str_motifs.cm"
+    fimo_res_tsv = args.out_folder + "/fimo_results.tsv"
+    cmsearch_res_txt = args.out_folder + "/cmsearch_results.txt"
+
+    rbp_stats_out = args.out_folder + "/rbp_hit_stats.tsv"
+    motif_stats_out = args.out_folder + "/motif_hit_stats.tsv"
+    con_res_out_tsv = args.out_folder + "/contingency_table_results.tsv"
+    settings_file = args.out_folder + "/settings.find_motifs.out"
+    rbp_reg_occ_table_out = args.out_folder + "/rbp_region_occupancies.tsv"
+
+    # Output unique motif hits.
+    motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_searchseq.bed"
+
+    # Temp files.
+    # random_id = uuid.uuid1()
+    # tmp_out_bed = args.out_folder + "/" + str(random_id) + ".filtered_in.bed"
+    out_tmp_bed = args.out_folder + "/rbp_motif_hit_regions.tmp.bed"
+    cmstat_tmp_out = args.out_folder + "/cmstat_out.tmp.txt"
+
+    # Delete if existing folder.
+    if os.path.exists(fimo_res_tsv):
+        os.remove(fimo_res_tsv)
+    if os.path.exists(cmsearch_res_txt):
+        os.remove(cmsearch_res_txt)
+
+
+    """
+    Load RBP data based on --rbps (+ optionally USER data).
+
+    """
+
+    rbp_in_dic = {}
+    for rbp_id in args.list_rbps:
+        rbp_in_dic[rbp_id] = 1
+
+    # RBPs for motif search.
+    loaded_rbps_dic = {}
+
+    # USER set?
+    user_motifs = False
+    user_rbp_id = False
+    if "USER" in rbp_in_dic:
+        user_motifs = True
+    else:
+        assert not args.user_meme_xml, "--user-meme-xml provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
+        assert not args.user_cm, "--user-cm provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
+        assert not args.user_rbp_id, "--user-rbp-id set but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
+
+    # If ALL set, load all RBPs (+ optinally USER).
+    if "ALL" in rbp_in_dic:
+        if len(rbp_in_dic) == 2:
+            assert user_motifs, "set --rbps ALL, --rbps ALL USER, or individual RBPs (+ optinally USER) --rbps RBP1 RBP2 ... USER"
+        if len(rbp_in_dic) > 2:
+            assert False, "set --rbps ALL, --rbps ALL USER, or individual RBPs (+ optinally USER) --rbps RBP1 RBP2 ... USER"
+        print("--rbps ALL selected. Loading all database motifs ... ")
+        for rbp_id in name2ids_dic:
+            loaded_rbps_dic[rbp_id] = motif_db_str
+
+    else:
+        # Load individual RBPs.
+        for rbp_id in rbp_in_dic:
+            if rbp_id != "USER":
+                """
+                Check if RBP ID in database.
+                Suggest similar RBPs based on string similarity (edit distance).
+
+                """
+                if rbp_id not in name2ids_dic:
+                    db_rbp_list = []
+                    for db_rbp_id in name2ids_dic:
+                        db_rbp_list.append(db_rbp_id)
+                    pair_dist_dic = benchlib.calc_edit_dist_query_list(rbp_id, db_rbp_list)
+                    max_c = 10
+                    c = 0
+                    suggested_rbps = []
+                    for key, value in sorted(pair_dist_dic.items(), key=lambda item: item[1], reverse=False):
+                        if c >= max_c:
+                            break
+                        c += 1
+                        suggested_rbps.append(key)
+                    suggested_rbps_str = ",".join(suggested_rbps)
+                    assert False, "provided --rbps ID %s not in internal motif database (%s). Please provide RBP name present in database. Did you mean (any of) the following database ID(s) (top 10 hits based on string similarity): %s ?" %(rbp_id, motif_db_str, suggested_rbps_str)
+                # assert rbp_id in name2ids_dic, "provided --rbps ID %s not in internal motif database. Please provide RBP name present in database" %(rbp_id)
+                loaded_rbps_dic[rbp_id] = motif_db_str
+
+    # Motif IDs for search.
+    loaded_motif_ids_dic = {}
+    for rbp_id in loaded_rbps_dic:
+        for motif_id in name2ids_dic[rbp_id]:
+            loaded_motif_ids_dic[motif_id] = motif_db_str
+
+    """
+    Check and load provided USER data.
+
+    """
+
+    if user_motifs:
+        print("--rbps USER selected. Check + load provided USER motifs ... ")
+        assert args.user_rbp_id, "--rbps USER demands --user-rbp-id to be set to connect the supplied motif(s) with an RBP ID"
+        assert args.user_meme_xml or args.user_cm, "--rbps USER requires a provided sequence or structure motif file (via --user-meme-xml AND/OR --user-cm)"
+
+        # Reformat user_rbp_id. 
+        user_rbp_id = benchlib.remove_special_chars_from_str(args.user_rbp_id)
+        assert user_rbp_id, "empty string after removing special chars from --user-rbp-id. Please provide alphanumeric string for RBP ID (- or _ are okay as well)"
+
+        assert user_rbp_id not in loaded_rbps_dic, "user RBP ID %s already selected from database. Please deselect respective database RBP ID or provide unique user RBP ID via --user-rbp-id" %(user_rbp_id)
+        loaded_rbps_dic[user_rbp_id] = "user"
+        # In case user_rbp_id in database, reset motif IDs associated to user_rbp_id.
+        name2ids_dic[user_rbp_id] = []
+        print("RBP ID for user-supplied motifs:", user_rbp_id)
+
+        user_seq_motif_blocks_dic = {}
+        if args.user_meme_xml:
+            assert os.path.exists(args.user_meme_xml), "--user-meme-xml file \"%s\" not found" % (args.user_meme_xml)
+            user_seq_motif_blocks_dic = benchlib.read_in_xml_motifs(args.user_meme_xml, empty_check=False)
+            assert user_seq_motif_blocks_dic, "no motifs read in from provided --user-meme-xml. Make sure to supply sequence motifs in MEME XML format!"
+            # Check if motif ID already loaded.
+            for acc_id in user_seq_motif_blocks_dic:
+                assert acc_id not in loaded_motif_ids_dic, "user-supplied MEME XML motif ID %s already selected, i.e., ID is already associated with selected database RBP %s. Please change user motif ID to a unique motif ID or deselect the respective RBP" %(acc_id, id2name_dic[acc_id])
+                loaded_motif_ids_dic[acc_id] = "user"
+                # Add user to database blocks (overwrite if same ID encountered).
+                seq_motif_blocks_dic[acc_id] = user_seq_motif_blocks_dic[acc_id]
+                name2ids_dic[user_rbp_id].append(acc_id)
+                id2type_dic[acc_id] = "meme_xml"
+                id2name_dic[acc_id] = user_rbp_id
+
+        user_str_motif_blocks_dic = {}
+        if args.user_cm:
+            assert os.path.exists(args.user_cm), "--user-cm file \"%s\" not found" % (args.user_cm)
+            # Check for valid format.
+            acc_ids_dic = benchlib.check_cm_file(args.user_cm, cmstat_tmp_out, empty_check=False)
+            # Read in covariance model blocks.
+            user_str_motif_blocks_dic = benchlib.read_in_cm_blocks(args.user_cm)
+            for acc_id in acc_ids_dic:
+                assert acc_id in user_str_motif_blocks_dic, "accession ID %s not in blocks dictionary. Please contact developers!" %(acc_id)
+            # Check if motif ID already loaded.
+            for acc_id in user_str_motif_blocks_dic:
+                assert acc_id not in loaded_motif_ids_dic, "user-supplied covariance model accession (ACC) ID %s already selected, i.e., ID is already associated with selected database RBP %s. Please change to a unique accession ID or deselect the respective RBP" %(acc_id, id2name_dic[acc_id])
+                loaded_motif_ids_dic[acc_id] = "user"
+                # Add user to database blocks (overwrite if same ID encountered).
+                str_motif_blocks_dic[acc_id] = user_str_motif_blocks_dic[acc_id]
+                name2ids_dic[user_rbp_id].append(acc_id)
+                id2type_dic[acc_id] = "cm"
+                id2name_dic[acc_id] = user_rbp_id
+
+    """
+    Check if loaded RBP IDs have motifs.
+
+    """
+    for rbp_id in loaded_rbps_dic:
+        for motif_id in name2ids_dic[rbp_id]:
+            found = 0
+            if motif_id in seq_motif_blocks_dic:
+                found += 1
+            if motif_id in str_motif_blocks_dic:
+                found += 1
+            assert found, "no motifs loaded for RBP ID \"%s\". Please provide the respective motifs file" %(rbp_id)
+
+    """
+    Load RBP data, store in RBP() class.
+
+    """
+
+    # Store motif IDs for search.
+    search_rbps_dic = {}
+    seq_rbps_dic = {}
+    str_rbps_dic = {}
+    motif_id2idx_dic = {} # motif ID -> list index.
+    args.internal_id = []
+
+    for rbp_id in loaded_rbps_dic:
+    
+        internal_id = base64.urlsafe_b64encode(os.urandom(6)).decode()
+        args.internal_id.append(internal_id)
+        rbp = benchlib.RBP(rbp_id, internal_id)
+
+        for motif_id in name2ids_dic[rbp_id]:
+        
+            assert motif_id in loaded_motif_ids_dic, "motif_id %s not in loaded_motif_ids_dic" %(motif_id)
+
+            if id2type_dic[motif_id] == "meme_xml":
+                rbp.seq_motif_ids.append(motif_id)
+                motif_id2idx_dic[motif_id] = len(rbp.seq_motif_ids) - 1
+                rbp.seq_motif_hits.append(0)
+                seq_rbps_dic[rbp_id] = 1
+            else:
+                rbp.str_motif_ids.append(motif_id)
+                motif_id2idx_dic[motif_id] = len(rbp.str_motif_ids) - 1
+                rbp.str_motif_hits.append(0)
+                str_rbps_dic[rbp_id] = 1
+
+        search_rbps_dic[rbp_id] = rbp
+
+
+    print("# of RBP IDs for search:    ", len(loaded_rbps_dic))
+    print("# of motif IDs for search:  ", len(loaded_motif_ids_dic))
+
+    """
+    Read in sequences.
+    """
+    id_check = True
+    if args.make_uniq_headers:
+        id_check = False
+    
+    in_seqs_dic = benchlib.read_fasta_into_dic(args.in_seqs,
+                                       dna=True,
+                                       all_uc=True,
+                                       id_check=id_check,
+                                       empty_check=False,
+                                       new_header_id=args.header_id,
+                                       make_uniq_headers=args.make_uniq_headers,
+                                       report=1,
+                                       skip_n_seqs=False)
+
+    assert in_seqs_dic, "no sequences read in from --in FASTA file. Make sure to provide a FASTA formatted file with DNA or RNA sequences"
+
+
+    # Output sequences to FASTA.
+    benchlib.fasta_output_dic(in_seqs_dic, filtered_seqs_fa,
+                              split=True)
+
+
+
+
+    # ALAMO : check if following code works for seqsearch / thin out code.
+
+
+
+
+
+    # Effective number of regions used for motif search.
+    c_regions = len(in_seqs_dic)
+
+    # Called region size.
+    called_reg_size = 0
+    len_list = []
+    for seq_id in in_seqs_dic:
+        seq_len = len(in_seqs_dic[seq_id])
+        called_reg_size += seq_len
+        len_list.append(seq_len)
+
+    # Length statistics.
+    reg_len_median = statistics.median(len_list)
+    reg_len_mean = statistics.mean(len_list)
+    reg_len_mean = round(reg_len_mean, 2)
+    reg_len_min = min(len_list)
+    reg_len_max = max(len_list)
+
+    """
+    ====================================
+    RUN SEQUENCE MOTIF SEARCH WITH FIMO.
+    ====================================
+    
+    """
+    fimo_hits_list = []
+    call_dic = {}
+
+    if seq_rbps_dic:
+
+        """
+        Print motifs to file.
+
+        """
+
+        print("Output motifs to XML ... ")
+        out_str, c_added_motifs = benchlib.blocks_to_xml_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
+
+        benchlib.output_string_to_file(out_str, seq_motifs_xml)
+
+
+        """
+        Run FIMO on sequences + motifs.
+
+        """
+
+        print("Run FIMO ... ")
+        benchlib.run_fast_fimo(filtered_seqs_fa, seq_motifs_xml, fimo_res_tsv,
+                    pval_thr=args.fimo_pval,
+                    nt_freqs_file=fimo_freqs_file,
+                    call_dic=call_dic,
+                    params=fimo_params,
+                    error_check=False)
+
+        """
+        Read in FIMO hits.
+
+        """
+
+        assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
+
+        print("Read in FIMO results ... ")
+        fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
+                                                       seq_based=True)
+
+        c_fimo_hits = len(fimo_hits_list)
+        print("# of FIMO motif hits:", c_fimo_hits)
+
+
+    """
+    =========================================
+    RUN STRUCTURE MOTIF SEARCH WITH CMSEARCH.
+    =========================================
+
+    """
+    cmsearch_hits_list = []
+
+    if str_rbps_dic:
+        
+        print("Output covariance models to .cm ... ")
+        benchlib.output_cm_blocks_to_file(str_motif_blocks_dic, loaded_motif_ids_dic, str_motifs_cm)
+
+        # Run cmsearch.
+        print("Run cmsearch ... ")
+        benchlib.run_cmsearch(filtered_seqs_fa, str_motifs_cm, cmsearch_res_txt,
+                        error_check=False,
+                        call_dic=call_dic,
+                        params="-g --tformat fasta --toponly --incT 1 -T 1 --default")  # or add --anytrunc and remove --g
+        # Read in hits.
+        print("Read in cmsearch results ... ")
+        cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt,
+                                                                           seq_based=True,
+                                                                           check=True)
+
+        print("# of cmsearch motif hits:", c_cms_hits)
+
+
+    """
+    Store for each RBP the regions with motif hits (and hit counts), using
+    dictionary of dictionaries regions_with_motifs_dic.
+    This tells us, how many input regions have motif hits, separated by RBP.
+    Also store for each RBP the unique motif hit regions (and hit counts), using
+    dictionary of dictionaries unique_motifs_dic.
+
+    regions_with_motifs_dic:
+        Dictionary of dictionaries, format:
+        {rbp_id1 -> {'region1': motif_c_region1, 'region2': motif_c_region2}, rbp_id2 -> {'region1': motif_c_region1}}
+    unique_motifs_dic:
+        Dictionary of dictionaries, format:
+        {rbp_id1 -> {'motif_region1': c_motif_region1, 'motif_region2': c_motif_region2}, rbp_id2 -> .. }
+
+    """
+
+    regions_with_motifs_dic = {}
+    unique_motifs_dic = {}
+
+    # Store regions with sequence motifs.
+    for fh in fimo_hits_list:
+
+        rbp_id = id2name_dic[fh.motif_id]
+
+        if rbp_id in regions_with_motifs_dic:
+            # fh.seq_name : FASTA header (== --in genomic sequence region).
+            if fh.seq_name in regions_with_motifs_dic[rbp_id]:
+                regions_with_motifs_dic[rbp_id][fh.seq_name] += 1
+            else:
+                regions_with_motifs_dic[rbp_id][fh.seq_name] = 1
+        else:
+            regions_with_motifs_dic[rbp_id] = {}
+            regions_with_motifs_dic[rbp_id][fh.seq_name] = 1
+
+        fh_str = repr(fh) # genomic motif region string.
+
+        # Unique motif regions for each RBP.
+        if rbp_id in unique_motifs_dic:
+            if fh_str in unique_motifs_dic[rbp_id]:
+                unique_motifs_dic[rbp_id][fh_str] += 1
+            else:
+                unique_motifs_dic[rbp_id][fh_str] = 1
+        else:
+            unique_motifs_dic[rbp_id] = {}
+            unique_motifs_dic[rbp_id][fh_str] = 1
+
+        # Output motif stats.
+
+
+    # Store regions with structure motifs.
+    for cmsh in cmsearch_hits_list:
+
+        rbp_id = id2name_dic[cmsh.motif_id]
+
+        if rbp_id in regions_with_motifs_dic:
+            # cmsh.seq_name : FASTA header (== --in genomic sequence region).
+            if cmsh.seq_name in regions_with_motifs_dic[rbp_id]:
+                regions_with_motifs_dic[rbp_id][cmsh.seq_name] += 1
+            else:
+                regions_with_motifs_dic[rbp_id][cmsh.seq_name] = 1
+        else:
+            regions_with_motifs_dic[rbp_id] = {}
+            regions_with_motifs_dic[rbp_id][cmsh.seq_name] = 1
+
+        cmsh_str = repr(cmsh) # genomic motif region string.
+
+        # Unique motif regions for each RBP.
+        if rbp_id in unique_motifs_dic:
+            if cmsh_str in unique_motifs_dic[rbp_id]:
+                unique_motifs_dic[rbp_id][cmsh_str] += 1
+            else:
+                unique_motifs_dic[rbp_id][cmsh_str] = 1
+        else:
+            unique_motifs_dic[rbp_id] = {}
+            unique_motifs_dic[rbp_id][cmsh_str] = 1
+
+    """
+    Store infos for each RBP in RBP class.
+
+    search_rbps_dic[rbp_id] = rbp_class
+    RBP class arguments:
+            name: str,
+            seq_motif_ids = None,
+            str_motif_ids = None,
+            c_hit_reg = 0, # # regions with motif hits.
+            perc_hit_reg = 0.0, # % hit regions over all regions (i.e. how many input regions contain >= 1 RBP motif).
+            c_motif_hits = 0, # # motif hits.
+            c_uniq_motif_hits = 0, # # unique motif hits.
+            c_uniq_motif_nts = 0, # # unique motif nucleotides.
+            perc_uniq_motif_nts_eff_reg = 0.0, # % unique motif nts over effective region length.
+            perc_uniq_motif_nts_cal_reg = 0.0, # % unique motif nts over called region length.
+            uniq_motif_hits_eff_1000nt = 0.0, # unique motif hits per effective 1000 nt.
+            uniq_motif_hits_cal_1000nt = 0.0, # unique motif hits per called 1000 nt.
+            ks_pval = 1.0, # Kolmogorov-Smirnov (KS) statistic p-value (are higher scoring sites enriched with motifs).
+            ks_stat = 0.0,
+            organism: Optional[str] = None
+
+    Number of sequences for FIMO / cmsearch: 
+    c_regions
+
+    """
+    # Set number of no-hit regions.
+    for rbp_id in search_rbps_dic:
+        search_rbps_dic[rbp_id].c_no_hit_reg = c_regions
+
+    for rbp_id in regions_with_motifs_dic:
+        # Number of --in regions with RBP motif hits.
+        c_hit_reg = len(regions_with_motifs_dic[rbp_id])
+
+        # Number of motif hits on --in regions in total.
+        c_motif_hits = 0
+        for reg_id in regions_with_motifs_dic[rbp_id]:
+            c_motif_hits += regions_with_motifs_dic[rbp_id][reg_id]
+        search_rbps_dic[rbp_id].c_hit_reg = c_hit_reg
+        search_rbps_dic[rbp_id].c_no_hit_reg = c_regions - c_hit_reg
+        search_rbps_dic[rbp_id].c_motif_hits = c_motif_hits
+
+        # % hit regions over all regions (i.e. how many input regions contain >= 1 RBP motif).
+        search_rbps_dic[rbp_id].perc_hit_reg = (search_rbps_dic[rbp_id].c_hit_reg / c_regions) * 100
+
+    """
+    Get unique motif hits.
+
+    unique_motifs_dic:
+        Dictionary of dictionaries, format:
+        {rbp_id1 -> {'motif_region1': c_motif_region1, 'motif_region2': c_motif_region2}, rbp_id2 -> .. }
+    """
+
+    for rbp_id in unique_motifs_dic:
+        c_uniq_motif_hits = len(unique_motifs_dic[rbp_id])
+        search_rbps_dic[rbp_id].c_uniq_motif_hits = c_uniq_motif_hits
+        # Store individual motif unique hits.
+        for motif_str_repr in unique_motifs_dic[rbp_id]:
+            motif_id = benchlib.get_motif_id_from_str_repr(motif_str_repr)
+            idx = motif_id2idx_dic[motif_id]
+            if id2type_dic[motif_id] == "meme_xml":
+                search_rbps_dic[rbp_id].seq_motif_hits[idx] += 1
+            else:
+                search_rbps_dic[rbp_id].str_motif_hits[idx] += 1
+
+    """
+    Number of motif nucleotides over called + effective region size.
+
+    """
+
+    # Effective region size same as called for sequences (searchseq).
+    eff_reg_size = called_reg_size
+
+    print("Calculate effective motif region sizes for each RBP ... ")
+    for rbp_id in unique_motifs_dic:
+        # Ouput unique motif hit regions (sequence or structure) to BED for RBP rbp_id.
+        benchlib.output_motif_hits_to_bed(rbp_id, unique_motifs_dic, out_tmp_bed,
+                                          one_based_start=True)
+        # Calculate effective motif region size.
+        eff_motif_reg_size = benchlib.get_uniq_gen_size(out_tmp_bed)
+
+        # Number of unique motif nucleotides.
+        search_rbps_dic[rbp_id].c_uniq_motif_nts = eff_motif_reg_size
+        # % unique motif nts over effective region length.
+        search_rbps_dic[rbp_id].perc_uniq_motif_nts_eff_reg = (eff_motif_reg_size / eff_reg_size) * 100
+        # % unique motif nts over called region length.
+        search_rbps_dic[rbp_id].perc_uniq_motif_nts_cal_reg = (eff_motif_reg_size / called_reg_size) * 100
+        # Number of unique motif hits per effective 1000 nt.
+        search_rbps_dic[rbp_id].uniq_motif_hits_eff_1000nt  = search_rbps_dic[rbp_id].c_uniq_motif_hits / (eff_reg_size / 1000)
+        # Number of unique motif hits per called 1000 nt.
+        search_rbps_dic[rbp_id].uniq_motif_hits_cal_1000nt  = search_rbps_dic[rbp_id].c_uniq_motif_hits / (called_reg_size / 1000)
+
+
+    print("# --in sequences for motif search:", c_regions)
+    print("Total sequence length:            ", called_reg_size)
+
+
+    # """
+    # Some motif enrichment tests.
+
+    # Kolmogorov-Smirnov test:
+    # conda install -c conda-forge scipy
+    # from scipy.stats import ks_2samp
+    # scipy.stats.ks_2samp()
+    # https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.ks_2samp.html
+    # Performs the two-sample Kolmogorov-Smirnov test for goodness of fit.    
+    # This test compares the underlying continuous distributions F(x) and G(x) of 
+    # two independent samples. See Notes for a description of the available null 
+    # and alternative hypotheses.
+
+    # Changing log2 FC to FC results in same p-values ...
+
+    # alternative: two-sided, greater, less
+    
+    # Alternatively:
+    # Wilcoxon signed-rank test:
+    # https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.wilcoxon.html
+    # alternative: two-sided, greater, less
+    # This however needs same input sizes (x,y)
+    # Alternatively, use Wilcoxon rank-sum test (Mann-Whitney U test)
+
+    
+    # """
+
+    # # print("Calculate Kolmogorov-Smirnov (KS) statistics ... ")
+    # print("Calculate Wilcoxon rank-sum test statistics ... ")
+
+    # # Check if all scores same (e.g. 0).
+    # reg_scores_dic = {}
+    # for reg_id in reg2sc_dic:
+    #     reg_scores_dic[reg2sc_dic[reg_id]] = 1
+    # if len(reg_scores_dic) == 1:
+    #     print("WARNING: all site scores identical. Reported p-values meaningless! (i.e., equal 1.0)")
+
+    # wc_pval_dic = {}
+    # for rbp_id in regions_with_motifs_dic:
+    #     hit_reg_scores = []
+    #     non_hit_reg_scores = []
+    #     seen_ids_dic = {}
+    #     # CHECK?
+    #     for reg_id in reg2sc_dic:
+    #         reg_sc = reg2sc_dic[reg_id]  # float value.
+
+    #         # If --unstranded, count regions only once as hit or no hit.
+    #         if args.unstranded and not args.unstranded_ct:
+    #             core_id = benchlib.reg_get_core_id(reg_id)
+    #             reg_id1 = core_id + "(+)"
+    #             reg_id2 = core_id + "(-)"
+    #             if core_id not in seen_ids_dic:
+    #                 if reg_id1 in regions_with_motifs_dic[rbp_id] or reg_id2 in regions_with_motifs_dic[rbp_id]:
+    #                     hit_reg_scores.append(reg_sc)
+    #                 else:
+    #                     non_hit_reg_scores.append(reg_sc)
+    #                 seen_ids_dic[core_id] = 1
+
+    #         else:
+    #             if reg_id in regions_with_motifs_dic[rbp_id]:
+    #                 hit_reg_scores.append(reg_sc)
+    #             else:
+    #                 non_hit_reg_scores.append(reg_sc)
+
+    #     # print("rbp_id:", rbp_id)
+    #     # print("hit_reg_scores:", hit_reg_scores)
+    #     # print("non_hit_reg_scores:", non_hit_reg_scores)
+    #     # print("# hit regions:    ", len(hit_reg_scores))
+    #     # print("# non-hit regions:", len(non_hit_reg_scores))
+
+    #     # Calculate the KS statistic and p-value
+    #     # ks_stat, ks_pval = ks_2samp(hit_reg_scores, non_hit_reg_scores, alternative="less")
+
+    #     wc_pval = 1.0
+    #     # In case no regions without motif hits.
+    #     if not non_hit_reg_scores:
+    #         print("WARNING: all input regions contain %s motifs. Adding dummy scores (median) ... " %(rbp_id))
+    #         dummy_val = statistics.median(hit_reg_scores)
+    #         hit_reg_scores.append(dummy_val)
+    #         non_hit_reg_scores.append(dummy_val)
+
+    #     # Wilcoxon rank-sum test (Mann-Whitney U test).
+    #     if unique_motifs_dic[rbp_id]:
+    #         wc_stat, wc_pval = mannwhitneyu(hit_reg_scores, non_hit_reg_scores, alternative="greater")
+    #         # wc_stat_less, wc_pval_less = mannwhitneyu(hit_reg_scores, non_hit_reg_scores, alternative="less")
+
+    #         #print("hit_reg_scores:", hit_reg_scores)
+    #         #print("non_hit_reg_scores:", non_hit_reg_scores)
+    #         # search_rbps_dic[rbp_id].ks_pval = ks_pval
+    #         search_rbps_dic[rbp_id].wc_pval = wc_pval
+    #         # search_rbps_dic[rbp_id].wc_pval_less = wc_pval_less
+    #         wc_pval_dic[rbp_id] = wc_pval
+
+    #     # print("KS p-value (%s):" %(rbp_id), p_value)
+
+
+    # # Print out RBPs sorted by Wilcoxon p-value.
+    # sorted_wc_pval_dic = dict(sorted(wc_pval_dic.items(), key=lambda item: item[1], reverse=False))
+    # print("Compact hit stats (RBP ID, # unique hits, Wilcoxon p-value):")
+    # for rbp_id, p_value in sorted_wc_pval_dic.items():
+    #     # print("KS p-value (%s):" %(rbp_id), p_value)
+    #     # print(rbp_id, ":", p_value)
+    #     c_hits = search_rbps_dic[rbp_id].c_uniq_motif_hits
+    #     # ks_pval = search_rbps_dic[rbp_id].ks_pval
+    #     # wc_pval_less = search_rbps_dic[rbp_id].wc_pval_less
+    #     # print("RBP:", rbp_id, "# hits:", c_uniq_motif_hits, "KS p-value:", p_value)
+    #     # print("%s\t%i\t%s\t%s" %(rbp_id, c_hits, str(p_value), str(wc_pval_less)))
+    #     print("%s\t%i\t%s" %(rbp_id, c_hits, str(p_value)))
+    # print("")
+
+
+
+    """
+    Output RBP hit stats (ie one row per RBP).
+
+    Output clowns:
+    rbp_id
+    c_regions
+    called_reg_size
+    effective_reg_size
+    c_reg_with_hits
+    perc_reg_with_hits
+    c_motif_hits
+    c_uniq_motif_hits
+    c_uniq_motif_nts
+    perc_uniq_motif_nts_cal_reg
+    perc_uniq_motif_nts_eff_reg
+    uniq_motif_hits_cal_1000nt
+    uniq_motif_hits_eff_1000nt
+    wc_pval
+    seq_motif_ids
+    seq_motif_hits
+    str_motif_ids
+    str_motif_hits
+
+    """
+
+    rbp_list = []
+
+    OUTSTATS = open(rbp_stats_out, "w")
+    rbp_stats_header = "data_id\tmethod_id\trun_id\tmotif_db\trbp_id\tc_regions\tmean_reg_len\tmedian_reg_len\tmin_reg_len\tmax_reg_len\t"
+    rbp_stats_header += "called_reg_size\teffective_reg_size\tc_reg_with_hits\tperc_reg_with_hits\t"
+    rbp_stats_header += "c_motif_hits\tc_uniq_motif_hits\tc_uniq_motif_nts\tperc_uniq_motif_nts_cal_reg\tperc_uniq_motif_nts_eff_reg\tuniq_motif_hits_cal_1000nt\t"
+    rbp_stats_header += "uniq_motif_hits_eff_1000nt\twc_pval\tseq_motif_ids\tseq_motif_hits\tstr_motif_ids\tstr_motif_hits\tinternal_id\n"
+    OUTSTATS.write(rbp_stats_header)
+
+    for rbp_id in search_rbps_dic:
+
+        # print(search_rbps_dic[rbp_id].__dict__)
+        rbp_list.append(rbp_id)
+
+        motif_db_out = loaded_rbps_dic[rbp_id]
+
+        c_reg_with_hits = search_rbps_dic[rbp_id].c_hit_reg
+        perc_reg_with_hits = search_rbps_dic[rbp_id].perc_hit_reg
+        c_motif_hits = search_rbps_dic[rbp_id].c_motif_hits
+        c_uniq_motif_hits = search_rbps_dic[rbp_id].c_uniq_motif_hits
+        c_uniq_motif_nts = search_rbps_dic[rbp_id].c_uniq_motif_nts
+        perc_uniq_motif_nts_cal_reg = search_rbps_dic[rbp_id].perc_uniq_motif_nts_cal_reg
+        perc_uniq_motif_nts_eff_reg = search_rbps_dic[rbp_id].perc_uniq_motif_nts_eff_reg
+        uniq_motif_hits_cal_1000nt = search_rbps_dic[rbp_id].uniq_motif_hits_cal_1000nt
+        uniq_motif_hits_eff_1000nt = search_rbps_dic[rbp_id].uniq_motif_hits_eff_1000nt
+        wc_pval = search_rbps_dic[rbp_id].wc_pval
+        internal_id = search_rbps_dic[rbp_id].internal_id
+
+        seq_motif_hits = ",".join(str(hc) for hc in search_rbps_dic[rbp_id].seq_motif_hits)
+        str_motif_hits = ",".join(str(hc) for hc in search_rbps_dic[rbp_id].str_motif_hits)
+        seq_motif_ids = ",".join(search_rbps_dic[rbp_id].seq_motif_ids)
+        str_motif_ids = ",".join(search_rbps_dic[rbp_id].str_motif_ids)
+        if not seq_motif_hits:
+            seq_motif_hits = "-"
+        if not str_motif_hits:
+            str_motif_hits = "-"
+        if not seq_motif_ids:
+            seq_motif_ids = "-"
+        if not str_motif_ids:
+            str_motif_ids = "-"
+
+        row_str = args.data_id + "\t"
+        row_str += args.method_id + "\t"
+        row_str += run_id + "\t"
+        row_str += motif_db_out + "\t"
+        row_str += rbp_id + "\t"
+
+        row_str += str(c_regions) + "\t"
+
+        row_str += str(reg_len_mean) + "\t"
+        row_str += str(reg_len_median) + "\t"
+        row_str += str(reg_len_min) + "\t"
+        row_str += str(reg_len_max) + "\t"
+
+        row_str += str(called_reg_size) + "\t"
+        row_str += str(eff_reg_size) + "\t"
+
+        row_str += str(c_reg_with_hits) + "\t"
+        row_str += str(perc_reg_with_hits) + "\t"
+
+        row_str += str(c_motif_hits) + "\t"
+        row_str += str(c_uniq_motif_hits) + "\t"
+        row_str += str(c_uniq_motif_nts) + "\t"
+        row_str += str(perc_uniq_motif_nts_cal_reg) + "\t"
+        row_str += str(perc_uniq_motif_nts_eff_reg) + "\t"
+        row_str += str(uniq_motif_hits_cal_1000nt) + "\t"
+        row_str += str(uniq_motif_hits_eff_1000nt) + "\t"
+        row_str += str(wc_pval) + "\t"
+        row_str += seq_motif_ids + "\t"
+        row_str += seq_motif_hits + "\t"
+        row_str += str_motif_ids + "\t"
+        row_str += str_motif_hits + "\t"
+        row_str += internal_id + "\n"
+
+        OUTSTATS.write(row_str)
+
+    OUTSTATS.close()
+
+    """
+    Region ID list.
+    
+    """
+    reg_ids_list = []
+    reg_ids_dic = {}
+    for seq_id, seq in sorted(in_seqs_dic.items()):
+        reg_ids_list.append(seq_id)
+        reg_ids_dic[seq_id] = 1
+
+    rbp_list.sort()
+    len_rbp_list = len(rbp_list)
+    # Store rbp_id -> for each region if hit: 1, else: 0, i.e.: [1,0,0,0,0]
+    reg_hits_dic = {}
+    add_count = False # Add # of motif hits in region or just add 1 (if False)
+
+    # RBP ID to index mapping.
+    rbp2idx_dic = {}
+    idx2rbp_dic = {}
+    print("Get RBP region occupancies ... ")
+    for idx, rbp_id in enumerate(rbp_list):
+        rbp2idx_dic[rbp_id] = idx
+        idx2rbp_dic[idx] = rbp_id
+        # Region has hits yes(1)/no(0).
+        hit_list = []
+        for reg_id in reg_ids_list:
+            if rbp_id in regions_with_motifs_dic and reg_id in regions_with_motifs_dic[rbp_id]:
+                if add_count:
+                    hit_list.append(regions_with_motifs_dic[rbp_id][reg_id])
+                else:
+                    hit_list.append(1)
+            else:
+                hit_list.append(0)
+        reg_hits_dic[rbp_id] = hit_list
+
+    """
+    Output occupancies.
+
+    reg_hits_dic[rbp_id] = [0,1,0,0, ...]
+    reg_ids_list = [reg_id1, reg_id2, ... ]
+
+    rbp2regidx_dic:
+        # rbp_id -> 0-based indexes of occupied regions, e.g. [0, 3, 12, 88, 114] 
+
+    """
+    rbp2regidx_dic = {}
+    OUTOCC = open(rbp_reg_occ_table_out,"w")
+
+    occ_header = "#region_id \ rbp_id"
+    for rbp_id, hit_list in sorted(reg_hits_dic.items()):
+        occ_header += "\t%s" %(rbp_id)
+        rbp2regidx_dic[rbp_id] = []
+        for idx, label in enumerate(hit_list):
+            if label:  # if occupied (i.e. 1-label).
+                rbp2regidx_dic[rbp_id].append(idx)
+    OUTOCC.write("%s\n" %(occ_header))
+    for idx, reg_id in enumerate(reg_ids_list):
+        occ_row = "%s" %(reg_id)
+        for rbp_id, hit_list in sorted(reg_hits_dic.items()):
+            occ_row += "\t%i" %(hit_list[idx])
+        OUTOCC.write("%s\n" %(occ_row))
+    OUTOCC.close()
+
+    """
+    Store RBP binding information for each input region.
+    Format region_rbp_binds_dic:
+    region_id -> [False, True, False ... ] 
+    with list number of RBP IDs (len_rbp_list), alphabetically sorted.
+    Format region_rbp_motif_pos_dic:
+    Region ID -> "motif_id,start_1based,end_1based,p_value/-(bit_score)"
+    E.g.
+    region_rbp_motif_pos_dic["reg1"] = ["rbp1_m1,98,102,0.01", "rbp1_m1,110,115,0.1", "rbp1_m2,110,115,0.05", "rbp2_m1,115,120,0.02", "rbp3_m1,90,95,0.01"]
+
+    """
+    region_rbp_binds_dic = {}
+    region_rbp_motif_pos_dic = {}
+
+    for reg_id in in_seqs_dic:
+        # assert reg_id in reg2sc_dic, "region ID \"%s\" from in_seqs_dic not found in reg2sc_dic" %(reg_id)
+        region_rbp_binds_dic[reg_id] = [False]*len_rbp_list
+        region_rbp_motif_pos_dic[reg_id] = []
+
+
+    """
+    Output motif region stats (1 row for each motif hit).
+    Report ALL motif hits,
+    plus report how many times one genomic motif hit occurs (uniq_count). 
+
+    """
+
+    OUTSTATS = open(motif_stats_out,"w")
+
+    motif_stats_header = "data_id\tmethod_id\trun_id\tmotif_db\tregion_id\trbp_id\tmotif_id\tchr_id\tgen_s\tgen_e\tstrand\tregion_s\tregion_e\tregion_len\t"
+    motif_stats_header += "uniq_count\tfimo_score\tfimo_pval\tcms_score\tcms_eval\tinternal_id\n"
+    OUTSTATS.write(motif_stats_header)
+
+    # Unique motif regions BED.
+    motif_reg_dic = {}
+
+    # hit_id = "%s:%s-%s(%s),%s" %(cols[7], cols[8], cols[9], cols[10], cols[6])
+
+    for fh in fimo_hits_list:
+
+        rbp_id = id2name_dic[fh.motif_id]
+        region_id = fh.seq_name
+        region_len = len(in_seqs_dic[region_id])
+        # genomic motif region string.
+        fh_str = repr(fh)
+        uniq_count = unique_motifs_dic[rbp_id][fh_str]
+        # Store binding info of RBP in region.
+        rbp_idx = rbp2idx_dic[rbp_id]
+
+        # Motif hit string.
+        motif_str = "%s,%i,%i,%s" %(fh.motif_id, fh.start, fh.end, str(fh.pval))
+        # # Center position of motif hit.
+        # motif_hit_s = fh.start - 1
+        # motif_hit_e = fh.end
+        # center_pos = benchlib.get_center_position(motif_hit_s, motif_hit_e)        
+
+        region_rbp_binds_dic[region_id][rbp_idx] = True
+        region_rbp_motif_pos_dic[region_id].append(motif_str)
+
+        motif_db_out = loaded_motif_ids_dic[fh.motif_id]
+
+        internal_id = search_rbps_dic[rbp_id].internal_id
+
+        # Store motif hit as BED.
+        hit_id = "%s:%s-%s(%s),%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
+        if hit_id not in motif_reg_dic:
+            bed_row = "%s\t%i\t%i\t%s,%s;%i;%s,%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval))
+            motif_reg_dic[hit_id] = bed_row
+
+        row_str = args.data_id + "\t"
+        row_str += args.method_id + "\t"
+        row_str += run_id + "\t"
+        row_str += motif_db_out + "\t"
+        row_str += region_id + "\t"
+        row_str += rbp_id + "\t"
+        row_str += fh.motif_id + "\t"
+        row_str += fh.chr_id + "\t"
+        row_str += str(fh.start) + "\t"  # 1-based.
+        row_str += str(fh.end) + "\t"
+        row_str += fh.strand + "\t"
+        row_str += str(fh.seq_s) + "\t"  # 1-based.
+        row_str += str(fh.seq_e) + "\t"
+        row_str += str(region_len) + "\t"
+        row_str += str(uniq_count) + "\t"
+        row_str += str(fh.score) + "\t"
+        row_str += str(fh.pval) + "\t"
+        row_str += "-\t"
+        row_str += "-\t"
+        row_str += internal_id + "\n"
+
+        OUTSTATS.write(row_str)
+
+    for cmsh in cmsearch_hits_list:
+
+        rbp_id = id2name_dic[cmsh.motif_id]
+        region_id = cmsh.seq_name
+        region_len = len(in_seqs_dic[region_id])
+        # genomic motif region string.
+        cmsh_str = repr(cmsh) 
+        uniq_count = unique_motifs_dic[rbp_id][cmsh_str]
+        # Store binding info of RBP in region.
+        rbp_idx = rbp2idx_dic[rbp_id]
+
+        # Motif hit string.
+        motif_str = "%s,%i,%i,%s" %(cmsh.motif_id, cmsh.start, cmsh.end, str(-1*cmsh.score))
+        # # Center position of motif hit.
+        # motif_hit_s = cmsh.start - 1
+        # motif_hit_e = cmsh.end
+        # center_pos = benchlib.get_center_position(motif_hit_s, motif_hit_e)
+        
+        region_rbp_binds_dic[region_id][rbp_idx] = True
+        region_rbp_motif_pos_dic[region_id].append(motif_str)
+
+        motif_db_out = loaded_motif_ids_dic[cmsh.motif_id]
+
+        internal_id = search_rbps_dic[rbp_id].internal_id
+
+        # Store motif hit as BED.
+        hit_id = "%s:%s-%s(%s),%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
+        if hit_id not in motif_reg_dic:
+            bed_row = "%s\t%i\t%i\t%s,%s;%i;%s,%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value))
+            motif_reg_dic[hit_id] = bed_row
+
+        row_str = args.data_id + "\t"
+        row_str += args.method_id + "\t"
+        row_str += run_id + "\t"
+        row_str += motif_db_out + "\t"
+        row_str += region_id + "\t"
+        row_str += rbp_id + "\t"
+        row_str += cmsh.motif_id + "\t"
+        row_str += cmsh.chr_id + "\t"
+        row_str += str(cmsh.start) + "\t"
+        row_str += str(cmsh.end) + "\t"
+        row_str += cmsh.strand + "\t"
+        row_str += str(cmsh.seq_s) + "\t"
+        row_str += str(cmsh.seq_e) + "\t"
+        row_str += str(region_len) + "\t"
+        row_str += str(uniq_count) + "\t"
+        row_str += "-\t"
+        row_str += "-\t"
+        row_str += str(cmsh.score) + "\t"
+        row_str += str(cmsh.e_value) + "\t"
+        row_str += internal_id + "\n"
+        #print("region_id:", region_id)
+        #print("evalue:", cmsh.e_value)
+        #print(row_str)
+
+        OUTSTATS.write(row_str)
+
+    OUTSTATS.close()
+
+    """
+    Output motif hits as BED.
+    """
+
+    OUTBED = open(motif_hits_bed_out,"w")
+    for hit_id in motif_reg_dic:
+        OUTBED.write("%s\n" %(motif_reg_dic[hit_id]))
+    OUTBED.close()
+
+
+
+    # """
+    # Significance testing:
+    # Check for co-occurrences of motifs from different RBPs in regions.
+    # Use 2x2 contingency tables, and some test for significance,
+    # e.g. Fisher exact or Chi-squared
+
+    # region_rbp_binds_dic format:
+    # 'chr20:62139082-62139128(-)': [False, False, False]
+    # ...
+    # rbp2idx_dic
+    # idx2rbp_dic
+
+    # from itertools import combinations
+    # Number of combinations (draw k from n elements, no order, no repetition)
+    # Binomialcoefficient: n over k, where n = #RBPs, and k = 2
+    # rbp_pairs = list(combinations(rbp_list, 2))
+
+    # make_contingency_table_2x2(region_labels_dic, idx1, idx2):
+    # https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.fisher_exact.html
+    #                List 1              Not in List 1
+    # List 2         A                   B
+    # Not in List 2  C                   D
+
+    # table = [[A, B], [C, D]]
+
+    # from scipy.stats import chi2_contingency
+    # stat, p, dof, expected = chi2_contingency(table)
+    # Note that chi2_contingency does not tolerate zero elements.
+
+    # """
+    # # Store p-values in 2d-list.
+    # pval_ll = []  # p-values (Fisher exact test).
+    # or_ll = []  # odds ratios.
+    # pval_cont_lll = []
+
+    # for rbp_id in rbp_list:
+    #     pval_ll.append([1.0]*len_rbp_list)
+    #     pval_cont_lll.append([]*len_rbp_list)
+    #     # pval_cont_lll.append([["1.0","-", "-"]]*len_rbp_list)
+    #     or_ll.append([0.0]*len_rbp_list)
+
+    # for i in range(len_rbp_list):
+    #     for j in range(len_rbp_list):
+    #         # Storing [p-value_str, pair_str, table_str, correlation_str].
+    #         pval_cont_lll[i].append(["1.0","-", "-", "-"])  
+
+    # # Add p-values of 1.0 in diagonal.
+    # # for idx, rbp_id in enumerate(rbp_list):
+    # #     pval_ll[idx][idx] = 1.0
+    # #     pval_cont_lll[idx][idx] = 1.0
+
+    # rbp_pairs = list(combinations(rbp_list, 2))
+    # con_pval_dic = {}
+    # con_table_dic = {}
+    # pair_str_dic = {}
+
+    # # print("rbp2idx_dic:", rbp2idx_dic)
+    # # print("region_rbp_binds_dic:", region_rbp_binds_dic)
+    # # print("len(region_rbp_binds_dic):", len(region_rbp_binds_dic))
+    # # true_c = 0
+    # # for reg_id in region_rbp_binds_dic:
+    # #     for label in region_rbp_binds_dic[reg_id]:
+    # #         if label:
+    # #             true_c += 1
+    # # print("# TRUEs:", true_c)
+
+    # c_regions_with_hits = 0
+    # for reg_id in region_rbp_binds_dic:
+    #     reg_hit = False
+    #     for label in region_rbp_binds_dic[reg_id]:
+    #         if label:
+    #             reg_hit = True
+    #     if reg_hit:
+    #         c_regions_with_hits += 1
+    # print("# regions with hits (all motifs):", c_regions_with_hits)
+
+    # print("Compute motif region co-occurrences between RBP pairs ... ")
+    # for pair in rbp_pairs:
+    #     pair = list(pair)
+    #     pair.sort()
+    #     idx1 = rbp2idx_dic[pair[0]]
+    #     idx2 = rbp2idx_dic[pair[1]]
+    #     # pair_list = [pair[0], pair[1]]
+    #     # pair_list.sort()
+    #     pair_str = ",".join(pair)
+    #     # pair_str_dic[pair_str] = [pair_list[0], pair_list[1]]
+    #     pair_str_dic[pair_str] = [pair[0], pair[1]]
+
+    #     table = benchlib.make_contingency_table_2x2(region_rbp_binds_dic, idx1, idx2)
+    #     odds_ratio, p_value = fisher_exact(table, alternative="two-sided")
+
+    #     # if p_value == 0:
+    #     #   p_value = 2.2e-308
+    #     #   print("PVALUE ZERO! (%s, odds_ratio: %s)" %(str(p_value), str(odds_ratio)))
+    #     #   print("pair_str:", pair_str)
+    #     #   print("table_str:", table_str)
+
+    #     con_pval_dic[pair_str] = p_value
+    #     con_table_dic[pair_str] = table
+    #     table_str = str(table)
+
+    #     # print(pair_str, table_str, p_value)
+    #     # print("Pair:", pair_str, "Odds ratio:", odds_ratio,"Fisher p-value:", p_value)
+    #     pval_ll[idx1][idx2] = p_value
+    #     pval_ll[idx2][idx1] = p_value
+    #     pval_cont_lll[idx2][idx1][0] = str(p_value)
+    #     pval_cont_lll[idx2][idx1][1] = pair_str
+    #     pval_cont_lll[idx2][idx1][2] = table_str
+    #     # pval_cont_lll[idx2][idx1][0] = str(p_value)
+    #     # pval_cont_lll[idx2][idx1][1] = pair_str
+    #     # pval_cont_lll[idx2][idx1][2] = table_str
+    #     or_ll[idx1][idx2] = odds_ratio
+    #     or_ll[idx2][idx1] = odds_ratio
+
+
+
+
+    # """
+    # Print out RBPs sorted by KS p-value.
+
+    # """ 
+    # sorted_con_pval_dic = dict(sorted(con_pval_dic.items(), key=lambda item: item[1], reverse=False))
+
+    # print("Co-occurrence contingency table format: [A, B], [C, D]")
+    # print("A: RBP1 AND RBP2")
+    # print("B: NOT RBP1 AND RBP2")
+    # print("C: RBP1 AND NOT RBP2")
+    # print("D: NOT RBP1 AND NOT RBP2")
+    # print("Co-occurrence of motifs (RBP IDs (RBP1,RBP2), # hits, contingency table, Fisher p-value <=0.05):")
+    # c_reported = 0
+
+    # for pair_str, p_value in sorted_con_pval_dic.items():
+    #     if p_value > 0.05:
+    #         break
+    #     c_reported += 1
+    #     rbp1 = pair_str_dic[pair_str][0]
+    #     rbp2 = pair_str_dic[pair_str][1]
+    #     con_table = con_table_dic[pair_str]
+    #     rbp1_hits = search_rbps_dic[rbp1].c_uniq_motif_hits
+    #     rbp2_hits = search_rbps_dic[rbp2].c_uniq_motif_hits
+    #     print("%s\t%i,%i\t%s\t%s" %(pair_str, rbp1_hits, rbp2_hits, str(con_table), str(p_value)))
+
+    # if not c_reported:
+    #     print("NO SIGNIFICANT CO-OCCURRENCES FOUND!")
+    # print("")
+
+    # # Print table to file.
+    # benchlib.output_con_table_results(con_res_out_tsv, pval_ll, rbp_list)
+
+
+    # """
+    # Generate HTML report (--report).
+    
+    # """
+
+    # html_report_out = args.out_folder + "/" + "report.rbpbench_search.html"
+    # if args.plot_abs_paths:
+    #     html_report_out = os.path.abspath(args.out_folder) + "/" + "report.rbpbench_search.html"
+
+    # reg2annot_dic = None
+    # reg_annot_table_file = None
+
+
+
+    # if args.report:
+
+    #     """
+    #     Correlation.
+
+    #     Setting add_count = True changes correlations a bit (use motif hit counts 
+    #     instead of 1 for any number of hits)
+
+    #     """
+
+    #     print("Calculate correlations ... ")
+    #     # Correlation between RBPs dataframe.
+    #     df = DataFrame(reg_hits_dic, columns=rbp_list)
+    #     df_corr = df.corr(method='pearson')
+
+    #     for i,rbp_i in enumerate(rbp_list):
+    #         for j,rbp_j in enumerate(rbp_list):
+    #             if j > i:
+    #                 pval_ll[i][j] = None
+
+    #     # Fisher p-value dataframe.
+    #     df_pval = DataFrame(pval_ll, columns=rbp_list, index=rbp_list)
+
+    #     # Write None to upper-diagonal entries.
+    #     for i,rbp_i in enumerate(rbp_list):
+    #         for j,rbp_j in enumerate(rbp_list):
+    #             if j > i:
+    #                 # df_corr.loc[rbp_i][rbp_j] = None  # FutureWarning: ChainedAssignmentError: behaviour will change in pandas 3.0!
+    #                 df_corr.loc[rbp_i, rbp_j] = None
+    #             else:
+    #                 # Round correlation values if != 1.0.
+    #                 if df_corr.loc[rbp_i][rbp_j] == 1.0:
+    #                     pval_cont_lll[i][j][3] = str(df_corr.loc[rbp_i][rbp_j])
+    #                 else:
+    #                     pval_cont_lll[i][j][3] = "{:.8f}".format(df_corr.loc[rbp_i][rbp_j])
+
+    #     for i,rbp_i in enumerate(rbp_list):
+    #         for j,rbp_j in enumerate(rbp_list):
+    #             if j > i:
+    #                 df_pval.loc[rbp_i, rbp_j] = None
+
+    #     # for i in range(len(rbp_list)):
+    #     #     for j in range(len(rbp_list)):
+    #     #         if j > i:
+    #     #             df_corr.iloc[i][j] = None
+
+    #     # for i in range(len(rbp_list)):
+    #     #     for j in range(len(rbp_list)):
+    #     #         if j > i:
+    #     #             df_pval.iloc[i][j] = None
+
+    #     # print("df_pval:", df_pval)
+    #     # Log transform p-values.
+    #     benchlib.log_tf_df(df_pval, convert_zero_pv=True, rbp_list=rbp_list)
+    #     # print("df_pval:", df_pval)
+
+    #     # print("df:", df)
+    #     # print("df.corr():", df.corr(method='pearson'))
+    #     # print("reg_hits_dic[SLBP]:", reg_hits_dic["SLBP"])
+
+    #     # Plot correlations.
+    #     # motif_db
+    #     # import plotly.express as px
+    #     # fig = px.imshow(df_corr)
+    #     # fig.show()
+
+    #     """
+    #     If --gtf set, get transcript infos and determine RNA region type for 
+    #     each region (select one with biggest overlap). 
+
+    #     Next steps:
+    #     1)
+    #     Extract most prominent transcripts (or use --tr-list ones).
+    #     2)
+    #     Overlap transcript exons+introns with regions.
+    #     3)
+    #     For exonic hit, further overlapping operations necessary to determine 
+    #     RNA type /region type (ncRNA, CDS, UTR ...).
+
+    #     """
+
+    #     if args.in_gtf and c_regions_with_hits:
+
+    #         reg_annot_table_file = args.out_folder + "/" + "region_annotations.tsv"
+
+    #         # Get gene infos.
+    #         print("Read in gene features from --gtf ... ")
+    #         tr2gid_dic = {}
+    #         tr_types_dic = {}  # Store transcript biotypes in GTF file.
+    #         gid2gio_dic = benchlib.gtf_read_in_gene_infos(args.in_gtf,
+    #                                                       tr2gid_dic=tr2gid_dic,
+    #                                                       tr_types_dic=tr_types_dic,
+    #                                                       check_chr_ids_dic=chr_ids_dic,
+    #                                                       chr_style=chr_style,
+    #                                                       empty_check=False)
+    #         assert gid2gio_dic, "no gene infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
+    #         c_gene_infos = len(gid2gio_dic)
+    #         print("# gene features read in from --gtf:", c_gene_infos)
+
+    #         # If --tr-list given.
+    #         tr_ids_dic = {}
+    #         if args.tr_list:
+    #             tr_ids_dic = benchlib.read_ids_into_dic(args.tr_list,
+    #                                                     check_dic=False)
+    #             assert tr_ids_dic, "no IDs read in from provided --tr-list file. Please provide a valid IDs file (one ID per row)"
+    #             for tr_id in tr_ids_dic:
+    #                 assert tr_id in tr2gid_dic, "transcript ID \"%s\" from provided --tr-list file does not appear in --gtf file. Please provide compatible files" %(tr_id)
+    #                 tr_ids_dic[tr_id] = tr2gid_dic[tr_id]
+    #             print("# of transcript IDs (read in from --tr-list): ", len(tr_ids_dic))
+    #         else:
+    #             # Get most prominent transcripts from gene infos.
+    #             tr_ids_dic = benchlib.select_mpts_from_gene_infos(gid2gio_dic,
+    #                                     basic_tag=False,  # do not be strict (only_tsl=False too).
+    #                                     ensembl_canonical_tag=False,
+    #                                     prior_basic_tag=True,  # Prioritize basic tag transcript.
+    #                                     only_tsl=False)
+    #             assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
+    #             print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
+
+    #         # Check exon order (return True if minus strand exon 1 is most downstream, not most upstream, which is the correct way).
+    #         print("Check minus-strand exon order in --gtf ... ")
+    #         correct_min_ex_order = benchlib.gtf_check_exon_order(args.in_gtf)
+    #         if correct_min_ex_order:
+    #             print("Correct order encountered ... ")
+    #         else:
+    #             print("Reverse order encountered ... ")
+    #         # Get transcript infos.
+    #         print("Read in transcript infos from --gtf ... ")
+    #         tid2tio_dic = benchlib.gtf_read_in_transcript_infos(args.in_gtf, 
+    #                                                             tr_ids_dic=tr_ids_dic,
+    #                                                             correct_min_ex_order=correct_min_ex_order,
+    #                                                             chr_style=chr_style,
+    #                                                             empty_check=False)
+
+    #         assert tid2tio_dic, "no transcript infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
+
+    #         # (in)sanity checks.
+    #         for tr_id in tr_ids_dic:
+    #             assert tr_id in tid2tio_dic, "transcript ID %s not in tid2tio_dic"
+    #         for tr_id in tid2tio_dic:
+    #             assert tr_id in tr_ids_dic, "transcript ID %s not in tr_ids_dic"
+
+    #         c_tr_infos = len(tid2tio_dic)
+    #         print("# transcript features read in from --gtf:", c_tr_infos)
+
+    #         # Extract exon + intron regions of selected transcripts from transcript infos.
+    #         print("Output intron annotations to BED ... ")
+    #         intron_exon_out_bed = args.out_folder + "/intron_exon_regions.tmp.bed"
+    #         benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
+    #                                           output_mode=3,  # only introns.
+    #                                           report_counts=True,
+    #                                           add_tr_id=True,
+    #                                           empty_check=False)
+
+    #         # Custom transcript biotypes for upset plot.
+    #         custom_annot_dic = None
+    #         if args.tr_types_list:
+    #             for tr_type in args.tr_types_list:
+    #                 assert tr_type in tr_types_dic, "given transcript biotype ID \"%s\" not found in GTF file"
+    #                 custom_annot_dic[tr_type] = tr_type
+
+    #         # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.
+    #         print("Output exon annotations to BED ... ")
+    #         benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
+    #                                          custom_annot_dic=custom_annot_dic,
+    #                                          append=True)
+
+    #         # Overlap with input regions.
+    #         print("Overlap annotations with input regions ... ")
+    #         params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
+    #         overlap_annotations_bed = args.out_folder + "/overlap_annotations.tmp.bed"
+    #         benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_out_bed, 
+    #                                      overlap_annotations_bed,
+    #                                      params=params)
+            
+    #         reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
+    #                                                         reg_ids_dic=reg_ids_dic)
+
+    #         # Output assignments.
+    #         print("Output region annotations ... ")
+            
+    #         OUTRAN = open(reg_annot_table_file, "w")
+    #         OUTRAN.write("region_id\tgene_id\tgene_name\ttranscript_id\tregion_annotation\ttranscript_biotype\n")
+
+    #         for reg_id in reg2annot_dic:
+    #             annot = reg2annot_dic[reg_id][0]
+    #             tr_id = reg2annot_dic[reg_id][1]
+    #             gene_id = "-"
+    #             gene_name = "-"
+    #             tr_biotype = "-"
+    #             if tr_id:
+    #                 gene_id = tr2gid_dic[tr_id]
+    #                 gene_info = gid2gio_dic[gene_id]
+    #                 tr_biotype = tid2tio_dic[tr_id].tr_biotype
+    #                 gene_name = gene_info.gene_name
+    #             else:
+    #                 tr_id = "-"
+    #             OUTRAN.write("%s\t%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot, tr_biotype))
+    #         OUTRAN.close()
+
+    #     elif args.in_gtf and not c_regions_with_hits:
+    #         print("No need to read in --gtf since no motif hits found .. ")
+
+    #     plots_subfolder = "html_report_plots"
+    #     benchlib_path = os.path.dirname(benchlib.__file__)
+
+    #     print("Create report ... ")
+    #     benchlib.search_generate_html_report(df_pval, pval_cont_lll,
+    #                                      search_rbps_dic,
+    #                                      id2name_dic, name2ids_dic,
+    #                                      region_rbp_motif_pos_dic,
+    #                                      reg2pol_dic,
+    #                                      args.out_folder,
+    #                                      benchlib_path,
+    #                                      rbp2regidx_dic,
+    #                                      reg_ids_list,
+    #                                      set_rbp_id=args.set_rbp_id,
+    #                                      motif_db_str=motif_db_str,
+    #                                      seq_motif_blocks_dic=seq_motif_blocks_dic,
+    #                                      motif_distance_plot_range=args.motif_distance_plot_range,
+    #                                      motif_min_pair_count=args.motif_min_pair_count,
+    #                                      rbp_min_pair_count=args.rbp_min_pair_count,
+    #                                      reg2annot_dic=reg2annot_dic,
+    #                                      upset_plot_min_degree=args.upset_plot_min_degree,
+    #                                      upset_plot_max_degree=args.upset_plot_max_degree,
+    #                                      upset_plot_min_subset_size=args.upset_plot_min_subset_size,
+    #                                      html_report_out=html_report_out,
+    #                                      plot_abs_paths=args.plot_abs_paths,
+    #                                      sort_js_mode=args.sort_js_mode,
+    #                                      plotly_js_mode=args.plotly_js_mode,
+    #                                      plots_subfolder=plots_subfolder)
+
+
+
+
+
+    """
+    Motif plots and motif hit statistics HTML.
+
+    """
+    html_motif_plots_out = args.out_folder + "/" + "motif_plots.rbpbench_searchseq.html"
+    if args.plot_abs_paths:
+        html_motif_plots_out = os.path.abspath(args.out_folder) + "/" + "motif_plots.rbpbench_searchseq.html"
+
+    if args.plot_motifs:
+        
+        print("Generate motif plots HTML ... ")
+        
+        plots_subfolder = "html_motif_plots"
+        benchlib_path = os.path.dirname(benchlib.__file__)
+
+        benchlib.search_generate_html_motif_plots(search_rbps_dic, seq_motif_blocks_dic, 
+                                         str_motif_blocks_dic, args.out_folder, 
+                                         benchlib_path, loaded_motif_ids_dic,
+                                         motif_db_str=motif_db_str,
+                                         sort_js_mode=args.sort_js_mode,
+                                         html_report_out=html_motif_plots_out,
+                                         plot_abs_paths=args.plot_abs_paths,
+                                         rbpbench_mode="searchseq",
+                                         plots_subfolder=plots_subfolder)
+
+
+    """
+    Output parameter settings.
+
+    """
+    # Output mode settings.
+    print("Output parameter settings ... ")
+    SETOUT = open(settings_file, "w")
+    for arg in vars(args):
+        SETOUT.write("%s\t%s\n" %(arg, str(getattr(args, arg))))
+    for call in call_dic:
+        SETOUT.write("%s\t%s\n" %(call, call_dic[call]))
+    SETOUT.close()
+
+    """
+    Take out the trash.
+
+    """
+    print("Delete .tmp files ... ")
+    if os.path.exists(out_tmp_bed):
+        os.remove(out_tmp_bed)
+    if os.path.exists(cmstat_tmp_out):
+        os.remove(cmstat_tmp_out)
+
+
+    """
+    Inform about outputs.
+
+    """
+    print("")
+    print("OUTPUT FILES")
+    print("============")
+    print("")
+    print("Run parameter settings:\n%s" %(settings_file))
+    # print("Co-occurrence p-values for each RBP pair .tsv:\n%s" %(con_res_out_tsv))
+    # print("Filtered input regions .bed:\n%s" %(filtered_sites_bed))
+    print("Filtered input sequences .fa:\n%s" %(filtered_seqs_fa))
+    print("Motif hits .bed:\n%s" %(motif_hits_bed_out))
+    print("RBP region occupancies .tsv:\n%s" %(rbp_reg_occ_table_out))
+    print("RBP hit stats .tsv:\n%s" %(rbp_stats_out))
+    print("Motif hit stats .tsv:\n%s" %(motif_stats_out))
+    # if reg_annot_table_file is not None:
+    #     print("Region annotations .tsv:\n%s" %(reg_annot_table_file))
+    if args.plot_motifs:
+        print("Motif plots and hit statistics .html:\n%s" %(html_motif_plots_out))
+    # if args.report:
+    #     print("Search report .html:\n%s" %(html_report_out))
+    print("")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ################################################################################
 
 def main_optex(args):
     """
-    Investigate optimal extension
+    Investigate optimal extension.
 
     """
 
@@ -4817,6 +6568,8 @@ if __name__ == '__main__':
         main_search(args)
     elif args.which == 'batch':
         main_batch(args)
+    elif args.which == 'searchseq':
+        main_searchseq(args)
     elif args.which == 'optex':
         main_optex(args)
     elif args.which == 'info':

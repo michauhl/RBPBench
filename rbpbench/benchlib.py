@@ -650,6 +650,8 @@ def read_fasta_into_dic(fasta_file,
                         empty_check=True,
                         id_check=True,
                         skip_data_id="set",
+                        new_header_id="site",
+                        make_uniq_headers=False,
                         skip_n_seqs=True):
     """
     Read in FASTA sequences, store in dictionary and return dictionary.
@@ -667,6 +669,7 @@ def read_fasta_into_dic(fasta_file,
     if not seqs_dic:
         seqs_dic = {}
     seq_id = ""
+    header_idx = 0
 
     # Open FASTA either as .gz or as text file.
     if re.search(".+\.gz$", fasta_file):
@@ -686,6 +689,11 @@ def read_fasta_into_dic(fasta_file,
 
             if id_check:
                 assert seq_id not in seqs_dic, "non-unique FASTA header \"%s\" in \"%s\"" % (seq_id, fasta_file)
+
+            if make_uniq_headers:
+                header_idx += 1
+                seq_id = new_header_id + "_" + str(header_idx)
+
             if ids_dic:
                 if seq_id in ids_dic:
                     seqs_dic[seq_id] = ""
@@ -3208,6 +3216,7 @@ class FimoHit(GenomicRegion):
 ################################################################################
 
 def read_in_fimo_results(fimo_tsv,
+                         seq_based=False,
                          fast_fimo=True):
     """
     Read in FIMO motif finding results (TSV file).
@@ -3240,9 +3249,21 @@ def read_in_fimo_results(fimo_tsv,
     PUM2_2		chr18:100000-100096(+)	17	24	+	15.7959	0.0000171		
     PUM2_2		chr18:100000-100096(+)	75	82	+	15.7959	0.0000171    
 
+    With transcripts/sequences (rbpbench searchseq):
+    motif_id	motif_alt_id	sequence_name	start	stop	strand	score	p-value	q-value	matched_sequence
+    PUM1_1		ENST00000561978.1	1242	1248	+	9.84848	0.000296		
+    PUM1_1		ENST00000561978.1	1305	1311	+	6.9798	0.000768		
+    PUM1_2		ENST00000561978.1	1127	1135	+	-2.35354	0.000906		
+    PUM1_2		ENST00000561978.1	1949	1957	+	6.29293	0.00025		
+    PUM1_3		ENST00000561978.1	1414	1421	+	3.61616	0.000958		
+
     UPDATES:
     Do not read in q-value or matched_sequence, as these are not produced when 
     using run_fast_fimo().
+
+    seq_based:
+        If true, input to FIMO search was sequences, so use coordinates as they are (not genomic + relative).
+        Also seq_name is the sequence ID, and does not have to have format like "chr6:35575787-35575923(-)"
 
     """
 
@@ -3268,21 +3289,38 @@ def read_in_fimo_results(fimo_tsv,
                 qval = float(cols[8])
                 matched_seq = cols[9]
 
-            gen_motif_coords = get_genomic_coords_from_seq_name(seq_name, motif_s, motif_e,
-                                                                one_based_start=True)
-            
-            fimo_hit = FimoHit(chr_id=gen_motif_coords[0], 
-                               start=gen_motif_coords[1], 
-                               end=gen_motif_coords[2],
-                               strand=gen_motif_coords[3], 
-                               score=score, 
-                               motif_id=motif_id, 
-                               seq_name=seq_name, 
-                               pval=pval, 
-                               qval=qval,
-                               seq_s=motif_s+1,
-                               seq_e=motif_e,
-                               matched_seq=matched_seq)
+            if seq_based:
+
+                fimo_hit = FimoHit(chr_id=seq_name, 
+                                start=motif_s+1, 
+                                end=motif_e,
+                                strand="+", 
+                                score=score, 
+                                motif_id=motif_id, 
+                                seq_name=seq_name, 
+                                pval=pval, 
+                                qval=qval,
+                                seq_s=motif_s+1,
+                                seq_e=motif_e,
+                                matched_seq=matched_seq)
+                
+            else:
+
+                gen_motif_coords = get_genomic_coords_from_seq_name(seq_name, motif_s, motif_e,
+                                                                    one_based_start=True)
+                
+                fimo_hit = FimoHit(chr_id=gen_motif_coords[0], 
+                                start=gen_motif_coords[1], 
+                                end=gen_motif_coords[2],
+                                strand=gen_motif_coords[3], 
+                                score=score, 
+                                motif_id=motif_id, 
+                                seq_name=seq_name, 
+                                pval=pval, 
+                                qval=qval,
+                                seq_s=motif_s+1,
+                                seq_e=motif_e,
+                                matched_seq=matched_seq)
 
             fimo_hits_list.append(fimo_hit)
 
@@ -3371,6 +3409,7 @@ def batch_output_motif_hits_to_bed(unique_motifs_dic, out_bed,
 
 def read_in_cmsearch_results(in_tab,
                              check=True,
+                             seq_based=False,
                              hits_list=None):
     """
     Read in cmsearch motif finding results file.
@@ -3432,26 +3471,45 @@ def read_in_cmsearch_results(in_tab,
 
             assert strand == "+", "invalid cmsearch results table row encountered. strand (column 10) expected to be +, but found:\n%s" %(str(cols))
 
-            gen_motif_coords = get_genomic_coords_from_seq_name(seq_name, seq_s, seq_e,
-                                                                one_based_start=True)
+            if seq_based:
 
-            # print("cols:", cols)
-            # print("e_value:", e_value)
+                cmsearch_hit = CmsearchHit(chr_id=seq_name, 
+                                    start=seq_s+1, 
+                                    end=seq_e,
+                                    strand="+",
+                                    score=score,
+                                    motif_id=motif_id,
+                                    query_name=query_name,
+                                    seq_name=seq_name,
+                                    e_value=e_value,
+                                    model=model,
+                                    seq_s=seq_s+1,
+                                    seq_e=seq_e,
+                                    model_s=model_s,
+                                    model_e=model_e)
 
-            cmsearch_hit = CmsearchHit(chr_id=gen_motif_coords[0], 
-                                start=gen_motif_coords[1], 
-                                end=gen_motif_coords[2],
-                                strand=gen_motif_coords[3], 
-                                score=score,
-                                motif_id=motif_id,
-                                query_name=query_name,
-                                seq_name=seq_name,
-                                e_value=e_value,
-                                model=model,
-                                seq_s=seq_s+1,
-                                seq_e=seq_e,
-                                model_s=model_s,
-                                model_e=model_e)
+            else:
+
+                gen_motif_coords = get_genomic_coords_from_seq_name(seq_name, seq_s, seq_e,
+                                                                    one_based_start=True)
+
+                # print("cols:", cols)
+                # print("e_value:", e_value)
+
+                cmsearch_hit = CmsearchHit(chr_id=gen_motif_coords[0], 
+                                    start=gen_motif_coords[1], 
+                                    end=gen_motif_coords[2],
+                                    strand=gen_motif_coords[3], 
+                                    score=score,
+                                    motif_id=motif_id,
+                                    query_name=query_name,
+                                    seq_name=seq_name,
+                                    e_value=e_value,
+                                    model=model,
+                                    seq_s=seq_s+1,
+                                    seq_e=seq_e,
+                                    model_s=model_s,
+                                    model_e=model_e)
 
             # print(cmsearch_hit.__dict__)
             c_hits += 1
@@ -3968,6 +4026,50 @@ def create_batch_annotation_stacked_bars_plot(internal_id, id2infos_dic, id2reg_
     plt.close()
 
 
+################################################################################
+
+def filter_rbp2regidx_dic(rbp2regidx_dic,
+                          min_rbp_count=0,
+                          max_rbp_rank=None):
+    """
+    Filter RBP to region index dictionary by count and rank.
+
+    """
+    # Go through RBPs, and count number of sites for each RBP.
+    max_count = 0
+    rbp_count = 0
+    rbp2count_dic = {}
+    for rbp_id in rbp2regidx_dic:
+        rbp_count += 1
+        count = len(rbp2regidx_dic[rbp_id])
+        rbp2count_dic[rbp_id] = count
+        if count > max_count:
+            max_count = count
+
+    # Sort RBPs by count, and keep the max_rank top counting RBP IDs in list.
+    sorted_rbp2count_list = sorted(rbp2count_dic.items(), key=lambda x: x[1], reverse=True)
+    max_rank = rbp_count
+    if max_rbp_rank is not None and max_rbp_rank < max_rank:
+        max_rank = max_rbp_rank
+    top_rbp2count_list = sorted_rbp2count_list[:max_rbp_rank]
+
+    # Remove RBPs with count less than min_count.
+    # if min_rbp_count > max_count:
+    #     min_rbp_count = max_count
+    top_rbp2count_list = [x for x in top_rbp2count_list if x[1] >= min_rbp_count]
+
+    # print("top_rbp2count_list after removing RBPs with count less than %d:" %(min_rbp_count))
+    # print(top_rbp2count_list)
+
+    # Remove entries from rbp2regidx_dic for RBPs not in top_rbp2count_list.
+    top_rbp2count_dic = dict(top_rbp2count_list)
+    rbp2regidx_dic = {k: v for k, v in rbp2regidx_dic.items() if k in top_rbp2count_dic}
+
+    # print("rbp2regidx_dic after removing RBPs not in top_rbp2count_list:")
+    # print(rbp2regidx_dic)
+
+    return rbp2regidx_dic
+
 
 ################################################################################
 
@@ -3990,6 +4092,9 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 upset_plot_min_degree=2,
                                 upset_plot_max_degree=None,
                                 upset_plot_min_subset_size=10,
+                                upset_plot_max_subset_rank=20,
+                                upset_plot_min_rbp_count=0,
+                                upset_plot_max_rbp_rank=None,
                                 html_report_out="report.rbpbench_search.html",
                                 plot_abs_paths=False,
                                 sort_js_mode=1,
@@ -4332,11 +4437,21 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
     rbp_reg_occ_upset_plot =  "rbp_region_occupancies.upset_plot.png"
     rbp_reg_occ_upset_plot_out = plots_out_folder + "/" + rbp_reg_occ_upset_plot
 
+    upset_plot_nr_included_rbps = len(rbp2regidx_dic)
+    if upset_plot_max_rbp_rank is not None:
+        if upset_plot_max_rbp_rank < upset_plot_nr_included_rbps:
+            upset_plot_nr_included_rbps = upset_plot_max_rbp_rank
+
+    # ALAMO
+
     plotted, reason, count = create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list, 
                                   reg2annot_dic=reg2annot_dic,
                                   min_degree=upset_plot_min_degree,
                                   max_degree=upset_plot_max_degree,
                                   min_subset_size=upset_plot_min_subset_size,
+                                  max_subset_rank=upset_plot_max_subset_rank,
+                                  min_rbp_count=upset_plot_min_rbp_count,
+                                  max_rbp_rank=upset_plot_max_rbp_rank,
                                   plot_out=rbp_reg_occ_upset_plot_out)
 
 
@@ -4357,9 +4472,12 @@ Intersection size == how often a specific RBP combination is found in the region
 For example, if two regions in the input set contain motif hits for RBP1, RBP3, and RBP5, then the RBP combination "RBP1,RBP3,RBP5" will get a count (i.e., Intersection size) of 2.
 Minimum occurrence number for a combination to be reported = %i (command line parameter: --upset-plot-min-subset-size). 
 How many RBPs a combination must at least contain to be reported = %i (command line parameter: --upset-plot-min-degree).
+Maximum rank of a combination (w.r.t. to its intersection size) to be reported = %i (command line parameter: --upset-plot-max-subset-rank).
+Number of top RBPs included in statistic + plot (ranked by # input regions with hits) = %i (command line parameter: --upset-plot-max-rbp-rank).
+To be included in the statistic + plot, RBPs need to have motif hits in >= %i input regions (command line parameter: --upset-plot-min-rbp-count).
 The numbers on the left side for each RBP tell how many genomic regions have motif hits of the respective RBP. 
 If a GTF file was given, bar charts become stacked bar charts, showing what GTF annotations the regions overlap with (see legend for region types).
-NOTE that currently (v0.8) upsetplot only supports distinct mode (no intersect or union modes yet). 
+NOTE that upsetplot currently (v0.9) only supports distinct mode (no intersect or union modes available). 
 In distinct mode, the reported intersection/subset size for a combination is the number of times 
 this distinct RBP combination shows up in the data. For example, if the combination "RBP1,RBP3,RBP5" has a count of 2,
 it means that there are two regions in the input set which contain motif hits exclusively by RBP1, RBP2, and RBP5 (and no other RBPs!).
@@ -4367,7 +4485,7 @@ This is why the more RBPs are selected, the smaller intersection sizes typically
 
 &nbsp;
 
-""" %(c_regions, upset_plot_min_subset_size, upset_plot_min_degree)
+""" %(c_regions, upset_plot_min_subset_size, upset_plot_min_degree, upset_plot_max_subset_rank, upset_plot_nr_included_rbps, upset_plot_min_rbp_count)
 
     else:
 
@@ -4376,7 +4494,7 @@ This is why the more RBPs are selected, the smaller intersection sizes typically
             mdtext += """
 
 No upset plot generated since set --upset-plot-min-degree > maximum degree found in the RBP combination set. Please use lower number for --upset-plot-min-degree parameter.
-Also NOTE that currently (v0.8) upsetplot only supports distinct mode (no intersect or union modes yet). 
+Also NOTE that upsetplot currently (v0.9) only supports distinct mode (no intersect or union modes available). 
 In distinct mode, the reported intersection/subset size for a combination is the number of times 
 this distinct RBP combination shows up in the data. For example, if the combination "RBP1,RBP3,RBP5" has a count of 2,
 it means that there are two regions in the input set which contain motif hits exclusively by RBP1, RBP2, and RBP5 (and no other RBPs!).
@@ -4391,7 +4509,7 @@ This is why the more RBPs are selected, the smaller intersection sizes typically
             mdtext += """
 
 No upset plot generated since set --upset-plot-min-subset-size (%i) > maximum subset size (%i) found in the RBP combination set. Please use lower number for --upset-plot-min-subset-size parameter.
-Also NOTE that currently (v0.8) upsetplot only supports distinct mode (no intersect or union modes yet). 
+Also NOTE that upsetplot currently (v0.9) only supports distinct mode (no intersect or union modes available). 
 In distinct mode, the reported intersection/subset size for a combination is the number of times 
 this distinct RBP combination shows up in the data. For example, if the combination "RBP1,RBP3,RBP5" has a count of 2,
 it means that there are two regions in the input set which contain motif hits exclusively by RBP1, RBP2, and RBP5 (and no other RBPs!).
@@ -4416,6 +4534,16 @@ No plot generated since number of selected RBPs == 1.
             mdtext += """
 
 No plot generated since no motif hits found in input regions.
+
+&nbsp;
+
+"""
+
+        elif reason == "min_rbp_count":
+
+            mdtext += """
+
+No plot generated since set --upset-plot-min-rbp-count results in no RBPs remaining for upset plot.
 
 &nbsp;
 
@@ -4994,6 +5122,9 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
                                   min_degree=2,
                                   max_degree=None,
                                   min_subset_size=10,
+                                  max_subset_rank=25,
+                                  min_rbp_count=0,
+                                  max_rbp_rank=None,
                                   plot_out="rbp_region_occupancies.upset_plot.png"):
     """
     Create upset plot for RBP region occupancies.
@@ -5010,6 +5141,15 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
     # All regions (# regions).
     c_regions = len(reg_ids_list)
     assert c_regions > 0, "c_regions must be >= 0"
+
+    # Filter rbp2regidx_dic if min_rbp_count or max_rbp_rank set.
+    if min_rbp_count > 0 or max_rbp_rank is not None:
+        rbp2regidx_dic = filter_rbp2regidx_dic(rbp2regidx_dic,
+                            min_rbp_count=min_rbp_count,
+                            max_rbp_rank=max_rbp_rank)
+        # If all RBPs filtered out due to min_rbp_count > max_count.
+        if not rbp2regidx_dic:
+            return False, "min_rbp_count", 0
 
     # Check if there are regions that have motif hits.
     no_region_hits = True
@@ -5117,6 +5257,7 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
                         min_degree=min_degree,  # number of RBPs in set (e.g. 2 -> at least 2 RBP pairs, not single RBPs)
                         max_degree=max_degree,
                         min_subset_size=min_subset_size,  # min size of a set to be reported.
+                        max_subset_rank=max_subset_rank,
                         show_counts=True,
                         intersection_plot_elements=0,  # disable the default bar chart.
                         sort_by="cardinality")
@@ -5132,6 +5273,7 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
                       min_degree=min_degree,  # number of RBPs in set (e.g. 2 -> at least 2 RBP pairs, not single RBPs)
                       max_degree=max_degree,
                       min_subset_size=min_subset_size,  # min size of a set to be reported.
+                      max_subset_rank=max_subset_rank,
                       show_counts=True,
                       sort_by="cardinality")
         upset.plot()
@@ -5585,6 +5727,7 @@ def search_generate_html_motif_plots(search_rbps_dic,
                                      html_report_out="motif_plots.rbpbench_search.html",
                                      plot_abs_paths=False,
                                      sort_js_mode=1,
+                                     rbpbench_mode="search",
                                      plots_subfolder="html_motif_plots"):
     """
     Create motif plots for selected RBPs.
@@ -5648,10 +5791,10 @@ def search_generate_html_motif_plots(search_rbps_dic,
 # Motif Plots and Hit Statistics
 
 List of available motif hit statistics and motif plots generated
-by RBPBench (rbpbench search --plot-motifs):
+by RBPBench (rbpbench %s --plot-motifs):
 
 - [Motif hit statistics](#motif-hit-stats)
-"""
+""" %(rbpbench_mode)
 
     motif_plot_ids_dic = {}
     idx = 0

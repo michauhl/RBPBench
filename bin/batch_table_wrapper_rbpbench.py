@@ -68,7 +68,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, human_v0.1), 2: human RBP motifs full (low frequencies not rounded, human_v0.1_no_round), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, human_eclip_v0.1) (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.1.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.1.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
     p.add_argument("--fimo-nt-freqs",
                    dest="fimo_nt_freqs",
                    type=str,
