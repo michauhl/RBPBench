@@ -3654,6 +3654,40 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
 
 ################################################################################
 
+def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll, plot_out,
+                                  include_plotlyjs="cdn",
+                                  full_html=False):
+
+    """
+    Create plotly 2d scatter plot of PCA reduced genomic annotations.
+
+    """
+
+    pca = PCA(n_components=2)  # Reduce data to 2 dimensions.
+    data_2d_pca = pca.fit_transform(annots_ll)
+    df = pd.DataFrame(data_2d_pca, columns=['PC1', 'PC2'])
+    df['Dataset ID'] = dataset_ids_list
+
+    explained_variance = pca.explained_variance_ratio_ * 100
+
+    fig = px.scatter(
+        df,  # Use the DataFrame directly
+        x='PC1',
+        y='PC2',
+        # title='2D Visualization with Dataset IDs',
+        labels={
+            'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+            'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
+        },
+        hover_name='Dataset ID'
+    )
+    fig.update_traces(marker=dict(size=8))
+    # fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
 def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_freqs_ll, plot_out,
                                  include_plotlyjs="cdn",
                                  full_html=False):
@@ -3808,6 +3842,7 @@ by RBPBench (rbpbench batch with provided --gtf):
 
     # ALAMO
     if id2reg_annot_dic:  # if --gtf provided.
+        mdtext += "- [Input datasets genomic region annotations comparative plot](#annot-comp-plot)\n"
         data_idx = 0
         internal_ids_list = []
         for internal_id in id2infos_dic:
@@ -3820,11 +3855,11 @@ by RBPBench (rbpbench batch with provided --gtf):
             mdtext += "- [%s region annotations](#annot-plot-%i)\n" %(combined_id, data_idx)
         mdtext += "\n&nbsp;\n"
 
-    """
-    Input datasets k-mer frequencies plot.
 
     """
+    Input datasets k-mer frequencies comparative plot.
 
+    """
 
     mdtext += """
 ## Input datasets k-mer frequencies comparative plot ### {#kmer-comp-plot}
@@ -3862,7 +3897,7 @@ by RBPBench (rbpbench batch with provided --gtf):
         mdtext += """
 
 **Figure:** Comparison of input datasets, using k-mer (k = %i) frequencies of input region sequences (3-dimensional PCA) as features, 
-to show similarities of input datasets based on their k-mer frequencies.
+to show similarities of input datasets based on their k-mer frequencies (points close to each other have similarities in k-mer frequencies).
 Input dataset IDs (show via hovering over data points) have following format: rbp_id,motif_database_id,method_id,data_id.
 
 &nbsp;
@@ -3878,13 +3913,19 @@ No plot generated since < 4 datasets were provided.
 
 """
 
+
     """
-    Region annotation plots for each dataset.
+    Input datasets region annotations comparative plot.
 
     """
 
     if id2reg_annot_dic:  # if --gtf provided.
 
+
+        mdtext += """
+## Input datasets genomic region annotations comparative plot ### {#annot-comp-plot}
+
+"""
         # All annotations.
         annot_dic = {}
         c_annot = 0
@@ -3895,6 +3936,88 @@ No plot generated since < 4 datasets were provided.
                     annot_dic[annot] = 1
                 else:
                     annot_dic[annot] += 1
+
+        annot_dataset_ids_list = []
+        annot_freqs_ll = []
+        for internal_id in id2reg_annot_dic:
+            annot_freqs_list = []
+            sum_annot = 0
+            rbp_id, data_id, method_id, motif_db_str, bed_file_path = id2infos_dic[internal_id]
+            dataset_id = rbp_id + "," + motif_db_str + "," + method_id + "," + data_id
+
+            for annot in sorted(annot_dic, reverse=True):
+                c_annot = 0
+                if annot in id2reg_annot_dic[internal_id]:
+                    c_annot = id2reg_annot_dic[internal_id][annot]
+                annot_freqs_list.append(c_annot)
+                sum_annot += c_annot
+            
+            # Normalize counts in list by sum.
+            annot_freqs_list = [x/sum_annot for x in annot_freqs_list]
+            # Append to list of lists.
+            annot_freqs_ll.append(annot_freqs_list)
+            annot_dataset_ids_list.append(dataset_id)
+
+        print("annot_dataset_ids_list:")
+        print(annot_dataset_ids_list)
+        print("annot_freqs_ll:")
+        print(annot_freqs_ll)
+
+
+        if len(annot_dataset_ids_list) > 2:
+
+            annot_comp_plot_plotly =  "gen_annot_comparative_plot.plotly.html"
+            annot_comp_plot_plotly_out = plots_out_folder + "/" + annot_comp_plot_plotly
+
+            create_annot_comp_plot_plotly(annot_dataset_ids_list, annot_freqs_ll, 
+                                          annot_comp_plot_plotly_out,
+                                          include_plotlyjs=include_plotlyjs,
+                                          full_html=plotly_full_html)
+
+            plot_path = plots_folder + "/" + annot_comp_plot_plotly
+
+            if plotly_js_mode in [5, 6, 7]:
+                # Read in plotly code.
+                # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+                js_code = read_file_content_into_str_var(annot_comp_plot_plotly_out)
+                js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1000px;")
+                mdtext += js_code + "\n"
+                # mdtext += '</div>'
+            else:
+                if plotly_embed_style == 1:
+                    # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                    mdtext += "<div>\n"
+                    mdtext += '<iframe src="' + plot_path + '" width="1000" height="1000"></iframe>' + "\n"
+                    mdtext += '</div>'
+                elif plotly_embed_style == 2:
+                    mdtext += '<object data="' + plot_path + '" width="1000" height="1000"> </object>' + "\n"
+
+            mdtext += """
+
+**Figure:** Comparison of input datasets, using genomic region annotations from GTF file of input regions as features, 
+to show similarities between input datasets based on similar genomic region occupancy (see detailed annotations for each input dataset below).
+Input dataset IDs (show via hovering over data points) have following format: rbp_id,motif_database_id,method_id,data_id.
+
+&nbsp;
+
+"""
+
+        else:
+            mdtext += """
+
+No plot generated since < 4 datasets were provided.
+
+&nbsp;
+
+"""
+
+
+
+        """
+        Region annotation plots for each dataset.
+
+        """
+
 
         hex_colors = get_hex_colors_list(min_len=len(annot_dic))
 
@@ -3955,7 +4078,7 @@ Input regions are overlapped with genomic regions from GTF file and genomic regi
 is assigned to each input region. "intergenic" feature means no GTF region features overlap with input region 
 (minimum overlap amount controlled by --gtf-feat-min-overlap).
 **%s**: annotations for input regions containing %s motif hits. 
-**All**: annotations for all input regions (with or without motif hits).
+**All**: annotations for all input regions (with and without motif hits).
 
 &nbsp;
 
@@ -4096,6 +4219,7 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 upset_plot_min_rbp_count=0,
                                 upset_plot_max_rbp_rank=None,
                                 html_report_out="report.rbpbench_search.html",
+                                add_all_reg_bar=False,
                                 plot_abs_paths=False,
                                 sort_js_mode=1,
                                 plotly_js_mode=1,
@@ -4411,9 +4535,14 @@ No plot generated since no motif hits found in input regions.
         else:
 
             create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
-                                                       plot_out=annot_stacked_bars_plot_out)
+                                                       plot_out=annot_stacked_bars_plot_out,
+                                                       add_all_reg_bar=add_all_reg_bar)
 
             plot_path = plots_folder + "/" + annot_stacked_bars_plot
+
+            more_infos = ""
+            if add_all_reg_bar:
+                more_infos = "**All**: annotations for all input regions (with and without motif hits)."
 
             mdtext += '<img src="' + plot_path + '" alt="Annotation stacked bars plot"' + "\n"
             # mdtext += 'title="Annotation stacked bars plot" width="800" />' + "\n"
@@ -4423,10 +4552,11 @@ No plot generated since no motif hits found in input regions.
 (from --gtf GTF file, see legend for region types) for the genomic regions 
 with motif hits for the respective RBP. 
 Total bar height equals to the number of genomic regions with >= 1 motif hit for the RBP.
+%s
 
 &nbsp;
 
-"""
+""" %(more_infos)
 
 
     """
@@ -5183,7 +5313,7 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
                 idx_with_hits_dic[idx] = 1
                 bool_l.append(True)
             else:
-                bool_l.append(False)        
+                bool_l.append(False)
         bool_ll.append(bool_l)
 
     df = pd.DataFrame(bool_ll, columns=rbp_id_list)
@@ -5241,13 +5371,34 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
 
         # Get annotation ID -> hex color dictionary.
         annot2color_dic = {}
-        hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
+
+        # ALAMO colors for all annot.
+        # Get all annotation IDs in dataset.
+        annot_dic = {}
+        for reg_id in reg2annot_dic:
+            annot = reg2annot_dic[reg_id][0]
+            if annot not in annot_dic:
+                annot_dic[annot] = 1
+            else:
+                annot_dic[annot] += 1
+
+
+        # hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
+        hex_colors = get_hex_colors_list(min_len=len(annot_dic))
+
         idx = 0
-        for annot in sorted(annot_with_hits_dic, reverse=False):
-            hc = hex_colors[idx]
+        for annot in sorted(annot_dic, reverse=False):
+            # hc = hex_colors[idx]
             # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
             annot2color_dic[annot] = hex_colors[idx]
             idx += 1
+
+        # idx = 0
+        # for annot in sorted(annot_with_hits_dic, reverse=False):
+        #     # hc = hex_colors[idx]
+        #     # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
+        #     annot2color_dic[annot] = hex_colors[idx]
+        #     idx += 1
         
         # Set indices (== RBP ID columns).
         df = df.set_index(rbp_id_list)
@@ -5286,7 +5437,9 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
 ################################################################################
 
 def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
-                                               plot_out="annotation_stacked_bars_plot.png"):
+                                               plot_out="annotation_stacked_bars_plot.png",
+                                               add_all_reg_bar=True,
+                                               all_regions_id="All"):
     """
     Create a stacked bars plot, with each bar showing the annotations for one RBPs,
     i.e. with which GTF annotations the sites with motifs of the RBP overlap.
@@ -5325,25 +5478,39 @@ def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg
         rbp2idx_dic[rbp_id] = idx
         idx += 1
 
+    # Add all regions ID to rbp_id_list.
+    if add_all_reg_bar:
+        rbp_id_list.append(all_regions_id)
+
     data_dic = {}
     for annot in sorted(annot_dic, reverse=True):  # make reverse sort to have same color coding as upset plot.
         data_dic[annot] = []
         for rbp_id in rbp_id_list:
             data_dic[annot].append(0)
 
+    # Add region annotation counts for all regions.
+    if add_all_reg_bar:
+        for annot in annot_dic:
+            annot_c = annot_dic[annot]
+            data_dic[annot][len(rbp_id_list)-1] = annot_c
+
     data_dic["rbp_id"] = []
+
     for rbp_id in rbp_id_list:
         data_dic["rbp_id"].append(rbp_id)
 
-    annot_with_hits_dic = {}
+    # annot_with_hits_dic = {}
 
     for rbp_id in rbp2regidx_dic:
         for hit_idx in rbp2regidx_dic[rbp_id]:
             reg_id = reg_ids_list[hit_idx]
             annot = reg2annot_dic[reg_id][0]
-            annot_with_hits_dic[annot] = 1
+            # annot_with_hits_dic[annot] = 1
             rbp_idx = rbp2idx_dic[rbp_id]
             data_dic[annot][rbp_idx] += 1
+
+    # data_dic:
+    # {'intron': [0, 0, 1], 'CDS': [5, 4, 7], "5'UTR": [0, 0, 1], "3'UTR": [0, 2, 2], 'rbp_id': ['RBFOX2', 'PUM2', 'PUM1']}
 
     df = pd.DataFrame(data_dic)
     # Remove annotation columns with no counts.
@@ -5357,14 +5524,21 @@ def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg
     # Get annotation ID -> hex color mapping for plotting.
     annot2color_dic = {}
 
-    hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
+    # ALAMO Colors for all annotations.
+    hex_colors = get_hex_colors_list(min_len=len(annot_dic))
+    # hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
 
     idx = 0
-    for annot in sorted(annot_with_hits_dic, reverse=False):
-        # hc = hex_colors[idx]
-        # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
+    for annot in sorted(annot_dic, reverse=False):
         annot2color_dic[annot] = hex_colors[idx]
         idx += 1
+
+    # idx = 0
+    # for annot in sorted(annot_with_hits_dic, reverse=False):
+    #     # hc = hex_colors[idx]
+    #     # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
+    #     annot2color_dic[annot] = hex_colors[idx]
+    #     idx += 1
 
     ax = df.set_index('rbp_id').plot(kind='barh', stacked=True, legend=False, color=annot2color_dic, edgecolor="none", figsize=(fwidth, fheight))
     # ax = df.set_index('rbp_id').plot(kind='barh', stacked=True, legend=False, edgecolor="lightgrey", figsize=(fwidth, fheight))

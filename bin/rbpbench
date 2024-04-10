@@ -263,6 +263,11 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.1,
                    help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\") (default: 0.1)")
+    p_s.add_argument("--add-all-reg-bar",
+                   dest="add_all_reg_bar",
+                   default = False,
+                   action = "store_true",
+                   help = "Add region annotations for all input regions to stacked bar plot (default: False)")
     p_s.add_argument("--set-rbp-id",
                    dest="set_rbp_id",
                    type=str,
@@ -2554,6 +2559,7 @@ def main_search(args):
                                          upset_plot_max_subset_rank=args.upset_plot_max_subset_rank,
                                          upset_plot_min_rbp_count=args.upset_plot_min_rbp_count,
                                          upset_plot_max_rbp_rank=args.upset_plot_max_rbp_rank,
+                                         add_all_reg_bar=args.add_all_reg_bar,
                                          html_report_out=html_report_out,
                                          plot_abs_paths=args.plot_abs_paths,
                                          sort_js_mode=args.sort_js_mode,

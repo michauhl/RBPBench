@@ -107,6 +107,42 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
+    # New options ALAMO, add to call:
+    p.add_argument("--report",
+                   dest="report",
+                   default = False,
+                   action = "store_true",
+                   help = "Generate an .html report containing various plots to compare input datasets (default: False)")
+    p.add_argument("--kmer-size",
+                   dest="kmer_size",
+                   type=int,
+                   metavar='int',
+                   default=5,
+                   help="K-mer size for comparative plots (default: 5)")
+    p.add_argument("--gtf",
+                   dest="in_gtf",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Input GTF file with genomic annotations to generate genomic regions annotation plots for each input BED file (output to HTML report). By default the most prominent transcripts will be extracted and used for functional annotation. Alternatively, provide a list of expressed transcripts via --tr-list (together with --gtf containing the transcripts). Note that only features on standard chromosomes (1,2,..,X,Y,MT) are currently used for annotation")
+    p.add_argument("--tr-list",
+                   dest="tr_list",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Supply file with transcript IDs (one ID per row) to define which transcripts to use from --gtf for genomic regions annotations plots")
+    p.add_argument("--tr-types",
+                   dest="tr_types_list",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   help="List of transcript biotypes to consider in genomic regions annotations plot. By default an internal selection of transcript biotypes is used (in addition to intron, CDS, UTR, intergenic). Note that provided biotype strings need to be in --gtf GTF file")
+    p.add_argument("--gtf-feat-min-overlap",
+                   dest="gtf_feat_min_overlap",
+                   type=float,
+                   metavar='float',
+                   default=0.1,
+                   help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\") (default: 0.1)")
     return p
 
 
@@ -232,6 +268,18 @@ if __name__ == '__main__':
         batch_call += " --meme-no-check"
     if args.meme_no_pgc:
         batch_call += " --meme-no-pgc"
+    if args.report:
+        batch_call += " --report"
+    batch_call += " --kmer-size %i" % (args.kmer_size)
+    if args.in_gtf:
+        batch_call += " --gtf %s" % (args.in_gtf)
+        if not args.report:
+            batch_call += " --report"
+        if args.tr_list:
+            batch_call += " --tr-list %s" % (args.tr_list)
+        if args.tr_types_list:
+            tr_types = (" ").join(args.tr_types_list)
+            batch_call += " --tr-types %s" % (tr_types)
 
     rbp_ids = (" ").join(id_collect_dic["rbp_id"])
     method_ids = (" ").join(id_collect_dic["method_id"])
