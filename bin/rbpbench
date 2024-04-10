@@ -2744,6 +2744,23 @@ def main_batch(args):
         args.method_id = benchlib.remove_special_chars_from_str(args.method_id)
         assert args.method_id, "empty string after removing special chars from --method-id. Please provide alphanumeric string for method ID (- or _ are okay as well)"
 
+    # ALAMO
+    if not bed_path and len(bed_list) == 1:
+        # Check if file is a table file and not a BED file.
+        if benchlib.check_table_file(bed_list[0]):
+            print("Table file provided via --bed ... ")
+            print("Read in table file infos (including RBP, method, data IDs + BED file paths) ... ")
+            dataset_list = benchlib.read_in_table_file(bed_list[0])
+            rbp_ids_list = []
+            method_ids_list = []
+            data_ids_list = []
+            bed_list = []
+            for dataset in dataset_list:
+                rbp_ids_list.append(dataset[0])
+                method_ids_list.append(dataset[1])
+                data_ids_list.append(dataset[2])
+                bed_list.append(dataset[3])
+
     """
     Extracting RBP IDs from BED file names.
 

@@ -137,6 +137,64 @@ def calc_edit_dist(s1, s2):
 
 ################################################################################
 
+def check_table_file(in_file):
+    """
+    Check if file is a 4 column tab-separated table file, with last column containing 
+    valid file paths.
+
+    Table file containing dataset infos, with columns:
+    rbp_id method_id data_id path_to_BED_file
+    PUM1 	clipper_rep1 	k562_eclip 	path/to/PUM1.k562_eclip.clipper_rep1.bed
+    PUM1 	clipper_rep2 	k562_eclip 	path/to/PUM1.k562_eclip.clipper_rep2.bed
+    PUM1 	clipper_idr 	k562_eclip 	path/to/PUM1.k562_eclip.clipper_idr.bed
+    PUM1 	dewseq_w100_s5 	k562_eclip 	path/to/PUM1.k562_eclip.dewseq_w100_s5.bed
+    RBFOX2 	clipper_idr 	hepg2_eclip 	path/to/RBFOX2.hepg2_eclip.clipper_idr.bed
+    RBFOX2 	clipper_idr 	k562_eclip 	path/to/RBFOX2.k562_eclip.clipper_idr.bed 
+
+    """
+
+    is_table = True
+
+    with open(in_file) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            if len(cols) != 4:
+                is_table = False
+            if not os.path.exists(cols[3]):
+                is_table = False
+            break
+    f.closed
+
+    return is_table
+
+
+################################################################################
+
+def read_in_table_file(in_file):
+    """
+    Read in table file, containing dataset infos, with tab-separated columns:
+    rbp_id method_id data_id path_to_BED_file
+
+    """
+
+    dataset_list = []
+    with open(in_file) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            rbp_id = cols[0]
+            method_id = cols[1]
+            data_id = cols[2]
+            path = cols[3]
+            assert os.path.exists(path), "BED file path %s in --bed table file not found. Please provide valid file paths inside table file" %(path)
+            dataset_list.append([rbp_id, method_id, data_id, path])
+    f.closed
+    assert dataset_list, "no dataset infos read in from --bed table file %s" %(in_file)
+
+    return dataset_list
+
+
+################################################################################
+
 def output_con_table_results(out_tsv, pval_ll, rbp_list):
     """
     Output contingency table test p-values to file.
