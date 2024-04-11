@@ -3691,6 +3691,31 @@ def read_file_content_into_str_var(file):
 
 ################################################################################
 
+def create_color_scale(min_value, max_value, colors):
+    """
+    Create a color scale with equal intervals between colors.
+
+    Parameters:
+    min_value (float): The minimum value of the data.
+    max_value (float): The maximum value of the data.
+    colors (list of str): The colors to use in the color scale.
+
+    Returns:
+    list of [float, str]: The color scale.
+    """
+
+    # Calculate the range and interval
+    range_ = max_value - min_value
+    interval = range_ / (len(colors) - 1)
+
+    # Create the color scale
+    color_scale = [[min_value + i * interval, color] for i, color in enumerate(colors)]
+
+    return color_scale
+
+
+################################################################################
+
 def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
                             include_plotlyjs="cdn",
                             full_html=False):
@@ -3701,9 +3726,41 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
 
     """
 
-    plot = px.imshow(df)
+    # ALAMO
+    # Threshold value for grey coloring.
+    # threshold = 0.2
+    # # color_scale = ["grey", "darkblue", "blue", "purple", "red", "yellow"]
+    # # color_scale = ["grey", "blue", "orange", "yellow"]
+    # color_scale = ["grey", "darkblue", "purple", "yellow"]
+
+    # plot = px.imshow(df, color_continuous_scale=color_scale, color_continuous_midpoint=threshold)
+    # plot = px.imshow(df)
+
+    # Define a custom color scale
+    # color_scale = [[0, 'grey'], [0.01, 'darkblue'], [1, 'yellow']]
+
+    # color_scale = [[0, "midnightblue"], [0, 'darkblue'], [0.25, 'blue'], [0.5, 'purple'], [0.75, 'red'], [1, 'yellow']]
+
+
+    colors = ['darkblue', 'blue', 'purple', 'red', 'orange', 'yellow']
+    # colors = ['green', 'red']
+
+    min_val = 0.01
+    max_val = 1  # df.max().max() # color scale values need to be 0 .. 1.
+
+    color_scale = create_color_scale(min_val, max_val, colors)
+
+    color_scale.insert(0, [0, "midnightblue"])
+
+    # color_scale = [[0, 'midnightblue'], [0.01, 'red'], [1, 'yellow']]
+    # print("color_scale:")
+    # print(color_scale)
+
+    plot = px.imshow(df, color_continuous_scale=color_scale)
+    # plot = px.imshow(df)
+
     plot.update(data=[{'customdata': pval_cont_lll,
-                    'hovertemplate': 'RBP1: %{x}<br>RBP2: %{y}<br>p-value: %{customdata[0]}<br>RBPs: %{customdata[1]}<br>Counts: %{customdata[2]}<br>Correlation: %{customdata[3]}<br>-log10(p-value): %{z}<extra></extra>'}])
+                    'hovertemplate': 'RBP1: %{x}<br>RBP2: %{y}<br>p-value: %{customdata[0]}<br>p-value after filtering: %{customdata[1]}<br>RBPs: %{customdata[2]}<br>Counts: %{customdata[3]}<br>Correlation: %{customdata[4]}<br>-log10(p-value after filtering): %{z}<extra></extra>'}])
     plot.update_layout(plot_bgcolor='white')
     plot.write_html(plot_out,
                     full_html=full_html,
@@ -3803,6 +3860,8 @@ def batch_generate_html_report(dataset_ids_list,
                                plotly_full_html=False,
                                kmer_size=5,
                                plotly_embed_style=1,
+                               add_motif_db_info=False,
+                               motif_db_str="custom",
                                plots_subfolder="html_report_plots"):
     """
     Create plots for RBPBench batch run results.
@@ -3893,9 +3952,9 @@ def batch_generate_html_report(dataset_ids_list,
 # Batch report
 
 List of available statistics and plots generated
-by RBPBench (rbpbench batch with provided --gtf):
+by RBPBench (rbpbench batch --report, used motif database: %s):
 
-- [Input datasets k-mer frequencies comparative plot](#kmer-comp-plot)"""
+- [Input datasets k-mer frequencies comparative plot](#kmer-comp-plot)""" %(motif_db_str)
     mdtext += "\n"
 
     # ALAMO
@@ -3908,9 +3967,13 @@ by RBPBench (rbpbench batch with provided --gtf):
             data_id = id2infos_dic[internal_id][1]
             method_id = id2infos_dic[internal_id][2]
             database_id = id2infos_dic[internal_id][3]
-            combined_id = rbp_id + "," + database_id + "," + method_id + "," + data_id
+            if add_motif_db_info:
+                combined_id = rbp_id + "," + database_id + "," + method_id + "," + data_id
+            else:
+                combined_id = rbp_id + "," + method_id + "," + data_id
             internal_ids_list.append(internal_id)
             mdtext += "- [%s region annotations](#annot-plot-%i)\n" %(combined_id, data_idx)
+            data_idx += 1
         mdtext += "\n&nbsp;\n"
 
 
@@ -3918,6 +3981,10 @@ by RBPBench (rbpbench batch with provided --gtf):
     Input datasets k-mer frequencies comparative plot.
 
     """
+
+    dataset_id_format = "rbp_id,method_id,data_id"
+    if add_motif_db_info:
+        dataset_id_format = "rbp_id,motif_database_id,method_id,data_id"
 
     mdtext += """
 ## Input datasets k-mer frequencies comparative plot ### {#kmer-comp-plot}
@@ -3956,11 +4023,11 @@ by RBPBench (rbpbench batch with provided --gtf):
 
 **Figure:** Comparison of input datasets, using k-mer (k = %i) frequencies of input region sequences (3-dimensional PCA) as features, 
 to show similarities of input datasets based on their k-mer frequencies (points close to each other have similarities in k-mer frequencies).
-Input dataset IDs (show via hovering over data points) have following format: rbp_id,motif_database_id,method_id,data_id.
+Input dataset IDs (show via hovering over data points) have following format: %s.
 
 &nbsp;
 
-""" %(kmer_size)
+""" %(kmer_size, dataset_id_format)
 
     else:
         mdtext += """
@@ -4001,7 +4068,11 @@ No plot generated since < 4 datasets were provided.
             annot_freqs_list = []
             sum_annot = 0
             rbp_id, data_id, method_id, motif_db_str, bed_file_path = id2infos_dic[internal_id]
-            dataset_id = rbp_id + "," + motif_db_str + "," + method_id + "," + data_id
+
+            if add_motif_db_info:
+                dataset_id = rbp_id + "," + motif_db_str + "," + method_id + "," + data_id
+            else:
+                dataset_id = rbp_id + "," + method_id + "," + data_id
 
             for annot in sorted(annot_dic, reverse=True):
                 c_annot = 0
@@ -4015,12 +4086,6 @@ No plot generated since < 4 datasets were provided.
             # Append to list of lists.
             annot_freqs_ll.append(annot_freqs_list)
             annot_dataset_ids_list.append(dataset_id)
-
-        print("annot_dataset_ids_list:")
-        print(annot_dataset_ids_list)
-        print("annot_freqs_ll:")
-        print(annot_freqs_ll)
-
 
         if len(annot_dataset_ids_list) > 2:
 
@@ -4054,11 +4119,11 @@ No plot generated since < 4 datasets were provided.
 
 **Figure:** Comparison of input datasets, using genomic region annotations from GTF file of input regions as features, 
 to show similarities between input datasets based on similar genomic region occupancy (see detailed annotations for each input dataset below).
-Input dataset IDs (show via hovering over data points) have following format: rbp_id,motif_database_id,method_id,data_id.
+Input dataset IDs (show via hovering over data points) have following format: %s.
 
 &nbsp;
 
-"""
+""" %(dataset_id_format)
 
         else:
             mdtext += """
@@ -4070,12 +4135,10 @@ No plot generated since < 4 datasets were provided.
 """
 
 
-
         """
         Region annotation plots for each dataset.
 
         """
-
 
         hex_colors = get_hex_colors_list(min_len=len(annot_dic))
 
@@ -4093,7 +4156,11 @@ No plot generated since < 4 datasets were provided.
             data_id = id2infos_dic[internal_id][1]
             method_id = id2infos_dic[internal_id][2]
             database_id = id2infos_dic[internal_id][3]
-            combined_id = rbp_id + "," + database_id + "," + method_id + "," + data_id
+
+            if add_motif_db_info:
+                combined_id = rbp_id + "," + database_id + "," + method_id + "," + data_id
+            else:
+                combined_id = rbp_id + "," + method_id + "," + data_id
 
             annot_stacked_bars_plot =  "annotation_stacked_bars_plot.%i.png" %(idx)
             annot_stacked_bars_plot_out = plots_out_folder + "/" + annot_stacked_bars_plot
@@ -4131,7 +4198,7 @@ No plot generated since no regions for plotting.
                 # mdtext += 'title="Annotation stacked bars plot" width="800" />' + "\n"
                 mdtext += 'title="Annotation stacked bars plot" />' + "\n"
                 mdtext += """
-**Figure:** Genomic region annotations for input dataset **%s** (rbp_id, motif_database_id, method_id, data_id). 
+**Figure:** Genomic region annotations for input dataset **%s** (dataset ID format: %s). 
 Input regions are overlapped with genomic regions from GTF file and genomic region feature with highest overlap 
 is assigned to each input region. "intergenic" feature means no GTF region features overlap with input region 
 (minimum overlap amount controlled by --gtf-feat-min-overlap).
@@ -4140,7 +4207,7 @@ is assigned to each input region. "intergenic" feature means no GTF region featu
 
 &nbsp;
 
-""" %(combined_id, rbp_id, rbp_id)
+""" %(combined_id, dataset_id_format, rbp_id, rbp_id)
 
     # ALAMO
 
@@ -4283,6 +4350,7 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 plotly_js_mode=1,
                                 plotly_embed_style=1,
                                 plotly_full_html=False,
+                                cooc_pval_thr=0.05,
                                 plots_subfolder="html_report_plots"):
     """
     Create additional hit statistics for selected RBPs, 
@@ -4516,6 +4584,8 @@ By default, BED genomic regions input file column 5 is used as the score column 
 
     """
     Co-occurrence heat map.
+
+    ALAMO: cooc_pval_thr
 
     """
 
@@ -5591,7 +5661,7 @@ def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg
         annot2color_dic[annot] = hex_colors[idx]
         idx += 1
 
-    # idx = 0
+    # idx = 0^
     # for annot in sorted(annot_with_hits_dic, reverse=False):
     #     # hc = hex_colors[idx]
     #     # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
@@ -5618,27 +5688,6 @@ def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg
 
     plt.savefig(plot_out, dpi=110, bbox_inches='tight')
     plt.close()
-
-
-################################################################################
-
-def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
-                            include_plotlyjs="cdn",
-                            full_html=False):
-    """
-    Plot co-occurrences as heat map with plotly.
-
-    https://plotly.github.io/plotly.py-docs/generated/plotly.io.write_html.html
-
-    """
-
-    plot = px.imshow(df)
-    plot.update(data=[{'customdata': pval_cont_lll,
-                    'hovertemplate': 'RBP1: %{x}<br>RBP2: %{y}<br>p-value: %{customdata[0]}<br>RBPs: %{customdata[1]}<br>Counts: %{customdata[2]}<br>Correlation: %{customdata[3]}<br>-log10(p-value): %{z}<extra></extra>'}])
-    plot.update_layout(plot_bgcolor='white')
-    plot.write_html(plot_out,
-                    full_html=full_html,
-                    include_plotlyjs=include_plotlyjs)
 
 
 ################################################################################
@@ -5810,7 +5859,7 @@ def log_tf_df(df,
     convert_zero_pv:
         If true, converts p-values of 0.0 to smallest float() class number 
         possible (i.e., 2.2e-308). Otherwise -log10(0.0) will cause
-        math domain error.
+        math domain error. 2.2e-308 pval -> 307.6575773191778 -log10pval.
 
     """
 

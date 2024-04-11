@@ -203,6 +203,17 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Visualize selected sequence motifs, by outputting sequence logos and motif hit statistics into a separate .html file (default: False)")
+    p_s.add_argument("--cooc-pval-thr",
+                   dest="cooc_pval_thr",
+                   type=float,
+                   metavar='float',
+                   default=0.05,
+                   help="RBP co-occurrence p-value threshold for reporting significant co-occurrences. NOTE that this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Bonferroni correction can be disabled via --disable-cooc-mtc (default: 0.05)")
+    p_s.add_argument("--disable-cooc-mtc",
+                   dest="disable_cooc_mtc",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable multiple testing correction for RBP co-occurrence p-values. By default, Bonferroni correction is applied (default: False)")
     p_s.add_argument("--upset-plot-min-degree",
                    dest="upset_plot_min_degree",
                    type=int,
@@ -285,13 +296,13 @@ def setup_argument_parser():
                    type=int,
                    metavar='int',
                    default=10,
-                   help="Minimum count of co-occurrences of a motif with set RBP ID (--set-rbp-id) motif to be reported and plotted (default: 10)")
+                   help="On single motif level, minimum count of co-occurrences of a motif with set RBP ID (--set-rbp-id) motif to be reported and plotted (default: 10)")
     p_s.add_argument("--rbp-min-pair-count",
                    dest="rbp_min_pair_count",
                    type=int,
                    metavar='int',
                    default=10,
-                   help="Minimum amount of co-occurrences of motifs for an RBP ID compared to set RBP ID (--set-rbp-id) motifs to be reported and plotted (default: 10)")
+                   help="On RBP level, minimum amount of co-occurrences of motifs for an RBP ID compared to set RBP ID (--set-rbp-id) motifs to be reported and plotted (default: 10)")
     p_s.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
@@ -335,7 +346,7 @@ def setup_argument_parser():
                    metavar='str',
                    nargs='+',
                    required=True,
-                   help="Provide folder with BED files (e.g. --bed clipper_bed) OR list of BED files to search for motifs. If folder, RBP IDs should be part of BED file names, like: RBP1_...bed, RBP2_...bed. Alternatively provide BED files and define RBP IDs with --rbp-list")
+                   help="Provide either: a folder with BED files (e.g. --bed clipper_bed), a list of BED files to search for motifs, or a table file defining files and settings. If folder, RBP IDs should be part of BED file names, like: RBP1_...bed, RBP2_...bed. If list of BED files, define RBP IDs with --rbp-list. If table file, see manual for the correct format")
     p_bm.add_argument("--genome",
                    dest="in_genome",
                    type=str,
@@ -2193,6 +2204,12 @@ def main_search(args):
     or_ll = []  # odds ratios.
     pval_cont_lll = []
 
+    # Multiple testing correction factor (Bonferroni).
+    mult_test_corr_factor = (len_rbp_list*(len_rbp_list-1))/2
+    cooc_pval_thr = args.cooc_pval_thr / mult_test_corr_factor
+    if args.disable_cooc_mtc:
+        cooc_pval_thr = args.cooc_pval_thr
+
     for rbp_id in rbp_list:
         pval_ll.append([1.0]*len_rbp_list)
         pval_cont_lll.append([]*len_rbp_list)
@@ -2202,7 +2219,7 @@ def main_search(args):
     for i in range(len_rbp_list):
         for j in range(len_rbp_list):
             # Storing [p-value_str, pair_str, table_str, correlation_str].
-            pval_cont_lll[i].append(["1.0","-", "-", "-"])  
+            pval_cont_lll[i].append(["1.0","-", "-", "-", "-"])  
 
     # Add p-values of 1.0 in diagonal.
     # for idx, rbp_id in enumerate(rbp_list):
@@ -2273,11 +2290,21 @@ def main_search(args):
 
         # print(pair_str, table_str, p_value)
         # print("Pair:", pair_str, "Odds ratio:", odds_ratio,"Fisher p-value:", p_value)
-        pval_ll[idx1][idx2] = p_value
-        pval_ll[idx2][idx1] = p_value
+
+        # Corrected p-value. ALAMO.
+        # corr_p_val = p_value * mult_test_corr_factor
+
+        p_value_plotted = p_value
+        if p_value > cooc_pval_thr:
+            p_value_plotted = 1.0
+
+        pval_ll[idx1][idx2] = p_value_plotted
+        pval_ll[idx2][idx1] = p_value_plotted
         pval_cont_lll[idx2][idx1][0] = str(p_value)
-        pval_cont_lll[idx2][idx1][1] = pair_str
-        pval_cont_lll[idx2][idx1][2] = table_str
+        pval_cont_lll[idx2][idx1][1] = str(p_value_plotted)
+        pval_cont_lll[idx2][idx1][2] = pair_str
+        pval_cont_lll[idx2][idx1][3] = table_str
+
         # pval_cont_lll[idx2][idx1][0] = str(p_value)
         # pval_cont_lll[idx2][idx1][1] = pair_str
         # pval_cont_lll[idx2][idx1][2] = table_str
@@ -2296,11 +2323,18 @@ def main_search(args):
     print("B: NOT RBP1 AND RBP2")
     print("C: RBP1 AND NOT RBP2")
     print("D: NOT RBP1 AND NOT RBP2")
-    print("Co-occurrence of motifs (RBP IDs (RBP1,RBP2), # hits, contingency table, Fisher p-value <=0.05):")
+
+    if args.disable_cooc_mtc:
+        print("Significance threshold: %s" %(str(args.cooc_pval_thr)))
+    else:
+        print("Significance threshold (Bonferroni corrected): %s" %(str(cooc_pval_thr)))
+
+    print("Co-occurrence of motifs (RBP IDs (RBP1,RBP2), # hits, contingency table, Fisher p-value)")
+
     c_reported = 0
 
     for pair_str, p_value in sorted_con_pval_dic.items():
-        if p_value > 0.05:
+        if p_value > cooc_pval_thr:
             break
         c_reported += 1
         rbp1 = pair_str_dic[pair_str][0]
@@ -2312,6 +2346,7 @@ def main_search(args):
 
     if not c_reported:
         print("NO SIGNIFICANT CO-OCCURRENCES FOUND!")
+
     print("")
 
     # Print table to file.
@@ -2362,9 +2397,9 @@ def main_search(args):
                 else:
                     # Round correlation values if != 1.0.
                     if df_corr.loc[rbp_i][rbp_j] == 1.0:
-                        pval_cont_lll[i][j][3] = str(df_corr.loc[rbp_i][rbp_j])
+                        pval_cont_lll[i][j][4] = str(df_corr.loc[rbp_i][rbp_j])
                     else:
-                        pval_cont_lll[i][j][3] = "{:.8f}".format(df_corr.loc[rbp_i][rbp_j])
+                        pval_cont_lll[i][j][4] = "{:.8f}".format(df_corr.loc[rbp_i][rbp_j])
 
         for i,rbp_i in enumerate(rbp_list):
             for j,rbp_j in enumerate(rbp_list):
@@ -2564,6 +2599,7 @@ def main_search(args):
                                          plot_abs_paths=args.plot_abs_paths,
                                          sort_js_mode=args.sort_js_mode,
                                          plotly_js_mode=args.plotly_js_mode,
+                                         cooc_pval_thr=cooc_pval_thr,
                                          plots_subfolder=plots_subfolder)
 
 
@@ -3121,6 +3157,7 @@ def main_batch(args):
     c_all_hits = 0  # Sum up hits for all RBPs.
     kmer_freqs_ll = []  # For PCA plot.
     dataset_ids_list = []  # For PCA plot.
+    add_motif_db_info = False  # Whether to add the motif database string to the dataset IDs in the plots.
     dataset_idx = 0  # For PCA plot.
 
     for idx, bed_file in enumerate(bed_list):
@@ -3697,7 +3734,11 @@ def main_batch(args):
             # Dataset ID.
             dataset_idx += 1
             # dataset_id = str(dataset_idx) + "," + rbp_id + "," + motif_db_str + "," + method_id + "," + data_id
-            dataset_id = rbp_id + "," + motif_db_str + "," + method_id + "," + data_id
+            if add_motif_db_info:
+                dataset_id = rbp_id + "," + motif_db_str + "," + method_id + "," + data_id
+            else:
+                dataset_id = rbp_id + "," + method_id + "," + data_id
+
             dataset_ids_list.append(dataset_id)
 
             kmer_dic = benchlib.seqs_dic_count_kmer_freqs(out_seqs_dic, args.kmer_size, 
@@ -3758,6 +3799,8 @@ def main_batch(args):
                                             plot_abs_paths=args.plot_abs_paths,
                                             plotly_js_mode=args.plotly_js_mode,
                                             kmer_size=args.kmer_size,
+                                            add_motif_db_info=add_motif_db_info,
+                                            motif_db_str=motif_db_str,
                                             plots_subfolder=plots_subfolder)
 
     """
