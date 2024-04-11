@@ -3750,13 +3750,17 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
 
     color_scale = create_color_scale(min_val, max_val, colors)
 
-    color_scale.insert(0, [0, "midnightblue"])
+    color_scale.insert(0, [0, "dimgray"])
+
+    # Set the color scale range according to the data (minimum 0 .. 1).
+    zmin = min(0, df.min().min())
+    zmax = max(1, df.max().max())
 
     # color_scale = [[0, 'midnightblue'], [0.01, 'red'], [1, 'yellow']]
     # print("color_scale:")
     # print(color_scale)
 
-    plot = px.imshow(df, color_continuous_scale=color_scale)
+    plot = px.imshow(df, color_continuous_scale=color_scale, zmin=zmin, zmax=zmax)
     # plot = px.imshow(df)
 
     plot.update(data=[{'customdata': pval_cont_lll,
@@ -4351,6 +4355,7 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 plotly_embed_style=1,
                                 plotly_full_html=False,
                                 cooc_pval_thr=0.05,
+                                disable_cooc_mtc=False,
                                 plots_subfolder="html_report_plots"):
     """
     Create additional hit statistics for selected RBPs, 
@@ -4618,25 +4623,38 @@ By default, BED genomic regions input file column 5 is used as the score column 
         elif plotly_embed_style == 2:
             mdtext += '<object data="' + plot_path + '" width="1200" height="1200"> </object>' + "\n"
 
+
+    p_val_info = "P-values below %s are considered significant." %(str(cooc_pval_thr))
+    if not disable_cooc_mtc:
+        p_val_info = "P-values below %s (p-value threshold Bonferroni corrected) are considered significant." %(str(cooc_pval_thr))
+
+    # ALAMO
+
     mdtext += """
 
 **Figure:** Heat map of co-occurrences (Fisher's exact test p-values) between RBPs. 
-Legend color: negative logarithm (base 10) of Fisher's exact test p-value.
-Hover box: 1) RBP1. 2) RBP2. 3) p-value: Fisher's exact test p-value (calculated based on contingency table between RBP1 and RBP2). 
-4) RBPs compaired. 5) Counts[]: contingency table of co-occurrence counts (i.e., number of genomic regions with/without shared motif hits) between compaired RBPs, 
+RBP co-occurrences that are not significant are colored gray, while
+significant co-occurrences are colored according to their -log10 p-value (used as legend color, i.e., the higher the more significant).
+%s
+Hover box: 1) RBP1. 2) RBP2.
+3) p-value: Fisher's exact test p-value (calculated based on contingency table between RBP1 and RBP2). 
+4) p-value after filtering: p-value after filtering, i.e., p-value is kept if significant (< %s), otherwise it is set to 1.0.
+5) RBPs compaired. 
+6) Counts[]: contingency table of co-occurrence counts (i.e., number of genomic regions with/without shared motif hits) between compaired RBPs, 
 with format [[A, B], [C, D]], where 
 A: RBP1 AND RBP2, 
 B: NOT RBP1 AND RBP2
 C: RBP1 AND NOT RBP2
 D: NOT RBP1 AND NOT RBP2.
-6) Correlation: Pearson correlation coefficient between RBP1 and RBP2. 
+7) Correlation: Pearson correlation coefficient between RBP1 and RBP2. 
 Genomic regions are labelled 1 or 0 (RBP motif present or not), resulting in a vector of 1s and 0s for each RBP.
 Correlations are then calculated by comparing vectors for every pair of RBPs.
-7) -log10 of p-value, used for color decoding.
+8) -log10 of p-value after filtering, used for legend coloring. Using p-value after filtering, all non-significant p-values become 0 
+for easier distinction between significant and non-significant co-occurrences.
 
 &nbsp;
 
-"""
+""" %(p_val_info, str(cooc_pval_thr))
 
     """
     Region annotations per RBP plot.

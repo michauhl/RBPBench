@@ -2600,6 +2600,7 @@ def main_search(args):
                                          sort_js_mode=args.sort_js_mode,
                                          plotly_js_mode=args.plotly_js_mode,
                                          cooc_pval_thr=cooc_pval_thr,
+                                         disable_cooc_mtc=args.disable_cooc_mtc,
                                          plots_subfolder=plots_subfolder)
 
 
