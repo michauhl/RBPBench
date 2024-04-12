@@ -512,6 +512,12 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3, 4, 5, 6, 7],
                    help = "Define how to provide plotly .js file. 1: use online version via \"cdn\" (requires internet connection). 2: link to packaged plotly .js file. 3: copy plotly .js file to plots output folder. 4: include plotly .js code in plotly HTML. 5: put web version link and plotly plot codes into main HTML. 6: put local version link and plotly plot codes in main HTML. 7: put plotly js and plotly plot codes into main HTML! (default: 1)")
+    p_b.add_argument("--sort-js-mode",
+                   dest="sort_js_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to plots output folder. 3: include .js code in HTML (default: 1)")
     p_b.add_argument("--meme-no-check",
                    dest="meme_disable_check",
                    default = False,
@@ -2001,10 +2007,13 @@ def main_search(args):
     Region ID -> "motif_id,start_1based,end_1based,p_value/-(bit_score)"
     E.g.
     region_rbp_motif_pos_dic["reg1"] = ["rbp1_m1,98,102,0.01", "rbp1_m1,110,115,0.1", "rbp1_m2,110,115,0.05", "rbp2_m1,115,120,0.02", "rbp3_m1,90,95,0.01"]
+    region2motif_hits_dic:
+    region_id -> [motif_hit1, motif_hit2, ...] with motif_hit format: "motif_id,seq_start,seq_end,p_value/-(bit_score)"
 
     """
     region_rbp_binds_dic = {}
     region_rbp_motif_pos_dic = {}
+    region2motif_hits_dic = {}  # For plotting.
 
     # Checks (make sure use_region_ids=True in bed_filter_extend_bed() function).
     for reg_id in out_seqs_dic:
@@ -2017,6 +2026,7 @@ def main_search(args):
         else:
             region_rbp_binds_dic[reg_id] = [False]*len_rbp_list
             region_rbp_motif_pos_dic[reg_id] = []
+            region2motif_hits_dic[reg_id] = []
 
     """
     Output motif region stats (1 row for each motif hit).
@@ -2049,6 +2059,7 @@ def main_search(args):
 
         # Motif hit string.
         motif_str = "%s,%i,%i,%s" %(fh.motif_id, fh.start, fh.end, str(fh.pval))
+        motif_str_plot = "%s,%i-%i,%s" %(fh.motif_id, fh.seq_s, fh.seq_e, str(fh.pval))
         # # Center position of motif hit.
         # motif_hit_s = fh.start - 1
         # motif_hit_e = fh.end
@@ -2058,9 +2069,11 @@ def main_search(args):
             core_id = benchlib.reg_get_core_id(region_id)
             region_rbp_binds_dic[core_id][rbp_idx] = True
             region_rbp_motif_pos_dic[core_id].append(motif_str)
+            region2motif_hits_dic[core_id].append(motif_str_plot)
         else:
             region_rbp_binds_dic[region_id][rbp_idx] = True
             region_rbp_motif_pos_dic[region_id].append(motif_str)
+            region2motif_hits_dic[region_id].append(motif_str_plot)
 
         motif_db_out = loaded_motif_ids_dic[fh.motif_id]
 
@@ -2108,6 +2121,8 @@ def main_search(args):
 
         # Motif hit string.
         motif_str = "%s,%i,%i,%s" %(cmsh.motif_id, cmsh.start, cmsh.end, str(-1*cmsh.score))
+        motif_str_plot = "%s,%i-%i,%s" %(cmsh.motif_id, cmsh.seq_s, cmsh.seq_e, str(cmsh.score))
+
         # # Center position of motif hit.
         # motif_hit_s = cmsh.start - 1
         # motif_hit_e = cmsh.end
@@ -2117,9 +2132,11 @@ def main_search(args):
             core_id = benchlib.reg_get_core_id(region_id)
             region_rbp_binds_dic[core_id][rbp_idx] = True
             region_rbp_motif_pos_dic[core_id].append(motif_str)
+            region2motif_hits_dic[core_id].append(motif_str_plot)
         else:
             region_rbp_binds_dic[region_id][rbp_idx] = True
             region_rbp_motif_pos_dic[region_id].append(motif_str)
+            region2motif_hits_dic[region_id].append(motif_str_plot)
 
         motif_db_out = loaded_motif_ids_dic[cmsh.motif_id]
 
@@ -2568,6 +2585,33 @@ def main_search(args):
         elif args.in_gtf and not c_regions_with_hits:
             print("No need to read in --gtf since no motif hits found .. ")
 
+        # Sequences dataframe for plotting sequence lengths violin plot.
+        sequences = []
+        seq_ids = []
+        for seq_id in out_seqs_dic:
+            seq_ids.append(seq_id)
+            sequences.append(out_seqs_dic[seq_id])
+
+        motif_hits = []
+        for seq_id in seq_ids:
+            # region2motif_hits_dic[seq_id].sort()
+            # If list empty, append "-".
+            if not region2motif_hits_dic[seq_id]:
+                motif_hits.append("-")
+            else:
+                motif_hits.append(benchlib.join_motif_hits(
+                                  region2motif_hits_dic[seq_id],
+                                  motifs_per_line=3,
+                                  line_break_char="<br>"))
+                # motif_hits.append("\n".join(region2motif_hits_dic[seq_id]))
+
+        seq_len_df = DataFrame({
+            'Sequence ID': seq_ids,
+            'Sequence Length': [len(seq) for seq in sequences],
+            'Sequence': [benchlib.insert_line_breaks(seq, line_len=60) for seq in sequences],
+            'Motif hits': motif_hits
+        })
+
         plots_subfolder = "html_report_plots"
         benchlib_path = os.path.dirname(benchlib.__file__)
 
@@ -2581,6 +2625,7 @@ def main_search(args):
                                          benchlib_path,
                                          rbp2regidx_dic,
                                          reg_ids_list,
+                                         seq_len_df=seq_len_df,
                                          set_rbp_id=args.set_rbp_id,
                                          motif_db_str=motif_db_str,
                                          seq_motif_blocks_dic=seq_motif_blocks_dic,
@@ -3160,6 +3205,7 @@ def main_batch(args):
     dataset_ids_list = []  # For PCA plot.
     add_motif_db_info = False  # Whether to add the motif database string to the dataset IDs in the plots.
     dataset_idx = 0  # For PCA plot.
+    seq_len_stats_ll = []  # For sequence length stats in --report.
 
     for idx, bed_file in enumerate(bed_list):
 
@@ -3753,6 +3799,11 @@ def main_batch(args):
                 kmer_freqs_list.append(kmer_dic[kmer])
             kmer_freqs_ll.append(kmer_freqs_list)
 
+            # Sequence length statistics for out_seqs_dic.
+            seq_len_stats_l = benchlib.get_sequence_length_statistics(out_seqs_dic)
+            # Add dataset ID to seq_len_stats_l.
+            seq_len_stats_l.insert(0, dataset_id)
+            seq_len_stats_ll.append(seq_len_stats_l)
 
     OUTRBPSTATS.close()
     OUTMTFSTATS.close()
@@ -3796,9 +3847,11 @@ def main_batch(args):
                                             id2hit_reg_annot_dic,
                                             args.out_folder,
                                             benchlib_path,
+                                            seq_len_stats_ll,
                                             html_report_out=html_report_out,
                                             plot_abs_paths=args.plot_abs_paths,
                                             plotly_js_mode=args.plotly_js_mode,
+                                            sort_js_mode=args.sort_js_mode,
                                             kmer_size=args.kmer_size,
                                             add_motif_db_info=add_motif_db_info,
                                             motif_db_str=motif_db_str,

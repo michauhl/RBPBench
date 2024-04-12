@@ -3620,6 +3620,31 @@ class CmsearchHit(GenomicRegion):
 
 ################################################################################
 
+def insert_line_breaks(sequence,
+                       line_len=60):
+    """
+    Insert line breaks for inserting sequence into hover box.
+    
+    """
+    return '<br>'.join(sequence[i:i+line_len] for i in range(0, len(sequence), 40))
+
+
+################################################################################
+
+def join_motif_hits(motif_hits_list,
+                    motifs_per_line=3,
+                    line_break_char="\n"):
+    """
+    Join motif hits list into string by groups of motifs_per_line.
+    Define line break character via line_break_char.
+
+    """
+
+    return line_break_char.join(" ".join(motif_hits_list[i:i+motifs_per_line]) for i in range(0, len(motif_hits_list), motifs_per_line))
+
+
+################################################################################
+
 def remove_special_chars_from_str(check_str,
                                   reg_ex='[^A-Za-z0-9_-]+'):
     """
@@ -3858,9 +3883,11 @@ def batch_generate_html_report(dataset_ids_list,
                                id2hit_reg_annot_dic,
                                out_folder,
                                benchlib_path,
+                               seq_len_stats_ll,
                                html_report_out="report.rbpbench_batch.html",
                                plot_abs_paths=False,
                                plotly_js_mode=1,
+                               sort_js_mode=1,
                                plotly_full_html=False,
                                kmer_size=5,
                                plotly_embed_style=1,
@@ -3894,6 +3921,21 @@ def batch_generate_html_report(dataset_ids_list,
     md_out = out_folder + "/" + "report.rbpbench_batch.md"
     if html_report_out:
         html_out = html_report_out
+
+    """
+    Setup sorttable.js to make tables in HTML sortable.
+
+    """
+    sorttable_js_path = benchlib_path + "/content/sorttable.js"
+    assert os.path.exists(sorttable_js_path), "sorttable.js not at %s" %(sorttable_js_path)
+    sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    if sort_js_mode == 2:
+        shutil.copy(sorttable_js_path, plots_out_folder)
+        sorttable_js_path = plots_folder + "/sorttable.js"
+        sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    elif sort_js_mode == 3:
+        js_code = read_file_content_into_str_var(sorttable_js_path)
+        sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
 
     """
     Setup plotly .js to support plotly plots.
@@ -3946,9 +3988,10 @@ def batch_generate_html_report(dataset_ids_list,
 
     # HTML tail section.
     html_tail = """
+%s
 </body>
 </html>
-"""
+""" %(sorttable_js_html)
 
     # Markdown part.
     mdtext = """
@@ -3958,6 +4001,7 @@ def batch_generate_html_report(dataset_ids_list,
 List of available statistics and plots generated
 by RBPBench (rbpbench batch --report, used motif database: %s):
 
+- [Input datasets sequence length statistics](#seq-len-stats)
 - [Input datasets k-mer frequencies comparative plot](#kmer-comp-plot)""" %(motif_db_str)
     mdtext += "\n"
 
@@ -3980,6 +4024,44 @@ by RBPBench (rbpbench batch --report, used motif database: %s):
             data_idx += 1
         mdtext += "\n&nbsp;\n"
 
+    """
+    Input sequence stats table.
+
+    """
+
+    mdtext += """
+## Input datasets sequence length statistics ### {#seq-len-stats}
+
+**Table:** Sequence length statistics of input datasets.
+Input dataset ID format: rbp_id,method_id,data_id.
+
+"""
+
+    # ALAMO
+    # return [nr_seqs, seq_len_mean, seq_len_median, seq_len_q1, seq_len_q3, seq_len_min, seq_len_max]
+
+    mdtext += '| Dataset ID | # input regions | mean length | median length | Q1 percentile | Q3 percentile | min length | max length |' + " \n"
+    mdtext += '| :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |' + " \n"
+    for seq_len_stats in seq_len_stats_ll:
+        mdtext += "| %s | %i | %.1f | %.1f | %.1f | %.1f | %i | %i |\n" %(seq_len_stats[0], seq_len_stats[1], seq_len_stats[2], seq_len_stats[3], seq_len_stats[4], seq_len_stats[5], seq_len_stats[6], seq_len_stats[7])
+    # mdtext += "\n&nbsp;\n&nbsp;\n"
+    mdtext += "\n&nbsp;\n"
+
+    #     mdtext += "| :-: | :-: | :-: | :-: | :-: |\n"
+    # for rbp_id, wc_pval in sorted(pval_dic.items(), key=lambda item: item[1], reverse=False):
+    #     wc_pval_str = convert_sci_not_to_decimal(wc_pval)  # Convert scientific notation to decimal string for sorting to work.
+    #     c_hit_reg = search_rbps_dic[rbp_id].c_hit_reg
+    #     perc_hit_reg = search_rbps_dic[rbp_id].perc_hit_reg
+    #     c_uniq_motif_hits = search_rbps_dic[rbp_id].c_uniq_motif_hits
+    #     mdtext += "| %s | %i | %.2f | %i | %s |\n" %(rbp_id, c_hit_reg, perc_hit_reg, c_uniq_motif_hits, wc_pval)
+    # mdtext += "\n&nbsp;\n&nbsp;\n"
+    # mdtext += "\nColumn IDs have the following meanings: "
+    # mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
+    # mdtext += '**# hit regions** -> number of input genomic regions with motif hits (after filtering and optional extension), '
+    # mdtext += '**% hit regions** -> percentage of hit regions over all regions (i.e. how many input regions contain >= 1 RBP binding motif), '
+    # mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
+    # mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
+    # mdtext += "\n&nbsp;\n"
 
     """
     Input datasets k-mer frequencies comparative plot.
@@ -4026,7 +4108,7 @@ by RBPBench (rbpbench batch --report, used motif database: %s):
         mdtext += """
 
 **Figure:** Comparison of input datasets, using k-mer (k = %i) frequencies of input region sequences (3-dimensional PCA) as features, 
-to show similarities of input datasets based on their k-mer frequencies (points close to each other have similarities in k-mer frequencies).
+to show similarities of input datasets based on their sequence k-mer frequencies (points close to each other have similar k-mer frequencies).
 Input dataset IDs (show via hovering over data points) have following format: %s.
 
 &nbsp;
@@ -4325,6 +4407,76 @@ def filter_rbp2regidx_dic(rbp2regidx_dic,
 
 ################################################################################
 
+def create_len_distr_violin_plot_plotly(in_df, plot_out,
+                                        include_plotlyjs="cdn",
+                                        full_html=False):
+    """
+    Create sequence lengths violin plot, including various infos in hover box,
+    such as sequences and motif hits.
+    
+    in_df format created from seqs_dic:
+
+    # Sequences dataframe for plotting sequence lengths violin plot.
+    sequences = []
+    seq_ids = []
+    for seq_id in out_seqs_dic:
+        seq_ids.append(seq_id)
+        sequences.append(seqs_dic[seq_id])
+
+    motif_hits = []
+    for seq_id in seq_ids:
+        # region_rbp_motif_pos_dic[seq_id].sort()
+        motif_hits.append(";".join(region_rbp_motif_pos_dic[seq_id]))
+
+    seq_len_df = pd.DataFrame({
+        'Sequence ID': seq_ids,
+        'Sequence Length': [len(seq) for seq in sequences],
+        'Sequence': [benchlib.insert_line_breaks(seq, line_len=60) for seq in sequences],
+        'Motif hits': motif_hits
+    })
+
+    """
+
+    fig = px.violin(in_df, y='Sequence Length', box=True, points='all')
+    # Set customdata and hovertemplate
+    fig.update_traces(customdata=in_df[['Sequence ID', 'Sequence', 'Motif hits']].values, hovertemplate='>%{customdata[0]}<br>%{customdata[1]}<br>Sequence Length: %{y}<br>Motif hits:<br>%{customdata[2]}')
+    fig.update_layout(xaxis_title='Density', yaxis_title='Sequence Length', violinmode='overlay')
+    fig.write_html(plot_out,
+                   full_html=full_html,
+                   include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
+def get_sequence_length_statistics(seq_dic):
+    """
+    Given a dictionary of sequences (key: sequence ID, value: sequence),
+    calculate mean, median, q1 q3, min max for sequence lengths.
+
+    Return list of statistics.
+
+    """
+    
+    assert seq_dic, "no sequences given for length statistics calculation"
+
+    seq_len_list = []
+    for seq_id in seq_dic:
+        seq_len_list.append(len(seq_dic[seq_id]))
+
+    nr_seqs = len(seq_len_list)
+    seq_len_arr = np.array(seq_len_list)
+    seq_len_mean = np.mean(seq_len_arr)
+    seq_len_median = np.median(seq_len_arr)
+    seq_len_q1 = np.percentile(seq_len_arr, 25)
+    seq_len_q3 = np.percentile(seq_len_arr, 75)
+    seq_len_min = np.min(seq_len_arr)
+    seq_len_max = np.max(seq_len_arr)
+
+    return [nr_seqs, seq_len_mean, seq_len_median, seq_len_q1, seq_len_q3, seq_len_min, seq_len_max]
+     
+
+################################################################################
+
 def search_generate_html_report(df_pval, pval_cont_lll,
                                 search_rbps_dic,
                                 id2name_dic, name2ids_dic,
@@ -4334,6 +4486,7 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 benchlib_path,
                                 rbp2regidx_dic,
                                 reg_ids_list,
+                                seq_len_df=None,
                                 set_rbp_id=None,
                                 motif_db_str=False,
                                 seq_motif_blocks_dic=None,
@@ -4475,6 +4628,9 @@ by RBPBench (rbpbench search --report):
 
     mdtext += "\n"
 
+    # Additional plot if GTF annotations given.
+    if seq_len_df is not None:
+        mdtext += "- [Input sequence length distribution](#seq-len-plot)\n"
 
     # Additional plot if GTF annotations given.
     if reg2annot_dic is not None:
@@ -4590,8 +4746,6 @@ By default, BED genomic regions input file column 5 is used as the score column 
     """
     Co-occurrence heat map.
 
-    ALAMO: cooc_pval_thr
-
     """
 
     cooc_plot_plotly =  "co-occurrence_plot.plotly.html"
@@ -4628,7 +4782,7 @@ By default, BED genomic regions input file column 5 is used as the score column 
     if not disable_cooc_mtc:
         p_val_info = "P-values below %s (p-value threshold Bonferroni corrected) are considered significant." %(str(cooc_pval_thr))
 
-    # ALAMO
+
 
     mdtext += """
 
@@ -4655,6 +4809,60 @@ for easier distinction between significant and non-significant co-occurrences.
 &nbsp;
 
 """ %(p_val_info, str(cooc_pval_thr))
+
+
+    """
+    Input sequence lengths distribution violin plot.
+    
+    """
+
+
+    # Additional plot if GTF annotations given.
+    if seq_len_df is not None:
+
+        mdtext += """
+## Input sequence length distribution ### {#seq-len-plot}
+
+"""
+
+        # ALAMO
+
+        seq_len_plot_plotly =  "seq_len_violin_plot.plotly.html"
+        seq_len_plot_plotly_out = plots_out_folder + "/" + seq_len_plot_plotly
+
+        create_len_distr_violin_plot_plotly(seq_len_df, seq_len_plot_plotly_out,
+                                include_plotlyjs=include_plotlyjs,
+                                full_html=plotly_full_html)
+
+        plot_path = plots_folder + "/" + seq_len_plot_plotly
+
+        if plotly_js_mode in [5, 6, 7]:
+            # Read in plotly code.
+            # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+            js_code = read_file_content_into_str_var(seq_len_plot_plotly_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1000px;")
+            mdtext += js_code + "\n"
+            # mdtext += '</div>'
+        else:
+            if plotly_embed_style == 1:
+                # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                mdtext += "<div>\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1000" height="1000"></iframe>' + "\n"
+                mdtext += '</div>'
+            elif plotly_embed_style == 2:
+                mdtext += '<object data="' + plot_path + '" width="1000" height="1000"> </object>' + "\n"
+
+        mdtext += """
+
+**Figure:** Input sequence lengths (after filtering and optional extension) violin plot.
+Hover box over data points shows sequence ID, sequence, sequence length, and motif hits. 
+Motif hit format: motif ID, motif start - motif end, p-value (for sequence motifs) or bit score (structure models).
+Violin plot shows density distribution of sequence lengths, including min, max, median, 
+and length quartiles (q1: 25th percentile, q3: 75th percentile).
+
+&nbsp;
+
+"""
 
     """
     Region annotations per RBP plot.
