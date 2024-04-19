@@ -335,6 +335,7 @@ def make_contingency_table_2x2(region_labels_dic, idx1, idx2):
     for reg_id in region_labels_dic:
         in1 = region_labels_dic[reg_id][idx1]
         in2 = region_labels_dic[reg_id][idx2]
+
         if in1 and in2:
             cont_a += 1
         elif not in1 and in2:
@@ -346,6 +347,120 @@ def make_contingency_table_2x2(region_labels_dic, idx1, idx2):
 
     table = [[cont_a, cont_b], [cont_c, cont_d]]
     return table
+
+
+################################################################################
+
+def closest_dist_motif_pos_lists(l1, l2):
+    """
+    Given two lists of motif center positions, calculate closest distance 
+    between any two positions in the two lists.
+
+    >>> l1 = [30, 90]
+    >>> l2 = [50, 100]
+    >>> closest_dist_motif_pos_lists(l1, l2)
+    10
+    >>> l1 = []
+    >>> print(closest_dist_motif_pos_lists(l1, l2))
+    None
+
+    """
+
+    min_dist = None
+    for i in l1:
+        for j in l2:
+            dist = abs(i-j)
+            if min_dist is None:
+                min_dist = dist
+            else:
+                if dist < min_dist:
+                    min_dist = dist
+    return min_dist
+
+
+################################################################################
+
+def make_contingency_table_2x2_v2(region_labels_dic, idx1, idx2,
+                                  rid2rbpidx2hcp_dic,
+                                  max_motif_dist=50):
+    """
+    Make a contingency table 2x2, using region_labels_dic.
+    region_labels_dic format:
+    region_id -> [False, True, False ... ] 
+    with list number of RBP IDs (len_rbp_list), alphabetically sorted.
+    True: region covered by RBP at idx (i.e. motif hits)
+    False: region not covered by RBP at idx (i.e. no motif hits)
+    Also use hit center position(s) list from rid2rbpidx2hcp_dic to calculate
+    average distance of closest pairs of motif hits for both RBPs.
+    rid2rbpidx2hcp_dic format:
+    region_id -> rbp_idx -> hit center position(s) list
+
+    ALAMO
+
+    Return table format:
+    table = [[A, B], [C, D]], perc_close_hits
+
+    https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.fisher_exact.html
+                   List 1              Not in List 1
+    List 2         A                   B
+    Not in List 2  C                   D
+
+    table = [[A, B], [C, D]]
+
+    >>> region_labels_dic = {'r1': [True, False], 'r2': [False, True], 'r3': [True, True], 'r4': [False, False], 'r5': [True, True]}
+    >>> rid2rbpidx2hcp_dic = {'r1': {0: [30]}, 'r2': {1: [100]}, 'r3': {0: [30], 1: [50, 70]}, 'r4': {}, 'r5': {0: [30, 40], 1: [20, 100]}}
+    >>> make_contingency_table_2x2_v2(region_labels_dic, 0, 1, rid2rbpidx2hcp_dic, max_motif_dist=50)
+    ([[2, 1], [1, 1]], '15.0', '100.0')
+    >>> make_contingency_table_2x2_v2(region_labels_dic, 0, 1, rid2rbpidx2hcp_dic, max_motif_dist=10)
+    ([[2, 1], [1, 1]], '15.0', '50.0')
+    >>> make_contingency_table_2x2_v2(region_labels_dic, 0, 1, rid2rbpidx2hcp_dic, max_motif_dist=5)
+    ([[2, 1], [1, 1]], '15.0', '0.0')
+    
+    """
+
+    cont_a = 0
+    cont_b = 0
+    cont_c = 0
+    cont_d = 0
+
+    sum_min_dist = 0
+    c_cont_a_max_motif_dist = 0
+
+    for reg_id in region_labels_dic:
+        in1 = region_labels_dic[reg_id][idx1]
+        in2 = region_labels_dic[reg_id][idx2]
+
+        if in1 and in2:
+            cont_a += 1
+            min_dist = closest_dist_motif_pos_lists(rid2rbpidx2hcp_dic[reg_id][idx1], rid2rbpidx2hcp_dic[reg_id][idx2])
+            if min_dist is not None:
+                # print(reg_id, min_dist)
+                sum_min_dist += min_dist
+                if min_dist <= max_motif_dist:
+                    c_cont_a_max_motif_dist += 1
+
+        elif not in1 and in2:
+            cont_b += 1
+        elif in1 and not in2:
+            cont_c += 1
+        else: # not in1 and not in2
+            cont_d += 1
+
+    avg_min_dist = "-"
+    if cont_a:
+        avg_min_dist = sum_min_dist / cont_a
+        # Round avg_min_dist to 1 decimal.
+        avg_min_dist = str(round(avg_min_dist, 1))
+
+    # Percentage of regions with motif hits for both RBPs, where closest motif hits are <= max_motif_dist away.
+    perc_close_hits = "-"
+    if cont_a:
+        perc_close_hits = 100 * c_cont_a_max_motif_dist / cont_a
+        # Round perc_close_hits to 2 decimals.
+        perc_close_hits = str(round(perc_close_hits, 2))
+
+    table = [[cont_a, cont_b], [cont_c, cont_d]]
+    return table, avg_min_dist, perc_close_hits
 
 
 ################################################################################
@@ -3742,6 +3857,7 @@ def create_color_scale(min_value, max_value, colors):
 ################################################################################
 
 def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
+                            max_motif_dist=50,
                             include_plotlyjs="cdn",
                             full_html=False):
     """
@@ -3788,13 +3904,26 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
     plot = px.imshow(df, color_continuous_scale=color_scale, zmin=zmin, zmax=zmax)
     # plot = px.imshow(df)
 
+    # AALAMO
+
+    """
+    Old:
+    'hovertemplate': 'RBP1: %{x}<br>RBP2: %{y}<br>p-value: %{customdata[0]}<br>p-value after filtering: %{customdata[1]}<br>RBPs: %{customdata[2]}<br>Counts: %{customdata[3]}<br>Mean minimum motif distance: %{customdata[4]}<br>Motif pairs within set motif distance: %{customdata[5]} %<br>Correlation: %{customdata[6]}<br>-log10(p-value after filtering): %{z}'}])
+
+    New:
+    'hovertemplate': f'RBP1: {{x}}<br>RBP2: {{y}}<br>p-value: {{customdata[0]}}<br>p-value after filtering: {{customdata[1]}}<br>RBPs: {{customdata[2]}}<br>Counts: {{customdata[3]}}<br>Mean minimum motif distance: {{customdata[4]}}<br>Motif pairs within {max_motif_dist} nt: {{customdata[5]}} %<br>Correlation: {{customdata[6]}}<br>-log10(p-value after filtering): {{z}}'}])
+
+    
+    """
+
+
+
     plot.update(data=[{'customdata': pval_cont_lll,
-                    'hovertemplate': 'RBP1: %{x}<br>RBP2: %{y}<br>p-value: %{customdata[0]}<br>p-value after filtering: %{customdata[1]}<br>RBPs: %{customdata[2]}<br>Counts: %{customdata[3]}<br>Correlation: %{customdata[4]}<br>-log10(p-value after filtering): %{z}<extra></extra>'}])
+                      'hovertemplate': 'RBP1: %{x}<br>RBP2: %{y}<br>p-value: %{customdata[0]}<br>p-value after filtering: %{customdata[1]}<br>RBPs: %{customdata[2]}<br>Counts: %{customdata[3]}<br>Mean minimum motif distance (nt): %{customdata[4]}<br>Motif pairs within ' + str(max_motif_dist) + ' nt (%): %{customdata[5]}<br>Correlation: %{customdata[6]}<br>-log10(p-value after filtering): %{z}<extra></extra>'}])
     plot.update_layout(plot_bgcolor='white')
     plot.write_html(plot_out,
                     full_html=full_html,
                     include_plotlyjs=include_plotlyjs)
-
 
 ################################################################################
 
@@ -4486,10 +4615,12 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 benchlib_path,
                                 rbp2regidx_dic,
                                 reg_ids_list,
+                                fisher_mode=1,
                                 seq_len_df=None,
                                 set_rbp_id=None,
                                 motif_db_str=False,
                                 seq_motif_blocks_dic=None,
+                                max_motif_dist=50,
                                 motif_distance_plot_range=50,
                                 motif_min_pair_count=10,
                                 rbp_min_pair_count=10,
@@ -4752,6 +4883,7 @@ By default, BED genomic regions input file column 5 is used as the score column 
     cooc_plot_plotly_out = plots_out_folder + "/" + cooc_plot_plotly
 
     create_cooc_plot_plotly(df_pval, pval_cont_lll, cooc_plot_plotly_out,
+                            max_motif_dist=max_motif_dist,
                             include_plotlyjs=include_plotlyjs,
                             full_html=plotly_full_html)
 
@@ -4782,13 +4914,19 @@ By default, BED genomic regions input file column 5 is used as the score column 
     if not disable_cooc_mtc:
         p_val_info = "P-values below %s (p-value threshold Bonferroni corrected) are considered significant." %(str(cooc_pval_thr))
 
-
+    # Inform about set alterntive hypothesis for Fisher exact test on RBP motif co-occurrences.
+    fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., significantly overrepresented co-occurrences are reported."
+    if fisher_mode == 2:
+        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'two-sided', i.e., significantly over- and underrepresented co-occurrences are reported."
+    elif fisher_mode == 3:
+        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., significantly underrepresented co-occurrences are reported."
 
     mdtext += """
 
 **Figure:** Heat map of co-occurrences (Fisher's exact test p-values) between RBPs. 
 RBP co-occurrences that are not significant are colored gray, while
 significant co-occurrences are colored according to their -log10 p-value (used as legend color, i.e., the higher the more significant).
+%s
 %s
 Hover box: 1) RBP1. 2) RBP2.
 3) p-value: Fisher's exact test p-value (calculated based on contingency table between RBP1 and RBP2). 
@@ -4808,7 +4946,7 @@ for easier distinction between significant and non-significant co-occurrences.
 
 &nbsp;
 
-""" %(p_val_info, str(cooc_pval_thr))
+""" %(p_val_info, fisher_mode_info, str(cooc_pval_thr))
 
 
     """
