@@ -214,6 +214,12 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Disable multiple testing correction for RBP co-occurrence p-values. By default, Bonferroni correction is applied (default: False)")
+    p_s.add_argument("--max-motif-dist",
+                   dest="max_motif_dist",
+                   type=int,
+                   metavar='int',
+                   default=20,
+                   help="Set maximum motif distance for RBP co-occurrence plot statistic inside hover boxes (default: 20)")
     p_s.add_argument("--disable-len-dist-plot",
                    dest="disable_len_dist_plot",
                    default = False,
@@ -2310,8 +2316,6 @@ def main_search(args):
     else:
         assert False, "Invalid Fisher mode: %i" %(args.fisher_mode)
 
-    max_motif_dist = 10
-
     print("Compute motif region co-occurrences between RBP pairs ... ")
     for pair in rbp_pairs:
         pair = list(pair)
@@ -2328,7 +2332,7 @@ def main_search(args):
         table, avg_min_dist, perc_close_hits = benchlib.make_contingency_table_2x2_v2(
                                                        region_rbp_binds_dic, idx1, idx2,
                                                        rid2rbpidx2hcp_dic,
-                                                       max_motif_dist=max_motif_dist)
+                                                       max_motif_dist=args.max_motif_dist)
 
         odds_ratio, p_value = fisher_exact(table, alternative=fisher_alt_hypo)
 
@@ -2673,7 +2677,7 @@ def main_search(args):
                                          set_rbp_id=args.set_rbp_id,
                                          motif_db_str=motif_db_str,
                                          seq_motif_blocks_dic=seq_motif_blocks_dic,
-                                         max_motif_dist=max_motif_dist,
+                                         max_motif_dist=args.max_motif_dist,
                                          motif_distance_plot_range=args.motif_distance_plot_range,
                                          motif_min_pair_count=args.motif_min_pair_count,
                                          rbp_min_pair_count=args.rbp_min_pair_count,

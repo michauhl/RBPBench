@@ -395,10 +395,8 @@ def make_contingency_table_2x2_v2(region_labels_dic, idx1, idx2,
     rid2rbpidx2hcp_dic format:
     region_id -> rbp_idx -> hit center position(s) list
 
-    ALAMO
-
     Return table format:
-    table = [[A, B], [C, D]], perc_close_hits
+    table = [[A, B], [C, D]]
 
     https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.fisher_exact.html
                    List 1              Not in List 1
@@ -3919,7 +3917,7 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
 
 
     plot.update(data=[{'customdata': pval_cont_lll,
-                      'hovertemplate': 'RBP1: %{x}<br>RBP2: %{y}<br>p-value: %{customdata[0]}<br>p-value after filtering: %{customdata[1]}<br>RBPs: %{customdata[2]}<br>Counts: %{customdata[3]}<br>Mean minimum motif distance (nt): %{customdata[4]}<br>Motif pairs within ' + str(max_motif_dist) + ' nt (%): %{customdata[5]}<br>Correlation: %{customdata[6]}<br>-log10(p-value after filtering): %{z}<extra></extra>'}])
+                      'hovertemplate': '1) RBP1: %{x}<br>2) RBP2: %{y}<br>3) p-value: %{customdata[0]}<br>4) p-value after filtering: %{customdata[1]}<br>5) RBPs: %{customdata[2]}<br>6) Counts: %{customdata[3]}<br>7) Mean minimum motif distance (nt): %{customdata[4]}<br>8) Motif pairs within ' + str(max_motif_dist) + ' nt (%): %{customdata[5]}<br>9) Correlation: %{customdata[6]}<br>10) -log10(p-value after filtering): %{z}<extra></extra>'}])
     plot.update_layout(plot_bgcolor='white')
     plot.write_html(plot_out,
                     full_html=full_html,
@@ -4928,25 +4926,29 @@ RBP co-occurrences that are not significant are colored gray, while
 significant co-occurrences are colored according to their -log10 p-value (used as legend color, i.e., the higher the more significant).
 %s
 %s
-Hover box: 1) RBP1. 2) RBP2.
-3) p-value: Fisher's exact test p-value (calculated based on contingency table between RBP1 and RBP2). 
-4) p-value after filtering: p-value after filtering, i.e., p-value is kept if significant (< %s), otherwise it is set to 1.0.
-5) RBPs compaired. 
-6) Counts[]: contingency table of co-occurrence counts (i.e., number of genomic regions with/without shared motif hits) between compaired RBPs, 
+Hover box: 
+**1)** RBP1.
+**2)** RBP2.
+**3)** p-value: Fisher's exact test p-value (calculated based on contingency table (6) between RBP1 and RBP2). 
+**4)** p-value after filtering: p-value after filtering, i.e., p-value is kept if significant (< %s), otherwise it is set to 1.0.
+**5)** RBPs compaired. 
+**6)** Counts[]: contingency table of co-occurrence counts (i.e., number of genomic regions with/without shared motif hits) between compaired RBPs, 
 with format [[A, B], [C, D]], where 
 A: RBP1 AND RBP2, 
 B: NOT RBP1 AND RBP2
 C: RBP1 AND NOT RBP2
 D: NOT RBP1 AND NOT RBP2.
-7) Correlation: Pearson correlation coefficient between RBP1 and RBP2. 
+**7)** Mean minimum distance of RBP1 and RBP2 motifs (mean over all regions containing RBP1 + RBP2 motifs). Distances measured from motif center positions.
+**8)** Over all regions containing RBP1 and RBP2 motif pairs, percentage of regions where RBP1 + RBP2 motifs are within %i nt distance (set via --max-motif-dist).
+**9)** Correlation: Pearson correlation coefficient between RBP1 and RBP2.
 Genomic regions are labelled 1 or 0 (RBP motif present or not), resulting in a vector of 1s and 0s for each RBP.
 Correlations are then calculated by comparing vectors for every pair of RBPs.
-8) -log10 of p-value after filtering, used for legend coloring. Using p-value after filtering, all non-significant p-values become 0 
+**10)** -log10 of p-value after filtering, used for legend coloring. Using p-value after filtering, all non-significant p-values become 0 
 for easier distinction between significant and non-significant co-occurrences.
 
 &nbsp;
 
-""" %(p_val_info, fisher_mode_info, str(cooc_pval_thr))
+""" %(p_val_info, fisher_mode_info, str(cooc_pval_thr), max_motif_dist)
 
 
     """
