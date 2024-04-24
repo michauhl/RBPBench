@@ -543,8 +543,8 @@ def setup_argument_parser():
 
     """
     Sequence search motifs mode.
-
     ALAMO
+
     """
     p_ss = subparsers.add_parser('searchseq',
                                 help='Search motifs in sequences')
@@ -584,8 +584,6 @@ def setup_argument_parser():
                    metavar='str',
                    default = "method_id",
                    help="Method ID to describe peak calling method, e.g. --method-id clipper_idr, used in output tables and for generating the comparison reports (rbpbench compare)")
-
-
     p_ss.add_argument("--user-rbp-id",
                    dest="user_rbp_id",
                    type=str,
@@ -690,6 +688,52 @@ def setup_argument_parser():
                    choices=[1, 2, 3],
                    help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to plots output folder. 3: include .js code in HTML (default: 1)")
 
+    """
+    Regex motif search mode.
+    ALAMO
+    
+    """
+    p_sr = subparsers.add_parser('searchregex',
+                                help='Search regex in genomic sites or sequences')
+    p_sr.set_defaults(which='searchregex')
+    # Add required arguments group.
+    p_srm = p_sr.add_argument_group("required arguments")
+    # Required arguments for search.
+    p_srm.add_argument("--in",
+                   dest="in_file",
+                   type=str,
+                   metavar='str',
+                   required=True,
+                   help="Input FASTA file with DNA/RNA sequences or BED file with genomic regions used for regex search. NOTE that sequences will be converted to DNA and uppercased before search. If BED file, also provide --genome FASTA file")
+    p_srm.add_argument("--regex",
+                   dest="regex",
+                   type=str,
+                   metavar='str',
+                   required=True,
+                   default = "regex",
+                   help="Define regular expression (regex) DNA motif used for search, e.g. --regex AAAAA, --regex 'C[ACGT]AC[AC]', .. ")
+    p_srm.add_argument("--out",
+                   dest="out_folder",
+                   type=str,
+                   metavar='str',
+                   required=True,
+                   help="Results output folder")
+    p_sr.add_argument("--genome",
+                   dest="in_genome",
+                   type=str,
+                   metavar='str',
+                   help = "Genomic sequences FASTA file (required if --in is BED)")
+    p_sr.add_argument("--make-uniq-headers",
+                   dest="make_uniq_headers",
+                   default = False,
+                   action = "store_true",
+                   help = "Make FASTA headers unique. By default, an error is thrown if identical FASTA headers are encountered (default: False)")
+    p_sr.add_argument("--header-id",
+                   dest="header_id",
+                   type=str,
+                   metavar='str',
+                   default = "custom",
+                   help = "Constant header ID part used if --make-uniq-headers set (default: \"seq\")")
 
     """
     Optimal extension mode.
@@ -3949,6 +3993,180 @@ def main_batch(args):
 
 
 
+
+
+
+
+
+
+
+
+################################################################################
+
+def main_searchregex(args):
+    """
+    Regex motif search.
+
+    ALAMO
+
+    """
+
+    print("Running for you in SEARCHREGEX mode ... ")
+
+    assert os.path.exists(args.in_file), "--in file \"%s\" not found" % (args.in_file)
+    assert benchlib.is_valid_regex(args.regex), "invalid --regex \"%s\" given. Please provide a valid regex string" % (args.regex)
+
+    # Output files.
+    if not os.path.exists(args.out_folder):
+        os.makedirs(args.out_folder)
+    in_seqs_fa = args.out_folder + "/in_sequences.fa"
+    motif_hits_bed_out = args.out_folder + "/motif_hits.bed"
+    regions_with_hit_counts_bed_out = args.out_folder + "/regions_with_hit_counts.bed"
+
+    """
+    Check if --in is BED or FASTA.
+    Get sequences dictionary accordingly.
+    
+    """
+
+    in_seqs_dic = {}
+    is_bed = False
+
+    if benchlib.fasta_check_format(args.in_file):
+
+        print("--in input file is FASTA. Read in sequences ... ")
+
+        id_check = True
+        if args.make_uniq_headers:
+            id_check = False
+        
+        in_seqs_dic = benchlib.read_fasta_into_dic(args.in_file,
+                                        dna=True,
+                                        all_uc=True,
+                                        id_check=id_check,
+                                        empty_check=False,
+                                        new_header_id=args.header_id,
+                                        make_uniq_headers=args.make_uniq_headers,
+                                        report=1,
+                                        skip_n_seqs=False)
+
+        assert in_seqs_dic, "no sequences read in from --in FASTA file. Make sure to provide a FASTA formatted file with DNA or RNA sequences"
+
+    elif benchlib.bed_check_format(args.in_file, gimme=True):
+
+        print("--in input file is BED. Extract region sequences from --genome FASTA file ... ")
+
+        if not args.in_genome:
+            assert False, "--in BED file provided, but no --genome FASTA file provided. Please provide a FASTA file with genomic sequences"
+        assert os.path.exists(args.in_genome), "--genome FASTA file \"%s\" not found" % (args.in_genome)
+
+        is_bed = True
+
+        benchlib.bed_extract_sequences_from_fasta(args.in_file, args.in_genome, in_seqs_fa,
+                                                  print_warnings=True)
+
+        in_seqs_dic = benchlib.read_fasta_into_dic(in_seqs_fa,
+                                                   dna=True,
+                                                   all_uc=True,
+                                                   id_check=True,
+                                                   empty_check=False,
+                                                   skip_n_seqs=False)
+        
+        assert in_seqs_dic, "no sequences extracted from --in BED file. Make sure to provide a BED file with genomic regions and a compatible FASTA file with genomic sequences"
+
+    else:
+        assert False, "--in input file format not supported. Provide either FASTA or BED file"
+
+    assert in_seqs_dic, "no sequences read in from --in FASTA file. Make sure to provide a FASTA formatted file with DNA or RNA sequences"
+
+
+    """
+    Search for regex motif hits in sequence dictionary.
+    
+    hits_dic format:
+    {'seq1': [[0, 2, 'AT'], [4, 6, 'AG']]}
+
+    """
+
+    hits_dic = benchlib.search_regex_in_seqs_dic(args.regex, in_seqs_dic,
+                                                 case_sensitive=True)
+
+    c_all_hits = 0
+    for hit in hits_dic:
+        c_all_hits += len(hits_dic[hit])
+
+    print("")
+    if is_bed:
+        print("# input regions:    ", len(in_seqs_dic))
+        print("# regex motif hits: ", c_all_hits)
+    else:
+        print("# input sequences:  ", len(in_seqs_dic))
+        print("# regex motif hits: ", c_all_hits)
+
+
+    """
+    Output files.
+    
+    BED sequence ID format:
+    chr20:62139082-62139128(-)
+
+    """
+
+    MOTIFOUT = open(motif_hits_bed_out, "w")
+    REGIONOUT = open(regions_with_hit_counts_bed_out, "w")
+
+    for hit in hits_dic:
+        seq_id = hit
+        c_hits = len(hits_dic[hit])
+        len_seq = len(in_seqs_dic[seq_id])
+        for hit_info in hits_dic[hit]:
+            start = hit_info[0]
+            end = hit_info[1]
+            seq = hit_info[2]
+
+            if is_bed:
+                gen_motif_coords = benchlib.get_genomic_coords_from_seq_name(seq_id, start, end,
+                                                                             one_based_start=False)
+
+                chr_id = gen_motif_coords[0]
+                gen_motif_s = gen_motif_coords[1]
+                gen_motif_e = gen_motif_coords[2]
+                strand = gen_motif_coords[3]
+
+                MOTIFOUT.write("%s\t%i\t%i\t%s\t0\t%s\n" %(chr_id, gen_motif_s, gen_motif_e, seq, strand))
+
+            else:
+
+                MOTIFOUT.write("%s\t%s\t%s\t%s\t0\t+\n" %(seq_id, start, end, seq))
+        
+        if is_bed:
+
+            gen_region_coords = benchlib.seq_id_get_parts(seq_id)
+            chr_id = gen_region_coords[0]
+            reg_s = gen_region_coords[1]
+            reg_e = gen_region_coords[2]
+            strand = gen_region_coords[3]
+            REGIONOUT.write("%s\t%i\t%i\t%s\t%i\t%s\n" %(chr_id, reg_s, reg_e, seq_id, c_hits, strand))
+
+        else:
+
+            REGIONOUT.write("%s\t0\t%i\t%s\t%i\t+\n" %(seq_id, len_seq, seq_id, c_hits))
+
+    MOTIFOUT.close()
+    REGIONOUT.close()
+
+    if not hits_dic:
+        print("No regex motif hits found in --in regions / sequences")
+
+    print("")
+    print("OUTPUT FILES")
+    print("============")
+    print("")
+    print("Regex motif hits .bed:\n%s" %(motif_hits_bed_out))
+    print("Sequences / regions with hit counts .bed:\n%s" %(regions_with_hit_counts_bed_out))
+    print("")
+
+
 ################################################################################
 
 def main_searchseq(args):
@@ -3956,8 +4174,6 @@ def main_searchseq(args):
     Sequence motifs search.
 
     """
-
-    # ALAMO
 
     print("Running for you in SEARCHSEQ mode ... ")
 
@@ -4318,7 +4534,7 @@ def main_searchseq(args):
 
 
 
-    # ALAMO : check if following code works for seqsearch / thin out code.
+    # ALAMO : check if following code works for searchseq / thin out code.
 
 
 
@@ -6739,6 +6955,8 @@ if __name__ == '__main__':
         main_batch(args)
     elif args.which == 'searchseq':
         main_searchseq(args)
+    elif args.which == 'searchregex':
+        main_searchregex(args)
     elif args.which == 'optex':
         main_optex(args)
     elif args.which == 'info':

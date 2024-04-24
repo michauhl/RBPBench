@@ -93,6 +93,65 @@ def check_tool_version(tool_call, min_version):
 
 ################################################################################
 
+def is_valid_regex(regex):
+    """
+    Check if regex string is valid regex.
+
+    >>> is_valid_regex(".*")
+    True
+    >>> is_valid_regex(".*[")
+    False
+
+    """
+
+    try:
+        re.compile(regex)
+        return True
+    except re.error:
+        return False
+
+
+################################################################################
+
+def search_regex_in_seqs_dic(regex, seqs_dic,
+                             case_sensitive=True):
+
+    """
+    Get regex matches in sequences stored in seqs_dic.
+    match.start : 0-based index of the start of the match
+    match.end : 1-based index of the end of the match
+    match.group : the matched string
+    
+    >>> seqs_dic = {'seq1': 'XXXXXXX'}
+    >>> regex = "AA"
+    >>> search_regex_in_seqs_dic(regex, seqs_dic)
+    {}
+    >>> seqs_dic = {'seq1': 'ATXXAGX'}
+    >>> regex = "A[GT]"
+    >>> search_regex_in_seqs_dic(regex, seqs_dic)
+    {'seq1': [[0, 2, 'AT'], [4, 6, 'AG']]}
+    >>> regex = "a[GT]"
+    >>> seqs_dic = {'seq1': 'ATXXAGX'}
+    >>> search_regex_in_seqs_dic(regex, seqs_dic, case_sensitive=False)
+    {'seq1': [[0, 2, 'AT'], [4, 6, 'AG']]}
+    
+    """
+
+    if not is_valid_regex(regex):
+        return "Invalid regex"
+    
+    hits_dic = {}
+    for seq_name, seq in seqs_dic.items():
+        for match in re.finditer(regex, seq, re.IGNORECASE if not case_sensitive else 0):
+            if seq_name not in hits_dic:
+                hits_dic[seq_name] = [[match.start(), match.end(), match.group()]]
+            else:
+                hits_dic[seq_name].append([match.start(), match.end(), match.group()])
+    return hits_dic
+
+
+################################################################################
+
 def get_colormap_hex_colors(cm_id):
     """
     Get all colors of a matplotlib colormap (provided ID cm_id), as HEX values.
@@ -2470,6 +2529,29 @@ def bed_check_format(bed_file, gimme=False):
     if gimme:
         return okay
 
+################################################################################
+
+def fasta_check_format(fasta_file):
+    """
+    Quick check if file is a valid FASTA file.
+
+    >>> test_fa = "test_data/test.fa"
+    >>> fasta_check_format(test_fa)
+    True
+    >>> test_fa = "test_data/test.bed"
+    >>> fasta_check_format(test_fa)
+    False
+
+    """
+    with open(fasta_file, 'r') as f:
+        lines = f.readlines()
+    if len(lines) == 0:
+        return False
+    if not lines[0].startswith(">"):
+        return False
+    
+    return True
+
 
 ################################################################################
 
@@ -2915,6 +2997,28 @@ def bed_filter_extend_bed(in_bed, out_bed,
     stats_dic["reg_len_sum"] = reg_len_sum 
 
     return stats_dic
+
+
+################################################################################
+
+def seq_id_get_parts(seq_id):
+    """
+    Given sequence ID with format chr20:62139082-62139128(-),
+    return single parts.
+
+    """
+
+    if re.search("\w+:\d+-\d+\([+|-]\)", seq_id):
+        m = re.search("(\w+):(\d+)-(\d+)\(([+|-])\)", seq_id)
+        chr_id = m.group(1)
+        reg_s = int(m.group(2))
+        reg_e = int(m.group(3))
+        strand = m.group(4)
+
+        return [chr_id, reg_s, reg_e, strand]
+
+    else:
+        assert False, "invalid sequence ID format (%s). Expected format: chr6:666-6666(-)" %(seq_id)
 
 
 ################################################################################
