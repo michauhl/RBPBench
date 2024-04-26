@@ -101,6 +101,8 @@ def is_valid_regex(regex):
     True
     >>> is_valid_regex(".*[")
     False
+    >>> is_valid_regex("ACGT")
+    True
 
     """
 
@@ -114,8 +116,8 @@ def is_valid_regex(regex):
 ################################################################################
 
 def search_regex_in_seqs_dic(regex, seqs_dic,
+                             step_size_one=False,
                              case_sensitive=True):
-
     """
     Get regex matches in sequences stored in seqs_dic.
     match.start : 0-based index of the start of the match
@@ -134,19 +136,44 @@ def search_regex_in_seqs_dic(regex, seqs_dic,
     >>> seqs_dic = {'seq1': 'ATXXAGX'}
     >>> search_regex_in_seqs_dic(regex, seqs_dic, case_sensitive=False)
     {'seq1': [[0, 2, 'AT'], [4, 6, 'AG']]}
-    
+    >>> regex = "AAAC"
+    >>> seqs_dic = {'seq1': 'AAA'}
+    >>> search_regex_in_seqs_dic(regex, seqs_dic)
+    {}
+    >>> regex = "AA"
+    >>> seqs_dic = {'seq1': 'AAAA', 'seq2': 'TTTT'}
+    >>> search_regex_in_seqs_dic(regex, seqs_dic, step_size_one=True)
+    {'seq1': [[0, 2, 'AA'], [1, 3, 'AA'], [2, 4, 'AA']]}
+
     """
 
     if not is_valid_regex(regex):
         return "Invalid regex"
     
     hits_dic = {}
-    for seq_name, seq in seqs_dic.items():
-        for match in re.finditer(regex, seq, re.IGNORECASE if not case_sensitive else 0):
-            if seq_name not in hits_dic:
-                hits_dic[seq_name] = [[match.start(), match.end(), match.group()]]
-            else:
-                hits_dic[seq_name].append([match.start(), match.end(), match.group()])
+
+    if step_size_one:
+
+        for seq_name, seq in seqs_dic.items():
+            seq_length = len(seq)
+            for i in range(seq_length):
+                for match in re.finditer(regex, seq[i:], re.IGNORECASE if not case_sensitive else 0):
+                    if match.start() != 0:
+                        break
+                    if seq_name not in hits_dic:
+                        hits_dic[seq_name] = [[i + match.start(), i + match.end(), match.group()]]
+                    else:
+                        hits_dic[seq_name].append([i + match.start(), i + match.end(), match.group()])
+
+    else:
+
+        for seq_name, seq in seqs_dic.items():
+            for match in re.finditer(regex, seq, re.IGNORECASE if not case_sensitive else 0):
+                if seq_name not in hits_dic:
+                    hits_dic[seq_name] = [[match.start(), match.end(), match.group()]]
+                else:
+                    hits_dic[seq_name].append([match.start(), match.end(), match.group()])
+
     return hits_dic
 
 
@@ -445,7 +472,7 @@ def make_contingency_table_2x2_v2(region_labels_dic, idx1, idx2,
     """
     Make a contingency table 2x2, using region_labels_dic.
     region_labels_dic format:
-    region_id -> [False, True, False ... ] 
+    region_id -> [False, True, False ... ]
     with list number of RBP IDs (len_rbp_list), alphabetically sorted.
     True: region covered by RBP at idx (i.e. motif hits)
     False: region not covered by RBP at idx (i.e. no motif hits)
@@ -820,6 +847,7 @@ def run_fimo(in_fa, in_meme_xml, out_folder,
 ################################################################################
 
 def bed_extract_sequences_from_fasta(in_bed, in_fa, out_fa,
+                                     add_param="",
                                      print_warnings=False,
                                      ignore_errors=False):
     """
@@ -855,7 +883,7 @@ def bed_extract_sequences_from_fasta(in_bed, in_fa, out_fa,
     assert os.path.exists(in_bed), "in_bed %s does not exist" %(in_bed)
     assert os.path.exists(in_fa), "in_fa %s does not exist" %(in_fa)
 
-    check_cmd = "bedtools getfasta -fi " + in_fa +  " -bed " + in_bed + " -s  -fo " +  out_fa
+    check_cmd = "bedtools getfasta -fi " + in_fa +  " -bed " + in_bed + " " + add_param + " -s  -fo " +  out_fa
     output = subprocess.getoutput(check_cmd)
     if print_warnings:
         if output:
@@ -877,6 +905,7 @@ def read_fasta_into_dic(fasta_file,
                         full_header=False,
                         report=1,
                         all_uc=False,
+                        name_bed=False,
                         empty_check=True,
                         id_check=True,
                         skip_data_id="set",
@@ -916,6 +945,12 @@ def read_fasta_into_dic(fasta_file,
 
             assert m, "header ID extraction failed for FASTA header line \"%s\"" %(line)
             seq_id = m.group(1)
+
+            # If name_bed, get first part of ID (before "::").
+            if name_bed:
+                m = re.search("^(.+)::", seq_id)
+                assert m, "BED column 4 ID extraction failed for FASTA header \"%s\"" %(seq_id)
+                seq_id = m.group(1)
 
             if id_check:
                 assert seq_id not in seqs_dic, "non-unique FASTA header \"%s\" in \"%s\"" % (seq_id, fasta_file)
@@ -2842,6 +2877,52 @@ def extract_pol_from_seq_ids(out_seqs_dic):
 
 ################################################################################
 
+def bed_check_ids_output_bed(in_bed, out_bed,
+                             id_check=True,
+                             new_header_id="reg",
+                             make_uniq_headers=False):
+    """
+    Given in_bed BED file, check column 4 IDs, 
+    output to out_bed with unique IDs. 
+    Return regions in dictionary.
+    
+    """
+
+    OUTBED = open(out_bed, "w")
+
+    c_reg = 0
+
+    bed_reg_dic = {}
+
+    with open(in_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            chr_id = cols[0]
+            reg_s = cols[1]
+            reg_e = cols[2]
+            reg_id = cols[3]
+            reg_sc = cols[4]
+            reg_pol = cols[5]
+
+            c_reg += 1
+            if make_uniq_headers:
+                reg_id = new_header_id + "_" + str(c_reg)
+
+            if id_check:
+                assert reg_id not in bed_reg_dic, "non-unique region ID \"%s\" found in --in BED file. Please provide unique column 4 IDs or set --make-uniq-headers" %(reg_id)
+            
+            bed_reg_dic[reg_id] = [chr_id, reg_s, reg_e, reg_pol]
+
+            OUTBED.write("%s\t%s\t%s\t%s\t%s\t%s\n" % (chr_id, reg_s, reg_e, reg_id, reg_sc, reg_pol))
+
+    f.closed
+    OUTBED.close()
+
+    return bed_reg_dic
+
+
+################################################################################
+
 def bed_filter_extend_bed(in_bed, out_bed,
                           ext_up=0,
                           ext_down=0,
@@ -3486,6 +3567,62 @@ class FimoHit(GenomicRegion):
 
     def __repr__(self) -> str:
         return f"{self.chr_id}:{self.start}-{self.end}({self.strand}),{self.motif_id}"
+
+
+################################################################################
+
+def get_regex_hits(regex, regex_id, seqs_dic,
+                   step_size_one=False,
+                   use_motif_regex_id=False):
+    """
+    Given a regular expression (regex), get all hits in sequence dictionary.
+    Store hits as FimoHit objects in list.
+
+    use_motif_regex_id:
+        If True, store regex_id as motif ID. If False, store regex as motif ID. 
+
+    ALAMO
+
+    """
+
+    assert is_valid_regex(regex), "invalid regex given"
+
+    hits_dic = search_regex_in_seqs_dic(regex, seqs_dic,
+                                        step_size_one=step_size_one,
+                                        case_sensitive=True)
+
+    regex_hits_list = []
+
+    motif_id = regex
+    if use_motif_regex_id:
+        motif_id = regex_id
+
+    for hit in hits_dic:
+        seq_name = hit
+        for hit_info in hits_dic[hit]:
+            start = hit_info[0]  # 0-based.
+            end = hit_info[1]  # 1-based.
+            matched_seq = hit_info[2]  # matched sequence.
+
+            gen_motif_coords = get_genomic_coords_from_seq_name(seq_name, start, end,
+                                                                one_based_start=True)
+
+            regex_hit = FimoHit(chr_id=gen_motif_coords[0], 
+                            start=gen_motif_coords[1], 
+                            end=gen_motif_coords[2],
+                            strand=gen_motif_coords[3], 
+                            score=0.0, 
+                            motif_id=motif_id, 
+                            seq_name=seq_name, 
+                            pval=0.0, 
+                            qval=0.0,
+                            seq_s=start+1,
+                            seq_e=end,
+                            matched_seq=matched_seq)
+
+            regex_hits_list.append(regex_hit)
+
+    return regex_hits_list
 
 
 ################################################################################
@@ -4721,6 +4858,7 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 seq_len_df=None,
                                 set_rbp_id=None,
                                 motif_db_str=False,
+                                regex_id="regex",
                                 seq_motif_blocks_dic=None,
                                 max_motif_dist=50,
                                 motif_distance_plot_range=50,
@@ -4741,7 +4879,7 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 plotly_embed_style=1,
                                 plotly_full_html=False,
                                 cooc_pval_thr=0.05,
-                                disable_cooc_mtc=False,
+                                cooc_pval_mode=1,
                                 plots_subfolder="html_report_plots"):
     """
     Create additional hit statistics for selected RBPs, 
@@ -5011,11 +5149,16 @@ By default, BED genomic regions input file column 5 is used as the score column 
         elif plotly_embed_style == 2:
             mdtext += '<object data="' + plot_path + '" width="1200" height="1200"> </object>' + "\n"
 
-
     p_val_info = "P-values below %s are considered significant." %(str(cooc_pval_thr))
-    if not disable_cooc_mtc:
+    if cooc_pval_mode == 1:
         p_val_info = "P-values below %s (p-value threshold Bonferroni corrected) are considered significant." %(str(cooc_pval_thr))
-
+    elif cooc_pval_mode == 2:
+        assert False, "Benjamini-Hochberg correction not implemented yet!"
+    elif cooc_pval_mode == 3:
+        p_val_info = "P-values below %s are considered significant." %(str(cooc_pval_thr))
+    else:
+        assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(args.cooc_pval_mode)
+    
     # Inform about set alterntive hypothesis for Fisher exact test on RBP motif co-occurrences.
     fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., significantly overrepresented co-occurrences are reported."
     if fisher_mode == 2:
@@ -5301,7 +5444,7 @@ No motif distance statistics and plots generated since no motif hits found in in
 
     if set_rbp_id is not None:
 
-        rbp_motif_dist_plot_plotly =  "%s.motif_dist.plotly.html" %(set_rbp_id)
+        rbp_motif_dist_plot_plotly =  "%s.rbp_level_dist.plotly.html" %(set_rbp_id)
         rbp_motif_dist_plot_plotly_out = plots_out_folder + "/" + rbp_motif_dist_plot_plotly
 
         plotted, pc_dic, in_dic, out_dic = plot_motif_dist_rbp_level(set_rbp_id,
@@ -5320,7 +5463,9 @@ No motif distance statistics and plots generated since no motif hits found in in
 
 **Table:** Motif distance statistics between set RBP ID (%s) motifs and other RBP ID motifs (including itself). 
 Note that the statistics are generated by focussing (i.e., centering) on the highest-scoring motif of the set RBP 
-(lowest p-value for sequence motifs, highest bit score for structure motifs) in each input region.
+(lowest p-value for sequence motifs, highest bit score for structure motifs) in each input region. 
+If a regex is included in the analysis (--regex), the first regex hit in each region is used for the statistics 
+(as all regex hits have same score).
 In case of an empty table, try to lower --rbp-min-pair-count (current value: %i).
 
 """ %(set_rbp_id, set_rbp_id, rbp_min_pair_count)
@@ -5394,7 +5539,11 @@ Each RBP with a pair count (definition see table above) of >= %i is shown, and t
 
         for idx, motif_id in enumerate(name2ids_dic[set_rbp_id]):
 
-            single_motif_dist_plot_plotly =  "%s.motif_dist.plotly.html" %(motif_id)
+            motif_id_plot_str = motif_id
+            if set_rbp_id == regex_id:
+                motif_id_plot_str = regex_id
+
+            single_motif_dist_plot_plotly =  "%s.motif_level_dist.plotly.html" %(motif_id_plot_str)
             single_motif_dist_plot_plotly_out = plots_out_folder + "/" + single_motif_dist_plot_plotly
 
             plotted, pc_dic, in_dic, out_dic = plot_motif_dist_motif_level(motif_id,
@@ -5445,6 +5594,8 @@ Each RBP with a pair count (definition see table above) of >= %i is shown, and t
 **Table:** Motif distance statistics between motif %s (RBP: %s) and other motifs (from any RBP). 
 Note that the statistics are generated by focussing (i.e., centering) on the highest-scoring hit of motif %s 
 (lowest p-value for sequence motifs, highest bit score for structure motifs) in each input region.
+If a regex is included in the analysis (--regex), the first regex hit in each region is used for the statistics 
+(as all regex hits have same score).
 In case of an empty table, try to lower --motif-min-pair-count (current value: %i).
 
 """ %(motif_id, set_rbp_id, motif_id, motif_min_pair_count)
@@ -5477,8 +5628,8 @@ In case of an empty table, try to lower --motif-min-pair-count (current value: %
 
                         plot_str = '<image src = "' + plot_path + '" width="300px"></image>'
 
-                    else:
-                        print("Motif ID %s not in seq_motif_blocks_dic ... " %(seq_motif_blocks_dic))
+                    # else:
+                    #     print("Motif ID %s not in seq_motif_blocks_dic ... " %(other_motif_id))
 
                     mdtext += "| %s | %s | %s | %i | %i | %i |\n" %(motif_id, other_motif_id, plot_str, pair_c, in_dic[other_motif_id], out_dic[other_motif_id])
 
@@ -5592,7 +5743,7 @@ def plot_motif_dist_rbp_level(set_rbp_id,
             if id2name_dic[motif_id] != set_rbp_id:
                 continue
             pval = float(p)
-            if pval < best_motif_pval:
+            if pval < best_motif_pval:  # for regex with all same p-value (0.0), this means first gets selected.
                 best_motif_id = motif_id
                 best_motif_str = motif_str
                 best_motif_s = int(s)
@@ -6475,6 +6626,7 @@ def search_generate_html_motif_plots(search_rbps_dic,
                                      seq_motif_blocks_dic, str_motif_blocks_dic,
                                      out_folder, benchlib_path, motif2db_dic,
                                      motif_db_str=False,
+                                     regex_id="regex",
                                      html_report_out="motif_plots.rbpbench_search.html",
                                      plot_abs_paths=False,
                                      sort_js_mode=1,
@@ -6595,13 +6747,25 @@ by RBPBench (rbpbench %s --plot-motifs):
         tab_id = motif_plot_ids_dic[rbp_id]
 
         # RBP has sequence motifs?
-        if rbp.seq_motif_ids:
+        if rbp.seq_motif_ids and rbp_id != regex_id:
             mdtext += """
 ## %s motifs ### {#%s}
 
 RBP "%s" sequence motif plots.
 
 """ %(rbp_id, tab_id, rbp_id)
+
+        elif rbp.seq_motif_ids and rbp_id == regex_id:
+
+            motif_id = rbp.seq_motif_ids[0]
+            c_motif_hits = rbp.seq_motif_hits[0]
+
+            mdtext += """
+## %s motifs ### {#%s}
+
+Motif ID / Regex: %s. Number of motif hits in supplied genomic regions: %i.
+
+""" %(rbp_id, tab_id, motif_id, c_motif_hits)
 
         else:
             mdtext += """
@@ -6610,6 +6774,9 @@ RBP "%s" sequence motif plots.
 RBP "%s" only contains structure motifs, which are currently not available for plotting.
 
 """ %(rbp_id, tab_id, rbp_id)
+
+        if rbp_id == regex_id:
+            continue
 
         for idx, motif_id in enumerate(rbp.seq_motif_ids):
             c_motif_hits = rbp.seq_motif_hits[idx]

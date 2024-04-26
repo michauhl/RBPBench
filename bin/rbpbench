@@ -12,6 +12,7 @@ from pandas import DataFrame
 from rbpbench import benchlib
 from scipy.stats import fisher_exact
 from scipy.stats import mannwhitneyu
+# from scipy.stats import multitest  # BH correction.
 
 # from distutils.spawn import find_executable
 # from typing import Optional
@@ -159,6 +160,28 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
+    p_s.add_argument("--regex",
+                   dest="regex",
+                   type=str,
+                   metavar='str',
+                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. NOTE that after motif hit found in region, search continues right after motif hit")
+    p_s.add_argument("--regex-id",
+                   dest="regex_id",
+                   type=str,
+                   metavar='str',
+                   default = "regex",
+                   help="Set regex ID used as RBP ID and database ID associated to -regex hits (default: \"regex\")")
+    p_s.add_argument("--motif-regex-id",
+                   dest="motif_regex_id",
+                   default = False,
+                   action = "store_true",
+                   help="Use --regex-id for motif ID as well. By default, regular expression string is used as motif ID for regex motif hits")
+    p_s.add_argument("--regex-search-mode",
+                   dest="regex_search_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit end position, 2: when motif hit encountered, continue +1 of motif hit start position (default: 1)")
     p_s.add_argument("--fimo-nt-freqs",
                    dest="fimo_nt_freqs",
                    type=str,
@@ -208,12 +231,13 @@ def setup_argument_parser():
                    type=float,
                    metavar='float',
                    default=0.05,
-                   help="RBP co-occurrence p-value threshold for reporting significant co-occurrences. NOTE that this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Bonferroni correction can be disabled via --disable-cooc-mtc (default: 0.05)")
-    p_s.add_argument("--disable-cooc-mtc",
-                   dest="disable_cooc_mtc",
-                   default = False,
-                   action = "store_true",
-                   help = "Disable multiple testing correction for RBP co-occurrence p-values. By default, Bonferroni correction is applied (default: False)")
+                   help="RBP co-occurrence p-value threshold for reporting significant co-occurrences. NOTE that if --cooc-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH as well as for disabled correction (default: 0.05)")
+    p_s.add_argument("--cooc-pval-mode",
+                   dest="cooc_pval_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Defines multiple testing correction mode for co-occurrence p-values. 1: Bonferroni, 2: Benjamini-Hochberg (BH), 3: no correction (default: 1)")
     p_s.add_argument("--max-motif-dist",
                    dest="max_motif_dist",
                    type=int,
@@ -543,7 +567,6 @@ def setup_argument_parser():
 
     """
     Sequence search motifs mode.
-    ALAMO
 
     """
     p_ss = subparsers.add_parser('searchseq',
@@ -669,7 +692,7 @@ def setup_argument_parser():
                    dest="header_id",
                    type=str,
                    metavar='str',
-                   default = "custom",
+                   default = "seq",
                    help = "Constant header ID part used if --make-uniq-headers set (default: \"seq\")")
     p_ss.add_argument("--plot-motifs",
                    dest="plot_motifs",
@@ -704,14 +727,13 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    required=True,
-                   help="Input FASTA file with DNA/RNA sequences or BED file with genomic regions used for regex search. NOTE that sequences will be converted to DNA and uppercased before search. If BED file, also provide --genome FASTA file")
+                   help="Input FASTA file with DNA/RNA sequences or BED file (>= 6 column format) with genomic regions used for regex search. NOTE that sequences will be converted to DNA and uppercased before search. If BED file, also provide --genome FASTA file")
     p_srm.add_argument("--regex",
                    dest="regex",
                    type=str,
                    metavar='str',
                    required=True,
-                   default = "regex",
-                   help="Define regular expression (regex) DNA motif used for search, e.g. --regex AAAAA, --regex 'C[ACGT]AC[AC]', .. ")
+                   help="Define regular expression (regex) DNA motif used for search, e.g. --regex AAAAA, --regex 'C[ACGT]AC[AC]', .. NOTE that after motif hit found in region, search continues right after motif hit")
     p_srm.add_argument("--out",
                    dest="out_folder",
                    type=str,
@@ -727,13 +749,19 @@ def setup_argument_parser():
                    dest="make_uniq_headers",
                    default = False,
                    action = "store_true",
-                   help = "Make FASTA headers unique. By default, an error is thrown if identical FASTA headers are encountered (default: False)")
+                   help = "Make sequence IDs (FASTA header or BED column 4 IDs) unique. By default, an error is thrown if identical IDs are encountered (default: False)")
     p_sr.add_argument("--header-id",
                    dest="header_id",
                    type=str,
                    metavar='str',
-                   default = "custom",
-                   help = "Constant header ID part used if --make-uniq-headers set (default: \"seq\")")
+                   default = "reg",
+                   help = "Constant header ID part used if --make-uniq-headers set (default: \"reg\")")
+    p_sr.add_argument("--regex-search-mode",
+                   dest="regex_search_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit end position, 2: when motif hit encountered, continue +1 of motif hit start position (default: 1)")
 
     """
     Optimal extension mode.
@@ -1025,6 +1053,10 @@ def main_search(args):
     if args.meme_no_pgc:
         fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
 
+    # Regex check.
+    if args.regex:
+        assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
+
     """
     Library path.
     """
@@ -1300,12 +1332,65 @@ def main_search(args):
 
 
     """
-    IF --set-rbp-id set, check if it is part of loaded RBP IDs.
+    If --regex is set:
+    Treat regex as sequence motif / fimo type.
+    rbp_id: regex, motif_id: regex, motif_db: regex
+
+    AALAMO
+    """
+
+    regex_id = args.regex_id
+    regex = args.regex
+    
+    if args.regex:
+
+        # Remove , ; from given regex, to avoid motif_id format conflicts.
+        regex = benchlib.remove_special_chars_from_str(args.regex,
+                                                       reg_ex="[,;]")
+        
+        assert regex, "empty string after removing special chars from --regex. Please provide a valid regex with DNA letters"
+
+        regex_id = benchlib.remove_special_chars_from_str(args.regex_id)
+
+        assert regex_id, "empty string after removing special chars from --regex-id. Please provide alphanumeric string for regex ID (- or _ are okay as well)"
+        assert regex_id not in name2ids_dic, "--regex set but a different RBP ID with name \"%s\" was found. Please provide a different RBP ID or --regex-id" %(regex_id)
+
+        if args.motif_regex_id:
+            assert regex_id not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or --regex-id" %(regex_id)
+
+            id2name_dic[regex_id] = regex_id    # motif_id -> rbp_id
+            id2type_dic[regex_id] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme_xml
+            loaded_motif_ids_dic[regex_id] = regex_id  # motif_id -> motif_db_str
+            name2ids_dic[regex_id] = [regex_id]  # rbp_id -> motif_ids
+
+        else:
+            assert regex not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or use --motif-regex-id" %(regex_id)
+
+            print("we are here ")
+            id2name_dic[regex] = regex_id    # motif_id -> rbp_id
+            id2type_dic[regex] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme_xml
+            loaded_motif_ids_dic[regex] = regex_id  # motif_id -> motif_db_str
+            name2ids_dic[regex_id] = [regex]  # rbp_id -> motif_ids
+
+        loaded_rbps_dic[regex_id] = regex_id  # rbp_id -> motif_db_str
+
+        """
+        Dictionaries that use motif_id as keys.
+        loaded_motif_ids_dic
+        name2ids_dic
+        id2name_dic
+        id2type_dic
+        """
+
+    """
+    If --set-rbp-id set, check if it is part of loaded RBP IDs.
 
     """
 
     if args.set_rbp_id is not None:
-        assert args.set_rbp_id in name2ids_dic, "given --set-rbp-id \"%s\" is not part of loaded RBP IDs. Please provide --set-rbp-id that is part of loaded RBPs (user-defined or database RBP ID)" %(args.set_rbp_id)
+        assert args.set_rbp_id in loaded_rbps_dic, "given --set-rbp-id \"%s\" is not part of loaded RBP IDs. Please provide --set-rbp-id that is part of loaded RBPs (user-defined or database RBP ID)" %(args.set_rbp_id)
+
+
 
     """
     Load RBP data, store in RBP() class.
@@ -1334,11 +1419,18 @@ def main_search(args):
                 motif_id2idx_dic[motif_id] = len(rbp.seq_motif_ids) - 1
                 rbp.seq_motif_hits.append(0)
                 seq_rbps_dic[rbp_id] = 1
-            else:
+            elif id2type_dic[motif_id] == "regex":
+                rbp.seq_motif_ids.append(motif_id)
+                motif_id2idx_dic[motif_id] = len(rbp.seq_motif_ids) - 1
+                rbp.seq_motif_hits.append(0)
+                seq_rbps_dic[rbp_id] = 1
+            elif id2type_dic[motif_id] == "cm":
                 rbp.str_motif_ids.append(motif_id)
                 motif_id2idx_dic[motif_id] = len(rbp.str_motif_ids) - 1
                 rbp.str_motif_hits.append(0)
                 str_rbps_dic[rbp_id] = 1
+            else:
+                assert False, "unknown motif type (\"%s\") set for motif_id %s" %(id2type_dic[motif_id], motif_id)
 
         search_rbps_dic[rbp_id] = rbp
 
@@ -1536,6 +1628,32 @@ def main_search(args):
         c_fimo_hits = len(fimo_hits_list)
         print("# of FIMO motif hits:", c_fimo_hits)
 
+        """
+        If --regex is set, search for regex hits in sequences (stored in out_seqs_dic).
+
+        AALAMO
+        """
+        if args.regex:
+
+            step_size_one = False
+            if args.regex_search_mode == 1:
+                step_size_one = False
+            elif args.regex_search_mode == 2:
+                step_size_one = True
+            else:
+                assert False, "invalid --regex-search-mode %i set" %(args.regex_search_mode)
+
+            print("Run for search --regex \"%s\" ... " %(regex))
+            regex_hits_list = benchlib.get_regex_hits(regex, regex_id, out_seqs_dic,
+                                                      step_size_one=step_size_one,
+                                                      use_motif_regex_id=args.motif_regex_id)
+
+            c_regex_hits = len(regex_hits_list)
+            print("# of regex hits:", c_regex_hits)
+
+            # Add regex hits to fimo_hits_list.
+            fimo_hits_list += regex_hits_list
+
 
     """
     =========================================
@@ -1609,9 +1727,6 @@ def main_search(args):
         else:
             unique_motifs_dic[rbp_id] = {}
             unique_motifs_dic[rbp_id][fh_str] = 1
-
-        # Output motif stats.
-
 
     # Store regions with structure motifs.
     for cmsh in cmsearch_hits_list:
@@ -1710,8 +1825,12 @@ def main_search(args):
             idx = motif_id2idx_dic[motif_id]
             if id2type_dic[motif_id] == "meme_xml":
                 search_rbps_dic[rbp_id].seq_motif_hits[idx] += 1
-            else:
+            elif id2type_dic[motif_id] == "regex":
+                search_rbps_dic[rbp_id].seq_motif_hits[idx] += 1
+            elif id2type_dic[motif_id] == "cm":
                 search_rbps_dic[rbp_id].str_motif_hits[idx] += 1
+            else:
+                assert False, "unknown motif type (\"%s\") set for motif_id %s" %(id2type_dic[motif_id], motif_id)
 
     """
     Number of motif nucleotides over called + effective region size.
@@ -2291,7 +2410,21 @@ def main_search(args):
     stat, p, dof, expected = chi2_contingency(table)
     Note that chi2_contingency does not tolerate zero elements.
 
+    Benjamini-Hochberg (BH) correction:
+
+    from scipy.stats import multitest
+
+    # Example p-values from Fisher's exact test on RBP motif co-occurrence.
+    p_values = [0.01, 0.04, 0.03, 0.07, 0.02, 0.001, 0.05, 0.1, 0.06, 0.2]
+
+    # Apply BH correction.
+    _, pvals_corrected = multitest.fdrcorrection(p_values, alpha=0.05)
+
+    for i in range(len(p_values)):
+        print(f"Test {i+1}: {'Significant' if pvals_corrected[i] <= 0.05 else 'Not Significant'} (Corrected P-value: {pvals_corrected[i]:.4f})")
+
     """
+
     # Store p-values in 2d-list.
     pval_ll = []  # p-values (Fisher exact test).
     or_ll = []  # odds ratios.
@@ -2301,9 +2434,16 @@ def main_search(args):
     mult_test_corr_factor = 1
     if len_rbp_list > 1:
         mult_test_corr_factor = (len_rbp_list*(len_rbp_list-1))/2
-    cooc_pval_thr = args.cooc_pval_thr / mult_test_corr_factor
-    if args.disable_cooc_mtc:
+
+    if args.cooc_pval_mode == 1:
+        cooc_pval_thr = args.cooc_pval_thr / mult_test_corr_factor
+    elif args.cooc_pval_mode == 2:
+        # BH: already calculated list of p-values needed.
+        assert False, "Benjamini-Hochberg correction not implemented yet!"
+    elif args.cooc_pval_mode == 3:
         cooc_pval_thr = args.cooc_pval_thr
+    else:
+        assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(args.cooc_pval_mode)
 
     for rbp_id in rbp_list:
         pval_ll.append([1.0]*len_rbp_list)
@@ -2428,10 +2568,14 @@ def main_search(args):
     print("C: RBP1 AND NOT RBP2")
     print("D: NOT RBP1 AND NOT RBP2")
 
-    if args.disable_cooc_mtc:
+    if args.cooc_pval_mode == 1:
+        print("Significance threshold: %s (Bonferroni corrected)" %(str(cooc_pval_thr)))
+    elif args.cooc_pval_mode == 2:
+        assert False, "Benjamini-Hochberg correction not implemented yet!"
+    elif args.cooc_pval_mode == 3:
         print("Significance threshold: %s" %(str(args.cooc_pval_thr)))
     else:
-        print("Significance threshold (Bonferroni corrected): %s" %(str(cooc_pval_thr)))
+        assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(args.cooc_pval_mode)
 
     print("Co-occurrence of motifs (RBP IDs (RBP1,RBP2), # hits, contingency table, Fisher p-value)")
 
@@ -2465,6 +2609,10 @@ def main_search(args):
     html_report_out = args.out_folder + "/" + "report.rbpbench_search.html"
     if args.plot_abs_paths:
         html_report_out = os.path.abspath(args.out_folder) + "/" + "report.rbpbench_search.html"
+
+    # If HTML file already exists, remove it.
+    if os.path.exists(html_report_out):
+        os.remove(html_report_out)
 
     reg2annot_dic = None
     reg_annot_table_file = None
@@ -2720,6 +2868,7 @@ def main_search(args):
                                          seq_len_df=seq_len_df,
                                          set_rbp_id=args.set_rbp_id,
                                          motif_db_str=motif_db_str,
+                                         regex_id=regex_id,
                                          seq_motif_blocks_dic=seq_motif_blocks_dic,
                                          max_motif_dist=args.max_motif_dist,
                                          motif_distance_plot_range=args.motif_distance_plot_range,
@@ -2738,7 +2887,7 @@ def main_search(args):
                                          sort_js_mode=args.sort_js_mode,
                                          plotly_js_mode=args.plotly_js_mode,
                                          cooc_pval_thr=cooc_pval_thr,
-                                         disable_cooc_mtc=args.disable_cooc_mtc,
+                                         cooc_pval_mode=args.cooc_pval_mode,
                                          plots_subfolder=plots_subfolder)
 
 
@@ -2749,6 +2898,9 @@ def main_search(args):
     html_motif_plots_out = args.out_folder + "/" + "motif_plots.rbpbench_search.html"
     if args.plot_abs_paths:
         html_motif_plots_out = os.path.abspath(args.out_folder) + "/" + "motif_plots.rbpbench_search.html"
+    # If HTML file already exists, remove it.
+    if os.path.exists(html_motif_plots_out):
+        os.remove(html_motif_plots_out)
 
     if args.plot_motifs:
         
@@ -2761,6 +2913,7 @@ def main_search(args):
                                          str_motif_blocks_dic, args.out_folder, 
                                          benchlib_path, loaded_motif_ids_dic,
                                          motif_db_str=motif_db_str,
+                                         regex_id=regex_id,
                                          sort_js_mode=args.sort_js_mode,
                                          html_report_out=html_motif_plots_out,
                                          plot_abs_paths=args.plot_abs_paths,
@@ -4020,6 +4173,7 @@ def main_searchregex(args):
     if not os.path.exists(args.out_folder):
         os.makedirs(args.out_folder)
     in_seqs_fa = args.out_folder + "/in_sequences.fa"
+    in_reg_bed = args.out_folder + "/in_regions.bed"
     motif_hits_bed_out = args.out_folder + "/motif_hits.bed"
     regions_with_hit_counts_bed_out = args.out_folder + "/regions_with_hit_counts.bed"
 
@@ -4029,16 +4183,18 @@ def main_searchregex(args):
     
     """
 
+    id_check = True
+    if args.make_uniq_headers:
+        id_check = False
+
     in_seqs_dic = {}
+    bed_reg_dic = {}
     is_bed = False
 
     if benchlib.fasta_check_format(args.in_file):
 
         print("--in input file is FASTA. Read in sequences ... ")
 
-        id_check = True
-        if args.make_uniq_headers:
-            id_check = False
         
         in_seqs_dic = benchlib.read_fasta_into_dic(args.in_file,
                                         dna=True,
@@ -4062,12 +4218,19 @@ def main_searchregex(args):
 
         is_bed = True
 
-        benchlib.bed_extract_sequences_from_fasta(args.in_file, args.in_genome, in_seqs_fa,
+        bed_reg_dic = benchlib.bed_check_ids_output_bed(args.in_file, in_reg_bed,
+                                                        id_check=id_check,
+                                                        new_header_id=args.header_id,
+                                                        make_uniq_headers=args.make_uniq_headers)
+
+        benchlib.bed_extract_sequences_from_fasta(in_reg_bed, args.in_genome, in_seqs_fa,
+                                                  add_param="-name",  # new FASTA header format: bed_col4_id::chr21:45528055-45528135(-)
                                                   print_warnings=True)
 
         in_seqs_dic = benchlib.read_fasta_into_dic(in_seqs_fa,
                                                    dna=True,
                                                    all_uc=True,
+                                                   name_bed=True,  # Makes sure that in_seqs_dic keys are BED column 4 IDs.
                                                    id_check=True,
                                                    empty_check=False,
                                                    skip_n_seqs=False)
@@ -4086,9 +4249,19 @@ def main_searchregex(args):
     hits_dic format:
     {'seq1': [[0, 2, 'AT'], [4, 6, 'AG']]}
 
+    bed_reg_dic[reg_id] = [chr_id, reg_s, reg_e, reg_pol]
+
     """
+    step_size_one = False
+    if args.regex_search_mode == 1:
+        step_size_one = False
+    elif args.regex_search_mode == 2:
+        step_size_one = True
+    else:
+        assert False, "invalid --regex-search-mode %i set" %(args.regex_search_mode)
 
     hits_dic = benchlib.search_regex_in_seqs_dic(args.regex, in_seqs_dic,
+                                                 step_size_one=step_size_one,
                                                  case_sensitive=True)
 
     c_all_hits = 0
@@ -4115,6 +4288,8 @@ def main_searchregex(args):
     MOTIFOUT = open(motif_hits_bed_out, "w")
     REGIONOUT = open(regions_with_hit_counts_bed_out, "w")
 
+    seen_motif_sites_dic = {}
+
     for hit in hits_dic:
         seq_id = hit
         c_hits = len(hits_dic[hit])
@@ -4125,7 +4300,11 @@ def main_searchregex(args):
             seq = hit_info[2]
 
             if is_bed:
-                gen_motif_coords = benchlib.get_genomic_coords_from_seq_name(seq_id, start, end,
+
+                gen_reg_coords = bed_reg_dic[seq_id]
+                reg_id = gen_reg_coords[0] + ":" + gen_reg_coords[1] + "-" + gen_reg_coords[2] + "(" + gen_reg_coords[3] + ")"
+
+                gen_motif_coords = benchlib.get_genomic_coords_from_seq_name(reg_id, start, end,
                                                                              one_based_start=False)
 
                 chr_id = gen_motif_coords[0]
@@ -4133,20 +4312,30 @@ def main_searchregex(args):
                 gen_motif_e = gen_motif_coords[2]
                 strand = gen_motif_coords[3]
 
-                MOTIFOUT.write("%s\t%i\t%i\t%s\t0\t%s\n" %(chr_id, gen_motif_s, gen_motif_e, seq, strand))
+                motif_site_str = "%s:%i-%i(%s)" %(chr_id, gen_motif_s, gen_motif_e, strand)
+                if motif_site_str in seen_motif_sites_dic:
+                    continue
+                else:
+                    seen_motif_sites_dic[motif_site_str] = 1
+                    MOTIFOUT.write("%s\t%i\t%i\t%s\t0\t%s\n" %(chr_id, gen_motif_s, gen_motif_e, seq, strand))
 
             else:
 
-                MOTIFOUT.write("%s\t%s\t%s\t%s\t0\t+\n" %(seq_id, start, end, seq))
+                motif_site_str = "%s:%i-%i" %(seq_id, start, end)
+                if motif_site_str in seen_motif_sites_dic:
+                    continue
+                else:
+                    seen_motif_sites_dic[motif_site_str] = 1
+                    MOTIFOUT.write("%s\t%s\t%s\t%s\t0\t+\n" %(seq_id, start, end, seq))
         
         if is_bed:
 
-            gen_region_coords = benchlib.seq_id_get_parts(seq_id)
-            chr_id = gen_region_coords[0]
-            reg_s = gen_region_coords[1]
-            reg_e = gen_region_coords[2]
-            strand = gen_region_coords[3]
-            REGIONOUT.write("%s\t%i\t%i\t%s\t%i\t%s\n" %(chr_id, reg_s, reg_e, seq_id, c_hits, strand))
+            gen_reg_coords = bed_reg_dic[seq_id]
+            chr_id = gen_reg_coords[0]
+            reg_s = gen_reg_coords[1]
+            reg_e = gen_reg_coords[2]
+            strand = gen_reg_coords[3]
+            REGIONOUT.write("%s\t%s\t%s\t%s\t%i\t%s\n" %(chr_id, reg_s, reg_e, seq_id, c_hits, strand))
 
         else:
 
