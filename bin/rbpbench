@@ -762,6 +762,11 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit end position, 2: when motif hit encountered, continue +1 of motif hit start position (default: 1)")
+    p_sr.add_argument("--add-zero-hits",
+                   dest="add_zero_hits",
+                   default = False,
+                   action = "store_true",
+                   help = "Also add regions with 0 hits to output BED file (hit count in column 5) (default: False)")
 
     """
     Optimal extension mode.
@@ -4340,6 +4345,29 @@ def main_searchregex(args):
         else:
 
             REGIONOUT.write("%s\t0\t%i\t%s\t%i\t+\n" %(seq_id, len_seq, seq_id, c_hits))
+
+    """
+    If regions with zero hits should also be added to REGIONOUT.
+
+    """
+
+    if args.add_zero_hits:
+        
+        print("Also add regions with zero hits ... ")
+
+        for seq_id in in_seqs_dic:
+            if seq_id not in hits_dic:
+                if is_bed:
+                    gen_reg_coords = bed_reg_dic[seq_id]
+                    chr_id = gen_reg_coords[0]
+                    reg_s = gen_reg_coords[1]
+                    reg_e = gen_reg_coords[2]
+                    strand = gen_reg_coords[3]
+                    REGIONOUT.write("%s\t%s\t%s\t%s\t0\t%s\n" %(chr_id, reg_s, reg_e, seq_id, strand))
+
+                else:
+                    len_seq = len(in_seqs_dic[seq_id])
+                    REGIONOUT.write("%s\t0\t%i\t%s\t0\t+\n" %(seq_id, len_seq, seq_id))
 
     MOTIFOUT.close()
     REGIONOUT.close()
