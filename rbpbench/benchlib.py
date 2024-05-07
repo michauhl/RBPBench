@@ -4143,19 +4143,14 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
     plot = px.imshow(df, color_continuous_scale=color_scale, zmin=zmin, zmax=zmax)
     # plot = px.imshow(df)
 
-    # AALAMO
 
     """
     Old:
     'hovertemplate': 'RBP1: %{x}<br>RBP2: %{y}<br>p-value: %{customdata[0]}<br>p-value after filtering: %{customdata[1]}<br>RBPs: %{customdata[2]}<br>Counts: %{customdata[3]}<br>Mean minimum motif distance: %{customdata[4]}<br>Motif pairs within set motif distance: %{customdata[5]} %<br>Correlation: %{customdata[6]}<br>-log10(p-value after filtering): %{z}'}])
-
     New:
     'hovertemplate': f'RBP1: {{x}}<br>RBP2: {{y}}<br>p-value: {{customdata[0]}}<br>p-value after filtering: {{customdata[1]}}<br>RBPs: {{customdata[2]}}<br>Counts: {{customdata[3]}}<br>Mean minimum motif distance: {{customdata[4]}}<br>Motif pairs within {max_motif_dist} nt: {{customdata[5]}} %<br>Correlation: {{customdata[6]}}<br>-log10(p-value after filtering): {{z}}'}])
 
-    
     """
-
-
 
     plot.update(data=[{'customdata': pval_cont_lll,
                       'hovertemplate': '1) RBP1: %{x}<br>2) RBP2: %{y}<br>3) p-value: %{customdata[0]}<br>4) p-value after filtering: %{customdata[1]}<br>5) RBPs: %{customdata[2]}<br>6) Counts: %{customdata[3]}<br>7) Mean minimum motif distance (nt): %{customdata[4]}<br>8) Motif pairs within ' + str(max_motif_dist) + ' nt (%): %{customdata[5]}<br>9) Correlation: %{customdata[6]}<br>10) -log10(p-value after filtering): %{z}<extra></extra>'}])
@@ -4253,6 +4248,13 @@ def batch_generate_html_report(dataset_ids_list,
                                benchlib_path,
                                seq_len_stats_ll,
                                html_report_out="report.rbpbench_batch.html",
+                               unstranded=False,
+                               unstranded_ct=False,
+                               id2regex_stats_dic=None,  # AALAMO.
+                               regex="",
+                               wrs_mode=1,
+                               fisher_mode=1,
+                               max_motif_dist=50,
                                plot_abs_paths=False,
                                plotly_js_mode=1,
                                sort_js_mode=1,
@@ -4373,9 +4375,14 @@ by RBPBench (rbpbench batch --report, used motif database: %s):
 - [Input datasets k-mer frequencies comparative plot](#kmer-comp-plot)""" %(motif_db_str)
     mdtext += "\n"
 
-    # ALAMO
+    if id2regex_stats_dic:  # if not empty.
+        mdtext += "- [Regular expression motif enrichment statistics](#regex-enrich-stats)\n"
+        mdtext += "- [Regular expression RBP motif co-occurrence statistics](#regex-rbp-cooc-stats)\n"
+
     if id2reg_annot_dic:  # if --gtf provided.
         mdtext += "- [Input datasets genomic region annotations comparative plot](#annot-comp-plot)\n"
+
+    if id2reg_annot_dic:  # if --gtf provided.
         data_idx = 0
         internal_ids_list = []
         for internal_id in id2infos_dic:
@@ -4397,15 +4404,24 @@ by RBPBench (rbpbench batch --report, used motif database: %s):
 
     """
 
+    dataset_id_format = "rbp_id,method_id,data_id"
+    if add_motif_db_info:
+        dataset_id_format = "rbp_id,motif_database_id,method_id,data_id"
+
+    seq_stats_info = ""
+    if unstranded and not unstranded_ct:
+        seq_stats_info = "--unstranded option selected, i.e., both strands of a region are included in the length statistics, but the two strands are counted as one region."
+    elif unstranded and unstranded_ct:
+        seq_stats_info = "--unstranded and --unstranded-ct options selected, i.e., both strands of a region are included in the length statistics, and each strand counts as separate region."
+
     mdtext += """
 ## Input datasets sequence length statistics ### {#seq-len-stats}
 
 **Table:** Sequence length statistics of input datasets.
-Input dataset ID format: rbp_id,method_id,data_id.
+Input dataset ID format: %s. %s
 
-"""
+""" %(dataset_id_format, seq_stats_info)
 
-    # ALAMO
     # return [nr_seqs, seq_len_mean, seq_len_median, seq_len_q1, seq_len_q3, seq_len_min, seq_len_max]
 
     mdtext += '| Dataset ID | # input regions | mean length | median length | Q1 percentile | Q3 percentile | min length | max length |' + " \n"
@@ -4431,14 +4447,14 @@ Input dataset ID format: rbp_id,method_id,data_id.
     # mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
     # mdtext += "\n&nbsp;\n"
 
+
+
+
+
     """
     Input datasets k-mer frequencies comparative plot.
 
     """
-
-    dataset_id_format = "rbp_id,method_id,data_id"
-    if add_motif_db_info:
-        dataset_id_format = "rbp_id,motif_database_id,method_id,data_id"
 
     mdtext += """
 ## Input datasets k-mer frequencies comparative plot ### {#kmer-comp-plot}
@@ -4491,6 +4507,146 @@ No plot generated since < 4 datasets were provided.
 &nbsp;
 
 """
+
+
+
+
+
+
+    """
+    regex motif enrichment statistics.
+    
+    """
+
+    if id2regex_stats_dic:  # AALAMO
+
+        # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
+        wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low p-values mean regex-containing regions have significantly higher scores."
+        wrs_mode_info2 = "higher"
+        if wrs_mode == 2:
+            wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low p-values mean regex-containing regions have significantly lower scores."
+            wrs_mode_info2 = "lower"
+
+        mdtext += """
+## Regular expression motif enrichment statistics ### {#regex-enrich-stats}
+
+**Table:** Regular expression (regex) '%s' motif enrichment statistics for all input datasets.
+For each input dataset, consisting of a set of genomic regions with associated scores (set BED score column via --bed-score-col),
+RBPbench checks whether regex-containing regions have significantly different scores compared to regions without regex hits.
+%s
+In other words, a low test p-value for a given dataset indicates 
+that %s-scoring regions are more likely to contain regex hits.
+NOTE that if scores associated to input genomic regions are all the same, p-values become meaningless 
+(i.e., they result in p-values of 1.0).
+By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
+
+""" %(regex, wrs_mode_info1, wrs_mode_info2)
+
+        mdtext += '| Dataset ID  | # regions | # hit regions | % hit regions | # regex hits | p-value |' + " \n"
+        mdtext += '| :-: | :-: | :-: | :-: | :-: | :-: |' + " \n"
+
+        for internal_id in id2regex_stats_dic:
+            rbp_id = id2infos_dic[internal_id][0]
+            data_id = id2infos_dic[internal_id][1]
+            method_id = id2infos_dic[internal_id][2]
+            database_id = id2infos_dic[internal_id][3]
+
+            combined_id = rbp_id + "," + method_id + "," + data_id
+            if add_motif_db_info:
+                combined_id = rbp_id + "," + database_id + "," + method_id + "," + data_id
+
+            c_regex_hit_reg = id2regex_stats_dic[internal_id][0]
+            c_regex_no_hit_reg = id2regex_stats_dic[internal_id][1]
+            c_uniq_regex_hits = id2regex_stats_dic[internal_id][2]
+            wc_pval = id2regex_stats_dic[internal_id][3]
+            c_all_set_reg = c_regex_hit_reg + c_regex_no_hit_reg
+            perc_hit_reg = (c_regex_hit_reg / c_all_set_reg) * 100
+            perc_hit_reg = str(round(perc_hit_reg, 2))
+
+            mdtext += "| %s | %i | %i | %s | %i | %s |\n" %(combined_id, c_all_set_reg, c_regex_hit_reg, perc_hit_reg, c_uniq_regex_hits, str(wc_pval))
+
+        mdtext += "\n&nbsp;\n&nbsp;\n"
+        mdtext += "\nColumn IDs have the following meanings: "
+        mdtext += "**Dataset ID** -> Dataset ID with following format: %s, " %(dataset_id_format)
+        mdtext += '**# regions** -> number of input genomic regions in dataset (after filtering and optional extension), '
+        mdtext += '**# hit regions** -> number of input genomic regions with regex hits (after filtering and optional extension), '
+        mdtext += '**% hit regions** -> percentage of regex hit regions over all regions (i.e., how many input regions contain >= 1 regex motif hit), '
+        mdtext += '**# regex hits** -> number of unique regex motif hits in input regions (removed double counts), '
+        mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
+        mdtext += "\n&nbsp;\n"
+
+
+    """
+    regex RBP motif co-occurrence statistics.
+    
+    """
+
+    if id2regex_stats_dic:  # AALAMO
+
+        # Inform about set alterntive hypothesis for Fisher exact test on regex RBP motif co-occurrences.
+        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., low p-values mean that regex and RBP motifs have significantly high co-occurrence."
+        if fisher_mode == 2:
+            fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'two-sided', i.e., low p-values mean that regex and RBP motifs have significantly high or low co-occurrence."
+        elif fisher_mode == 3:
+            fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., low p-values mean that regex and RBP motifs have significantly low co-occurrence."
+
+        mdtext += """
+## Regular expression RBP motif co-occurrence statistics ### {#regex-rbp-cooc-stats}
+
+**Table:** Motif hit co-occurrences (Fisher's exact test p-values) between 
+regular expression (regex) '%s' and RBP motif hits for each input dataset.
+Fisher's exact test p-value is calculated based on contingency table of co-occurrence 
+counts (i.e., number of genomic regions with/without shared motif hits) 
+between regex and RBP motif(s) for each dataset.
+%s
+
+""" %(regex, fisher_mode_info)
+
+        mdtext += '| Dataset ID  | contingency table | avg min distance | perc close hits |  p-value |' + " \n"
+        mdtext += '| :-: | :-: | :-: | :-: | :-: |' + " \n"
+
+        for internal_id in id2regex_stats_dic:
+            rbp_id = id2infos_dic[internal_id][0]
+            data_id = id2infos_dic[internal_id][1]
+            method_id = id2infos_dic[internal_id][2]
+            database_id = id2infos_dic[internal_id][3]
+
+            avg_min_dist = id2regex_stats_dic[internal_id][4]
+            perc_close_hits = id2regex_stats_dic[internal_id][5]
+            cont_table = id2regex_stats_dic[internal_id][6]
+            fisher_pval = id2regex_stats_dic[internal_id][7]
+
+            combined_id = rbp_id + "," + method_id + "," + data_id
+            if add_motif_db_info:
+                combined_id = rbp_id + "," + database_id + "," + method_id + "," + data_id
+
+            mdtext += "| %s | %s | %s | %s | %s |\n" %(combined_id, cont_table, avg_min_dist, perc_close_hits, fisher_pval)
+
+        mdtext += "\n&nbsp;\n&nbsp;\n"
+
+        mdtext += """
+
+Column IDs have the following meanings: 
+**Dataset ID** -> Dataset ID with following format: %s,
+**contingency table** -> contingency table of co-occurrence counts (i.e., number of genomic regions with/without shared regex + RBP motif hits), 
+with format [[A, B], [C, D]], where 
+A: regex AND RBP, 
+B: NOT regex AND RBP
+C: regex AND NOT RBP
+D: NOT regex AND NOT RBP. 
+**avg min distance** -> Mean minimum distance of regex and RBP motif hits (mean over all regions containing regex + RBP motif hits).
+**perc close hits** -> Over all regions containing regex and RBP motif hit pairs, percentage of regions where regex + RBP motif hits are within %i nt distance (set via --max-motif-dist).
+**p-value** -> Fisher's exact test p-value (calculated based on contingency table).
+
+&nbsp;
+
+""" %(dataset_id_format, max_motif_dist)
+
+
+
+
+
+
 
 
     """
@@ -4589,10 +4745,26 @@ No plot generated since < 4 datasets were provided.
 """
 
 
-        """
-        Region annotation plots for each dataset.
 
-        """
+
+
+
+
+
+
+
+
+
+
+
+
+
+    """
+    Region annotation plots for each dataset.
+
+    """
+
+    if id2reg_annot_dic:  # if --gtf provided.
 
         hex_colors = get_hex_colors_list(min_len=len(annot_dic))
 
@@ -4816,10 +4988,15 @@ def create_len_distr_violin_plot_plotly(in_df, plot_out,
 
 ################################################################################
 
-def get_sequence_length_statistics(seq_dic):
+def get_sequence_length_statistics(seq_dic,
+                                   unstranded=False):
     """
     Given a dictionary of sequences (key: sequence ID, value: sequence),
     calculate mean, median, q1 q3, min max for sequence lengths.
+
+    unstranded:
+        If True, seqs_dic contains both strands of a region, but should be counted 
+        as one region. Format of sequence ID:  chr1:100-200(+), chr1:100-200(-)
 
     Return list of statistics.
 
@@ -4827,9 +5004,18 @@ def get_sequence_length_statistics(seq_dic):
     
     assert seq_dic, "no sequences given for length statistics calculation"
 
+    seen_ids_dic = {}
+
     seq_len_list = []
     for seq_id in seq_dic:
-        seq_len_list.append(len(seq_dic[seq_id]))
+        if unstranded:
+            core_id = reg_get_core_id(seq_id)
+            if core_id in seen_ids_dic:
+                continue
+            seen_ids_dic[core_id] = 1
+            seq_len_list.append(len(seq_dic[seq_id]))
+        else:
+            seq_len_list.append(len(seq_dic[seq_id]))
 
     nr_seqs = len(seq_len_list)
     seq_len_arr = np.array(seq_len_list)
@@ -4855,6 +5041,7 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 rbp2regidx_dic,
                                 reg_ids_list,
                                 fisher_mode=1,
+                                wrs_mode=1,
                                 seq_len_df=None,
                                 set_rbp_id=None,
                                 motif_db_str=False,
@@ -5029,6 +5216,12 @@ by RBPBench (rbpbench search --report):
 
     """
 
+    # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
+    wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low p-values mean motif-containing regions have significantly higher scores."
+    wrs_mode_info2 = "higher"
+    if wrs_mode == 2:
+        wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low p-values mean motif-containing regions have significantly lower scores."
+        wrs_mode_info2 = "lower"
     c_in_regions = 0
     for rbp_id in search_rbps_dic:
         c_in_regions += search_rbps_dic[rbp_id].c_hit_reg
@@ -5039,14 +5232,15 @@ by RBPBench (rbpbench search --report):
 ## RBP motif enrichment statistics ### {#rbp-enrich-stats}
 
 **Table:** RBP motif enrichment statistics. Given a score for each genomic region (# input regions = %i), 
-RBPbench checks whether motifs are enriched 
-in higher-scoring regions (using Wilcoxon rank-sum test). 
-A low Wilcoxon rank-sum test p-value for a given RBP thus indicates 
-that higher-scoring regions are more likely to contain motif hits of the respective RBP. NOTE that if scores associated to 
-input genomic regions are all the same, p-values become meaningless (i.e., they result in p-values of 1.0).
+RBPbench checks whether motif-containing regions have significantly different scores compared to regions without motif hits.
+%s
+In other words, a low test p-value for a given RBP indicates 
+that %s-scoring regions are more likely to contain motif hits of the respective RBP.
+NOTE that if scores associated to input genomic regions are all the same, p-values become meaningless 
+(i.e., they result in p-values of 1.0).
 By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
 
-""" %(c_in_regions)
+""" %(c_in_regions, wrs_mode_info1, wrs_mode_info2)
 
     #     mdtext += """
     # <table id="table1" class="sortable">
@@ -5092,7 +5286,7 @@ By default, BED genomic regions input file column 5 is used as the score column 
     mdtext += "\nColumn IDs have the following meanings: "
     mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
     mdtext += '**# hit regions** -> number of input genomic regions with motif hits (after filtering and optional extension), '
-    mdtext += '**% hit regions** -> percentage of hit regions over all regions (i.e. how many input regions contain >= 1 RBP binding motif), '
+    mdtext += '**% hit regions** -> percentage of hit regions over all regions (i.e., how many input regions contain >= 1 RBP binding motif), '
     mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
     mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
     mdtext += "\n&nbsp;\n"

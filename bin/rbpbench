@@ -200,6 +200,12 @@ def setup_argument_parser():
                    metavar='int',
                    default=5,
                    help="--in BED score column used for p-value calculations. BED score can be e.g. log2 fold change or -log10 p-value of the region (default: 5)")
+    p_s.add_argument("--wrs-mode",
+                   dest="wrs_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Defines Wilcoxon rank sum test alternative hypothesis for testing whether motif-containing regions have significantly different scores. 1: test for higher (greater) scores, 2: test for lower (less) scores (default: 1)")
     p_s.add_argument("--fisher-mode",
                    dest="fisher_mode",
                    type=int,
@@ -473,6 +479,25 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
+    # ALAMO
+    p_b.add_argument("--regex",
+                   dest="regex",
+                   type=str,
+                   metavar='str',
+                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. NOTE that after motif hit found in region, search continues right after motif hit")
+    p_b.add_argument("--regex-search-mode",
+                   dest="regex_search_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit end position, 2: when motif hit encountered, continue +1 of motif hit start position (default: 1)")
+    p_b.add_argument("--max-motif-dist",
+                   dest="max_motif_dist",
+                   type=int,
+                   metavar='int',
+                   default=20,
+                   help="Set maximum motif distance for regex-RBP co-occurrence statistic in HTML report (default: 20)")
+
     p_b.add_argument("--fimo-nt-freqs",
                    dest="fimo_nt_freqs",
                    type=str,
@@ -491,6 +516,20 @@ def setup_argument_parser():
                    metavar='int',
                    default=5,
                    help="--in BED score column used for p-value calculations. BED score can be e.g. log2 fold change or -log10 p-value of the region (default: 5)")
+
+    p_b.add_argument("--wrs-mode",
+                   dest="wrs_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Defines Wilcoxon rank sum test alternative hypothesis for testing whether motif-containing regions have significantly different scores. 1: test for higher (greater) scores, 2: test for lower (less) scores (default: 1)")
+    p_b.add_argument("--fisher-mode",
+                   dest="fisher_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Defines Fisher exact test alternative hypothesis for testing co-occurrences of RBP motifs. 1: greater, 2: two-sided, 3: less (default: 1)")
+
     p_b.add_argument("--unstranded",
                    dest="unstranded",
                    default = False,
@@ -1341,7 +1380,6 @@ def main_search(args):
     Treat regex as sequence motif / fimo type.
     rbp_id: regex, motif_id: regex, motif_db: regex
 
-    AALAMO
     """
 
     regex_id = args.regex_id
@@ -1636,7 +1674,6 @@ def main_search(args):
         """
         If --regex is set, search for regex hits in sequences (stored in out_seqs_dic).
 
-        AALAMO
         """
         if args.regex:
 
@@ -1648,7 +1685,7 @@ def main_search(args):
             else:
                 assert False, "invalid --regex-search-mode %i set" %(args.regex_search_mode)
 
-            print("Run for search --regex \"%s\" ... " %(regex))
+            print("Run search for --regex \"%s\" ... " %(regex))
             regex_hits_list = benchlib.get_regex_hits(regex, regex_id, out_seqs_dic,
                                                       step_size_one=step_size_one,
                                                       use_motif_regex_id=args.motif_regex_id)
@@ -1904,6 +1941,17 @@ def main_search(args):
     # print("Calculate Kolmogorov-Smirnov (KS) statistics ... ")
     print("Calculate Wilcoxon rank-sum test statistics ... ")
 
+    # Wilcoxon rank-sum test / Mann Whitney U test mode.
+    wrs_alt_hypo = "greater"
+    if args.wrs_mode == 1:
+        wrs_alt_hypo = "greater"
+        print("Check if motif-containing regions have significantly higher scores ... ")
+    elif args.wrs_mode == 2:
+        wrs_alt_hypo = "less"
+        print("Check if motif-containing regions have significantly lower scores ... ")
+    else:
+        assert False, "Invalid Wilcoxon rank-sum (Mann Whitney U) test mode: %i" %(args.wrs_mode)
+
     # Check if all scores same (e.g. 0).
     reg_scores_dic = {}
     for reg_id in reg2sc_dic:
@@ -1957,7 +2005,7 @@ def main_search(args):
 
         # Wilcoxon rank-sum test (Mann-Whitney U test).
         if unique_motifs_dic[rbp_id]:
-            wc_stat, wc_pval = mannwhitneyu(hit_reg_scores, non_hit_reg_scores, alternative="greater")
+            wc_stat, wc_pval = mannwhitneyu(hit_reg_scores, non_hit_reg_scores, alternative=wrs_alt_hypo)
             # wc_stat_less, wc_pval_less = mannwhitneyu(hit_reg_scores, non_hit_reg_scores, alternative="less")
 
             #print("hit_reg_scores:", hit_reg_scores)
@@ -2870,6 +2918,7 @@ def main_search(args):
                                          rbp2regidx_dic,
                                          reg_ids_list,
                                          fisher_mode=args.fisher_mode,
+                                         wrs_mode=args.wrs_mode,
                                          seq_len_df=seq_len_df,
                                          set_rbp_id=args.set_rbp_id,
                                          motif_db_str=motif_db_str,
@@ -3038,6 +3087,19 @@ def main_batch(args):
         assert os.path.exists(args.in_gtf), "set --gtf file not found"
         assert args.report, "--gtf set but not --report. --report needed to generate region annotation plots"
     assert benchlib.boundary_check(args.kmer_size, 1, 6), "set --kmer-size expected to be >= 1 and <= 6"
+
+    # Regex check.
+    regex = False
+
+    if args.regex:
+        assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
+
+        # Remove , ; from given regex, to avoid motif_id format conflicts.
+        regex = benchlib.remove_special_chars_from_str(args.regex,
+                                                       reg_ex="[,;]")
+        
+        assert regex, "empty string after removing special chars from --regex. Please provide a valid regex with DNA letters"
+
 
     """
     Check other list inputs and store.
@@ -3443,19 +3505,51 @@ def main_batch(args):
     print("Run motif search for each dataset ... ")
 
     """
+    Hypothesis test modes.
+
+    """
+    # Wilcoxon rank-sum test / Mann Whitney U test mode.
+    wrs_alt_hypo = "greater"
+    if args.wrs_mode == 1:
+        wrs_alt_hypo = "greater"
+        # print("Check if motif-containing regions have significantly higher scores ... ")
+    elif args.wrs_mode == 2:
+        wrs_alt_hypo = "less"
+        # print("Check if motif-containing regions have significantly lower scores ... ")
+    else:
+        assert False, "Invalid Wilcoxon rank-sum (Mann Whitney U) test mode: %i" %(args.wrs_mode)
+
+    # Fisher exact test mode.
+    fisher_alt_hypo = "greater"
+    if args.fisher_mode == 1:
+        fisher_alt_hypo = "greater"
+        # print("Fisher mode = 1, reporting significantly overrepresented co-occurrences ... ")
+    elif args.fisher_mode == 2:
+        fisher_alt_hypo = "two-sided"
+        # print("Fisher mode = 2, reporting significantly over- AND underrepresented co-occurrences ... ")
+    elif args.fisher_mode == 3:
+        fisher_alt_hypo = "less"
+        # print("Fisher mode = 3, reporting significantly underrepresented co-occurrences ... ")
+    else:
+        assert False, "Invalid Fisher mode: %i" %(args.fisher_mode)
+
+    """
     Run motif search for each BED / RBP ID combination.
 
     """
     call_dic = {}
+    annot_dic = {}  # Store all occurring annotations as keys.
+    id2c_regions_dic = {}  # Internal ID to number of sequences / regions in input BED file + numbers with hits, so format: [c_all, c_with_hits]
     id2reg_annot_dic = {}  # Store internal ID to region annotation dictionary (all sites, with and without hits).
     id2hit_reg_annot_dic = {}  # Store internal ID to region annotation dictionary (only sites with hits).
     id2infos_dic = {}  # Store internal ID to list containing RBP ID, data ID, method ID, database ID, BED file path.
+    id2regex_stats_dic = {}  # Store internal ID to regex stats dictionary.
     # id2kmer_dic = {}  # Store internal ID to k-mer dictionary.
     c_all_hits = 0  # Sum up hits for all RBPs.
     kmer_freqs_ll = []  # For PCA plot.
     dataset_ids_list = []  # For PCA plot.
     add_motif_db_info = False  # Whether to add the motif database string to the dataset IDs in the plots.
-    dataset_idx = 0  # For PCA plot.
+    # dataset_idx = 0  # For PCA plot.
     seq_len_stats_ll = []  # For sequence length stats in --report.
 
     for idx, bed_file in enumerate(bed_list):
@@ -3591,7 +3685,7 @@ def main_batch(args):
         ====================================
         RUN SEQUENCE MOTIF SEARCH WITH FIMO.
         ====================================
-        
+
         """
         fimo_hits_list = []
 
@@ -3659,6 +3753,147 @@ def main_batch(args):
 
             print("# of cmsearch motif hits:", c_cms_hits)
 
+        """
+        ==========================
+        ADDITIONAL --regex SEARCH.
+        ==========================
+
+        regions_with_regex_dic:
+            region -> regex_c_region
+
+        unique_regex_dic:
+            regex_region -> c_regex_region
+        """
+
+        regions_with_regex_dic = {}
+        unique_regex_dic = {}
+        # Dictionaries needed for Fisher test.
+        region_rbp_binds_dic = {}
+        # RBP idx: 0, regex idx: 1
+        rid2rbpidx2hcp_dic = {}  # region_id -> rbp_idx -> motif hit center position(s)
+
+        if args.regex:
+
+            step_size_one = False
+            if args.regex_search_mode == 1:
+                step_size_one = False
+            elif args.regex_search_mode == 2:
+                step_size_one = True
+            else:
+                assert False, "invalid --regex-search-mode %i set" %(args.regex_search_mode)
+
+            print("Run search for --regex \"%s\" ... " %(regex))
+            regex_hits_list = benchlib.get_regex_hits(regex, regex, out_seqs_dic,
+                                                      step_size_one=step_size_one,
+                                                      use_motif_regex_id=True)
+
+            # Store regions with regex motif hits.
+            for rh in regex_hits_list:
+
+                if rh.seq_name in regions_with_regex_dic:
+                    regions_with_regex_dic[rh.seq_name] += 1
+                else:
+                    regions_with_regex_dic[rh.seq_name] = 1 
+
+                rh_str = repr(rh) # genomic regex region string.
+
+                if rh_str in unique_regex_dic:
+                    unique_regex_dic[rh_str] += 1
+                else:
+                    unique_regex_dic[rh_str] = 1
+
+            # AALAMO
+            # Init dictionaries for Fisher test.
+            for reg_id in out_seqs_dic:
+                assert reg_id in reg2sc_dic, "region ID \"%s\" from out_seqs_dic not found in reg2sc_dic" %(reg_id)
+                if args.unstranded and not args.unstranded_ct:
+                    core_id = benchlib.reg_get_core_id(reg_id)  # If --unstranded (and not --unstranded-ct), get core ID to count region as one.
+                    if core_id not in region_rbp_binds_dic:
+                        region_rbp_binds_dic[core_id] = [False, False]
+                        rid2rbpidx2hcp_dic[core_id] = {}
+                else:
+                    region_rbp_binds_dic[reg_id] = [False, False]
+                    rid2rbpidx2hcp_dic[reg_id] = {}
+
+            # Populate dictionaties fimo + cmsearch + regex hits.
+            rbp_idx = 0
+
+            for fh in fimo_hits_list:
+
+                region_id = fh.seq_name
+
+                # Center position of motif hit.
+                motif_hit_s = fh.seq_s - 1
+                motif_hit_e = fh.seq_e
+                center_pos = benchlib.get_center_position(motif_hit_s, motif_hit_e)
+
+                if args.unstranded and not args.unstranded_ct:
+                    core_id = benchlib.reg_get_core_id(region_id)
+                    region_rbp_binds_dic[core_id][rbp_idx] = True
+
+                    if rbp_idx not in rid2rbpidx2hcp_dic[core_id]:
+                        rid2rbpidx2hcp_dic[core_id][rbp_idx] = [center_pos]
+                    else:
+                        rid2rbpidx2hcp_dic[core_id][rbp_idx].append(center_pos)
+                else:
+                    region_rbp_binds_dic[region_id][rbp_idx] = True
+
+                    if rbp_idx not in rid2rbpidx2hcp_dic[region_id]:
+                        rid2rbpidx2hcp_dic[region_id][rbp_idx] = [center_pos]
+                    else:
+                        rid2rbpidx2hcp_dic[region_id][rbp_idx].append(center_pos)
+
+            for cmsh in cmsearch_hits_list:
+
+                region_id = cmsh.seq_name
+
+                # Center position of motif hit.
+                motif_hit_s = cmsh.seq_s - 1
+                motif_hit_e = cmsh.seq_e
+                center_pos = benchlib.get_center_position(motif_hit_s, motif_hit_e)
+
+                if args.unstranded and not args.unstranded_ct:
+                    core_id = benchlib.reg_get_core_id(region_id)
+                    region_rbp_binds_dic[core_id][rbp_idx] = True
+
+                    if rbp_idx not in rid2rbpidx2hcp_dic[core_id]:
+                        rid2rbpidx2hcp_dic[core_id][rbp_idx] = [center_pos]
+                    else:
+                        rid2rbpidx2hcp_dic[core_id][rbp_idx].append(center_pos)
+                else:
+                    region_rbp_binds_dic[region_id][rbp_idx] = True
+
+                    if rbp_idx not in rid2rbpidx2hcp_dic[region_id]:
+                        rid2rbpidx2hcp_dic[region_id][rbp_idx] = [center_pos]
+                    else:
+                        rid2rbpidx2hcp_dic[region_id][rbp_idx].append(center_pos)
+
+            rbp_idx = 1
+            for rh in regex_hits_list:
+
+                region_id = rh.seq_name
+
+                # Center position of motif hit.
+                motif_hit_s = rh.seq_s - 1
+                motif_hit_e = rh.seq_e
+                center_pos = benchlib.get_center_position(motif_hit_s, motif_hit_e)
+
+                if args.unstranded and not args.unstranded_ct:
+                    core_id = benchlib.reg_get_core_id(region_id)
+                    region_rbp_binds_dic[core_id][rbp_idx] = True
+
+                    if rbp_idx not in rid2rbpidx2hcp_dic[core_id]:
+                        rid2rbpidx2hcp_dic[core_id][rbp_idx] = [center_pos]
+                    else:
+                        rid2rbpidx2hcp_dic[core_id][rbp_idx].append(center_pos)
+                else:
+                    region_rbp_binds_dic[region_id][rbp_idx] = True
+
+                    if rbp_idx not in rid2rbpidx2hcp_dic[region_id]:
+                        rid2rbpidx2hcp_dic[region_id][rbp_idx] = [center_pos]
+                    else:
+                        rid2rbpidx2hcp_dic[region_id][rbp_idx].append(center_pos)
+
 
         """
         Store regions with motif hits (and hit counts).
@@ -3673,7 +3908,6 @@ def main_batch(args):
             motif_region -> c_motif_region
 
         """
-
 
         regions_with_motifs_dic = {}
         unique_motifs_dic = {}
@@ -3732,6 +3966,9 @@ def main_batch(args):
         rbp.c_motif_hits = c_motif_hits
         # % hit regions over all regions (i.e. how many input regions contain >= 1 RBP motif).
         rbp.perc_hit_reg = (rbp.c_hit_reg / c_regions) * 100
+
+        # Store number of regions for internal ID.
+        id2c_regions_dic[internal_id] = [c_regions, c_hit_reg]
 
         """
         Get unique motif hits.
@@ -3827,10 +4064,80 @@ def main_batch(args):
         print("# non-hit regions:", len(non_hit_reg_scores))
 
         if unique_motifs_dic:
-            wc_stat, wc_pval = mannwhitneyu(hit_reg_scores, non_hit_reg_scores, alternative="greater")
+            wc_stat, wc_pval = mannwhitneyu(hit_reg_scores, non_hit_reg_scores, alternative=wrs_alt_hypo)
             rbp.wc_pval = wc_pval
         print("Compact hit stats (RBP ID, # unique hits, Wilcoxon p-value):")
         print("%s\t%i\t%s" %(rbp_id, rbp.c_uniq_motif_hits, str(wc_pval)))
+
+        """
+        Motif enrichment test for regex motifs.
+        
+        """
+        if args.regex:
+                
+            print("Calculate Wilcoxon rank-sum test statistics for --regex ... ")
+
+            hit_reg_scores = []
+            non_hit_reg_scores = []
+            seen_ids_dic = {}
+
+            for reg_id in reg2sc_dic:
+                reg_sc = reg2sc_dic[reg_id] # float value.
+                # If --unstranded, count regions only once as hit or no hit.
+                if args.unstranded and not args.unstranded_ct:
+                    core_id = benchlib.reg_get_core_id(reg_id)
+                    reg_id1 = core_id + "(+)"
+                    reg_id2 = core_id + "(-)"
+                    if core_id not in seen_ids_dic:
+                        if reg_id1 in regions_with_regex_dic or reg_id2 in regions_with_regex_dic:
+                            hit_reg_scores.append(reg_sc)
+                        else:
+                            non_hit_reg_scores.append(reg_sc)
+                        seen_ids_dic[core_id] = 1
+                else:
+                    if reg_id in regions_with_regex_dic:
+                        hit_reg_scores.append(reg_sc)
+                    else:
+                        non_hit_reg_scores.append(reg_sc)
+
+            wc_pval = 1.0
+            # In case no regions without motif hits.
+            if not non_hit_reg_scores:
+                print("WARNING: all input regions contain motifs. Adding dummy scores (median) ... ")
+                dummy_val = statistics.median(hit_reg_scores)
+                hit_reg_scores.append(dummy_val)
+                non_hit_reg_scores.append(dummy_val)
+
+            print("# hit regions:    ", len(hit_reg_scores))
+            print("# non-hit regions:", len(non_hit_reg_scores))
+
+            c_uniq_regex_hits = len(unique_regex_dic)
+
+            if unique_regex_dic:
+                wc_stat, wc_pval = mannwhitneyu(hit_reg_scores, non_hit_reg_scores, alternative=wrs_alt_hypo)
+            print("Compact hit stats (RBP ID, # unique hits, Wilcoxon p-value):")
+            print("regex\t%i\t%s" %(c_uniq_regex_hits, str(wc_pval)))
+
+            c_regex_hit_reg = len(hit_reg_scores)
+            c_regex_no_hit_reg = len(non_hit_reg_scores)
+
+            id2regex_stats_dic[internal_id] = [c_regex_hit_reg, c_regex_no_hit_reg, c_uniq_regex_hits, wc_pval]
+
+            # AALAMO
+            # Calculate Fisher exact test for regex vs RBP hits.
+            print("Calculate Fisher exact test statistics for --regex ... ")
+
+            table, avg_min_dist, perc_close_hits = benchlib.make_contingency_table_2x2_v2(
+                                                        region_rbp_binds_dic, 1, 0,
+                                                        rid2rbpidx2hcp_dic,
+                                                        max_motif_dist=args.max_motif_dist)
+
+            odds_ratio, p_value = fisher_exact(table, alternative=fisher_alt_hypo)
+
+            id2regex_stats_dic[internal_id].append(avg_min_dist)
+            id2regex_stats_dic[internal_id].append(perc_close_hits)
+            id2regex_stats_dic[internal_id].append(str(table))
+            id2regex_stats_dic[internal_id].append(str(p_value))
 
         """
         Output RBP hit stats (one row per RBP).
@@ -4012,6 +4319,7 @@ def main_batch(args):
             id2reg_annot_dic[internal_id] = {}
             for reg_id in reg2annot_dic:
                 annot = reg2annot_dic[reg_id][0]
+                annot_dic[annot] = 1
                 if annot in id2reg_annot_dic[internal_id]:
                     id2reg_annot_dic[internal_id][annot] += 1
                 else:
@@ -4025,20 +4333,37 @@ def main_batch(args):
                 else:
                     id2hit_reg_annot_dic[internal_id][annot] = 1
 
+            # --unstranded option, count both strands only once.
+            if args.unstranded and not args.unstranded_ct:
+                for internal_id in id2reg_annot_dic:
+                    for annot in id2reg_annot_dic[internal_id]:
+                        annot_c = id2reg_annot_dic[internal_id][annot]
+                        assert not annot_c % 2, "# of regions with annotation %s should be even since --unstranded is set" %(annot)
+                        new_annot_c = annot_c // 2
+                        id2reg_annot_dic[internal_id][annot] = new_annot_c
+                for internal_id in id2hit_reg_annot_dic:
+                    for annot in id2hit_reg_annot_dic[internal_id]:
+                        annot_c = id2hit_reg_annot_dic[internal_id][annot]
+                        assert not annot_c % 2, "# of regions with annotation %s should be even since --unstranded is set" %(annot)
+                        new_annot_c = annot_c // 2
+                        id2hit_reg_annot_dic[internal_id][annot] = new_annot_c
+
+        # Dataset ID.
+        # dataset_idx += 1
+        # dataset_id = str(dataset_idx) + "," + rbp_id + "," + motif_db_str + "," + method_id + "," + data_id
+        if add_motif_db_info:
+            dataset_id = rbp_id + "," + motif_db_str + "," + method_id + "," + data_id
+        else:
+            dataset_id = rbp_id + "," + method_id + "," + data_id
+
+        dataset_ids_list.append(dataset_id)
+
+        if args.report:
+
             # Get k-mer frequencies for all regions.
             print("Calculate k-mer frequencies ... ")
 
-        if args.report:
-            # Dataset ID.
-            dataset_idx += 1
-            # dataset_id = str(dataset_idx) + "," + rbp_id + "," + motif_db_str + "," + method_id + "," + data_id
-            if add_motif_db_info:
-                dataset_id = rbp_id + "," + motif_db_str + "," + method_id + "," + data_id
-            else:
-                dataset_id = rbp_id + "," + method_id + "," + data_id
-
-            dataset_ids_list.append(dataset_id)
-
+            # k-mer frequencies unaffected by --unstranded options.
             kmer_dic = benchlib.seqs_dic_count_kmer_freqs(out_seqs_dic, args.kmer_size, 
                                                           rna=False,
                                                           convert_to_uc=True,
@@ -4050,11 +4375,19 @@ def main_batch(args):
                 kmer_freqs_list.append(kmer_dic[kmer])
             kmer_freqs_ll.append(kmer_freqs_list)
 
+            print("Get sequence length statistics ... ")
+
             # Sequence length statistics for out_seqs_dic.
-            seq_len_stats_l = benchlib.get_sequence_length_statistics(out_seqs_dic)
+            unstranded_len_stats = False
+            if args.unstranded and not args.unstranded_ct:
+                # In this case we want to count the two strands of a region as one region.
+                unstranded_len_stats = True
+            seq_len_stats_l = benchlib.get_sequence_length_statistics(out_seqs_dic,
+                                                                      unstranded=unstranded_len_stats)
             # Add dataset ID to seq_len_stats_l.
             seq_len_stats_l.insert(0, dataset_id)
             seq_len_stats_ll.append(seq_len_stats_l)
+
 
     OUTRBPSTATS.close()
     OUTMTFSTATS.close()
@@ -4100,6 +4433,13 @@ def main_batch(args):
                                             benchlib_path,
                                             seq_len_stats_ll,
                                             html_report_out=html_report_out,
+                                            unstranded=args.unstranded,
+                                            unstranded_ct=args.unstranded_ct,
+                                            id2regex_stats_dic=id2regex_stats_dic,
+                                            regex=regex,
+                                            wrs_mode=args.wrs_mode,
+                                            fisher_mode=args.fisher_mode,
+                                            max_motif_dist=args.max_motif_dist,
                                             plot_abs_paths=args.plot_abs_paths,
                                             plotly_js_mode=args.plotly_js_mode,
                                             sort_js_mode=args.sort_js_mode,
@@ -4107,6 +4447,84 @@ def main_batch(args):
                                             add_motif_db_info=add_motif_db_info,
                                             motif_db_str=motif_db_str,
                                             plots_subfolder=plots_subfolder)
+
+    """
+    All annot:
+    annot_dic[annot] = 1
+    id2hit_reg_annot_dic[internal_id][annot] += 1
+    id2reg_annot_dic[internal_id][annot] += 1
+    id2infos_dic[internal_id] = [rbp_id, data_id, method_id, motif_db_str, bed_file_path]
+
+    """
+
+    # Genomic region annotation stats on region containing RBP motif hits.
+    rbp_annot_out = args.out_folder + "/rbp_motif_region_annotation_stats.tsv"
+    # Genomic region annotation stats on all regions (with or without RBP motif hits).
+    all_annot_out = args.out_folder + "/all_region_annotation_stats.tsv"
+
+    if args.in_gtf:
+
+        OUTRBP = open(rbp_annot_out, "w")
+        OUTALL = open(all_annot_out, "w")
+
+        # List all annotations encountered in batch run.
+        annot_list = []
+        for annot in annot_dic:
+            annot_list.append(annot)
+        # Sort list alphabetically.
+        annot_list = sorted(annot_list)
+
+        # Write header.
+        header_annot_str = "\t".join(annot_list)
+        OUTRBP.write("rbp_id\tmethod_id\tdata_id\tc_hit_regions_\tc_all_regions\tperc_hit_reg\t%s\tinternal_id\n" %(header_annot_str))
+        OUTALL.write("rbp_id\tmethod_id\tdata_id\tc_all_regions\t%s\tinternal_id\n" %(header_annot_str))
+
+        for internal_id in id2reg_annot_dic:
+
+            # All regions in dataset (== total annotation count).
+            reg_counts = id2c_regions_dic[internal_id]
+            c_all_regions = reg_counts[0]
+            c_hit_regions = reg_counts[1]
+
+            id_infos = id2infos_dic[internal_id]
+
+            rbp_id = id_infos[0]
+            data_id = id_infos[1]
+            method_id = id_infos[2]
+
+            if add_motif_db_info:
+                rbp_id = id_infos[0]
+                motif_db_str = id_infos[1]
+                data_id = id_infos[2]
+                method_id = id_infos[3]
+
+            id_rbp_annot_list = []
+            for annot in annot_list:
+                perc_annot = 0.0
+                if annot in id2hit_reg_annot_dic[internal_id]:
+                    # Calculate percentage of annotation counts over RBP motif hit annotation counts.
+                    perc_annot = (id2hit_reg_annot_dic[internal_id][annot] / c_hit_regions) * 100
+                id_rbp_annot_list.append(perc_annot)
+
+            perc_rbp_annot_str = "\t".join(str(round(perc, 2)) for perc in id_rbp_annot_list)
+            perc_hit_all = (c_hit_regions / c_all_regions) * 100
+            perc_hit_all = str(round(perc_hit_all, 2))
+            OUTRBP.write("%s\t%s\t%s\t%i\t%i\t%s\t%s\t%s\n" %(rbp_id, method_id, data_id, c_hit_regions, c_all_regions, perc_hit_all, perc_rbp_annot_str, internal_id))
+
+            id_all_annot_list = []
+            for annot in annot_list:
+                perc_annot = 0.0
+                if annot in id2reg_annot_dic[internal_id]:
+                    # Calculate percentage of annotation counts over all annotation counts.
+                    perc_annot = (id2reg_annot_dic[internal_id][annot] / c_all_regions) * 100
+                id_all_annot_list.append(perc_annot)
+
+            perc_all_annot_str = "\t".join(str(round(perc, 2)) for perc in id_all_annot_list)
+            OUTALL.write("%s\t%s\t%s\t%i\t%s\t%s\n" %(rbp_id, method_id, data_id, c_all_regions, perc_all_annot_str, internal_id))
+
+        OUTRBP.close()
+        OUTALL.close()
+
 
     """
     Output parameter settings.
@@ -4144,10 +4562,12 @@ def main_batch(args):
     print("Motif hits .bed:\n%s" %(motif_hits_bed_out))
     print("RBP hit stats .tsv:\n%s" %(rbp_stats_out))
     print("Motif hit stats .tsv:\n%s" %(motif_stats_out))
+    if args.in_gtf:
+        print("RBP motif region annotation stats .tsv:\n%s" %(rbp_annot_out))
+        print("All region annotation stats .tsv:\n%s" %(all_annot_out))
     if args.report:
         print("Comparative plots report .html:\n%s" %(html_report_out))
     print("")
-
 
 
 
