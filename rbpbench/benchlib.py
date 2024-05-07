@@ -4371,13 +4371,14 @@ def batch_generate_html_report(dataset_ids_list,
 List of available statistics and plots generated
 by RBPBench (rbpbench batch --report, used motif database: %s):
 
-- [Input datasets sequence length statistics](#seq-len-stats)
-- [Input datasets k-mer frequencies comparative plot](#kmer-comp-plot)""" %(motif_db_str)
+- [Input datasets sequence length statistics](#seq-len-stats)""" %(motif_db_str)
     mdtext += "\n"
 
     if id2regex_stats_dic:  # if not empty.
         mdtext += "- [Regular expression motif enrichment statistics](#regex-enrich-stats)\n"
         mdtext += "- [Regular expression RBP motif co-occurrence statistics](#regex-rbp-cooc-stats)\n"
+
+    mdtext += "- [Input datasets k-mer frequencies comparative plot](#kmer-comp-plot)\n"
 
     if id2reg_annot_dic:  # if --gtf provided.
         mdtext += "- [Input datasets genomic region annotations comparative plot](#annot-comp-plot)\n"
@@ -4448,65 +4449,6 @@ Input dataset ID format: %s. %s
     # mdtext += "\n&nbsp;\n"
 
 
-
-
-
-    """
-    Input datasets k-mer frequencies comparative plot.
-
-    """
-
-    mdtext += """
-## Input datasets k-mer frequencies comparative plot ### {#kmer-comp-plot}
-
-"""
-
-    if len(dataset_ids_list) > 3:
-
-        kmer_comp_plot_plotly =  "kmer_comparative_plot.plotly.html"
-        kmer_comp_plot_plotly_out = plots_out_folder + "/" + kmer_comp_plot_plotly
-
-        create_kmer_comp_plot_plotly(dataset_ids_list, kmer_freqs_ll, 
-                                    kmer_comp_plot_plotly_out,
-                                    include_plotlyjs=include_plotlyjs,
-                                    full_html=plotly_full_html)
-
-        plot_path = plots_folder + "/" + kmer_comp_plot_plotly
-
-        if plotly_js_mode in [5, 6, 7]:
-            # Read in plotly code.
-            # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
-            js_code = read_file_content_into_str_var(kmer_comp_plot_plotly_out)
-            js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1000px;")
-            mdtext += js_code + "\n"
-            # mdtext += '</div>'
-        else:
-            if plotly_embed_style == 1:
-                # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
-                mdtext += "<div>\n"
-                mdtext += '<iframe src="' + plot_path + '" width="1000" height="1000"></iframe>' + "\n"
-                mdtext += '</div>'
-            elif plotly_embed_style == 2:
-                mdtext += '<object data="' + plot_path + '" width="1000" height="1000"> </object>' + "\n"
-
-        mdtext += """
-
-**Figure:** Comparison of input datasets, using k-mer (k = %i) frequencies of input region sequences (3-dimensional PCA) as features, 
-to show similarities of input datasets based on their sequence k-mer frequencies (points close to each other have similar k-mer frequencies).
-Input dataset IDs (show via hovering over data points) have following format: %s.
-
-&nbsp;
-
-""" %(kmer_size, dataset_id_format)
-
-    else:
-        mdtext += """
-
-No plot generated since < 4 datasets were provided.
-
-&nbsp;
-
-"""
 
 
 
@@ -4641,6 +4583,77 @@ D: NOT regex AND NOT RBP.
 &nbsp;
 
 """ %(dataset_id_format, max_motif_dist)
+
+
+
+
+
+
+
+
+
+
+
+    """
+    Input datasets k-mer frequencies comparative plot.
+
+    """
+
+    mdtext += """
+## Input datasets k-mer frequencies comparative plot ### {#kmer-comp-plot}
+
+"""
+
+    if len(dataset_ids_list) > 3:
+
+        kmer_comp_plot_plotly =  "kmer_comparative_plot.plotly.html"
+        kmer_comp_plot_plotly_out = plots_out_folder + "/" + kmer_comp_plot_plotly
+
+        create_kmer_comp_plot_plotly(dataset_ids_list, kmer_freqs_ll, 
+                                    kmer_comp_plot_plotly_out,
+                                    include_plotlyjs=include_plotlyjs,
+                                    full_html=plotly_full_html)
+
+        plot_path = plots_folder + "/" + kmer_comp_plot_plotly
+
+        if plotly_js_mode in [5, 6, 7]:
+            # Read in plotly code.
+            # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+            js_code = read_file_content_into_str_var(kmer_comp_plot_plotly_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1000px;")
+            mdtext += js_code + "\n"
+            # mdtext += '</div>'
+        else:
+            if plotly_embed_style == 1:
+                # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                mdtext += "<div>\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1000" height="1000"></iframe>' + "\n"
+                mdtext += '</div>'
+            elif plotly_embed_style == 2:
+                mdtext += '<object data="' + plot_path + '" width="1000" height="1000"> </object>' + "\n"
+
+        mdtext += """
+
+**Figure:** Comparison of input datasets, using k-mer (k = %i) frequencies of input region sequences (3-dimensional PCA) as features, 
+to show similarities of input datasets based on their sequence k-mer frequencies (points close to each other have similar k-mer frequencies).
+Input dataset IDs (show via hovering over data points) have following format: %s.
+
+&nbsp;
+
+""" %(kmer_size, dataset_id_format)
+
+    else:
+        mdtext += """
+
+No plot generated since < 4 datasets were provided.
+
+&nbsp;
+
+"""
+
+
+
+
 
 
 
