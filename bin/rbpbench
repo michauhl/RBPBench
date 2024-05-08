@@ -3388,6 +3388,15 @@ def main_batch(args):
     """
     intron_exon_out_bed = args.out_folder + "/intron_exon_regions.tmp.bed"
 
+    tr_ids_dic = {}  # Store (most prominent / representative) transcript ID -> gene ID.
+    all_sets_occ_tr_ids_dic = {}  # Store only transcript IDs which are occupied in any dataset.
+
+    # For gene/representative transcript region occupancy PCA plot.
+    id2occ_list_dic = {}  # internal ID -> transcript/gene occupancy labels list.
+    occ_mode = 1  # 1: binary occupancy, 2: continuous value occupancy.
+    occ_all_tr = False  # Store all transcript occupancy values for PCA plot.
+    id2occ_tr_ids_dic = {}  # internal ID -> transcript ID -> occupancy value.
+
     if args.in_gtf:
     
         # Get gene infos.
@@ -3406,7 +3415,6 @@ def main_batch(args):
         print("# gene features read in from --gtf:", c_gene_infos)
 
         # If --tr-list given.
-        tr_ids_dic = {}
         if args.tr_list:
             tr_ids_dic = benchlib.read_ids_into_dic(args.tr_list,
                                                     check_dic=False)
@@ -4311,19 +4319,39 @@ def main_batch(args):
                                          overlap_annotations_bed,
                                          params=params)
             
+            # AALAMO
             reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
                                                             reg_ids_dic=reg_ids_dic)
 
             # reg2annot_dic = {'chr22:30971326-30971352(+)': ['other (nc)RNA', 'ENST00000614234'], ...
+
             # Store annotations for all regions.
+            occ_tr_ids_dic = {}  # Transcript IDs occupied by dataset regions.
             id2reg_annot_dic[internal_id] = {}
             for reg_id in reg2annot_dic:
                 annot = reg2annot_dic[reg_id][0]
+                tr_id = reg2annot_dic[reg_id][1]
+
+                if tr_id:  # if tr_id is not False (if region does not overlap with transcripts/genes).
+
+                    # Record transcript IDs occupied by all dataset regions.
+                    if tr_id in all_sets_occ_tr_ids_dic:
+                        all_sets_occ_tr_ids_dic[tr_id] += 1
+                    else:
+                        all_sets_occ_tr_ids_dic[tr_id] = 1
+
+                    # Record transcript IDs occupied by regions from this specific dataset.
+                    if tr_id in occ_tr_ids_dic:
+                        occ_tr_ids_dic[tr_id] += 1
+                    else:
+                        occ_tr_ids_dic[tr_id] = 1
+
                 annot_dic[annot] = 1
                 if annot in id2reg_annot_dic[internal_id]:
                     id2reg_annot_dic[internal_id][annot] += 1
                 else:
                     id2reg_annot_dic[internal_id][annot] = 1
+            
             # Store annotations for regions with hits only.
             id2hit_reg_annot_dic[internal_id] = {}
             for reg_id in regions_with_motifs_dic:
@@ -4332,6 +4360,20 @@ def main_batch(args):
                     id2hit_reg_annot_dic[internal_id][annot] += 1
                 else:
                     id2hit_reg_annot_dic[internal_id][annot] = 1
+
+            # Record transcript ID occupancies for all transcripts in --gtf annotation.
+            if occ_all_tr:
+                id2occ_list_dic[internal_id] = []
+                for tr_id in sorted(tr_ids_dic):
+                    if tr_id in occ_tr_ids_dic:
+                        if occ_mode == 1:
+                            id2occ_list_dic[internal_id].append(1)
+                        elif occ_mode == 2:
+                            id2occ_list_dic[internal_id].append(occ_tr_ids_dic[tr_id])
+                    else:
+                        id2occ_list_dic[internal_id].append(0)
+            else:
+                id2occ_tr_ids_dic[internal_id] = occ_tr_ids_dic
 
             # --unstranded option, count both strands only once.
             if args.unstranded and not args.unstranded_ct:
@@ -4398,6 +4440,27 @@ def main_batch(args):
     OUTBED.close()
 
     """
+    Gene region occupancy stats only for genes occupied by input datasets.
+    (i.e. if occ_all_tr == False).
+    
+    """
+
+    if args.in_gtf and not occ_all_tr:
+
+        for internal_id in id2infos_dic:
+
+            id2occ_list_dic[internal_id] = []
+
+            for tr_id in sorted(all_sets_occ_tr_ids_dic):
+                if tr_id in id2occ_tr_ids_dic[internal_id]:
+                    if occ_mode == 1:
+                        id2occ_list_dic[internal_id].append(1)
+                    elif occ_mode == 2:
+                        id2occ_list_dic[internal_id].append(id2occ_tr_ids_dic[internal_id][tr_id])
+                else:
+                    id2occ_list_dic[internal_id].append(0)
+
+    """
     Example id2reg_annot_dic:
     {'1wz3Cd6R': {'CDS': 66, 'intron': 8, "3'UTR": 7, "5'UTR": 2}, 'VoSg9-Mm': {'other (nc)RNA': 1, "3'UTR": 73, 'CDS': 10, 'lncRNA': 1, 'intron': 3}}
 
@@ -4440,6 +4503,7 @@ def main_batch(args):
                                             wrs_mode=args.wrs_mode,
                                             fisher_mode=args.fisher_mode,
                                             max_motif_dist=args.max_motif_dist,
+                                            id2occ_list_dic=id2occ_list_dic,
                                             plot_abs_paths=args.plot_abs_paths,
                                             plotly_js_mode=args.plotly_js_mode,
                                             sort_js_mode=args.sort_js_mode,

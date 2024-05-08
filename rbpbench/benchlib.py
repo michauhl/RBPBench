@@ -18,6 +18,7 @@ import numpy as np
 from upsetplot import UpSet
 from packaging import version
 from sklearn.decomposition import PCA
+from sklearn.decomposition import SparsePCA
 
 
 """
@@ -4195,6 +4196,94 @@ def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll, plot_out,
 
 ################################################################################
 
+def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic, 
+                                   plot_out,
+                                   sparse_pca=False,
+                                   add_motif_db_info=False,
+                                   include_plotlyjs="cdn",
+                                   full_html=False):
+    """
+    Create plotly 3d scatter plot of PCA reduced gene/ transcript occupancies.
+
+    id2occ_list_dic:
+        Format: internal_id -> [0, 1, 0, 0, 1] (transcript occupancy list).
+    
+    """
+
+    # AALAMO
+
+    assert id2occ_list_dic, "id2lst_dic empty"
+
+    occ_ll = []
+    dataset_ids_list = []
+
+    for internal_id in sorted(id2occ_list_dic):
+
+        rbp_id = id2infos_dic[internal_id][0]
+        data_id = id2infos_dic[internal_id][1]
+        method_id = id2infos_dic[internal_id][2]
+        database_id = id2infos_dic[internal_id][3]
+
+        combined_id = rbp_id + "," + method_id + "," + data_id
+        if add_motif_db_info:
+            combined_id = rbp_id + "," + database_id + "," + method_id + "," + data_id
+
+        occ_ll.append(id2occ_list_dic[internal_id])
+        dataset_ids_list.append(combined_id)
+
+        # print("combined_id:", combined_id)
+        # print(id2occ_list_dic[internal_id])
+
+    if sparse_pca:
+
+        from sklearn.decomposition import SparsePCA
+
+        pca = SparsePCA(n_components=3, random_state=0, ridge_alpha=0.01)
+        data_3d_pca = pca.fit_transform(occ_ll)
+
+        df = pd.DataFrame(data_3d_pca, columns=['PC1', 'PC2', 'PC3'])
+        df['Dataset ID'] = dataset_ids_list
+
+        fig = px.scatter_3d(
+            df,  # Use the DataFrame directly
+            x='PC1',
+            y='PC2',
+            z='PC3',
+            title='3D Visualization with Dataset IDs',
+            hover_name='Dataset ID'
+        )
+
+    else:
+        pca = PCA(n_components=3)  # Reduce data to 3 dimensions.
+        data_3d_pca = pca.fit_transform(occ_ll)
+
+        df = pd.DataFrame(data_3d_pca, columns=['PC1', 'PC2', 'PC3'])
+        df['Dataset ID'] = dataset_ids_list
+
+        explained_variance = pca.explained_variance_ratio_ * 100
+
+        fig = px.scatter_3d(
+            df,  # Use the DataFrame directly
+            x='PC1',
+            y='PC2',
+            z='PC3',
+            title='3D Visualization with Dataset IDs',
+            labels={
+                'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+                'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)',
+                'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
+            },
+            hover_name='Dataset ID'
+        )
+
+    fig.update_scenes(aspectmode='cube')
+    fig.update_traces(marker=dict(size=3))
+    fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
 def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_freqs_ll, plot_out,
                                  include_plotlyjs="cdn",
                                  full_html=False):
@@ -4255,6 +4344,7 @@ def batch_generate_html_report(dataset_ids_list,
                                wrs_mode=1,
                                fisher_mode=1,
                                max_motif_dist=50,
+                               id2occ_list_dic=False,
                                plot_abs_paths=False,
                                plotly_js_mode=1,
                                sort_js_mode=1,
@@ -4381,6 +4471,7 @@ by RBPBench (rbpbench batch --report, used motif database: %s):
     mdtext += "- [Input datasets k-mer frequencies comparative plot](#kmer-comp-plot)\n"
 
     if id2reg_annot_dic:  # if --gtf provided.
+        mdtext += "- [Input datasets gene region occupancies comparative plot](#occ-comp-plot)\n"
         mdtext += "- [Input datasets genomic region annotations comparative plot](#annot-comp-plot)\n"
 
     if id2reg_annot_dic:  # if --gtf provided.
@@ -4652,6 +4743,70 @@ No plot generated since < 4 datasets were provided.
 """
 
 
+
+
+    """
+    Input datasets transcript region occupancies comparative plot.
+
+    """
+
+    # AALAMO
+
+    if id2reg_annot_dic:  # if --gtf provided.
+
+        mdtext += """
+## Input datasets gene region occupancies comparative plot ### {#occ-comp-plot}
+
+"""
+
+        if len(dataset_ids_list) > 3:
+
+            occ_comp_plot_plotly =  "gene_reg_occ_comparative_plot.plotly.html"
+            occ_comp_plot_plotly_out = plots_out_folder + "/" + occ_comp_plot_plotly
+
+            create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
+                                           occ_comp_plot_plotly_out,
+                                           sparse_pca=False,
+                                           add_motif_db_info=add_motif_db_info,
+                                           include_plotlyjs=include_plotlyjs,
+                                           full_html=plotly_full_html)
+
+            plot_path = plots_folder + "/" + occ_comp_plot_plotly
+
+            if plotly_js_mode in [5, 6, 7]:
+                # Read in plotly code.
+                # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+                js_code = read_file_content_into_str_var(occ_comp_plot_plotly_out)
+                js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1000px;")
+                mdtext += js_code + "\n"
+                # mdtext += '</div>'
+            else:
+                if plotly_embed_style == 1:
+                    # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                    mdtext += "<div>\n"
+                    mdtext += '<iframe src="' + plot_path + '" width="1000" height="1000"></iframe>' + "\n"
+                    mdtext += '</div>'
+                elif plotly_embed_style == 2:
+                    mdtext += '<object data="' + plot_path + '" width="1000" height="1000"> </object>' + "\n"
+
+            mdtext += """
+
+**Figure:** Comparison of input datasets, using gene region occupancy of input regions (3-dimensional PCA) as features, 
+to show similarities of input datasets based on the gene regions they occupy (points close to each other have similar occupancy profiles).
+Input dataset IDs (show via hovering over data points) have following format: %s.
+
+&nbsp;
+
+""" %(dataset_id_format)
+
+        else:
+            mdtext += """
+
+No plot generated since < 4 datasets were provided.
+
+&nbsp;
+
+"""
 
 
 
