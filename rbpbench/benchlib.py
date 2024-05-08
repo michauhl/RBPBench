@@ -4617,11 +4617,11 @@ By default, BED genomic regions input file column 5 is used as the score column 
     if id2regex_stats_dic:  # AALAMO
 
         # Inform about set alterntive hypothesis for Fisher exact test on regex RBP motif co-occurrences.
-        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., low p-values mean that regex and RBP motifs have significantly high co-occurrence."
+        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., low p-values mean that regex and RBP motifs have significantly high co-occurrence."
         if fisher_mode == 2:
             fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'two-sided', i.e., low p-values mean that regex and RBP motifs have significantly high or low co-occurrence."
         elif fisher_mode == 3:
-            fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., low p-values mean that regex and RBP motifs have significantly low co-occurrence."
+            fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., low p-values mean that regex and RBP motifs have significantly low co-occurrence."
 
         mdtext += """
 ## Regular expression RBP motif co-occurrence statistics ### {#regex-rbp-cooc-stats}
@@ -5522,11 +5522,11 @@ By default, BED genomic regions input file column 5 is used as the score column 
         assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(cooc_pval_mode)
     
     # Inform about set alterntive hypothesis for Fisher exact test on RBP motif co-occurrences.
-    fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., significantly overrepresented co-occurrences are reported."
+    fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., significantly overrepresented co-occurrences are reported."
     if fisher_mode == 2:
         fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'two-sided', i.e., significantly over- and underrepresented co-occurrences are reported."
     elif fisher_mode == 3:
-        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., significantly underrepresented co-occurrences are reported."
+        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., significantly underrepresented co-occurrences are reported."
 
     mdtext += """
 
