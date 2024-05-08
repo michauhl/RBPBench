@@ -5513,13 +5513,13 @@ By default, BED genomic regions input file column 5 is used as the score column 
 
     p_val_info = "P-values below %s are considered significant." %(str(cooc_pval_thr))
     if cooc_pval_mode == 1:
-        p_val_info = "P-values below %s (p-value threshold Bonferroni corrected) are considered significant." %(str(cooc_pval_thr))
+        p_val_info = "P-values below %s (p-value threshold Bonferroni multiple testing corrected) are considered significant." %(str(cooc_pval_thr))
     elif cooc_pval_mode == 2:
-        assert False, "Benjamini-Hochberg correction not implemented yet!"
+        p_val_info = "Benjamini-Hochberg multiple testing corrected p-values below %s are considered significant." %(str(cooc_pval_thr))
     elif cooc_pval_mode == 3:
         p_val_info = "P-values below %s are considered significant." %(str(cooc_pval_thr))
     else:
-        assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(args.cooc_pval_mode)
+        assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(cooc_pval_mode)
     
     # Inform about set alterntive hypothesis for Fisher exact test on RBP motif co-occurrences.
     fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., significantly overrepresented co-occurrences are reported."

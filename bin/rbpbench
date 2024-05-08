@@ -12,7 +12,7 @@ from pandas import DataFrame
 from rbpbench import benchlib
 from scipy.stats import fisher_exact
 from scipy.stats import mannwhitneyu
-# from scipy.stats import multitest  # BH correction.
+from scipy.stats import false_discovery_control  # Benjamini-Hochberg correction.
 
 # from distutils.spawn import find_executable
 # from typing import Optional
@@ -237,7 +237,7 @@ def setup_argument_parser():
                    type=float,
                    metavar='float',
                    default=0.05,
-                   help="RBP co-occurrence p-value threshold for reporting significant co-occurrences. NOTE that if --cooc-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH as well as for disabled correction (default: 0.05)")
+                   help="RBP co-occurrence p-value threshold for reporting significant co-occurrences. NOTE that if --cooc-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.05)")
     p_s.add_argument("--cooc-pval-mode",
                    dest="cooc_pval_mode",
                    type=int,
@@ -2463,40 +2463,12 @@ def main_search(args):
     stat, p, dof, expected = chi2_contingency(table)
     Note that chi2_contingency does not tolerate zero elements.
 
-    Benjamini-Hochberg (BH) correction:
-
-    from scipy.stats import multitest
-
-    # Example p-values from Fisher's exact test on RBP motif co-occurrence.
-    p_values = [0.01, 0.04, 0.03, 0.07, 0.02, 0.001, 0.05, 0.1, 0.06, 0.2]
-
-    # Apply BH correction.
-    _, pvals_corrected = multitest.fdrcorrection(p_values, alpha=0.05)
-
-    for i in range(len(p_values)):
-        print(f"Test {i+1}: {'Significant' if pvals_corrected[i] <= 0.05 else 'Not Significant'} (Corrected P-value: {pvals_corrected[i]:.4f})")
-
     """
 
     # Store p-values in 2d-list.
     pval_ll = []  # p-values (Fisher exact test).
     or_ll = []  # odds ratios.
     pval_cont_lll = []
-
-    # Multiple testing correction factor (Bonferroni).
-    mult_test_corr_factor = 1
-    if len_rbp_list > 1:
-        mult_test_corr_factor = (len_rbp_list*(len_rbp_list-1))/2
-
-    if args.cooc_pval_mode == 1:
-        cooc_pval_thr = args.cooc_pval_thr / mult_test_corr_factor
-    elif args.cooc_pval_mode == 2:
-        # BH: already calculated list of p-values needed.
-        assert False, "Benjamini-Hochberg correction not implemented yet!"
-    elif args.cooc_pval_mode == 3:
-        cooc_pval_thr = args.cooc_pval_thr
-    else:
-        assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(args.cooc_pval_mode)
 
     for rbp_id in rbp_list:
         pval_ll.append([1.0]*len_rbp_list)
@@ -2553,10 +2525,13 @@ def main_search(args):
     else:
         assert False, "Invalid Fisher mode: %i" %(args.fisher_mode)
 
+    p_val_list = []  # Fisher exact test p-values.
+
     print("Compute motif region co-occurrences between RBP pairs ... ")
     for pair in rbp_pairs:
         pair = list(pair)
         pair.sort()
+
         idx1 = rbp2idx_dic[pair[0]]
         idx2 = rbp2idx_dic[pair[1]]
         # pair_list = [pair[0], pair[1]]
@@ -2579,7 +2554,7 @@ def main_search(args):
         #   print("pair_str:", pair_str)
         #   print("table_str:", table_str)
 
-        con_pval_dic[pair_str] = p_value
+        # con_pval_dic[pair_str] = p_value
         con_table_dic[pair_str] = table
         table_str = str(table)
 
@@ -2590,8 +2565,9 @@ def main_search(args):
         # corr_p_val = p_value * mult_test_corr_factor
 
         p_value_plotted = p_value
-        if p_value > cooc_pval_thr:
-            p_value_plotted = 1.0
+        p_val_list.append(p_value)
+        # if p_value > cooc_pval_thr:
+        #     p_value_plotted = 1.0
 
         pval_ll[idx1][idx2] = p_value_plotted
         pval_ll[idx2][idx1] = p_value_plotted
@@ -2607,6 +2583,67 @@ def main_search(args):
         # pval_cont_lll[idx2][idx1][2] = table_str
         or_ll[idx1][idx2] = odds_ratio
         or_ll[idx2][idx1] = odds_ratio
+
+    """
+    Multiple testing correction.
+
+    """
+
+    cooc_pval_thr = args.cooc_pval_thr
+
+    if args.cooc_pval_mode == 1:  # Bonferroni correction.
+
+        # Multiple testing correction factor.
+        mult_test_corr_factor = 1
+        if len_rbp_list > 1:
+            mult_test_corr_factor = (len_rbp_list*(len_rbp_list-1))/2
+
+        cooc_pval_thr = args.cooc_pval_thr / mult_test_corr_factor
+
+    elif args.cooc_pval_mode == 2:  # BH correction.
+
+        pvals_corrected = false_discovery_control(p_val_list, method='bh')
+
+        for i in range(len(p_val_list)):
+            p_val_list[i] = pvals_corrected[i]
+
+    elif args.cooc_pval_mode == 3:  # No correction.
+
+        cooc_pval_thr = args.cooc_pval_thr
+
+    else:
+        assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(args.cooc_pval_mode)
+
+
+    # Update + filter p-values.
+    # AALAMO
+
+    pv_idx = 0
+    
+    for pair in rbp_pairs:
+        pair = list(pair)
+        pair.sort()
+
+        idx1 = rbp2idx_dic[pair[0]]
+        idx2 = rbp2idx_dic[pair[1]]
+
+        pair_str = ",".join(pair)
+
+        p_value = p_val_list[pv_idx]
+
+        p_value_plotted = p_value
+
+        if p_value > cooc_pval_thr:
+            p_value_plotted = 1.0
+
+        pval_ll[idx1][idx2] = p_value_plotted
+        pval_ll[idx2][idx1] = p_value_plotted
+        pval_cont_lll[idx2][idx1][0] = str(p_value)
+        pval_cont_lll[idx2][idx1][1] = str(p_value_plotted)
+
+        con_pval_dic[pair_str] = p_value
+
+        pv_idx += 1
 
 
     """
@@ -2624,9 +2661,9 @@ def main_search(args):
     if args.cooc_pval_mode == 1:
         print("Significance threshold: %s (Bonferroni corrected)" %(str(cooc_pval_thr)))
     elif args.cooc_pval_mode == 2:
-        assert False, "Benjamini-Hochberg correction not implemented yet!"
+        print("Significance threshold: %s (on Benjamini-Hochberg corrected p-values)" %(str(cooc_pval_thr)))
     elif args.cooc_pval_mode == 3:
-        print("Significance threshold: %s" %(str(args.cooc_pval_thr)))
+        print("Significance threshold: %s" %(str(cooc_pval_thr)))
     else:
         assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(args.cooc_pval_mode)
 
