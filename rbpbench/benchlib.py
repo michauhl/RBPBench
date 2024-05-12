@@ -2563,12 +2563,12 @@ def is_tool(name):
 
 ################################################################################
 
-def bed_check_format(bed_file, gimme=False):
+def bed_check_format(bed_file, asserts=True):
     """
     Check whether given BED file is not empty + has >= 6 columns.
 
     >>> bed_file = "test_data/test2.bed"
-    >>> bed_check_format(bed_file, gimme=True)
+    >>> bed_check_format(bed_file)
     True
     
     """
@@ -2577,15 +2577,23 @@ def bed_check_format(bed_file, gimme=False):
     with open(bed_file) as f:
         for line in f:
             cols = line.strip().split("\t")
-            assert len(cols) >= 6, "invalid --in BED format. Please provide valid BED file (i.e., >= 6 column format)"
-            reg_pol = cols[5]
-            assert reg_pol in pols, "invalid polarity in --in BED column 6 (found: \"%s\", expected \"+\" or \"-\"). Please provide valid BED file (i.e., >= 6 column format), or use --unstranded option" %(reg_pol)
-            okay = True
-            break
+            if asserts:
+                assert len(cols) >= 6, "invalid --in BED format. Please provide valid BED file (i.e., >= 6 column format)"
+                reg_pol = cols[5]
+                assert reg_pol in pols, "invalid polarity in --in BED column 6 (found: \"%s\", expected \"+\" or \"-\"). Please provide valid BED file (i.e., >= 6 column format), or use --unstranded option" %(reg_pol)
+                okay = True
+                break
+            else:
+                if len(cols) >= 6:
+                    reg_pol = cols[5]
+                    if reg_pol in pols:
+                        okay = True
+                        break
     f.closed
-    assert okay, "invalid --in BED format (file empty?)"
-    if gimme:
-        return okay
+    if asserts:
+        assert okay, "invalid --in BED format (file empty?)"
+    return okay
+
 
 ################################################################################
 
@@ -5092,6 +5100,8 @@ def create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, annot2col
         data_dic["rbp_id"].append(motif_id)
 
     df = pd.DataFrame(data_dic)
+    # Reverse plotting order for bars.
+    df = df.sort_values('rbp_id', ascending=False)
 
     ax = df.set_index('rbp_id').plot(kind='barh', stacked=True, legend=False, color=annot2color_dic, edgecolor="none", figsize=(fwidth, fheight))
 
@@ -7219,14 +7229,18 @@ by RBPBench (rbpbench %s --plot-motifs):
         for idx, motif_id in enumerate(rbp.str_motif_ids):
             c_total_rbp_hits += rbp.str_motif_hits[idx]
 
+        seq_motif_info = "RBP \"%s\" sequence motif plots." %(rbp_id)
+        if rbp2motif2annot2c_dic and c_total_rbp_hits:
+            seq_motif_info = "RBP \"%s\" sequence motif plots and genomic region annotations for motif hits." %(rbp_id)
+
         # RBP has sequence motifs?
         if rbp.seq_motif_ids and rbp_id != regex_id:
             mdtext += """
 ## %s motifs ### {#%s}
 
-RBP "%s" sequence motif plots.
+%s
 
-""" %(rbp_id, tab_id, rbp_id)
+""" %(rbp_id, tab_id, seq_motif_info)
 
         elif rbp.seq_motif_ids and rbp_id == regex_id:
 
@@ -7248,9 +7262,6 @@ RBP "%s" only contains structure motifs, which are currently not available for p
 
 """ %(rbp_id, tab_id, rbp_id)
 
-
-        # AALAMO motif annot: move to searchlong.
-
         # If there are motif hit region annotations and hits for the RBP.
         if rbp2motif2annot2c_dic and c_total_rbp_hits:
 
@@ -7268,7 +7279,7 @@ RBP "%s" only contains structure motifs, which are currently not available for p
             # mdtext += 'title="Annotation stacked bars plot" width="800" />' + "\n"
             mdtext += 'title="Annotation stacked bars plot" />' + "\n"
             mdtext += """
-**Figure:** Genomic annotations for RBP "%s" motif hits.
+**Figure:** Genomic region annotations for RBP "%s" motif hits.
 Genomic motif hit regions are overlapped with genomic regions from GTF file and genomic region feature with highest overlap
 is assigned to each motif hit region. "intergenic" feature means no GTF region features overlap with motif hit region.
 Genomic annotations are shown for all motifs of RBP "%s", as well as for the single motifs.
