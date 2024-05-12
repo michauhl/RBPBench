@@ -232,6 +232,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Visualize selected sequence motifs, by outputting sequence logos and motif hit statistics into a separate .html file (default: False)")
+    p_s.add_argument("--add-motif-annot",
+                   dest="add_motif_annot",
+                   default = False,
+                   action = "store_true",
+                   help = "Add motif hit region annotations to --plot-motifs HTML file. This requires --plot-motifs and --gtf set (default: False)")
     p_s.add_argument("--cooc-pval-thr",
                    dest="cooc_pval_thr",
                    type=float,
@@ -296,19 +301,19 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Input GTF file with genomic annotations to add to upset plot (e.g. from GENCODE or Ensembl). By default the most prominent transcripts will be extracted and used for functional annotation. Alternatively, provide a list of expressed transcripts via --tr-list (together with --gtf containing the transcripts). Note that upset plot only gets generated if --report is set. Moreover, only features on standard chromosomes (1,2,..,X,Y,MT) are currently used for annotation")
+                   help = "Input GTF file for genomic region annotations + related plots (e.g. from GENCODE or Ensembl). By default the most prominent transcripts will be extracted and used for functional annotation. Alternatively, provide a list of expressed transcripts via --tr-list (together with --gtf containing the transcripts). Note that only features on standard chromosomes (1,2,..,X,Y,MT) are currently used for annotation")
     p_s.add_argument("--tr-list",
                    dest="tr_list",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Supply file with transcript IDs (one ID per row) to define which transcripts to use from --gtf for functional annoation added to upset plot")
+                   help = "Supply file with transcript IDs (one ID per row) to define which transcripts to use from --gtf for genomic annoation of input regions")
     p_s.add_argument("--tr-types",
                    dest="tr_types_list",
                    type=str,
                    metavar='str',
                    nargs='+',
-                   help="List of transcript biotypes to consider in upset plot. By default an internal selection of transcript biotypes is used (in addition to intron, CDS, UTR, intergenic). Note that provided biotype strings need to be in GTF file")
+                   help="List of transcript biotypes to consider for genomic region annotations. By default an internal selection of transcript biotypes is used (in addition to intron, CDS, UTR, intergenic). Note that provided biotype strings need to be in GTF file")
     p_s.add_argument("--gtf-feat-min-overlap",
                    dest="gtf_feat_min_overlap",
                    type=float,
@@ -479,7 +484,6 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
-    # ALAMO
     p_b.add_argument("--regex",
                    dest="regex",
                    type=str,
@@ -516,7 +520,6 @@ def setup_argument_parser():
                    metavar='int',
                    default=5,
                    help="--in BED score column used for p-value calculations. BED score can be e.g. log2 fold change or -log10 p-value of the region (default: 5)")
-
     p_b.add_argument("--wrs-mode",
                    dest="wrs_mode",
                    type=int,
@@ -529,7 +532,6 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3],
                    help="Defines Fisher exact test alternative hypothesis for testing co-occurrences of RBP motifs. 1: greater, 2: two-sided, 3: less (default: 1)")
-
     p_b.add_argument("--unstranded",
                    dest="unstranded",
                    default = False,
@@ -556,19 +558,19 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Input GTF file with genomic annotations to generate genomic regions annotation plots for each input BED file (output to HTML report). By default the most prominent transcripts will be extracted and used for functional annotation. Alternatively, provide a list of expressed transcripts via --tr-list (together with --gtf containing the transcripts). Note that only features on standard chromosomes (1,2,..,X,Y,MT) are currently used for annotation")
+                   help = "Input GTF file with genomic annotations to generate genomic region annotation plots for each input BED file (output to HTML report). By default the most prominent transcripts will be extracted and used for functional annotation. Alternatively, provide a list of expressed transcripts via --tr-list (together with --gtf containing the transcripts). Note that only features on standard chromosomes (1,2,..,X,Y,MT) are currently used for annotation")
     p_b.add_argument("--tr-list",
                    dest="tr_list",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Supply file with transcript IDs (one ID per row) to define which transcripts to use from --gtf for genomic regions annotations plots")
+                   help = "Supply file with transcript IDs (one ID per row) to define which transcripts to use from --gtf for genomic region annotations plots")
     p_b.add_argument("--tr-types",
                    dest="tr_types_list",
                    type=str,
                    metavar='str',
                    nargs='+',
-                   help="List of transcript biotypes to consider in genomic regions annotations plot. By default an internal selection of transcript biotypes is used (in addition to intron, CDS, UTR, intergenic). Note that provided biotype strings need to be in --gtf GTF file")
+                   help="List of transcript biotypes to consider for genomic region annotations plots. By default an internal selection of transcript biotypes is used (in addition to intron, CDS, UTR, intergenic). Note that provided biotype strings need to be in --gtf GTF file")
     p_b.add_argument("--gtf-feat-min-overlap",
                    dest="gtf_feat_min_overlap",
                    type=float,
@@ -603,7 +605,6 @@ def setup_argument_parser():
                    action = "store_true",
                    help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
 
-
     """
     Sequence search motifs mode.
 
@@ -613,7 +614,7 @@ def setup_argument_parser():
     p_ss.set_defaults(which='searchseq')
     # Add required arguments group.
     p_ssm = p_ss.add_argument_group("required arguments")
-    # Required arguments for search.
+    # Required arguments for searchseq.
     p_ssm.add_argument("--in",
                    dest="in_seqs",
                    type=str,
@@ -633,7 +634,7 @@ def setup_argument_parser():
                    metavar='str',
                    required=True,
                    help="Results output folder")
-    # Optional arguments for search.
+    # Optional arguments for searchseq.
     p_ss.add_argument("--data-id",
                    dest="data_id",
                    type=str,
@@ -752,7 +753,6 @@ def setup_argument_parser():
 
     """
     Regex motif search mode.
-    ALAMO
     
     """
     p_sr = subparsers.add_parser('searchregex',
@@ -760,7 +760,7 @@ def setup_argument_parser():
     p_sr.set_defaults(which='searchregex')
     # Add required arguments group.
     p_srm = p_sr.add_argument_group("required arguments")
-    # Required arguments for search.
+    # Required arguments for searchregex.
     p_srm.add_argument("--in",
                    dest="in_file",
                    type=str,
@@ -779,6 +779,7 @@ def setup_argument_parser():
                    metavar='str',
                    required=True,
                    help="Results output folder")
+    # Optional arguments for searchregex.
     p_sr.add_argument("--genome",
                    dest="in_genome",
                    type=str,
@@ -806,6 +807,204 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Also add regions with 0 hits to output BED file (hit count in column 5) (default: False)")
+
+
+    """
+    Search motifs in long regions mode.
+
+    AALAMO
+    
+    """
+    p_sl = subparsers.add_parser('searchlong',
+                                help='Search motifs in long genomic regions')
+    p_sl.set_defaults(which='searchlong')
+    # Add required arguments group.
+    p_slm = p_sl.add_argument_group("required arguments")
+    # Required arguments for searchlong.
+    p_slm.add_argument("--in",
+                   dest="in_sites",
+                   type=str,
+                   metavar='str',
+                   required=True,
+                   help="Genomic regions file in BED format OR file with transcript IDs (one ID per row) to define genomic regions in which to search for motifs (requires --gtf)")
+    p_slm.add_argument("--rbps",
+                   dest="list_rbps",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   required=True,
+                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme-xml and/or --user-cm")
+    p_slm.add_argument("--genome",
+                   dest="in_genome",
+                   type=str,
+                   metavar='str',
+                   required = True,
+                   help = "Genomic sequences file (currently supported formats: FASTA)")
+    p_slm.add_argument("--out",
+                   dest="out_folder",
+                   type=str,
+                   metavar='str',
+                   required=True,
+                   help="Results output folder")
+    # Optional arguments for searchlong.
+    p_sl.add_argument("--data-id",
+                   dest="data_id",
+                   type=str,
+                   metavar='str',
+                   default = "data_id",
+                   help="Dataset ID")
+    p_sl.add_argument("--method-id",
+                   dest="method_id",
+                   type=str,
+                   metavar='str',
+                   default = "method_id",
+                   help="Method ID")
+    p_sl.add_argument("--run-id",
+                   dest="run_id",
+                   type=str,
+                   metavar='str',
+                   default = "run_id",
+                   help="Run ID")
+    p_sl.add_argument("--user-rbp-id",
+                   dest="user_rbp_id",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide RBP ID belonging to provided sequence or structure motif(s) (mandatory for --rbps USER)")
+    p_sl.add_argument("--user-meme-xml",
+                   dest="user_meme_xml",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide MEME/DREME XML file containing sequence motif(s) to be used for the run (needs --rbps USER)")
+    p_sl.add_argument("--user-cm",
+                   dest="user_cm",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide covariance model (.cm) file containing covariance model(s) to be used for the run (needs --rbps USER)")
+    p_sl.add_argument("--motif-db",
+                   dest="motif_db",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.1.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.1.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
+    p_sl.add_argument("--custom-db",
+                   dest="custom_db",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme-xml, --custom-db-cm, --custom-db-info")
+    p_sl.add_argument("--custom-db-id",
+                   dest="custom_db_id",
+                   type=str,
+                   metavar='str',
+                   default = "custom",
+                   help = "Set ID/name for provided custom motif database via --custom-db  (default: \"custom\")")
+    p_sl.add_argument("--custom-db-meme-xml",
+                   dest="custom_db_meme_xml",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide custom motif database MEME/DREME XML file containing sequence motifs")
+    p_sl.add_argument("--custom-db-cm",
+                   dest="custom_db_cm",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide custom motif database covariance model (.cm) file containing covariance model(s)")
+    p_sl.add_argument("--custom-db-info",
+                   dest="custom_db_info",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
+    p_sl.add_argument("--regex",
+                   dest="regex",
+                   type=str,
+                   metavar='str',
+                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. NOTE that after motif hit found in region, search continues right after motif hit")
+    p_sl.add_argument("--regex-id",
+                   dest="regex_id",
+                   type=str,
+                   metavar='str',
+                   default = "regex",
+                   help="Set regex ID used as RBP ID and database ID associated to -regex hits (default: \"regex\")")
+    p_sl.add_argument("--motif-regex-id",
+                   dest="motif_regex_id",
+                   default = False,
+                   action = "store_true",
+                   help="Use --regex-id for motif ID as well. By default, regular expression string is used as motif ID for regex motif hits")
+    p_sl.add_argument("--regex-search-mode",
+                   dest="regex_search_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit end position, 2: when motif hit encountered, continue +1 of motif hit start position (default: 1)")
+    p_sl.add_argument("--fimo-nt-freqs",
+                   dest="fimo_nt_freqs",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file optimized for human transcripts)")
+    p_sl.add_argument("--fimo-pval",
+                   dest="fimo_pval",
+                   type=float,
+                   metavar='float',
+                   default=0.001,
+                   help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
+    p_sl.add_argument("--plot-motifs",
+                   dest="plot_motifs",
+                   default = False,
+                   action = "store_true",
+                   help = "Visualize selected sequence motifs, by outputting sequence logos and motif hit statistics into a separate .html file (default: False)")
+    p_sl.add_argument("--gtf",
+                   dest="in_gtf",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Input GTF file with genomic annotations to generate genomic region annotation plots (output to motif statistics HTML). By default the most prominent transcripts will be extracted and used for functional annotation. Alternatively, provide a list of expressed transcripts via --tr-list (together with --gtf containing the transcripts). Note that only features on standard chromosomes (1,2,..,X,Y,MT) are currently used for annotation")
+    p_sl.add_argument("--tr-list",
+                   dest="tr_list",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Supply file with transcript IDs (one ID per row) to define which transcripts to use from --gtf for genomic region annotations plots")
+    p_sl.add_argument("--tr-types",
+                   dest="tr_types_list",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   help="List of transcript biotypes to consider for genomic region annotations plots. By default an internal selection of transcript biotypes is used (in addition to intron, CDS, UTR, intergenic). Note that provided biotype strings need to be in --gtf GTF file")
+    p_sl.add_argument("--gtf-feat-min-overlap",
+                   dest="gtf_feat_min_overlap",
+                   type=float,
+                   metavar='float',
+                   default=0.1,
+                   help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\") (default: 0.1)")
+    p_sl.add_argument("--plot-abs-paths",
+                   dest="plot_abs_paths",
+                   default = False,
+                   action = "store_true",
+                   help = "Store plot files with absolute paths in HTML report. Default is relative paths (default: False)")
+    p_sl.add_argument("--meme-no-check",
+                   dest="meme_disable_check",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable MEME version check. Make sure --meme-no-pgc is set if MEME version >= 5.5.4 is installed! (default: False)")
+    p_sl.add_argument("--meme-no-pgc",
+                   dest="meme_no_pgc",
+                   default = False,
+                   action = "store_true",
+                   help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
+    p_sl.add_argument("--sort-js-mode",
+                   dest="sort_js_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to plots output folder. 3: include .js code in HTML (default: 1)")
+
+
 
     """
     Optimal extension mode.
@@ -1078,10 +1277,13 @@ def main_search(args):
     if args.tr_list:
         assert args.in_gtf, "set --tr-list requires --gtf GTF file"
     assert benchlib.boundary_check(args.gtf_feat_min_overlap, 1E-9, 1.0), "set --gtf-feat-min-overlap expected to be >= 1E-9 and <= 1.0"
-    if args.in_gtf:
-        assert args.report, "set --gtf requires --report to be effective"
+    # if args.in_gtf:
+    #     assert args.report, "set --gtf requires --report to be effective"
     assert args.upset_plot_min_rbp_count >= 0, "set --upset-plot-min-rbp-count needs to be >= 0"
-    
+    if args.add_motif_annot:
+        assert args.in_gtf, "set --add-motif-annot requires --gtf GTF file"
+        assert args.plot_motifs, "set --add-motif-annot requires --plot-motifs"
+
     # Is MEME >= v5 installed?
     if not args.meme_disable_check:
         assert benchlib.is_tool("meme"), "meme not in PATH"
@@ -2426,6 +2628,12 @@ def main_search(args):
 
     """
     Output motif hits as BED.
+
+    The motif hits written to motif_hits_bed_out are unique motif hits already. 
+    If same hit occurs > 1, this is recorded in BED column 4 with format:
+    rbp_id,motif_id;uniq_count;method_id,data_id
+    These also include regex hits, as they are part of fimo hits.
+    
     """
 
     OUTBED = open(motif_hits_bed_out,"w")
@@ -2616,7 +2824,6 @@ def main_search(args):
 
 
     # Update + filter p-values.
-    # AALAMO
 
     pv_idx = 0
     
@@ -2692,30 +2899,14 @@ def main_search(args):
 
 
     """
-    Generate HTML report (--report).
-    
+    If --report set, calcuate correlations.
+
+    Setting add_count = True changes correlations a bit (use motif hit counts 
+    instead of 1 for any number of hits)
+
     """
 
-    html_report_out = args.out_folder + "/" + "report.rbpbench_search.html"
-    if args.plot_abs_paths:
-        html_report_out = os.path.abspath(args.out_folder) + "/" + "report.rbpbench_search.html"
-
-    # If HTML file already exists, remove it.
-    if os.path.exists(html_report_out):
-        os.remove(html_report_out)
-
-    reg2annot_dic = None
-    reg_annot_table_file = None
-
     if args.report:
-
-        """
-        Correlation.
-
-        Setting add_count = True changes correlations a bit (use motif hit counts 
-        instead of 1 for any number of hits)
-
-        """
 
         print("Calculate correlations ... ")
         # Correlation between RBPs dataframe.
@@ -2773,143 +2964,239 @@ def main_search(args):
         # fig = px.imshow(df_corr)
         # fig.show()
 
-        """
-        If --gtf set, get transcript infos and determine RNA region type for 
-        each region (select one with biggest overlap). 
 
-        Next steps:
-        1)
-        Extract most prominent transcripts (or use --tr-list ones).
-        2)
-        Overlap transcript exons+introns with regions.
-        3)
-        For exonic hit, further overlapping operations necessary to determine 
-        RNA type /region type (ncRNA, CDS, UTR ...).
+    """
+    If --gtf set, get transcript infos and determine RNA region type for 
+    each region (select one with biggest overlap). 
 
-        """
+    Next steps:
+    1)
+    Extract most prominent transcripts (or use --tr-list ones).
+    2)
+    Overlap transcript exons+introns with regions.
+    3)
+    For exonic hit, further overlapping operations necessary to determine 
+    RNA type /region type (ncRNA, CDS, UTR ...).
 
-        if args.in_gtf and c_regions_with_hits:
+    """
+    reg2annot_dic = {}
+    reg_annot_table_file = None
 
-            reg_annot_table_file = args.out_folder + "/" + "region_annotations.tsv"
+    if args.in_gtf and c_regions_with_hits:
 
-            # Get gene infos.
-            print("Read in gene features from --gtf ... ")
-            tr2gid_dic = {}
-            tr_types_dic = {}  # Store transcript biotypes in GTF file.
-            gid2gio_dic = benchlib.gtf_read_in_gene_infos(args.in_gtf,
-                                                          tr2gid_dic=tr2gid_dic,
-                                                          tr_types_dic=tr_types_dic,
-                                                          check_chr_ids_dic=chr_ids_dic,
-                                                          chr_style=chr_style,
-                                                          empty_check=False)
-            assert gid2gio_dic, "no gene infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
-            c_gene_infos = len(gid2gio_dic)
-            print("# gene features read in from --gtf:", c_gene_infos)
+        reg_annot_table_file = args.out_folder + "/" + "region_annotations.tsv"
 
-            # If --tr-list given.
-            tr_ids_dic = {}
-            if args.tr_list:
-                tr_ids_dic = benchlib.read_ids_into_dic(args.tr_list,
-                                                        check_dic=False)
-                assert tr_ids_dic, "no IDs read in from provided --tr-list file. Please provide a valid IDs file (one ID per row)"
-                for tr_id in tr_ids_dic:
-                    assert tr_id in tr2gid_dic, "transcript ID \"%s\" from provided --tr-list file does not appear in --gtf file. Please provide compatible files" %(tr_id)
-                    tr_ids_dic[tr_id] = tr2gid_dic[tr_id]
-                print("# of transcript IDs (read in from --tr-list): ", len(tr_ids_dic))
-            else:
-                # Get most prominent transcripts from gene infos.
-                tr_ids_dic = benchlib.select_mpts_from_gene_infos(gid2gio_dic,
-                                        basic_tag=False,  # do not be strict (only_tsl=False too).
-                                        ensembl_canonical_tag=False,
-                                        prior_basic_tag=True,  # Prioritize basic tag transcript.
-                                        only_tsl=False)
-                assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
-                print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
+        # Get gene infos.
+        print("Read in gene features from --gtf ... ")
+        tr2gid_dic = {}
+        tr_types_dic = {}  # Store transcript biotypes in GTF file.
+        gid2gio_dic = benchlib.gtf_read_in_gene_infos(args.in_gtf,
+                                                        tr2gid_dic=tr2gid_dic,
+                                                        tr_types_dic=tr_types_dic,
+                                                        check_chr_ids_dic=chr_ids_dic,
+                                                        chr_style=chr_style,
+                                                        empty_check=False)
+        assert gid2gio_dic, "no gene infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
+        c_gene_infos = len(gid2gio_dic)
+        print("# gene features read in from --gtf:", c_gene_infos)
 
-            # Check exon order (return True if minus strand exon 1 is most downstream, not most upstream, which is the correct way).
-            print("Check minus-strand exon order in --gtf ... ")
-            correct_min_ex_order = benchlib.gtf_check_exon_order(args.in_gtf)
-            if correct_min_ex_order:
-                print("Correct order encountered ... ")
-            else:
-                print("Reverse order encountered ... ")
-            # Get transcript infos.
-            print("Read in transcript infos from --gtf ... ")
-            tid2tio_dic = benchlib.gtf_read_in_transcript_infos(args.in_gtf, 
-                                                                tr_ids_dic=tr_ids_dic,
-                                                                correct_min_ex_order=correct_min_ex_order,
-                                                                chr_style=chr_style,
-                                                                empty_check=False)
-
-            assert tid2tio_dic, "no transcript infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
-
-            # (in)sanity checks.
+        # If --tr-list given.
+        tr_ids_dic = {}
+        if args.tr_list:
+            tr_ids_dic = benchlib.read_ids_into_dic(args.tr_list,
+                                                    check_dic=False)
+            assert tr_ids_dic, "no IDs read in from provided --tr-list file. Please provide a valid IDs file (one ID per row)"
             for tr_id in tr_ids_dic:
-                assert tr_id in tid2tio_dic, "transcript ID %s not in tid2tio_dic"
-            for tr_id in tid2tio_dic:
-                assert tr_id in tr_ids_dic, "transcript ID %s not in tr_ids_dic"
+                assert tr_id in tr2gid_dic, "transcript ID \"%s\" from provided --tr-list file does not appear in --gtf file. Please provide compatible files" %(tr_id)
+                tr_ids_dic[tr_id] = tr2gid_dic[tr_id]
+            print("# of transcript IDs (read in from --tr-list): ", len(tr_ids_dic))
+        else:
+            # Get most prominent transcripts from gene infos.
+            tr_ids_dic = benchlib.select_mpts_from_gene_infos(gid2gio_dic,
+                                    basic_tag=False,  # do not be strict (only_tsl=False too).
+                                    ensembl_canonical_tag=False,
+                                    prior_basic_tag=True,  # Prioritize basic tag transcript.
+                                    only_tsl=False)
+            assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
+            print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
 
-            c_tr_infos = len(tid2tio_dic)
-            print("# transcript features read in from --gtf:", c_tr_infos)
+        # Check exon order (return True if minus strand exon 1 is most downstream, not most upstream, which is the correct way).
+        print("Check minus-strand exon order in --gtf ... ")
+        correct_min_ex_order = benchlib.gtf_check_exon_order(args.in_gtf)
+        if correct_min_ex_order:
+            print("Correct order encountered ... ")
+        else:
+            print("Reverse order encountered ... ")
+        # Get transcript infos.
+        print("Read in transcript infos from --gtf ... ")
+        tid2tio_dic = benchlib.gtf_read_in_transcript_infos(args.in_gtf, 
+                                                            tr_ids_dic=tr_ids_dic,
+                                                            correct_min_ex_order=correct_min_ex_order,
+                                                            chr_style=chr_style,
+                                                            empty_check=False)
 
-            # Extract exon + intron regions of selected transcripts from transcript infos.
-            print("Output intron annotations to BED ... ")
-            intron_exon_out_bed = args.out_folder + "/intron_exon_regions.tmp.bed"
-            benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
-                                              output_mode=3,  # only introns.
-                                              report_counts=True,
-                                              add_tr_id=True,
-                                              empty_check=False)
+        assert tid2tio_dic, "no transcript infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
 
-            # Custom transcript biotypes for upset plot.
-            custom_annot_dic = None
-            if args.tr_types_list:
-                for tr_type in args.tr_types_list:
-                    assert tr_type in tr_types_dic, "given transcript biotype ID \"%s\" not found in GTF file"
-                    custom_annot_dic[tr_type] = tr_type
+        # (in)sanity checks.
+        for tr_id in tr_ids_dic:
+            assert tr_id in tid2tio_dic, "transcript ID %s not in tid2tio_dic"
+        for tr_id in tid2tio_dic:
+            assert tr_id in tr_ids_dic, "transcript ID %s not in tr_ids_dic"
 
-            # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.
-            print("Output exon annotations to BED ... ")
-            benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
-                                             custom_annot_dic=custom_annot_dic,
-                                             append=True)
+        c_tr_infos = len(tid2tio_dic)
+        print("# transcript features read in from --gtf:", c_tr_infos)
 
-            # Overlap with input regions.
-            print("Overlap annotations with input regions ... ")
-            params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
-            overlap_annotations_bed = args.out_folder + "/overlap_annotations.tmp.bed"
-            benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_out_bed, 
-                                         overlap_annotations_bed,
-                                         params=params)
-            
-            reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
-                                                            reg_ids_dic=reg_ids_dic)
+        # Extract exon + intron regions of selected transcripts from transcript infos.
+        print("Output intron annotations to BED ... ")
+        intron_exon_out_bed = args.out_folder + "/intron_exon_regions.tmp.bed"
+        benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
+                                            output_mode=3,  # only introns.
+                                            report_counts=True,
+                                            add_tr_id=True,
+                                            empty_check=False)
 
-            # Output assignments.
-            print("Output region annotations ... ")
-            
-            OUTRAN = open(reg_annot_table_file, "w")
-            OUTRAN.write("region_id\tgene_id\tgene_name\ttranscript_id\tregion_annotation\ttranscript_biotype\n")
+        # Custom transcript biotypes for upset plot.
+        custom_annot_dic = None
+        if args.tr_types_list:
+            for tr_type in args.tr_types_list:
+                assert tr_type in tr_types_dic, "given transcript biotype ID \"%s\" not found in GTF file"
+                custom_annot_dic[tr_type] = tr_type
 
+        # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.
+        print("Output exon annotations to BED ... ")
+        benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
+                                            custom_annot_dic=custom_annot_dic,
+                                            append=True)
+
+        # Overlap with input regions.
+        print("Overlap annotations with input regions ... ")
+        params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
+        overlap_annotations_bed = args.out_folder + "/overlap_region_annotations.tmp.bed"
+        benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_out_bed, 
+                                        overlap_annotations_bed,
+                                        params=params)
+        
+        reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
+                                                        reg_ids_dic=reg_ids_dic)
+
+        # Output assignments.
+        print("Output region annotations ... ")
+        
+        OUTRAN = open(reg_annot_table_file, "w")
+        OUTRAN.write("region_id\tgene_id\tgene_name\ttranscript_id\tregion_annotation\ttranscript_biotype\n")
+
+        for reg_id in reg2annot_dic:
+            annot = reg2annot_dic[reg_id][0]
+            tr_id = reg2annot_dic[reg_id][1]
+            gene_id = "-"
+            gene_name = "-"
+            tr_biotype = "-"
+            if tr_id:
+                gene_id = tr2gid_dic[tr_id]
+                gene_info = gid2gio_dic[gene_id]
+                tr_biotype = tid2tio_dic[tr_id].tr_biotype
+                gene_name = gene_info.gene_name
+            else:
+                tr_id = "-"
+            OUTRAN.write("%s\t%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot, tr_biotype))
+        OUTRAN.close()
+        
+    elif args.in_gtf and not c_regions_with_hits:
+        print("No need to read in --gtf since no motif hits found .. ")
+
+    """
+    Motif annotations if --plot-motifs and --gtf set.
+
+    AALAMO
+    
+    """
+
+    rbp2motif2annot2c_dic = {}  # rbp_id -> motif_id -> annot -> count
+
+    if args.plot_motifs and args.in_gtf and c_regions_with_hits and args.add_motif_annot:
+
+        # Overlap motif hit BED with genomic annotation regions.
+        print("Overlap annotations with motif hit regions ... ")
+
+        params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
+        overlap_motif_hit_annotations_bed = args.out_folder + "/overlap_motif_hit_annotations.tmp.bed"
+        benchlib.bed_intersect_files(motif_hits_bed_out, intron_exon_out_bed, 
+                                     overlap_motif_hit_annotations_bed,
+                                     params=params)
+
+        motif_hit2annot_dic = benchlib.get_region_annotations(
+                                            overlap_motif_hit_annotations_bed,
+                                            motif_hits=True,
+                                            reg_ids_dic=motif_reg_dic)
+
+        for motif_hit in motif_hit2annot_dic:
+            # motif_hit format: "chr1:10-15(+),motif_id". Get motif_id.
+            motif_id = motif_hit.split(",")[1]
+            annot = motif_hit2annot_dic[motif_hit][0]
+            # tr_id = motif_hit2annot_dic[motif_hit][1]
+            rbp_id = id2name_dic[motif_id]
+            if rbp_id not in rbp2motif2annot2c_dic:
+                rbp2motif2annot2c_dic[rbp_id] = {}
+            if motif_id not in rbp2motif2annot2c_dic[rbp_id]:
+                rbp2motif2annot2c_dic[rbp_id][motif_id] = {}
+            if annot not in rbp2motif2annot2c_dic[rbp_id][motif_id]:
+                rbp2motif2annot2c_dic[rbp_id][motif_id][annot] = 1
+            else:
+                rbp2motif2annot2c_dic[rbp_id][motif_id][annot] += 1
+
+    """
+    Get annotation to color dictionary, which is needed for region annotation plots in HTML reports.
+
+    """
+
+    annot2color_dic = {}
+
+    if reg2annot_dic or rbp2motif2annot2c_dic:
+
+        annot_dic = {}
+
+        if reg2annot_dic:
             for reg_id in reg2annot_dic:
                 annot = reg2annot_dic[reg_id][0]
-                tr_id = reg2annot_dic[reg_id][1]
-                gene_id = "-"
-                gene_name = "-"
-                tr_biotype = "-"
-                if tr_id:
-                    gene_id = tr2gid_dic[tr_id]
-                    gene_info = gid2gio_dic[gene_id]
-                    tr_biotype = tid2tio_dic[tr_id].tr_biotype
-                    gene_name = gene_info.gene_name
+                if annot not in annot_dic:
+                    annot_dic[annot] = 1
                 else:
-                    tr_id = "-"
-                OUTRAN.write("%s\t%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot, tr_biotype))
-            OUTRAN.close()
+                    annot_dic[annot] += 1
 
-        elif args.in_gtf and not c_regions_with_hits:
-            print("No need to read in --gtf since no motif hits found .. ")
+        if rbp2motif2annot2c_dic:
+            for rbp_id in rbp2motif2annot2c_dic:
+                for motif_id in rbp2motif2annot2c_dic[rbp_id]:
+                    for annot in rbp2motif2annot2c_dic[rbp_id][motif_id]:
+                        if annot not in annot_dic:
+                            annot_dic[annot] = 1
+                        else:
+                            annot_dic[annot] += 1
 
+        # hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
+        hex_colors = benchlib.get_hex_colors_list(min_len=len(annot_dic))
+
+        idx = 0
+        for annot in sorted(annot_dic, reverse=False):
+            # hc = hex_colors[idx]
+            # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
+            annot2color_dic[annot] = hex_colors[idx]
+            idx += 1
+
+
+    """
+    Generate HTML report (--report).
+    
+    """
+
+    html_report_out = args.out_folder + "/" + "report.rbpbench_search.html"
+    if args.plot_abs_paths:
+        html_report_out = os.path.abspath(args.out_folder) + "/" + "report.rbpbench_search.html"
+
+    # If HTML file already exists, remove it.
+    if os.path.exists(html_report_out):
+        os.remove(html_report_out)
+
+    if args.report:
 
         seq_len_df = None
         if not args.disable_len_dist_plot:
@@ -2966,6 +3253,7 @@ def main_search(args):
                                          motif_min_pair_count=args.motif_min_pair_count,
                                          rbp_min_pair_count=args.rbp_min_pair_count,
                                          reg2annot_dic=reg2annot_dic,
+                                         annot2color_dic=annot2color_dic,
                                          upset_plot_min_degree=args.upset_plot_min_degree,
                                          upset_plot_max_degree=args.upset_plot_max_degree,
                                          upset_plot_min_subset_size=args.upset_plot_min_subset_size,
@@ -3004,6 +3292,8 @@ def main_search(args):
                                          str_motif_blocks_dic, args.out_folder, 
                                          benchlib_path, loaded_motif_ids_dic,
                                          motif_db_str=motif_db_str,
+                                         rbp2motif2annot2c_dic=rbp2motif2annot2c_dic,
+                                         annot2color_dic=annot2color_dic,
                                          regex_id=regex_id,
                                          sort_js_mode=args.sort_js_mode,
                                          html_report_out=html_motif_plots_out,
@@ -5986,406 +6276,6 @@ def main_searchseq(args):
 
 
 
-    # """
-    # Significance testing:
-    # Check for co-occurrences of motifs from different RBPs in regions.
-    # Use 2x2 contingency tables, and some test for significance,
-    # e.g. Fisher exact or Chi-squared
-
-    # region_rbp_binds_dic format:
-    # 'chr20:62139082-62139128(-)': [False, False, False]
-    # ...
-    # rbp2idx_dic
-    # idx2rbp_dic
-
-    # from itertools import combinations
-    # Number of combinations (draw k from n elements, no order, no repetition)
-    # Binomialcoefficient: n over k, where n = #RBPs, and k = 2
-    # rbp_pairs = list(combinations(rbp_list, 2))
-
-    # make_contingency_table_2x2(region_labels_dic, idx1, idx2):
-    # https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.fisher_exact.html
-    #                List 1              Not in List 1
-    # List 2         A                   B
-    # Not in List 2  C                   D
-
-    # table = [[A, B], [C, D]]
-
-    # from scipy.stats import chi2_contingency
-    # stat, p, dof, expected = chi2_contingency(table)
-    # Note that chi2_contingency does not tolerate zero elements.
-
-    # """
-    # # Store p-values in 2d-list.
-    # pval_ll = []  # p-values (Fisher exact test).
-    # or_ll = []  # odds ratios.
-    # pval_cont_lll = []
-
-    # for rbp_id in rbp_list:
-    #     pval_ll.append([1.0]*len_rbp_list)
-    #     pval_cont_lll.append([]*len_rbp_list)
-    #     # pval_cont_lll.append([["1.0","-", "-"]]*len_rbp_list)
-    #     or_ll.append([0.0]*len_rbp_list)
-
-    # for i in range(len_rbp_list):
-    #     for j in range(len_rbp_list):
-    #         # Storing [p-value_str, pair_str, table_str, correlation_str].
-    #         pval_cont_lll[i].append(["1.0","-", "-", "-"])  
-
-    # # Add p-values of 1.0 in diagonal.
-    # # for idx, rbp_id in enumerate(rbp_list):
-    # #     pval_ll[idx][idx] = 1.0
-    # #     pval_cont_lll[idx][idx] = 1.0
-
-    # rbp_pairs = list(combinations(rbp_list, 2))
-    # con_pval_dic = {}
-    # con_table_dic = {}
-    # pair_str_dic = {}
-
-    # # print("rbp2idx_dic:", rbp2idx_dic)
-    # # print("region_rbp_binds_dic:", region_rbp_binds_dic)
-    # # print("len(region_rbp_binds_dic):", len(region_rbp_binds_dic))
-    # # true_c = 0
-    # # for reg_id in region_rbp_binds_dic:
-    # #     for label in region_rbp_binds_dic[reg_id]:
-    # #         if label:
-    # #             true_c += 1
-    # # print("# TRUEs:", true_c)
-
-    # c_regions_with_hits = 0
-    # for reg_id in region_rbp_binds_dic:
-    #     reg_hit = False
-    #     for label in region_rbp_binds_dic[reg_id]:
-    #         if label:
-    #             reg_hit = True
-    #     if reg_hit:
-    #         c_regions_with_hits += 1
-    # print("# regions with hits (all motifs):", c_regions_with_hits)
-
-    # print("Compute motif region co-occurrences between RBP pairs ... ")
-    # for pair in rbp_pairs:
-    #     pair = list(pair)
-    #     pair.sort()
-    #     idx1 = rbp2idx_dic[pair[0]]
-    #     idx2 = rbp2idx_dic[pair[1]]
-    #     # pair_list = [pair[0], pair[1]]
-    #     # pair_list.sort()
-    #     pair_str = ",".join(pair)
-    #     # pair_str_dic[pair_str] = [pair_list[0], pair_list[1]]
-    #     pair_str_dic[pair_str] = [pair[0], pair[1]]
-
-    #     table = benchlib.make_contingency_table_2x2(region_rbp_binds_dic, idx1, idx2)
-    #     odds_ratio, p_value = fisher_exact(table, alternative="two-sided")
-
-    #     # if p_value == 0:
-    #     #   p_value = 2.2e-308
-    #     #   print("PVALUE ZERO! (%s, odds_ratio: %s)" %(str(p_value), str(odds_ratio)))
-    #     #   print("pair_str:", pair_str)
-    #     #   print("table_str:", table_str)
-
-    #     con_pval_dic[pair_str] = p_value
-    #     con_table_dic[pair_str] = table
-    #     table_str = str(table)
-
-    #     # print(pair_str, table_str, p_value)
-    #     # print("Pair:", pair_str, "Odds ratio:", odds_ratio,"Fisher p-value:", p_value)
-    #     pval_ll[idx1][idx2] = p_value
-    #     pval_ll[idx2][idx1] = p_value
-    #     pval_cont_lll[idx2][idx1][0] = str(p_value)
-    #     pval_cont_lll[idx2][idx1][1] = pair_str
-    #     pval_cont_lll[idx2][idx1][2] = table_str
-    #     # pval_cont_lll[idx2][idx1][0] = str(p_value)
-    #     # pval_cont_lll[idx2][idx1][1] = pair_str
-    #     # pval_cont_lll[idx2][idx1][2] = table_str
-    #     or_ll[idx1][idx2] = odds_ratio
-    #     or_ll[idx2][idx1] = odds_ratio
-
-
-
-
-    # """
-    # Print out RBPs sorted by KS p-value.
-
-    # """ 
-    # sorted_con_pval_dic = dict(sorted(con_pval_dic.items(), key=lambda item: item[1], reverse=False))
-
-    # print("Co-occurrence contingency table format: [A, B], [C, D]")
-    # print("A: RBP1 AND RBP2")
-    # print("B: NOT RBP1 AND RBP2")
-    # print("C: RBP1 AND NOT RBP2")
-    # print("D: NOT RBP1 AND NOT RBP2")
-    # print("Co-occurrence of motifs (RBP IDs (RBP1,RBP2), # hits, contingency table, Fisher p-value <=0.05):")
-    # c_reported = 0
-
-    # for pair_str, p_value in sorted_con_pval_dic.items():
-    #     if p_value > 0.05:
-    #         break
-    #     c_reported += 1
-    #     rbp1 = pair_str_dic[pair_str][0]
-    #     rbp2 = pair_str_dic[pair_str][1]
-    #     con_table = con_table_dic[pair_str]
-    #     rbp1_hits = search_rbps_dic[rbp1].c_uniq_motif_hits
-    #     rbp2_hits = search_rbps_dic[rbp2].c_uniq_motif_hits
-    #     print("%s\t%i,%i\t%s\t%s" %(pair_str, rbp1_hits, rbp2_hits, str(con_table), str(p_value)))
-
-    # if not c_reported:
-    #     print("NO SIGNIFICANT CO-OCCURRENCES FOUND!")
-    # print("")
-
-    # # Print table to file.
-    # benchlib.output_con_table_results(con_res_out_tsv, pval_ll, rbp_list)
-
-
-    # """
-    # Generate HTML report (--report).
-    
-    # """
-
-    # html_report_out = args.out_folder + "/" + "report.rbpbench_search.html"
-    # if args.plot_abs_paths:
-    #     html_report_out = os.path.abspath(args.out_folder) + "/" + "report.rbpbench_search.html"
-
-    # reg2annot_dic = None
-    # reg_annot_table_file = None
-
-
-
-    # if args.report:
-
-    #     """
-    #     Correlation.
-
-    #     Setting add_count = True changes correlations a bit (use motif hit counts 
-    #     instead of 1 for any number of hits)
-
-    #     """
-
-    #     print("Calculate correlations ... ")
-    #     # Correlation between RBPs dataframe.
-    #     df = DataFrame(reg_hits_dic, columns=rbp_list)
-    #     df_corr = df.corr(method='pearson')
-
-    #     for i,rbp_i in enumerate(rbp_list):
-    #         for j,rbp_j in enumerate(rbp_list):
-    #             if j > i:
-    #                 pval_ll[i][j] = None
-
-    #     # Fisher p-value dataframe.
-    #     df_pval = DataFrame(pval_ll, columns=rbp_list, index=rbp_list)
-
-    #     # Write None to upper-diagonal entries.
-    #     for i,rbp_i in enumerate(rbp_list):
-    #         for j,rbp_j in enumerate(rbp_list):
-    #             if j > i:
-    #                 # df_corr.loc[rbp_i][rbp_j] = None  # FutureWarning: ChainedAssignmentError: behaviour will change in pandas 3.0!
-    #                 df_corr.loc[rbp_i, rbp_j] = None
-    #             else:
-    #                 # Round correlation values if != 1.0.
-    #                 if df_corr.loc[rbp_i][rbp_j] == 1.0:
-    #                     pval_cont_lll[i][j][3] = str(df_corr.loc[rbp_i][rbp_j])
-    #                 else:
-    #                     pval_cont_lll[i][j][3] = "{:.8f}".format(df_corr.loc[rbp_i][rbp_j])
-
-    #     for i,rbp_i in enumerate(rbp_list):
-    #         for j,rbp_j in enumerate(rbp_list):
-    #             if j > i:
-    #                 df_pval.loc[rbp_i, rbp_j] = None
-
-    #     # for i in range(len(rbp_list)):
-    #     #     for j in range(len(rbp_list)):
-    #     #         if j > i:
-    #     #             df_corr.iloc[i][j] = None
-
-    #     # for i in range(len(rbp_list)):
-    #     #     for j in range(len(rbp_list)):
-    #     #         if j > i:
-    #     #             df_pval.iloc[i][j] = None
-
-    #     # print("df_pval:", df_pval)
-    #     # Log transform p-values.
-    #     benchlib.log_tf_df(df_pval, convert_zero_pv=True, rbp_list=rbp_list)
-    #     # print("df_pval:", df_pval)
-
-    #     # print("df:", df)
-    #     # print("df.corr():", df.corr(method='pearson'))
-    #     # print("reg_hits_dic[SLBP]:", reg_hits_dic["SLBP"])
-
-    #     # Plot correlations.
-    #     # motif_db
-    #     # import plotly.express as px
-    #     # fig = px.imshow(df_corr)
-    #     # fig.show()
-
-    #     """
-    #     If --gtf set, get transcript infos and determine RNA region type for 
-    #     each region (select one with biggest overlap). 
-
-    #     Next steps:
-    #     1)
-    #     Extract most prominent transcripts (or use --tr-list ones).
-    #     2)
-    #     Overlap transcript exons+introns with regions.
-    #     3)
-    #     For exonic hit, further overlapping operations necessary to determine 
-    #     RNA type /region type (ncRNA, CDS, UTR ...).
-
-    #     """
-
-    #     if args.in_gtf and c_regions_with_hits:
-
-    #         reg_annot_table_file = args.out_folder + "/" + "region_annotations.tsv"
-
-    #         # Get gene infos.
-    #         print("Read in gene features from --gtf ... ")
-    #         tr2gid_dic = {}
-    #         tr_types_dic = {}  # Store transcript biotypes in GTF file.
-    #         gid2gio_dic = benchlib.gtf_read_in_gene_infos(args.in_gtf,
-    #                                                       tr2gid_dic=tr2gid_dic,
-    #                                                       tr_types_dic=tr_types_dic,
-    #                                                       check_chr_ids_dic=chr_ids_dic,
-    #                                                       chr_style=chr_style,
-    #                                                       empty_check=False)
-    #         assert gid2gio_dic, "no gene infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
-    #         c_gene_infos = len(gid2gio_dic)
-    #         print("# gene features read in from --gtf:", c_gene_infos)
-
-    #         # If --tr-list given.
-    #         tr_ids_dic = {}
-    #         if args.tr_list:
-    #             tr_ids_dic = benchlib.read_ids_into_dic(args.tr_list,
-    #                                                     check_dic=False)
-    #             assert tr_ids_dic, "no IDs read in from provided --tr-list file. Please provide a valid IDs file (one ID per row)"
-    #             for tr_id in tr_ids_dic:
-    #                 assert tr_id in tr2gid_dic, "transcript ID \"%s\" from provided --tr-list file does not appear in --gtf file. Please provide compatible files" %(tr_id)
-    #                 tr_ids_dic[tr_id] = tr2gid_dic[tr_id]
-    #             print("# of transcript IDs (read in from --tr-list): ", len(tr_ids_dic))
-    #         else:
-    #             # Get most prominent transcripts from gene infos.
-    #             tr_ids_dic = benchlib.select_mpts_from_gene_infos(gid2gio_dic,
-    #                                     basic_tag=False,  # do not be strict (only_tsl=False too).
-    #                                     ensembl_canonical_tag=False,
-    #                                     prior_basic_tag=True,  # Prioritize basic tag transcript.
-    #                                     only_tsl=False)
-    #             assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
-    #             print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
-
-    #         # Check exon order (return True if minus strand exon 1 is most downstream, not most upstream, which is the correct way).
-    #         print("Check minus-strand exon order in --gtf ... ")
-    #         correct_min_ex_order = benchlib.gtf_check_exon_order(args.in_gtf)
-    #         if correct_min_ex_order:
-    #             print("Correct order encountered ... ")
-    #         else:
-    #             print("Reverse order encountered ... ")
-    #         # Get transcript infos.
-    #         print("Read in transcript infos from --gtf ... ")
-    #         tid2tio_dic = benchlib.gtf_read_in_transcript_infos(args.in_gtf, 
-    #                                                             tr_ids_dic=tr_ids_dic,
-    #                                                             correct_min_ex_order=correct_min_ex_order,
-    #                                                             chr_style=chr_style,
-    #                                                             empty_check=False)
-
-    #         assert tid2tio_dic, "no transcript infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
-
-    #         # (in)sanity checks.
-    #         for tr_id in tr_ids_dic:
-    #             assert tr_id in tid2tio_dic, "transcript ID %s not in tid2tio_dic"
-    #         for tr_id in tid2tio_dic:
-    #             assert tr_id in tr_ids_dic, "transcript ID %s not in tr_ids_dic"
-
-    #         c_tr_infos = len(tid2tio_dic)
-    #         print("# transcript features read in from --gtf:", c_tr_infos)
-
-    #         # Extract exon + intron regions of selected transcripts from transcript infos.
-    #         print("Output intron annotations to BED ... ")
-    #         intron_exon_out_bed = args.out_folder + "/intron_exon_regions.tmp.bed"
-    #         benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
-    #                                           output_mode=3,  # only introns.
-    #                                           report_counts=True,
-    #                                           add_tr_id=True,
-    #                                           empty_check=False)
-
-    #         # Custom transcript biotypes for upset plot.
-    #         custom_annot_dic = None
-    #         if args.tr_types_list:
-    #             for tr_type in args.tr_types_list:
-    #                 assert tr_type in tr_types_dic, "given transcript biotype ID \"%s\" not found in GTF file"
-    #                 custom_annot_dic[tr_type] = tr_type
-
-    #         # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.
-    #         print("Output exon annotations to BED ... ")
-    #         benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
-    #                                          custom_annot_dic=custom_annot_dic,
-    #                                          append=True)
-
-    #         # Overlap with input regions.
-    #         print("Overlap annotations with input regions ... ")
-    #         params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
-    #         overlap_annotations_bed = args.out_folder + "/overlap_annotations.tmp.bed"
-    #         benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_out_bed, 
-    #                                      overlap_annotations_bed,
-    #                                      params=params)
-            
-    #         reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
-    #                                                         reg_ids_dic=reg_ids_dic)
-
-    #         # Output assignments.
-    #         print("Output region annotations ... ")
-            
-    #         OUTRAN = open(reg_annot_table_file, "w")
-    #         OUTRAN.write("region_id\tgene_id\tgene_name\ttranscript_id\tregion_annotation\ttranscript_biotype\n")
-
-    #         for reg_id in reg2annot_dic:
-    #             annot = reg2annot_dic[reg_id][0]
-    #             tr_id = reg2annot_dic[reg_id][1]
-    #             gene_id = "-"
-    #             gene_name = "-"
-    #             tr_biotype = "-"
-    #             if tr_id:
-    #                 gene_id = tr2gid_dic[tr_id]
-    #                 gene_info = gid2gio_dic[gene_id]
-    #                 tr_biotype = tid2tio_dic[tr_id].tr_biotype
-    #                 gene_name = gene_info.gene_name
-    #             else:
-    #                 tr_id = "-"
-    #             OUTRAN.write("%s\t%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot, tr_biotype))
-    #         OUTRAN.close()
-
-    #     elif args.in_gtf and not c_regions_with_hits:
-    #         print("No need to read in --gtf since no motif hits found .. ")
-
-    #     plots_subfolder = "html_report_plots"
-    #     benchlib_path = os.path.dirname(benchlib.__file__)
-
-    #     print("Create report ... ")
-    #     benchlib.search_generate_html_report(df_pval, pval_cont_lll,
-    #                                      search_rbps_dic,
-    #                                      id2name_dic, name2ids_dic,
-    #                                      region_rbp_motif_pos_dic,
-    #                                      reg2pol_dic,
-    #                                      args.out_folder,
-    #                                      benchlib_path,
-    #                                      rbp2regidx_dic,
-    #                                      reg_ids_list,
-    #                                      set_rbp_id=args.set_rbp_id,
-    #                                      motif_db_str=motif_db_str,
-    #                                      seq_motif_blocks_dic=seq_motif_blocks_dic,
-    #                                      motif_distance_plot_range=args.motif_distance_plot_range,
-    #                                      motif_min_pair_count=args.motif_min_pair_count,
-    #                                      rbp_min_pair_count=args.rbp_min_pair_count,
-    #                                      reg2annot_dic=reg2annot_dic,
-    #                                      upset_plot_min_degree=args.upset_plot_min_degree,
-    #                                      upset_plot_max_degree=args.upset_plot_max_degree,
-    #                                      upset_plot_min_subset_size=args.upset_plot_min_subset_size,
-    #                                      html_report_out=html_report_out,
-    #                                      plot_abs_paths=args.plot_abs_paths,
-    #                                      sort_js_mode=args.sort_js_mode,
-    #                                      plotly_js_mode=args.plotly_js_mode,
-    #                                      plots_subfolder=plots_subfolder)
-
-
-
-
-
     """
     Motif plots and motif hit statistics HTML.
 
@@ -6459,6 +6349,26 @@ def main_searchseq(args):
     # if args.report:
     #     print("Search report .html:\n%s" %(html_report_out))
     print("")
+
+
+
+
+################################################################################
+
+def main_searchlong(args):
+    """
+    Motif search in long genomic regions.
+
+    AALAMO
+
+    """
+
+    print("Running for you in SEARCHLONG mode ... ")
+
+    assert os.path.exists(args.in_file), "--in file \"%s\" not found" % (args.in_file)
+
+
+
 
 
 
@@ -7695,6 +7605,8 @@ if __name__ == '__main__':
         main_searchseq(args)
     elif args.which == 'searchregex':
         main_searchregex(args)
+    elif args.which == 'searchlong':
+        main_searchlong(args)
     elif args.which == 'optex':
         main_optex(args)
     elif args.which == 'info':

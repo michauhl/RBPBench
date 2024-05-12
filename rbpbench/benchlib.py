@@ -2092,10 +2092,17 @@ IG_pseudogene	1
 ################################################################################
 
 def get_region_annotations(overlap_annotations_bed,
+                           motif_hits=False,
                            reg_ids_dic=None):
     """
     Get region annotations from overlapping genomic regions with exon / intron 
     / transript biotype annotations.
+
+    motif_hits:
+        If True, the -a file is the motif hits BED file. In this case, the region ID
+        has to be reconstructed from the BED region info.
+        Format of reg_ids_dic key if motif_hits=True:
+        "chr1:10-15(+),motif_id"
 
     reg_ids_dic:
         If set, compare genomic region IDs with IDs in dictionary. If region ID 
@@ -2107,16 +2114,31 @@ def get_region_annotations(overlap_annotations_bed,
 
     reg2maxol_dic = {}
     reg2annot_dic = {}
+    annot_col = 9
+    c_ol_nt_col = 12
 
     with open(overlap_annotations_bed) as f:
         for line in f:
             cols = line.strip().split("\t")
             reg_id = cols[3]
-            annot_ids = cols[9].split(";")
+
+            # If motif_ids, construct new unique region_id from BED region info.
+            if motif_hits:
+                chr_id = cols[0]
+                reg_s = str(int(cols[1]) + 1)
+                reg_e = cols[2]
+                reg_strand = cols[5]
+                # col[3] has format: "rbp_id,motif_id;1;method_id,data_id". Extract motif_id from this string.
+                motif_id = reg_id.split(",")[1].split(";")[0]
+                reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + reg_strand + ")," + motif_id
+                annot_col = 13  # These shift since motif hits BED contains additional (4) p-value and score columns.
+                c_ol_nt_col = 16
+
+            annot_ids = cols[annot_col].split(";")
             assert len(annot_ids) == 2, "len(annot_ids) != 2 (expected ; separated string, but got: \"%s\")" %(cols[9])
             annot_id = annot_ids[0]
             tr_id = annot_ids[1]
-            c_overlap_nts = cols[12]
+            c_overlap_nts = cols[c_ol_nt_col]
             if reg_id not in reg2maxol_dic:
                 reg2maxol_dic[reg_id] = c_overlap_nts
                 reg2annot_dic[reg_id] = [annot_id, tr_id]
@@ -4984,7 +5006,7 @@ No plot generated since no regions for plotting.
                 # print(reg2annot_dic)
 
                 create_batch_annotation_stacked_bars_plot(internal_id, id2infos_dic, id2reg_annot_dic, id2hit_reg_annot_dic,
-                                                        annot2color_dic, annot_stacked_bars_plot_out)
+                                                          annot2color_dic, annot_stacked_bars_plot_out)
 
                 plot_path = plots_folder + "/" + annot_stacked_bars_plot
 
@@ -5003,7 +5025,9 @@ is assigned to each input region. "intergenic" feature means no GTF region featu
 
 """ %(combined_id, dataset_id_format, rbp_id, rbp_id)
 
-    # ALAMO
+
+
+
 
     # Convert mdtext to html.
     md2html = markdown(mdtext, extensions=['attr_list', 'tables'])
@@ -5017,6 +5041,77 @@ is assigned to each input region. "intergenic" feature means no GTF region featu
     OUTHTML = open(html_out,"w")
     OUTHTML.write("%s\n" %(html_content))
     OUTHTML.close()
+
+
+################################################################################
+
+def create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, annot2color_dic,
+                                        plot_out):
+    """
+    Do the motif hit genomic region annotations stacked bars plot.
+    Plot all bars in one plot, one for all rbp_id hits, and one for each motif_id hits. 
+    
+    rbp2motif2annot2c_dic:
+        rbp_id -> motif_id -> annot -> annot_c.
+    annot2color_dic:
+        annot -> hex color for plotting.
+
+    """
+    # Determine height of plot.
+    c_height = 1  # rbp_id plot is set.
+    motifs_ids_with_hits = []
+    for motif_id in rbp2motif2annot2c_dic[rbp_id]:
+        if rbp2motif2annot2c_dic[rbp_id][motif_id]:
+            motifs_ids_with_hits.append(motif_id)
+            c_height += 1
+
+    fheight = 0.8*c_height
+    fwidth = 10
+
+    data_dic = {}
+    # First sum up all annotations for rbp_id.
+    for motif_id in motifs_ids_with_hits:
+        for annot in rbp2motif2annot2c_dic[rbp_id][motif_id]:
+            annot_c = rbp2motif2annot2c_dic[rbp_id][motif_id][annot]
+            if annot not in data_dic:
+                data_dic[annot] = [annot_c]
+            else:
+                data_dic[annot][0] += annot_c
+
+    # Now for the single motif IDs.
+    for motif_id in motifs_ids_with_hits:
+        for annot in data_dic:
+            if annot in rbp2motif2annot2c_dic[rbp_id][motif_id]:
+                annot_c = rbp2motif2annot2c_dic[rbp_id][motif_id][annot]
+                data_dic[annot].append(annot_c)
+            else:
+                data_dic[annot].append(0)
+
+    data_dic["rbp_id"] = [rbp_id]
+    for motif_id in motifs_ids_with_hits:
+        data_dic["rbp_id"].append(motif_id)
+
+    df = pd.DataFrame(data_dic)
+
+    ax = df.set_index('rbp_id').plot(kind='barh', stacked=True, legend=False, color=annot2color_dic, edgecolor="none", figsize=(fwidth, fheight))
+
+    plt.xlabel('Annotation overlap')
+    ax.set_ylabel('')
+    ax.yaxis.grid(False)
+    ax.xaxis.grid(True)
+    ax.set_axisbelow(True)
+
+    # Remove border lines.
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+
+    # plt.legend(loc=(1.01, 0.4), fontsize=12, framealpha=0)
+    # plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.5)
+    plt.legend(bbox_to_anchor=(1.01, 1), loc='upper left')
+
+    plt.savefig(plot_out, dpi=110, bbox_inches='tight')
+    plt.close()
 
 
 ################################################################################
@@ -5219,7 +5314,8 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 motif_distance_plot_range=50,
                                 motif_min_pair_count=10,
                                 rbp_min_pair_count=10,
-                                reg2annot_dic=None,
+                                reg2annot_dic=False,
+                                annot2color_dic=False,
                                 upset_plot_min_degree=2,
                                 upset_plot_max_degree=None,
                                 upset_plot_min_subset_size=10,
@@ -5359,7 +5455,7 @@ by RBPBench (rbpbench search --report):
         mdtext += "- [Input sequence length distribution](#seq-len-plot)\n"
 
     # Additional plot if GTF annotations given.
-    if reg2annot_dic is not None:
+    if reg2annot_dic:
         mdtext += "- [Region annotations per RBP](#annot-rbp-plot)\n"
 
     # Upset plot.
@@ -5618,7 +5714,7 @@ and length quartiles (q1: 25th percentile, q3: 75th percentile).
 
     """
 
-    if reg2annot_dic is not None:
+    if reg2annot_dic:
 
         annot_stacked_bars_plot =  "annotation_stacked_bars_plot.png"
         annot_stacked_bars_plot_out = plots_out_folder + "/" + annot_stacked_bars_plot
@@ -5639,6 +5735,7 @@ No plot generated since no motif hits found in input regions.
 
             create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
                                                        plot_out=annot_stacked_bars_plot_out,
+                                                       annot2color_dic=annot2color_dic,
                                                        add_all_reg_bar=add_all_reg_bar)
 
             plot_path = plots_folder + "/" + annot_stacked_bars_plot
@@ -6359,13 +6456,14 @@ def plot_motif_dist_motif_level(set_motif_id,
 ################################################################################
 
 def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
-                                  reg2annot_dic=None,
+                                  reg2annot_dic=False,
                                   min_degree=2,
                                   max_degree=None,
                                   min_subset_size=10,
                                   max_subset_rank=25,
                                   min_rbp_count=0,
                                   max_rbp_rank=None,
+                                  annot2color_dic=False,
                                   plot_out="rbp_region_occupancies.upset_plot.png"):
     """
     Create upset plot for RBP region occupancies.
@@ -6465,7 +6563,7 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
     https://upsetplot.readthedocs.io/en/latest/auto_examples/plot_discrete.html
     """
 
-    if reg2annot_dic is not None:
+    if reg2annot_dic:
         assert len(reg2annot_dic) == c_regions, "len(reg2annot_dic) != c_regions"
         # List of annotations.
         annot_ids_list = []
@@ -6480,36 +6578,37 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
 
         # df = df.sort_values('annot', ascending=False) # Sorting does not change plot.
 
-        # Get annotation ID -> hex color dictionary.
-        annot2color_dic = {}
+        if not annot2color_dic:
 
-        # ALAMO colors for all annot.
-        # Get all annotation IDs in dataset.
-        annot_dic = {}
-        for reg_id in reg2annot_dic:
-            annot = reg2annot_dic[reg_id][0]
-            if annot not in annot_dic:
-                annot_dic[annot] = 1
-            else:
-                annot_dic[annot] += 1
+            # Get annotation ID -> hex color dictionary.
+            annot2color_dic = {}
+
+            # Get all annotation IDs in dataset.
+            annot_dic = {}
+            for reg_id in reg2annot_dic:
+                annot = reg2annot_dic[reg_id][0]
+                if annot not in annot_dic:
+                    annot_dic[annot] = 1
+                else:
+                    annot_dic[annot] += 1
 
 
-        # hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
-        hex_colors = get_hex_colors_list(min_len=len(annot_dic))
+            # hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
+            hex_colors = get_hex_colors_list(min_len=len(annot_dic))
 
-        idx = 0
-        for annot in sorted(annot_dic, reverse=False):
-            # hc = hex_colors[idx]
-            # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
-            annot2color_dic[annot] = hex_colors[idx]
-            idx += 1
+            idx = 0
+            for annot in sorted(annot_dic, reverse=False):
+                # hc = hex_colors[idx]
+                # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
+                annot2color_dic[annot] = hex_colors[idx]
+                idx += 1
 
-        # idx = 0
-        # for annot in sorted(annot_with_hits_dic, reverse=False):
-        #     # hc = hex_colors[idx]
-        #     # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
-        #     annot2color_dic[annot] = hex_colors[idx]
-        #     idx += 1
+            # idx = 0
+            # for annot in sorted(annot_with_hits_dic, reverse=False):
+            #     # hc = hex_colors[idx]
+            #     # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
+            #     annot2color_dic[annot] = hex_colors[idx]
+            #     idx += 1
         
         # Set indices (== RBP ID columns).
         df = df.set_index(rbp_id_list)
@@ -6549,6 +6648,7 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
 
 def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
                                                plot_out="annotation_stacked_bars_plot.png",
+                                               annot2color_dic=False,
                                                add_all_reg_bar=True,
                                                all_regions_id="All"):
     """
@@ -6632,17 +6732,18 @@ def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg
     # print("df:")
     # print(df)
 
-    # Get annotation ID -> hex color mapping for plotting.
-    annot2color_dic = {}
+    if not annot2color_dic:
+        # Get annotation ID -> hex color mapping for plotting.
+        annot2color_dic = {}
 
-    # ALAMO Colors for all annotations.
-    hex_colors = get_hex_colors_list(min_len=len(annot_dic))
-    # hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
+        # ALAMO Colors for all annotations.
+        hex_colors = get_hex_colors_list(min_len=len(annot_dic))
+        # hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
 
-    idx = 0
-    for annot in sorted(annot_dic, reverse=False):
-        annot2color_dic[annot] = hex_colors[idx]
-        idx += 1
+        idx = 0
+        for annot in sorted(annot_dic, reverse=False):
+            annot2color_dic[annot] = hex_colors[idx]
+            idx += 1
 
     # idx = 0^
     # for annot in sorted(annot_with_hits_dic, reverse=False):
@@ -6988,6 +7089,8 @@ def search_generate_html_motif_plots(search_rbps_dic,
                                      seq_motif_blocks_dic, str_motif_blocks_dic,
                                      out_folder, benchlib_path, motif2db_dic,
                                      motif_db_str=False,
+                                     rbp2motif2annot2c_dic=False,
+                                     annot2color_dic=False,
                                      regex_id="regex",
                                      html_report_out="motif_plots.rbpbench_search.html",
                                      plot_abs_paths=False,
@@ -7108,6 +7211,14 @@ by RBPBench (rbpbench %s --plot-motifs):
     for rbp_id, rbp in sorted(search_rbps_dic.items()):
         tab_id = motif_plot_ids_dic[rbp_id]
 
+        # Count number of total motif hits for RBP.
+        c_total_rbp_hits = 0
+
+        for idx, motif_id in enumerate(rbp.seq_motif_ids):
+            c_total_rbp_hits += rbp.seq_motif_hits[idx]
+        for idx, motif_id in enumerate(rbp.str_motif_ids):
+            c_total_rbp_hits += rbp.str_motif_hits[idx]
+
         # RBP has sequence motifs?
         if rbp.seq_motif_ids and rbp_id != regex_id:
             mdtext += """
@@ -7125,7 +7236,7 @@ RBP "%s" sequence motif plots.
             mdtext += """
 ## %s motifs ### {#%s}
 
-Motif ID / Regex: %s. Number of motif hits in supplied genomic regions: %i.
+Motif ID / Regex: "%s". Number of motif hits in supplied genomic regions: %i.
 
 """ %(rbp_id, tab_id, motif_id, c_motif_hits)
 
@@ -7136,6 +7247,35 @@ Motif ID / Regex: %s. Number of motif hits in supplied genomic regions: %i.
 RBP "%s" only contains structure motifs, which are currently not available for plotting.
 
 """ %(rbp_id, tab_id, rbp_id)
+
+
+        # AALAMO motif annot: move to searchlong.
+
+        # If there are motif hit region annotations and hits for the RBP.
+        if rbp2motif2annot2c_dic and c_total_rbp_hits:
+
+            assert annot2color_dic, "given rbp2motif2annot2c_dic but annot2color_dic is empty"
+
+            annot_stacked_bars_plot =  "annotation_stacked_bars_plot.%s.png" %(rbp_id)
+            annot_stacked_bars_plot_out = plots_out_folder + "/" + annot_stacked_bars_plot
+
+            create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, annot2color_dic,
+                                                annot_stacked_bars_plot_out)
+
+            plot_path = plots_folder + "/" + annot_stacked_bars_plot
+
+            mdtext += '<img src="' + plot_path + '" alt="Annotation stacked bars plot"' + "\n"
+            # mdtext += 'title="Annotation stacked bars plot" width="800" />' + "\n"
+            mdtext += 'title="Annotation stacked bars plot" />' + "\n"
+            mdtext += """
+**Figure:** Genomic annotations for RBP "%s" motif hits.
+Genomic motif hit regions are overlapped with genomic regions from GTF file and genomic region feature with highest overlap
+is assigned to each motif hit region. "intergenic" feature means no GTF region features overlap with motif hit region.
+Genomic annotations are shown for all motifs of RBP "%s", as well as for the single motifs.
+
+&nbsp;
+
+""" %(rbp_id, rbp_id)
 
         if rbp_id == regex_id:
             continue
