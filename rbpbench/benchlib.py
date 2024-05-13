@@ -1905,6 +1905,201 @@ def get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e,
 
 ################################################################################
 
+def get_transcript_sequences_from_gtf(tid2tio_dic, in_genome_fasta,
+                                      tr_ids_dic=False,
+                                      tmp_out_folder=False):
+    """
+    Given tid2tio_dic, extract transcript sequences from genome FASTA file.
+    
+    Return dictionary with transcript ID -> sequence mapping.
+
+    tr_ids_dic:
+        Defines transcript IDs for which sequences should be extracted.
+    
+    """
+
+    assert tid2tio_dic, "given tid2tio_dic empty"
+
+    tr_seqs_dic = {}
+
+    tids_to_extract = []
+    if tr_ids_dic:
+        tids_to_extract = list(tr_ids_dic.keys())
+    else:
+        for tid in tid2tio_dic:
+            tids_to_extract.append(tr_id)
+    
+
+    # Generate .tmp files.
+    tmp_bed = "exon_regions.tmp.bed"
+    tmp_fa = "exon_regions.tmp.fa"
+    if tmp_out_folder:
+        tmp_bed = tmp_out_folder + "/" + tmp_bed
+        tmp_fa = tmp_out_folder + "/" + tmp_fa
+
+
+    """
+    Output exon regions to BED.
+
+    """
+
+    OUTEXONBED = open(tmp_bed, "w")
+
+    extracted_exon_ids_dic = {}
+
+    for tr_id in tids_to_extract:
+
+        assert tid in tid2tio_dic, "transcript ID \"%s\" not in tid2tio_dic" %(tid)
+        tio = tid2tio_dic[tid]
+
+        chr_id = tio.chr_id
+        tr_pol = tio.tr_pol
+
+        for idx, exon in enumerate(tio.exon_coords):
+            exon_s = exon[0] - 1
+            exon_e = exon[1]
+            idx += 1
+            exon_id = tr_id + "_e" + str(idx)
+            extracted_exon_id = exon_id + "::" + chr_id + ":" + str(exon_s) + "-" + str(exon_e) + "(" + tr_pol + ")"
+            extracted_exon_ids_dic[exon_id] = extracted_exon_id
+
+            OUTEXONBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, exon_s, exon_e, exon_id, tr_pol))
+
+    OUTEXONBED.close()
+
+    """
+    Get exon region sequences from genome FASTA.
+
+    chr6	113868012	113873351	mrocki_201	0	-
+    -name option allows to keep the BED name field in the FASTA header.
+    Unfortunately additional crap is added as well to the header (no matter what option,
+    -name, nameOnly ...)
+    >mrocki_201::chr6:113868012-113873351(-)
+    
+    """
+
+    bed_extract_sequences_from_fasta(tmp_bed, in_genome_fasta, tmp_fa,
+                                     add_param="-name",
+                                     print_warnings=False,
+                                     ignore_errors=False)
+
+    exon_seqs_dic = read_fasta_into_dic(tmp_fa,
+                                        dna=True,
+                                        all_uc=True,
+                                        skip_n_seqs=False)
+
+    """
+    Concatenate exon region sequences to transcript sequences.
+
+    """
+
+    for tr_id in tids_to_extract:
+        ex_c = tid2tio_dic[tr_id].exon_c
+
+        for i in range(ex_c):
+            i += 1
+            ex_id = tr_id + "_e" + str(i)
+            extr_ex_id = extracted_exon_ids_dic[ex_id]
+
+            if extr_ex_id in exon_seqs_dic:
+                ex_seq = exon_seqs_dic[extr_ex_id]
+                if tr_id not in tr_seqs_dic:
+                    tr_seqs_dic[tr_id] = ex_seq
+                else:
+                    tr_seqs_dic[tr_id] += ex_seq
+            else:
+                print("WARNING: no sequence extracted for exon ID \"%s\". Skipping \"%s\" .. " %(ex_id, tr_id))
+                if tr_id in tr_seqs_dic:
+                    del tr_seqs_dic[tr_id]
+                break
+
+    assert tr_seqs_dic, "tr_seqs_dic empty (no FASTA sequences extracted?)"
+    for tr_id in tr_seqs_dic:
+        tr_len = len(tr_seqs_dic[tr_id])
+        exp_len = tid2tio_dic[tr_id].tr_length
+        assert tr_len == exp_len, "BED transcript length != FASTA transcript length for \"%s\"" %(tr_id)
+
+    # Take out the trash.
+    if os.path.exists(tmp_bed):
+        os.remove(tmp_bed)
+    if os.path.exists(tmp_fa):
+        os.remove(tmp_fa)
+
+    return tr_seqs_dic
+
+
+################################################################################
+
+def output_mrna_regions_to_bed(tid2regl_dic, mrna_regions_bed):
+    """
+    Given dictionary with transcript ID -> list of 5'UTR, CDS, 3'UTR lengths,
+    output the UTR and CDS regions to BED file.
+    
+    """
+
+    assert tid2regl_dic, "given tid2regl_dic empty"
+
+    OUTREGBED = open(mrna_regions_bed, "w")
+
+    for tid in tid2regl_dic:
+        trl = tid2regl_dic[tid]
+        utr5_s = 0
+        utr5_e = trl[0]
+        cds_s = utr5_e
+        cds_e = cds_s + trl[1]
+        utr3_s = cds_e
+        utr3_e = utr3_s + trl[2]
+
+        utr5l = utr5_e - utr5_s
+        cds_l = cds_e - cds_s
+        utr3_l = utr3_e - utr3_s
+
+        if utr5l > 0:
+            OUTREGBED.write("%s\t%i\t%i\t%s;5'UTR\t0\t+\n" % (tid, utr5_s, utr5_e, tid))
+        if cds_l > 0:
+            OUTREGBED.write("%s\t%i\t%i\t%s;CDS\t0\t+\n" % (tid, cds_s, cds_e, tid))
+        if utr3_l > 0:
+            OUTREGBED.write("%s\t%i\t%i\t%s;3'UTR\t0\t+\n" % (tid, utr3_s, utr3_e, tid))
+
+    OUTREGBED.close()
+
+
+################################################################################
+
+def get_mrna_region_lengths(tid2tio_dic):
+    """
+    Given a dictionary of TranscriptInfo objects (tid2tio_dic), calculate
+    5'UTR, CDS, and 3'UTR lengths for each transcript.
+    Return dictionary with transcript ID as key and list of 5'UTR, CDS, 3'UTR
+    lengths as value.
+
+    """
+    tid2regl_dic = {}
+
+    for tid in tid2tio_dic:
+        tio = tid2tio_dic[tid]
+
+        if tio.cds_s is not None:
+            
+            tid2regl_dic[tid] = [0, 0, 0]
+
+            for exon in tio.exon_coords:
+                cds_se, utr5_se, utr3_se, cds, utr5, utr3 = get_cds_exon_overlap(tio.cds_s, tio.cds_e, exon[0], exon[1], strand=tio.tr_pol)
+                if cds:
+                    cds_len = cds_se[1] - cds_se[0] + 1
+                    tid2regl_dic[tid][1] += cds_len
+                if utr5:
+                    utr5_len = utr5_se[1] - utr5_se[0] + 1
+                    tid2regl_dic[tid][0] += utr5_len
+                if utr3:
+                    utr3_len = utr3_se[1] - utr3_se[0] + 1
+                    tid2regl_dic[tid][2] += utr3_len
+
+    return tid2regl_dic
+
+
+################################################################################
+
 def output_exon_annotations(tid2tio_dic, out_bed,
                             custom_annot_dic=None,
                             append=False):
@@ -2165,6 +2360,75 @@ chr1	1980	2020	s1	0	+	chr1	2000	3000	intron	0	+	20
 """
 
 
+
+################################################################################
+
+def get_mrna_region_annotations(overlap_annotations_bed,
+                                reg_ids_dic=None):
+    """
+    Get mRNA region annotations from overlapping motif hit regions with 
+    mRNA region annotations (i.e. 5'UTR, CDS, 3'UTR in transcript context).
+
+    Format of motif hit regions BED file:
+    ENST00000434296.2	1368	1375	HNRNPL,HNRNPL_3;1;method_id,data_id	0	+	10.6566	7.24e-05	-1.0	-1.0
+    ENST00000434296.2	832	840	HNRNPL,HNRNPL_4;1;method_id,data_id	0	+	10.47	8.96e-05	-1.0	-1.0
+    ENST00000434296.2	1432	1440	HNRNPL,HNRNPL_4;1;method_id,data_id	0	+	10.66	7.4e-05	-1.0	-1.0
+
+    reg_ids_dic:
+        If set, compare genomic region IDs with IDs in dictionary. If region ID 
+        from dictionary not in overlap_annotations_bed, set label "intergenic".
+
+    AALAMO
+        
+    """
+
+    assert os.path.exists(overlap_annotations_bed), "file %s does not exist" %(overlap_annotations_bed)
+
+    reg2maxol_dic = {}
+    reg2annot_dic = {}
+    annot_col = 9
+    c_ol_nt_col = 12
+
+    with open(overlap_annotations_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            tr_id = cols[0]
+            motif_hit_s = int(cols[1])
+            motif_hit_e = int(cols[2])
+            motif_hit_id = cols[3]
+            mrna_reg_s = cols[11]
+            mrna_reg_e = cols[12]
+            mrna_reg_id = cols[13]
+            c_overlap_nts = cols[16]
+
+            # motif_hit_id has format: "rbp_id,motif_id;1;method_id,data_id". Extract motif_id from this string.
+            motif_id = motif_hit_id.split(",")[1].split(";")[0]
+            # mrna_reg_id has format: ENST00000434296;3utr. Extract region type from this string.
+            mrna_reg_type = mrna_reg_id.split(";")[1]  # can be: 5'UTR, CDS, 3'UTR
+
+            # ID that identifies motif hit.
+            reg_s = str(motif_hit_s + 1)
+            reg_e = str(motif_hit_e)
+            reg_id = tr_id + ":" + reg_s + "-" + reg_e + "(+)," + motif_id
+
+            if reg_id not in reg2maxol_dic:
+                reg2maxol_dic[reg_id] = c_overlap_nts
+                reg2annot_dic[reg_id] = [mrna_reg_type, tr_id]
+            else:
+                if c_overlap_nts > reg2maxol_dic[reg_id]:
+                    reg2maxol_dic[reg_id] = c_overlap_nts
+                    reg2annot_dic[reg_id][0] = mrna_reg_type
+                    reg2annot_dic[reg_id][1] = tr_id
+    f.closed
+
+    if reg_ids_dic is not None:
+        for reg_id in reg_ids_dic:
+            if reg_id not in reg2annot_dic:
+                reg2annot_dic[reg_id] = ["intergenic", False]
+
+    return reg2annot_dic
+
+
 ################################################################################
 
 def get_hex_colors_list(min_len=0):
@@ -2239,7 +2503,7 @@ def read_ids_into_dic(ids_file,
 
 ################################################################################
 
-def gtf_check_exon_order(in_gtf, check_minus=False):
+def gtf_check_exon_order(in_gtf):
     """
     Check exon_number ordering. Return True if ordering for minus strand
     and plus strand is different (i.e. for minus exon_number 1 is most downstream).
@@ -4239,8 +4503,6 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
         Format: internal_id -> [0, 1, 0, 0, 1] (transcript occupancy list).
     
     """
-
-    # AALAMO
 
     assert id2occ_list_dic, "id2lst_dic empty"
 
