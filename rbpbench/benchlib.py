@@ -1949,8 +1949,8 @@ def get_transcript_sequences_from_gtf(tid2tio_dic, in_genome_fasta,
 
     for tr_id in tids_to_extract:
 
-        assert tid in tid2tio_dic, "transcript ID \"%s\" not in tid2tio_dic" %(tid)
-        tio = tid2tio_dic[tid]
+        assert tr_id in tid2tio_dic, "transcript ID \"%s\" not in tid2tio_dic" %(tr_id)
+        tio = tid2tio_dic[tr_id]
 
         chr_id = tio.chr_id
         tr_pol = tio.tr_pol
@@ -3868,6 +3868,7 @@ class FimoHit(GenomicRegion):
 
 def get_regex_hits(regex, regex_id, seqs_dic,
                    step_size_one=False,
+                   seq_based=False,
                    use_motif_regex_id=False):
     """
     Given a regular expression (regex), get all hits in sequence dictionary.
@@ -3875,6 +3876,10 @@ def get_regex_hits(regex, regex_id, seqs_dic,
 
     use_motif_regex_id:
         If True, store regex_id as motif ID. If False, store regex as motif ID. 
+
+    seq_based:
+        If true, input to regex search was sequences, so use coordinates as they are (not genomic + relative).
+        Also seq_name is the sequence ID, and does not have to have format like "chr6:35575787-35575923(-)"
 
     ALAMO
 
@@ -3899,21 +3904,38 @@ def get_regex_hits(regex, regex_id, seqs_dic,
             end = hit_info[1]  # 1-based.
             matched_seq = hit_info[2]  # matched sequence.
 
-            gen_motif_coords = get_genomic_coords_from_seq_name(seq_name, start, end,
-                                                                one_based_start=True)
+            if seq_based:
 
-            regex_hit = FimoHit(chr_id=gen_motif_coords[0], 
-                            start=gen_motif_coords[1], 
-                            end=gen_motif_coords[2],
-                            strand=gen_motif_coords[3], 
-                            score=0.0, 
-                            motif_id=motif_id, 
-                            seq_name=seq_name, 
-                            pval=0.0, 
-                            qval=0.0,
-                            seq_s=start+1,
-                            seq_e=end,
-                            matched_seq=matched_seq)
+                regex_hit = FimoHit(chr_id=seq_name, 
+                                start=start+1, 
+                                end=end,
+                                strand="+", 
+                                score=0.0, 
+                                motif_id=motif_id, 
+                                seq_name=seq_name, 
+                                pval=0.0, 
+                                qval=0.0,
+                                seq_s=start+1,
+                                seq_e=end,
+                                matched_seq=matched_seq)
+
+            else:
+
+                gen_motif_coords = get_genomic_coords_from_seq_name(seq_name, start, end,
+                                                                    one_based_start=True)
+
+                regex_hit = FimoHit(chr_id=gen_motif_coords[0], 
+                                start=gen_motif_coords[1], 
+                                end=gen_motif_coords[2],
+                                strand=gen_motif_coords[3], 
+                                score=0.0, 
+                                motif_id=motif_id, 
+                                seq_name=seq_name, 
+                                pval=0.0, 
+                                qval=0.0,
+                                seq_s=start+1,
+                                seq_e=end,
+                                matched_seq=matched_seq)
 
             regex_hits_list.append(regex_hit)
 
@@ -5315,6 +5337,87 @@ is assigned to each input region. "intergenic" feature means no GTF region featu
 
 ################################################################################
 
+def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic, 
+                                annot2color_dic, plot_out,
+                                rbp_id=False):
+    """
+    Create mRNA region occupancy stacked line plot for rbp_id and associated 
+    motif IDs.
+    
+    mrna_reg_occ_dic:
+        mRNA region occupancy dictionary for rbp_id and motif IDs.
+        rbp_id/motif_id -> mrna_region -> positional counts list
+
+    motif_ids_list:
+        List of motif IDs to plot mRNA occupancy profiles for.
+
+    AALAMO.
+
+    """
+
+    datasets = {}
+    if rbp_id and len(motif_ids_list) > 1:
+        datasets[rbp_id] = mrna_reg_occ_dic[rbp_id]
+    for motif_id in motif_ids_list:
+        datasets[motif_id] = mrna_reg_occ_dic[motif_id]
+
+    # Number of datasets
+    num_datasets = len(datasets)
+
+    # Create a figure and subplots
+    fig, axs = plt.subplots(nrows=num_datasets, sharex=True, figsize=(12, 2 * num_datasets))
+
+    # Check if axs is an array or not (not if there's only one subplot).
+    if num_datasets == 1:
+        axs = [axs]
+
+    utr5color = annot2color_dic["5'UTR"]
+    cds_color = annot2color_dic["CDS"]
+    utr3color = annot2color_dic["3'UTR"]
+
+    # Plot each dataset
+    for ax, (label, data) in zip(axs, datasets.items()):
+
+        # Concatenate data for plotting
+        all_counts = data["5'UTR"] + data["CDS"] + data["3'UTR"]
+        x_positions = np.arange(len(all_counts))
+        
+        # Fill the area under the line for each region with different colors
+        ax.fill_between(x_positions[:len(data["5'UTR"])+1], all_counts[:len(data["5'UTR"])+1], color=utr5color, alpha=1, zorder=3)
+        ax.fill_between(x_positions[len(data["5'UTR"]):len(data["5'UTR"]) + len(data["CDS"])+1], all_counts[len(data["5'UTR"]):len(data["5'UTR"]) + len(data["CDS"])+1], color=cds_color, alpha=1, zorder=3)
+        ax.fill_between(x_positions[-len(data["3'UTR"]):], all_counts[-len(data["3'UTR"]):], color=utr3color, alpha=1, zorder=3)
+        
+        # Use dataset ID as y-axis label
+        # label_y = label + ' motif coverage'
+        ax.set_ylabel(label)
+
+        # Remove x-axis ticks for each subplot
+        ax.set_xticks([])
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+
+        # Enable horizontal grid lines in light gray
+        ax.grid(axis='y', color='lightgray', linestyle='-', linewidth=0.7, zorder=1)
+
+    # Set common x-axis label
+    axs[-1].set_xlabel('mRNA regions')
+
+    # Create a single legend for all plots, positioned more optimally
+    fig.legend(['5\'UTR', 'CDS', '3\'UTR'], loc='upper right', bbox_to_anchor=(0.975, 0.975))
+
+    # Reduce padding and adjust subplots to fit the layout, minimizing vertical space
+    plt.subplots_adjust(left=0.08, right=0.9, top=0.95, bottom=0.05, hspace=0.1)  # Adjusted hspace here
+
+    # # Show plot
+    # plt.show()
+
+    plt.savefig(plot_out, dpi=110, bbox_inches='tight')
+    plt.close()
+
+
+################################################################################
+
 def create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, annot2color_dic,
                                         plot_out):
     """
@@ -5335,6 +5438,10 @@ def create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, annot2col
             motifs_ids_with_hits.append(motif_id)
             c_height += 1
 
+    # If only one motif, just plot the RBP.
+    if len(motifs_ids_with_hits) == 1:
+        c_height = 1
+
     fheight = 0.8*c_height
     fwidth = 10
 
@@ -5349,17 +5456,20 @@ def create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, annot2col
                 data_dic[annot][0] += annot_c
 
     # Now for the single motif IDs.
-    for motif_id in motifs_ids_with_hits:
-        for annot in data_dic:
-            if annot in rbp2motif2annot2c_dic[rbp_id][motif_id]:
-                annot_c = rbp2motif2annot2c_dic[rbp_id][motif_id][annot]
-                data_dic[annot].append(annot_c)
-            else:
-                data_dic[annot].append(0)
+    if len(motifs_ids_with_hits) > 1:
+        for motif_id in motifs_ids_with_hits:
+            for annot in data_dic:
+                if annot in rbp2motif2annot2c_dic[rbp_id][motif_id]:
+                    annot_c = rbp2motif2annot2c_dic[rbp_id][motif_id][annot]
+                    data_dic[annot].append(annot_c)
+                else:
+                    data_dic[annot].append(0)
 
-    data_dic["rbp_id"] = [rbp_id]
-    for motif_id in motifs_ids_with_hits:
-        data_dic["rbp_id"].append(motif_id)
+        data_dic["rbp_id"] = [rbp_id]
+        for motif_id in motifs_ids_with_hits:
+            data_dic["rbp_id"].append(motif_id)
+    else:
+        data_dic["rbp_id"] = [motifs_ids_with_hits[0]]
 
     df = pd.DataFrame(data_dic)
     # Reverse plotting order for bars.
@@ -7363,6 +7473,8 @@ def search_generate_html_motif_plots(search_rbps_dic,
                                      motif_db_str=False,
                                      rbp2motif2annot2c_dic=False,
                                      annot2color_dic=False,
+                                     mrna_reg_occ_dic=False,
+                                     norm_mrna_reg_dic=False,
                                      regex_id="regex",
                                      html_report_out="motif_plots.rbpbench_search.html",
                                      plot_abs_paths=False,
@@ -7486,14 +7598,20 @@ by RBPBench (rbpbench %s --plot-motifs):
         # Count number of total motif hits for RBP.
         c_total_rbp_hits = 0
 
+        motif_ids_list = []
+
         for idx, motif_id in enumerate(rbp.seq_motif_ids):
             c_total_rbp_hits += rbp.seq_motif_hits[idx]
+            motif_ids_list.append(motif_id)
         for idx, motif_id in enumerate(rbp.str_motif_ids):
             c_total_rbp_hits += rbp.str_motif_hits[idx]
+            motif_ids_list.append(motif_id)
 
         seq_motif_info = "RBP \"%s\" sequence motif plots." %(rbp_id)
         if rbp2motif2annot2c_dic and c_total_rbp_hits:
             seq_motif_info = "RBP \"%s\" sequence motif plots and genomic region annotations for motif hits." %(rbp_id)
+        if mrna_reg_occ_dic and c_total_rbp_hits:
+            seq_motif_info = "RBP \"%s\" sequence motif plots and mRNA region annotations for motif hits." %(rbp_id)
 
         # RBP has sequence motifs?
         if rbp.seq_motif_ids and rbp_id != regex_id:
@@ -7524,6 +7642,36 @@ RBP "%s" only contains structure motifs, which are currently not available for p
 
 """ %(rbp_id, tab_id, rbp_id)
 
+        # If mRNA annotations given via mrna_reg_occ_dic.
+        if mrna_reg_occ_dic and c_total_rbp_hits:
+
+            assert annot2color_dic, "given mrna_reg_occ_dic but annot2color_dic is empty"
+
+            mrna_occ_stacked_plot =  "mRNA_region_occ_stacked_plot.%s.png" %(rbp_id)
+            mrna_occ_stacked_plot_out = plots_out_folder + "/" + mrna_occ_stacked_plot
+
+            # AALAMO
+            create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic, 
+                                        annot2color_dic, mrna_occ_stacked_plot_out,
+                                        rbp_id=rbp_id)
+
+            plots_path = plots_folder + "/" + mrna_occ_stacked_plot
+
+            mdtext += '<img src="' + plots_path + '" alt="mRNA region occupancy stacked plot"' + "\n"
+            mdtext += 'title="mRNA region occupancy stacked plot" />' + "\n"
+            mdtext += """
+**Figure:** mRNA region motif hit coverage profiles for RBP "%s" motif hits.
+Motif hit coverage profiles are shown for all motifs of RBP "%s" combined, as well as single motifs (unless there is only one motif)
+, over 5'UTR, CDS, and 3'UTR regions of mRNA.
+x-axis is the motif hit coverage, i.e., how many motif hits found over the mRNA regions. 
+mRNA region lengths used for plotting are the %s region lengths obtained from the GTF file (5'UTR = %i, CDS = %i, 3'UTR = %i).
+Number of mRNA sequences used for prediction and plot generation: %i.
+
+&nbsp;
+
+""" %(rbp_id, rbp_id, norm_mrna_reg_dic["mode"], norm_mrna_reg_dic["5'UTR"], norm_mrna_reg_dic["CDS"], norm_mrna_reg_dic["3'UTR"], norm_mrna_reg_dic["c_mrna_seqs"])
+
+
         # If there are motif hit region annotations and hits for the RBP.
         if rbp2motif2annot2c_dic and c_total_rbp_hits:
 
@@ -7532,6 +7680,7 @@ RBP "%s" only contains structure motifs, which are currently not available for p
             annot_stacked_bars_plot =  "annotation_stacked_bars_plot.%s.png" %(rbp_id)
             annot_stacked_bars_plot_out = plots_out_folder + "/" + annot_stacked_bars_plot
 
+            # AALAMO adjust figure text for single motif RBPs.
             create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, annot2color_dic,
                                                 annot_stacked_bars_plot_out)
 
@@ -7544,7 +7693,7 @@ RBP "%s" only contains structure motifs, which are currently not available for p
 **Figure:** Genomic region annotations for RBP "%s" motif hits.
 Genomic motif hit regions are overlapped with genomic regions from GTF file and genomic region feature with highest overlap
 is assigned to each motif hit region. "intergenic" feature means no GTF region features overlap with motif hit region.
-Genomic annotations are shown for all motifs of RBP "%s", as well as for the single motifs.
+Genomic annotations are shown for all motifs of RBP "%s" combined, as well as for the single motifs (unless there is only one motif).
 
 &nbsp;
 
