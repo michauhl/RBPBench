@@ -2286,6 +2286,64 @@ IG_pseudogene	1
 
 ################################################################################
 
+def get_motif_hit_region_annotations(overlap_annotations_bed):
+    """
+    Get motif hit region annotations from overlap_annotations_bed. This file 
+    was produced using intersectBed -wao, so also motif hit regions that do not
+    overlap with genomic regions are present in the file.
+    motif hit region id format: HNRNPL,HNRNPL_1;1;method_id,data_id
+    genomic annotation region id format: intron;ENST00000434296
+    
+    """
+
+    assert os.path.exists(overlap_annotations_bed), "file %s does not exist" %(overlap_annotations_bed)
+
+    reg2maxol_dic = {}
+    reg2annot_dic = {}
+    # These shift since motif hits BED contains additional (4) p-value and score columns.
+    annot_col = 13
+    c_ol_nt_col = 16
+
+    with open(overlap_annotations_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+
+            chr_id = cols[0]
+            reg_s = str(int(cols[1]) + 1)
+            reg_e = cols[2]
+            reg_id = cols[3]
+            reg_strand = cols[5]
+
+            # col[3] has format: "rbp_id,motif_id;1;method_id,data_id". Extract motif_id from this string.
+            motif_id = reg_id.split(",")[1].split(";")[0]
+            reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + reg_strand + ")," + motif_id
+
+            annot_id = "intergenic"
+            tr_id = False
+
+            if cols[annot_col] != ".":
+                annot_ids = cols[annot_col].split(";")
+                assert len(annot_ids) == 2, "len(annot_ids) != 2 (expected ; separated string, but got: \"%s\")" %(cols[9])
+                annot_id = annot_ids[0]
+                tr_id = annot_ids[1]
+
+            c_overlap_nts = cols[c_ol_nt_col]
+
+            if reg_id not in reg2maxol_dic:
+                reg2maxol_dic[reg_id] = c_overlap_nts
+                reg2annot_dic[reg_id] = [annot_id, tr_id]
+            else:
+                if c_overlap_nts > reg2maxol_dic[reg_id]:
+                    reg2maxol_dic[reg_id] = c_overlap_nts
+                    reg2annot_dic[reg_id][0] = annot_id
+                    reg2annot_dic[reg_id][1] = tr_id
+    f.closed
+
+    return reg2annot_dic
+
+
+################################################################################
+
 def get_region_annotations(overlap_annotations_bed,
                            motif_hits=False,
                            reg_ids_dic=None):
@@ -3118,6 +3176,31 @@ def bed_extend_bed(in_bed, out_bed,
 
 ################################################################################
 
+def bed_read_chr_ids_dic(in_bed):
+    """
+    Read in chromosome IDs from BED file.
+    Mapping is chromosome ID -> row count.
+
+    """
+
+    chr_ids_dic = {}
+
+    with open(in_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            chr_id = cols[0]
+            if chr_id in chr_ids_dic:
+                chr_ids_dic[chr_id] += 1
+            else:
+                chr_ids_dic[chr_id] = 1
+
+    f.closed
+
+    return chr_ids_dic
+
+
+################################################################################
+
 def bed_read_rows_into_dic(in_bed, to_list=False):
     """
     Read in .bed file rows into dictionary.
@@ -3227,6 +3310,8 @@ def bed_filter_extend_bed(in_bed, out_bed,
                           chr_ids_dic=None,
                           bed_chr_ids_dic=None,
                           use_region_ids=False,
+                          chr_len_dic=False,
+                          transcript_sites=False,
                           unstranded=False):
     """
     Filter / extend in_bed BED file, output to out_bed.
@@ -3242,6 +3327,10 @@ def bed_filter_extend_bed(in_bed, out_bed,
         input region, two output regions are generated.
     reg2sc_dic:
         region ID -> column score_col BED score
+    transcript_sites:
+        If transcript sites, just use first three columns.
+    chr_len_dic:
+        Provide transcript lengths for each chromosome, to extend not beyond ends.
 
     """
 
@@ -3263,11 +3352,22 @@ def bed_filter_extend_bed(in_bed, out_bed,
             chr_id = cols[0]
             reg_s = int(cols[1])
             reg_e = int(cols[2])
-            reg_id = cols[3]
-            reg_sc = float(cols[score_col-1])
-            reg_pol = cols[5]
+            reg_id = "-"
+            reg_sc = 0
+            reg_pol = "+"
 
-            assert len(cols) >= score_col, "given score column for --in BED file out of range (# columns = %i, set score column = %i)" %(len(cols), score_col)
+            # If input regions are transcript sites, we just need first three columns.
+            if transcript_sites:
+                reg_id = "%s:%i-%i" %(chr_id, reg_s, reg_e)
+                reg_sc = 0
+                reg_pol = "+"
+            else:
+                # If not transcript sites (usual case, e.g. with rbpbench search).
+                reg_id = cols[3]
+                reg_sc = float(cols[score_col-1])
+                reg_pol = cols[5]
+
+                assert len(cols) >= score_col, "given score column for --in BED file out of range (# columns = %i, set score column = %i)" %(len(cols), score_col)
 
             c_in += 1
 
@@ -3296,9 +3396,15 @@ def bed_filter_extend_bed(in_bed, out_bed,
 
                 # Extend (use + region style extension for both).
                 new_s = reg_s - ext_up
+                new_e = reg_e + ext_down
+                # Bound checks.
                 if new_s < 0:
                     new_s = 0
-                new_e = reg_e + ext_down
+                if chr_len_dic:
+                    if chr_id in chr_len_dic:
+                        chr_len = chr_len_dic[chr_id]
+                        if new_e > chr_len:
+                            new_e = chr_len
 
                 if remove_dupl:
                     reg_str = "%s:%i-%i(+)" % (chr_id, new_s, new_e)
@@ -3340,9 +3446,14 @@ def bed_filter_extend_bed(in_bed, out_bed,
                 if reg_pol == "-":
                     new_s = reg_s - ext_down
                     new_e = reg_e + ext_up
-                # Lower bound check.
+                # Bound checks.
                 if new_s < 0:
                     new_s = 0
+                if chr_len_dic:
+                    if chr_id in chr_len_dic:
+                        chr_len = chr_len_dic[chr_id]
+                        if new_e > chr_len:
+                            new_e = chr_len
 
                 if remove_dupl:
                     reg_str = "%s:%i-%i(%s)" % (chr_id, new_s, new_e, reg_pol)
@@ -3993,7 +4104,8 @@ def read_in_fimo_results(fimo_tsv,
     seq_based:
         If true, input to FIMO search was sequences, so use coordinates as they are (not genomic + relative).
         Also seq_name is the sequence ID, and does not have to have format like "chr6:35575787-35575923(-)"
-
+        Note that if prediction is on subsequences of transcripts, seq_based should be False too.
+        
     """
 
     fimo_hits_list = []
@@ -5711,8 +5823,10 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 plotly_js_mode=1,
                                 plotly_embed_style=1,
                                 plotly_full_html=False,
-                                cooc_pval_thr=0.05,
+                                cooc_pval_thr=0.05,  # AALAMO
                                 cooc_pval_mode=1,
+                                rbpbench_mode="search --report",
+                                disable_motif_enrich_table=False,
                                 plots_subfolder="html_report_plots"):
     """
     Create additional hit statistics for selected RBPs, 
@@ -5748,6 +5862,12 @@ def search_generate_html_report(df_pval, pval_cont_lll,
         if rbp2regidx_dic[rbp_id]:
             no_region_hits = False 
             break
+
+    site_type_uc = "Genomic"
+    site_type = "genomic"
+    if rbpbench_mode == "searchrna":
+        site_type_uc = "Transcript"
+        site_type = "transcript"
 
     """
     Setup sorttable.js to make tables in HTML sortable.
@@ -5819,16 +5939,20 @@ def search_generate_html_report(df_pval, pval_cont_lll,
 </html>
 """ %(sorttable_js_html)
 
+    motif_enrich_info = "- [RBP motif enrichment statistics](#rbp-enrich-stats)"
+    if disable_motif_enrich_table:
+        motif_enrich_info = ""
+
     # Markdown part.
     mdtext = """
 
 # Search report
 
 List of available statistics and plots generated
-by RBPBench (rbpbench search --report):
+by RBPBench (rbpbench %s):
 
-- [RBP motif enrichment statistics](#rbp-enrich-stats)
-- [RBP co-occurrences heat map](#cooc-heat-map)"""
+%s
+- [RBP co-occurrences heat map](#cooc-heat-map)""" %(rbpbench_mode, motif_enrich_info)
 
     mdtext += "\n"
 
@@ -5862,19 +5986,21 @@ by RBPBench (rbpbench search --report):
 
     """
 
-    # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
-    wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low p-values mean motif-containing regions have significantly higher scores."
-    wrs_mode_info2 = "higher"
-    if wrs_mode == 2:
-        wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low p-values mean motif-containing regions have significantly lower scores."
-        wrs_mode_info2 = "lower"
-    c_in_regions = 0
-    for rbp_id in search_rbps_dic:
-        c_in_regions += search_rbps_dic[rbp_id].c_hit_reg
-        c_in_regions += search_rbps_dic[rbp_id].c_no_hit_reg      
-        break
+    if not disable_motif_enrich_table:
 
-    mdtext += """
+        # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
+        wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low p-values mean motif-containing regions have significantly higher scores."
+        wrs_mode_info2 = "higher"
+        if wrs_mode == 2:
+            wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low p-values mean motif-containing regions have significantly lower scores."
+            wrs_mode_info2 = "lower"
+        c_in_regions = 0
+        for rbp_id in search_rbps_dic:
+            c_in_regions += search_rbps_dic[rbp_id].c_hit_reg
+            c_in_regions += search_rbps_dic[rbp_id].c_no_hit_reg      
+            break
+
+        mdtext += """
 ## RBP motif enrichment statistics ### {#rbp-enrich-stats}
 
 **Table:** RBP motif enrichment statistics. Given a score for each genomic region (# input regions = %i), 
@@ -5888,70 +6014,68 @@ By default, BED genomic regions input file column 5 is used as the score column 
 
 """ %(c_in_regions, wrs_mode_info1, wrs_mode_info2)
 
+        #     mdtext += """
+        # <table id="table1" class="sortable">
+        # <thead>
+        # <tr>
+        # <th style="text-align: center;" onclick="sortTable('table1', 0, false)">RBP ID</th>
+        # <th style="text-align: center;" onclick="sortTable('table1', 1, true)"># hit regions</th>
+        # <th style="text-align: center;" onclick="sortTable('table1', 2, true)">% hit regions</th>
+        # <th style="text-align: center;" onclick="sortTable('table1', 3, true)"># motif hits</th>
+        # <th style="text-align: center;" onclick="sortTable('table1', 4, true)">p-value</th>
+        # </tr>
+        # </thead>
+        # <tbody>
+        # """
+
+        pval_dic = {}
+        for rbp_id in search_rbps_dic:
+            wc_pval = search_rbps_dic[rbp_id].wc_pval
+            pval_dic[rbp_id] = wc_pval
+
+        # for rbp_id, wc_pval in sorted(pval_dic.items(), key=lambda item: item[1], reverse=False):
+        #     wc_pval_str = convert_sci_not_to_decimal(wc_pval)  # Convert scientific notation to decimal string for sorting to work.
+        #     c_hit_reg = search_rbps_dic[rbp_id].c_hit_reg
+        #     perc_hit_reg = search_rbps_dic[rbp_id].perc_hit_reg
+        #     c_uniq_motif_hits = search_rbps_dic[rbp_id].c_uniq_motif_hits
+        #     mdtext += '<tr>' + "\n"
+        #     mdtext += '<td style="text-align: center;"' + ">%s</td>\n" %(rbp_id)
+        #     mdtext += '<td style="text-align: center;"' + ">%i</td>\n" %(c_hit_reg) 
+        #     mdtext += '<td style="text-align: center;"' + ">%.2f</td>\n" %(perc_hit_reg) 
+        #     mdtext += '<td style="text-align: center;"' + ">%i</td>\n" %(c_uniq_motif_hits) 
+        #     mdtext += '<td style="text-align: center;"' + ">" + str(wc_pval) + "</td>\n"
+        #     mdtext += '</tr>' + "\n"
+
+        mdtext += '| RBP ID | # hit regions | % hit regions | # motif hits | p-value |' + " \n"
+        mdtext += "| :-: | :-: | :-: | :-: | :-: |\n"
+        for rbp_id, wc_pval in sorted(pval_dic.items(), key=lambda item: item[1], reverse=False):
+            wc_pval_str = convert_sci_not_to_decimal(wc_pval)  # Convert scientific notation to decimal string for sorting to work.
+            c_hit_reg = search_rbps_dic[rbp_id].c_hit_reg
+            perc_hit_reg = search_rbps_dic[rbp_id].perc_hit_reg
+            c_uniq_motif_hits = search_rbps_dic[rbp_id].c_uniq_motif_hits
+            mdtext += "| %s | %i | %.2f | %i | %s |\n" %(rbp_id, c_hit_reg, perc_hit_reg, c_uniq_motif_hits, wc_pval)
+        mdtext += "\n&nbsp;\n&nbsp;\n"
+        mdtext += "\nColumn IDs have the following meanings: "
+        mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
+        mdtext += '**# hit regions** -> number of input genomic regions with motif hits (after filtering and optional extension), '
+        mdtext += '**% hit regions** -> percentage of hit regions over all regions (i.e., how many input regions contain >= 1 RBP binding motif), '
+        mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
+        mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
+        mdtext += "\n&nbsp;\n"
+
     #     mdtext += """
-    # <table id="table1" class="sortable">
-    # <thead>
-    # <tr>
-    # <th style="text-align: center;" onclick="sortTable('table1', 0, false)">RBP ID</th>
-    # <th style="text-align: center;" onclick="sortTable('table1', 1, true)"># hit regions</th>
-    # <th style="text-align: center;" onclick="sortTable('table1', 2, true)">% hit regions</th>
-    # <th style="text-align: center;" onclick="sortTable('table1', 3, true)"># motif hits</th>
-    # <th style="text-align: center;" onclick="sortTable('table1', 4, true)">p-value</th>
-    # </tr>
-    # </thead>
-    # <tbody>
+    # </tbody>
+    # </table>
     # """
 
-    pval_dic = {}
-    for rbp_id in search_rbps_dic:
-        wc_pval = search_rbps_dic[rbp_id].wc_pval
-        pval_dic[rbp_id] = wc_pval
-
-    # for rbp_id, wc_pval in sorted(pval_dic.items(), key=lambda item: item[1], reverse=False):
-    #     wc_pval_str = convert_sci_not_to_decimal(wc_pval)  # Convert scientific notation to decimal string for sorting to work.
-    #     c_hit_reg = search_rbps_dic[rbp_id].c_hit_reg
-    #     perc_hit_reg = search_rbps_dic[rbp_id].perc_hit_reg
-    #     c_uniq_motif_hits = search_rbps_dic[rbp_id].c_uniq_motif_hits
-    #     mdtext += '<tr>' + "\n"
-    #     mdtext += '<td style="text-align: center;"' + ">%s</td>\n" %(rbp_id)
-    #     mdtext += '<td style="text-align: center;"' + ">%i</td>\n" %(c_hit_reg) 
-    #     mdtext += '<td style="text-align: center;"' + ">%.2f</td>\n" %(perc_hit_reg) 
-    #     mdtext += '<td style="text-align: center;"' + ">%i</td>\n" %(c_uniq_motif_hits) 
-    #     mdtext += '<td style="text-align: center;"' + ">" + str(wc_pval) + "</td>\n"
-    #     mdtext += '</tr>' + "\n"
-
-    mdtext += '| RBP ID | # hit regions | % hit regions | # motif hits | p-value |' + " \n"
-    mdtext += "| :-: | :-: | :-: | :-: | :-: |\n"
-    for rbp_id, wc_pval in sorted(pval_dic.items(), key=lambda item: item[1], reverse=False):
-        wc_pval_str = convert_sci_not_to_decimal(wc_pval)  # Convert scientific notation to decimal string for sorting to work.
-        c_hit_reg = search_rbps_dic[rbp_id].c_hit_reg
-        perc_hit_reg = search_rbps_dic[rbp_id].perc_hit_reg
-        c_uniq_motif_hits = search_rbps_dic[rbp_id].c_uniq_motif_hits
-        mdtext += "| %s | %i | %.2f | %i | %s |\n" %(rbp_id, c_hit_reg, perc_hit_reg, c_uniq_motif_hits, wc_pval)
-    mdtext += "\n&nbsp;\n&nbsp;\n"
-    mdtext += "\nColumn IDs have the following meanings: "
-    mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
-    mdtext += '**# hit regions** -> number of input genomic regions with motif hits (after filtering and optional extension), '
-    mdtext += '**% hit regions** -> percentage of hit regions over all regions (i.e., how many input regions contain >= 1 RBP binding motif), '
-    mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
-    mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
-    mdtext += "\n&nbsp;\n"
-
-
-
-#     mdtext += """
-# </tbody>
-# </table>
-# """
-
-#     mdtext += "\n&nbsp;\n&nbsp;\n"
-#     mdtext += "\nColumn IDs have the following meanings: "
-#     mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
-#     mdtext += '**# hit regions** -> number of input genomic regions with motif hits (after filtering and optional extension), '
-#     mdtext += '**% hit regions** -> percentage of hit regions over all regions (i.e. how many input regions contain >= 1 RBP binding motif), '
-#     mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
-#     mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
-#     mdtext += "\n&nbsp;\n"
+    #     mdtext += "\n&nbsp;\n&nbsp;\n"
+    #     mdtext += "\nColumn IDs have the following meanings: "
+    #     mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
+    #     mdtext += '**# hit regions** -> number of input genomic regions with motif hits (after filtering and optional extension), '
+    #     mdtext += '**% hit regions** -> percentage of hit regions over all regions (i.e. how many input regions contain >= 1 RBP binding motif), '
+    #     mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
+    #     mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
+    #     mdtext += "\n&nbsp;\n"
 
 
     """
@@ -6019,7 +6143,7 @@ Hover box:
 **3)** p-value: Fisher's exact test p-value (calculated based on contingency table (6) between RBP1 and RBP2). 
 **4)** p-value after filtering: p-value after filtering, i.e., p-value is kept if significant (< %s), otherwise it is set to 1.0.
 **5)** RBPs compaired. 
-**6)** Counts[]: contingency table of co-occurrence counts (i.e., number of genomic regions with/without shared motif hits) between compaired RBPs, 
+**6)** Counts[]: contingency table of co-occurrence counts (i.e., number of %s regions with/without shared motif hits) between compaired RBPs, 
 with format [[A, B], [C, D]], where 
 A: RBP1 AND RBP2, 
 B: NOT RBP1 AND RBP2
@@ -6028,14 +6152,14 @@ D: NOT RBP1 AND NOT RBP2.
 **7)** Mean minimum distance of RBP1 and RBP2 motifs (mean over all regions containing RBP1 + RBP2 motifs). Distances measured from motif center positions.
 **8)** Over all regions containing RBP1 and RBP2 motif pairs, percentage of regions where RBP1 + RBP2 motifs are within %i nt distance (set via --max-motif-dist).
 **9)** Correlation: Pearson correlation coefficient between RBP1 and RBP2.
-Genomic regions are labelled 1 or 0 (RBP motif present or not), resulting in a vector of 1s and 0s for each RBP.
+%s regions are labelled 1 or 0 (RBP motif present or not), resulting in a vector of 1s and 0s for each RBP.
 Correlations are then calculated by comparing vectors for every pair of RBPs.
 **10)** -log10 of p-value after filtering, used for legend coloring. Using p-value after filtering, all non-significant p-values become 0 
 for easier distinction between significant and non-significant co-occurrences.
 
 &nbsp;
 
-""" %(p_val_info, fisher_mode_info, str(cooc_pval_thr), max_motif_dist)
+""" %(p_val_info, fisher_mode_info, str(cooc_pval_thr), site_type, max_motif_dist, site_type_uc)
 
 
     """
@@ -6179,7 +6303,7 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
         mdtext += 'title="RBP region occupancies upset plot" />' + "\n"
         mdtext += """
 
-**Figure:** Upset plot of RBP combinations found in the given set of genomic regions (# of regions = %i). 
+**Figure:** Upset plot of RBP combinations found in the given set of %s regions (# of regions = %i). 
 Intersection size == how often a specific RBP combination is found in the regions dataset.
 For example, if two regions in the input set contain motif hits for RBP1, RBP3, and RBP5, then the RBP combination "RBP1,RBP3,RBP5" will get a count (i.e., Intersection size) of 2.
 Minimum occurrence number for a combination to be reported = %i (command line parameter: --upset-plot-min-subset-size). 
@@ -6187,7 +6311,7 @@ How many RBPs a combination must at least contain to be reported = %i (command l
 Maximum rank of a combination (w.r.t. to its intersection size) to be reported = %i (command line parameter: --upset-plot-max-subset-rank).
 Number of top RBPs included in statistic + plot (ranked by # input regions with hits) = %i (command line parameter: --upset-plot-max-rbp-rank).
 To be included in the statistic + plot, RBPs need to have motif hits in >= %i input regions (command line parameter: --upset-plot-min-rbp-count).
-The numbers on the left side for each RBP tell how many genomic regions have motif hits of the respective RBP. 
+The numbers on the left side for each RBP tell how many %s regions have motif hits of the respective RBP. 
 If a GTF file was given, bar charts become stacked bar charts, showing what GTF annotations the regions overlap with (see legend for region types).
 NOTE that upsetplot currently (v0.9) only supports distinct mode (no intersect or union modes available). 
 In distinct mode, the reported intersection/subset size for a combination is the number of times 
@@ -6197,7 +6321,7 @@ This is why the more RBPs are selected, the smaller intersection sizes typically
 
 &nbsp;
 
-""" %(c_regions, upset_plot_min_subset_size, upset_plot_min_degree, upset_plot_max_subset_rank, upset_plot_nr_included_rbps, upset_plot_min_rbp_count)
+""" %(site_type, c_regions, upset_plot_min_subset_size, upset_plot_min_degree, upset_plot_max_subset_rank, upset_plot_nr_included_rbps, upset_plot_min_rbp_count, site_type)
 
     else:
 
@@ -7479,7 +7603,7 @@ def search_generate_html_motif_plots(search_rbps_dic,
                                      html_report_out="motif_plots.rbpbench_search.html",
                                      plot_abs_paths=False,
                                      sort_js_mode=1,
-                                     rbpbench_mode="search",
+                                     rbpbench_mode="search --plot-motifs",
                                      plots_subfolder="html_motif_plots"):
     """
     Create motif plots for selected RBPs.
@@ -7504,6 +7628,16 @@ def search_generate_html_motif_plots(search_rbps_dic,
     if html_report_out:
         html_out = html_report_out
 
+    site_type_uc = "Genomic"
+    site_type = "genomic"
+    tr_modes = ["searchlongrna", "searchrna --plot-motifs"]
+    seq_modes = ["searchseq --plot-motifs"]
+    if rbpbench_mode in tr_modes:
+        site_type_uc = "Transcript"
+        site_type = "transcript"
+    if rbpbench_mode in seq_modes:
+        site_type_uc = "Sequence"
+        site_type = "sequence"
 
     """
     Setup sorttable.js to make tables in HTML sortable.
@@ -7543,7 +7677,7 @@ def search_generate_html_motif_plots(search_rbps_dic,
 # Motif Plots and Hit Statistics
 
 List of available motif hit statistics and motif plots generated
-by RBPBench (rbpbench %s --plot-motifs):
+by RBPBench (rbpbench %s):
 
 - [Motif hit statistics](#motif-hit-stats)
 """ %(rbpbench_mode)
@@ -7565,9 +7699,9 @@ by RBPBench (rbpbench %s --plot-motifs):
     mdtext += """
 ## Motif hit statistics ### {#motif-hit-stats}
 
-**Table:** RBP motif hit statistics with RBP ID, motif ID, motif database ID (set to "user" if user-supplied motif, otherwise internal database ID), and respective number of motif hits found in supplied genomic regions.
+**Table:** RBP motif hit statistics with RBP ID, motif ID, motif database ID (set to "user" if user-supplied motif, otherwise internal database ID), and respective number of motif hits found in supplied %s regions.
 
-"""
+""" %(site_type)
 
     mdtext += '| &nbsp; RBP ID &nbsp; | &nbsp; Motif ID &nbsp; | Motif database | # motif hits |' + " \n"
     mdtext += "| :-: | :-: | :-: | :-: |\n"
@@ -7585,7 +7719,7 @@ by RBPBench (rbpbench %s --plot-motifs):
     mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
     mdtext += "**Motif ID** -> Motif ID from database or user-defined, "
     mdtext += "**Motif database** -> Motif database used for search run, "
-    mdtext += '**# motif hits** -> number of individual motif hits (i.e., hits for motif with motif ID).' + "\n"
+    mdtext += '**# motif hits** -> number of unique individual motif hits (i.e., unique hits for motif with motif ID).' + "\n"
 
     """
     Motif plots.
@@ -7609,7 +7743,7 @@ by RBPBench (rbpbench %s --plot-motifs):
 
         seq_motif_info = "RBP \"%s\" sequence motif plots." %(rbp_id)
         if rbp2motif2annot2c_dic and c_total_rbp_hits:
-            seq_motif_info = "RBP \"%s\" sequence motif plots and genomic region annotations for motif hits." %(rbp_id)
+            seq_motif_info = "RBP \"%s\" sequence motif plots and %s region annotations for motif hits." %(rbp_id, site_type)
         if mrna_reg_occ_dic and c_total_rbp_hits:
             seq_motif_info = "RBP \"%s\" sequence motif plots and mRNA region annotations for motif hits." %(rbp_id)
 
@@ -7630,9 +7764,9 @@ by RBPBench (rbpbench %s --plot-motifs):
             mdtext += """
 ## %s motifs ### {#%s}
 
-Motif ID / Regex: "%s". Number of motif hits in supplied genomic regions: %i.
+Motif ID / Regex: "%s". Number of unique motif hits in supplied %s regions: %i.
 
-""" %(rbp_id, tab_id, motif_id, c_motif_hits)
+""" %(rbp_id, tab_id, motif_id, site_type, c_motif_hits)
 
         else:
             mdtext += """
@@ -7650,7 +7784,6 @@ RBP "%s" only contains structure motifs, which are currently not available for p
             mrna_occ_stacked_plot =  "mRNA_region_occ_stacked_plot.%s.png" %(rbp_id)
             mrna_occ_stacked_plot_out = plots_out_folder + "/" + mrna_occ_stacked_plot
 
-            # AALAMO
             create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic, 
                                         annot2color_dic, mrna_occ_stacked_plot_out,
                                         rbp_id=rbp_id)
@@ -7661,8 +7794,7 @@ RBP "%s" only contains structure motifs, which are currently not available for p
             mdtext += 'title="mRNA region occupancy stacked plot" />' + "\n"
             mdtext += """
 **Figure:** mRNA region motif hit coverage profiles for RBP "%s" motif hits.
-Motif hit coverage profiles are shown for all motifs of RBP "%s" combined, as well as single motifs (unless there is only one motif)
-, over 5'UTR, CDS, and 3'UTR regions of mRNA.
+Motif hit coverage profiles are shown for all motifs of RBP "%s" combined, as well as single motifs (unless there is only one motif), over 5'UTR, CDS, and 3'UTR regions of mRNA.
 x-axis is the motif hit coverage, i.e., how many motif hits found over the mRNA regions. 
 mRNA region lengths used for plotting are the %s region lengths obtained from the GTF file (5'UTR = %i, CDS = %i, 3'UTR = %i).
 Number of mRNA sequences used for prediction and plot generation: %i.
@@ -7691,13 +7823,13 @@ Number of mRNA sequences used for prediction and plot generation: %i.
             mdtext += 'title="Annotation stacked bars plot" />' + "\n"
             mdtext += """
 **Figure:** Genomic region annotations for RBP "%s" motif hits.
-Genomic motif hit regions are overlapped with genomic regions from GTF file and genomic region feature with highest overlap
+%s motif hit regions are overlapped with genomic regions from GTF file and genomic region feature with highest overlap
 is assigned to each motif hit region. "intergenic" feature means no GTF region features overlap with motif hit region.
 Genomic annotations are shown for all motifs of RBP "%s" combined, as well as for the single motifs (unless there is only one motif).
 
 &nbsp;
 
-""" %(rbp_id, rbp_id)
+""" %(rbp_id, site_type_uc, rbp_id)
 
         if rbp_id == regex_id:
             continue
@@ -7723,11 +7855,11 @@ Genomic annotations are shown for all motifs of RBP "%s" combined, as well as fo
             mdtext += 'title="' + "sequence motif plot %s" %(motif_id) + '" width="500" />' + "\n"
             mdtext += """
 
-**Figure:** Sequence motif plot for motif ID "%s" (RBP ID: %s, motif database ID: %s). X-axis: motif position. Y-axis: nucleotide probability. Number of %s motif hits in supplied genomic regions: %i.
+**Figure:** Sequence motif plot for motif ID "%s" (RBP ID: %s, motif database ID: %s). X-axis: motif position. Y-axis: nucleotide probability. Number of %s unique motif hits in supplied %s regions: %i.
 
 &nbsp;
 
-""" %(motif_id, rbp_id, motif_db, motif_id, c_motif_hits)
+""" %(motif_id, rbp_id, motif_db, motif_id, site_type, c_motif_hits)
 
 
         for idx, motif_id in enumerate(rbp.str_motif_ids):
