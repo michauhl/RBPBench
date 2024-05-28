@@ -7287,6 +7287,7 @@ def seqs_dic_count_kmer_freqs(seqs_dic, k,
                               perc=False,
                               return_ratios=False,
                               report_key_error=True,
+                              skip_non_dic_keys=False,
                               convert_to_uc=False):
     """
     Given a dictionary with sequences seqs_dic, count how many times each
@@ -7305,6 +7306,10 @@ def seqs_dic_count_kmer_freqs(seqs_dic, k,
     If True, report key error (di-nucleotide not in count_dic).
     convert_to_uc:
     Convert sequences to uppercase before counting.
+    skip_non_dic_keys:
+    Skip k-mers not in count_dic. These usually are N-containing k-mers.
+    By default, key errors are reported.
+
 
     >>> seqs_dic = {'seq1': 'AACGTC', 'seq2': 'GGACT'}
     >>> seqs_dic_count_kmer_freqs(seqs_dic, 2)
@@ -7328,8 +7333,12 @@ def seqs_dic_count_kmer_freqs(seqs_dic, k,
             seq = seq.upper()
         for i in range(len(seq)-k+1):
             kmer = seq[i:i+k]
-            if report_key_error:
-                assert kmer in count_dic, "k-mer \"%s\" not in count_dic" %(kmer)
+            if skip_non_dic_keys:
+                if kmer not in count_dic:
+                    continue
+            else:
+                if report_key_error:
+                    assert kmer in count_dic, "k-mer \"%s\" not in count_dic" %(kmer)
             if kmer in count_dic:
                 count_dic[kmer] += 1
                 total_c += 1

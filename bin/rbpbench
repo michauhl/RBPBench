@@ -4064,7 +4064,7 @@ def main_batch(args):
 
     """
     for rbp_id in rbp_ids_list:
-        assert rbp_id in name2ids_dic, "given RBP ID \"%s\" not in motif database. Please provide valid RBP IDs (either via --rbp-list or as part of BED names if --bed folder is provided)" %(rbp_id)
+        assert rbp_id in name2ids_dic, "given RBP ID \"%s\" not in motif database. Please provide RBP IDs with motifs in database (check available RBPs via rbpbench info)" %(rbp_id)
 
     for rbp_id in rbp_ids_list:
         for motif_id in name2ids_dic[rbp_id]:
@@ -4344,6 +4344,7 @@ def main_batch(args):
     id2reg_annot_dic = {}  # Store internal ID to region annotation dictionary (all sites, with and without hits).
     id2hit_reg_annot_dic = {}  # Store internal ID to region annotation dictionary (only sites with hits).
     id2infos_dic = {}  # Store internal ID to list containing RBP ID, data ID, method ID, database ID, BED file path.
+    id2wc_pval_dic = {}  # Store internal ID to Wilcoxon rank-sum test p-value.
     id2regex_stats_dic = {}  # Store internal ID to regex stats dictionary.
     # id2kmer_dic = {}  # Store internal ID to k-mer dictionary.
     c_all_hits = 0  # Sum up hits for all RBPs.
@@ -4868,6 +4869,9 @@ def main_batch(args):
         print("Compact hit stats (RBP ID, # unique hits, Wilcoxon p-value):")
         print("%s\t%i\t%s" %(rbp_id, rbp.c_uniq_motif_hits, str(wc_pval)))
 
+        # Store RBP Wilcoxon rank-sum test p-value.
+        id2wc_pval_dic[internal_id] = str(wc_pval)
+
         """
         Motif enrichment test for regex motifs.
         
@@ -5198,6 +5202,7 @@ def main_batch(args):
             kmer_dic = benchlib.seqs_dic_count_kmer_freqs(out_seqs_dic, args.kmer_size, 
                                                           rna=False,
                                                           convert_to_uc=True,
+                                                          skip_non_dic_keys=True,  # skip k-mers containing N-bases.
                                                           return_ratios=True)
 
             # Store the k-mer frequencies for later comparison plot in a list, sorted by key.
@@ -5329,7 +5334,7 @@ def main_batch(args):
 
         # Write header.
         header_annot_str = "\t".join(annot_list)
-        OUTRBP.write("rbp_id\tmethod_id\tdata_id\tc_hit_regions_\tc_all_regions\tperc_hit_reg\t%s\tinternal_id\n" %(header_annot_str))
+        OUTRBP.write("rbp_id\tmethod_id\tdata_id\tc_hit_regions\tc_all_regions\tperc_hit_reg\twc_pval\t%s\tinternal_id\n" %(header_annot_str))
         OUTALL.write("rbp_id\tmethod_id\tdata_id\tc_all_regions\t%s\tinternal_id\n" %(header_annot_str))
 
         for internal_id in id2reg_annot_dic:
@@ -5340,6 +5345,8 @@ def main_batch(args):
             c_hit_regions = reg_counts[1]
 
             id_infos = id2infos_dic[internal_id]
+
+            wc_pval = id2wc_pval_dic[internal_id]
 
             rbp_id = id_infos[0]
             data_id = id_infos[1]
@@ -5362,7 +5369,7 @@ def main_batch(args):
             perc_rbp_annot_str = "\t".join(str(round(perc, 2)) for perc in id_rbp_annot_list)
             perc_hit_all = (c_hit_regions / c_all_regions) * 100
             perc_hit_all = str(round(perc_hit_all, 2))
-            OUTRBP.write("%s\t%s\t%s\t%i\t%i\t%s\t%s\t%s\n" %(rbp_id, method_id, data_id, c_hit_regions, c_all_regions, perc_hit_all, perc_rbp_annot_str, internal_id))
+            OUTRBP.write("%s\t%s\t%s\t%i\t%i\t%s\t%s\t%s\t%s\n" %(rbp_id, method_id, data_id, c_hit_regions, c_all_regions, perc_hit_all, wc_pval, perc_rbp_annot_str, internal_id))
 
             id_all_annot_list = []
             for annot in annot_list:
