@@ -13,12 +13,16 @@ from markdown import markdown
 import pandas as pd
 import plotly.express as px
 from math import log10
+from math import floor
 import textdistance
 import numpy as np
 from upsetplot import UpSet
 from packaging import version
 from sklearn.decomposition import PCA
 from sklearn.decomposition import SparsePCA
+from itertools import combinations
+from scipy.stats import fisher_exact
+from scipy.stats import false_discovery_control  # Benjamini-Hochberg correction.
 
 
 """
@@ -112,6 +116,36 @@ def is_valid_regex(regex):
         return True
     except re.error:
         return False
+
+
+################################################################################
+
+def round_to_n_significant_digits(num, n,
+                                  zero_check_val=1e-300):
+    """
+    Round float / scientific notation number to n significant digits.
+    
+    >>> round_to_n_significant_digits(0.296538210, 3)
+    0.297
+    >>> round_to_n_significant_digits(0.0002964982, 3)
+    0.000296
+    >>> round_to_n_significant_digits(0.0000296498, 3)
+    2.96e-05
+    >>> round_to_n_significant_digits(0.0000296498, 2)
+    3e-05
+    >>> round_to_n_significant_digits(0.0, 2)
+    0
+    >>> round_to_n_significant_digits(-0.0012345, 3)
+    -0.00123
+    >>> round_to_n_significant_digits(2.2e-308, 3)
+    2.2e-308
+    
+    """
+
+    if num < zero_check_val:
+        return 0
+    else:
+        return round(num, -int(floor(log10(abs(num))) - (n - 1)))
 
 
 ################################################################################
@@ -2436,8 +2470,6 @@ def get_mrna_region_annotations(overlap_annotations_bed,
         If set, compare genomic region IDs with IDs in dictionary. If region ID 
         from dictionary not in overlap_annotations_bed, set label "intergenic".
 
-    AALAMO
-        
     """
 
     assert os.path.exists(overlap_annotations_bed), "file %s does not exist" %(overlap_annotations_bed)
@@ -4590,19 +4622,46 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
 
 ################################################################################
 
-def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll, plot_out,
+def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll, annot_ids_list,
+                                  plot_out,
                                   include_plotlyjs="cdn",
                                   full_html=False):
 
     """
     Create plotly 2d scatter plot of PCA reduced genomic annotations.
 
+    annots_ll:
+        List of list containing annotation frequencies (0 to 1). In order of dataset_ids_list.
+    annot_ids_list:
+        List of annotation IDs (e.g. "CDS", "UTR", "Intron", "Intergenic").
+        In order of annots_ll, so that annots_ll[i][0] corresponds to annot_ids_list[0].
+
     """
+    # Get highest percentage for every dataset.
+    highest_perc_annot_list = []
+    perc_annot_str_list = []
+    for annots_l in annots_ll:
+        perc_annot_string = "<br>"
+        highest_perc_annot = "-"
+        highest_freq = 0.0
+        for idx, annot_freq in enumerate(annots_l):
+            annot = annot_ids_list[idx]
+            if annot_freq > highest_freq:
+                highest_freq = annot_freq
+                highest_perc_annot = annot
+            # Make percentage out of frequency and round to two decimal places.
+            annot_perc = round(annot_freq * 100, 2)
+            perc_annot_string += annot + ": " + str(annot_perc) + '%<br>'
+        highest_perc_annot_list.append(highest_perc_annot)
+        perc_annot_str_list.append(perc_annot_string)
+    
 
     pca = PCA(n_components=2)  # Reduce data to 2 dimensions.
     data_2d_pca = pca.fit_transform(annots_ll)
     df = pd.DataFrame(data_2d_pca, columns=['PC1', 'PC2'])
     df['Dataset ID'] = dataset_ids_list
+    df['Highest percentage annotation'] = highest_perc_annot_list
+    df['Annotation percentages'] = perc_annot_str_list
 
     explained_variance = pca.explained_variance_ratio_ * 100
 
@@ -4610,13 +4669,20 @@ def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll, plot_out,
         df,  # Use the DataFrame directly
         x='PC1',
         y='PC2',
+        color='Highest percentage annotation',
         # title='2D Visualization with Dataset IDs',
         labels={
             'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
             'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
         },
-        hover_name='Dataset ID'
+        hover_name='Dataset ID',
+        hover_data=['Highest percentage annotation', 'Annotation percentages']
     )
+
+    fig.update_traces(
+        hovertemplate='<b>%{hovertext}</b><br>Annotation percentages: %{customdata[1]}<extra></extra>'
+    )
+
     fig.update_traces(marker=dict(size=8))
     # fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
     fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
@@ -4636,14 +4702,32 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
     id2occ_list_dic:
         Format: internal_id -> [0, 1, 0, 0, 1] (transcript occupancy list).
     
+    id2infos_dic:
+        id2infos_dic[internal_id] = [rbp_id, data_id, method_id, motif_db_str, bed_file_path]
+    
     """
 
     assert id2occ_list_dic, "id2lst_dic empty"
 
     occ_ll = []
     dataset_ids_list = []
+    c_one_labels_list = []
+    perc_one_labels_list = []
+    c_total_number_genes = 0
 
     for internal_id in sorted(id2occ_list_dic):
+
+        if not c_total_number_genes:
+            c_total_number_genes = len(id2occ_list_dic[internal_id])
+        else:
+            assert c_total_number_genes == len(id2occ_list_dic[internal_id]), "inconsistent number of genes/transcripts in occupancy lists"
+
+        # Count number of 1's in occupancy list.
+        c_one_labels = id2occ_list_dic[internal_id].count(1)
+        c_one_labels_list.append(c_one_labels)
+        # Percentage of 1's in occupancy list. Round to two decimal places.
+        perc_one_labels = round((c_one_labels / c_total_number_genes) * 100, 2)
+        perc_one_labels_list.append(perc_one_labels)
 
         rbp_id = id2infos_dic[internal_id][0]
         data_id = id2infos_dic[internal_id][1]
@@ -4669,6 +4753,8 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
 
         df = pd.DataFrame(data_3d_pca, columns=['PC1', 'PC2', 'PC3'])
         df['Dataset ID'] = dataset_ids_list
+        df['# occupied genes'] = c_one_labels_list
+        df['% occupied genes'] = perc_one_labels_list
 
         fig = px.scatter_3d(
             df,  # Use the DataFrame directly
@@ -4685,6 +4771,8 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
 
         df = pd.DataFrame(data_3d_pca, columns=['PC1', 'PC2', 'PC3'])
         df['Dataset ID'] = dataset_ids_list
+        df['# occupied genes'] = c_one_labels_list
+        df['% occupied genes'] = perc_one_labels_list
 
         explained_variance = pca.explained_variance_ratio_ * 100
 
@@ -4693,14 +4781,20 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
             x='PC1',
             y='PC2',
             z='PC3',
+            color='% occupied genes',
             title='3D Visualization with Dataset IDs',
             labels={
                 'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
                 'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)',
                 'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
             },
-            hover_name='Dataset ID'
+            hover_name='Dataset ID',
+            hover_data=['# occupied genes', '% occupied genes']
         )
+
+    fig.update_traces(
+        hovertemplate='<b>%{hovertext}</b><br>Occupied genes (#): %{customdata[0]}<br>Occupied genes (%): %{customdata[1]}<extra></extra>'
+    )
 
     fig.update_scenes(aspectmode='cube')
     fig.update_traces(marker=dict(size=3))
@@ -4710,15 +4804,35 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
 
 ################################################################################
 
-def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_freqs_ll, plot_out,
+def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll, plot_out,
                                  include_plotlyjs="cdn",
                                  full_html=False):
     
     """
     Create plotly 3d scatter plot of PCA reduced k-mer frequencies.
 
+    kmer_list:
+        1d list of k-mers, corresponding in order to k-mer frequency vectors in
+        kmer_freqs_ll.
+
     """
-    # ALAMO
+
+    kmer_len = len(kmer_list[0])
+    n_top_kmers = 10
+    top_kmer_str_list = []
+    top_kmer_str_header = "Top " + str(n_top_kmers) + " k-mers"
+    for kmer_freqs_l in kmer_freqs_ll:
+        kmer2freq_dic = {}
+        for idx, kmer_freq in enumerate(kmer_freqs_l):
+            kmer = kmer_list[idx]
+            kmer2freq_dic[kmer] = kmer_freq
+        # Go over sorted kmer2freq_dic descending by value, outputting top n_top_kmers entries.
+        top_kmer_str = "<br>"
+        for kmer, freq in sorted(kmer2freq_dic.items(), key=lambda x: x[1], reverse=True)[:n_top_kmers]:
+            # Convert frequency to percentage.
+            perc = round(freq * 100, 2)
+            top_kmer_str += kmer + ": " + str(perc) + "%<br>"
+        top_kmer_str_list.append(top_kmer_str)
 
     # No .np conversion needed.
     # data = np.array(kmer_freqs_ll)
@@ -4727,6 +4841,7 @@ def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_freqs_ll, plot_out,
 
     df = pd.DataFrame(data_3d_pca, columns=['PC1', 'PC2', 'PC3'])
     df['Dataset ID'] = dataset_ids_list
+    df[top_kmer_str_header] = top_kmer_str_list
 
     explained_variance = pca.explained_variance_ratio_ * 100
 
@@ -4742,7 +4857,12 @@ def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_freqs_ll, plot_out,
             'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
         },
         #hover_data=['Dataset ID'],  # This adds dataset IDs to the hover information
-        hover_name='Dataset ID'
+        hover_name='Dataset ID',
+        hover_data=[top_kmer_str_header]
+    )
+
+    fig.update_traces(
+        hovertemplate='<b>%{hovertext}</b><br>Top ' + str(n_top_kmers) + ' ' + str(kmer_len) + '-mer percentages: %{customdata[0]}<extra></extra>'
     )
 
     # fig.update_traces(hovertemplate='%{hovertext}')  # This sets the hover template to only show the hover text
@@ -4754,7 +4874,273 @@ def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_freqs_ll, plot_out,
 
 ################################################################################
 
-def batch_generate_html_report(dataset_ids_list,
+def get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic,
+                             cooc_pval_thr=0.05,
+                             cooc_pval_mode=1):
+    """
+    Calculate co-occurrence matrices for plotting co-occurrence p-values and infos
+    of dataset pairs regarding their gene region occupancies.
+
+    id2occ_list_dic:
+        Format: internal_id -> [0, 1, 0, 0, 1] (transcript/gene region occupancy list).
+    id2infos_dic:
+        id2infos_dic[internal_id] = [rbp_id, data_id, method_id, motif_db_str, bed_file_path]
+
+    AALAMO
+        
+    """
+    from math import isnan
+
+    assert id2occ_list_dic, "id2lst_dic empty"
+    assert id2infos_dic, "id2infos_dic empty"
+
+    set_internal_ids_list = list(id2occ_list_dic.keys())
+    set_plot_ids_list = []
+    seen_ids_dic = {}
+    for internal_id in set_internal_ids_list:
+        set_plot_id = id2infos_dic[internal_id][0] + "," + id2infos_dic[internal_id][2] + "," + id2infos_dic[internal_id][1]
+        if set_plot_id in seen_ids_dic:
+            assert False, "duplicate dataset ID encountered (%s), which is incompatible with gene region occupancy heatmap plot. Please provide a unique combination of selected RBP ID, method ID, and data ID for input dataset or disable plot by setting --no-occ-heatmap" %(set_plot_id)
+        set_plot_ids_list.append(set_plot_id)
+
+    # set_pairs = list(combinations(set_list, 2))
+    len_set_list = len(set_plot_ids_list)
+
+    pval_ll = []
+    pval_cont_lll = []
+
+    for set_id in set_plot_ids_list:
+        pval_ll.append([1.0]*len_set_list)
+        pval_cont_lll.append([]*len_set_list)
+
+    for i in range(len_set_list):
+        for j in range(len_set_list):
+            pval_cont_lll[i].append(["1.0","-", "-", "-"])
+
+    p_val_list = []
+
+    seen_pairs_dic = {}
+
+    for i,set_id_i in enumerate(set_plot_ids_list):
+        for j,set_id_j in enumerate(set_plot_ids_list):
+            if i == j:
+                continue
+            pair = [i, j]
+            pair.sort()
+            pair_str = str(pair[0]) + "," + str(pair[1])
+            id_str = set_id_i + " " + set_id_j
+            if pair_str in seen_pairs_dic:
+                continue
+            seen_pairs_dic[pair_str] = 1
+
+            set1 = id2occ_list_dic[set_internal_ids_list[i]]
+            set2 = id2occ_list_dic[set_internal_ids_list[j]]
+
+            a = sum([1 for x, y in zip(set1, set2) if x == 1 and y == 1])
+            b = sum([1 for x, y in zip(set1, set2) if x == 1 and y == 0])
+            c = sum([1 for x, y in zip(set1, set2) if x == 0 and y == 1])
+            d = sum([1 for x, y in zip(set1, set2) if x == 0 and y == 0])
+
+            table = [[a, b], [c, d]]
+            for v in [a, b, c, d]:
+                assert v >= 0, "negative value in contingency table for set pair (%s, %s)" %(set_id_i, set_id_j)
+
+            _, p_value = fisher_exact(table, alternative='greater')
+
+            # if p_value > 0 and p_value < 2.2e-308:
+            #     # print("p-value < 2.2e-308 encountered for set pair (%s, %s)" %(set_id_i, set_id_j))
+            #     # print(p_value)
+            #     p_value = 2.2e-308
+
+            # if isnan(p_value):
+            #     print("NaN p-value encountered for set pair (%s, %s)" %(set_id_i, set_id_j))
+            #     p_value = 0.0
+
+            # if p_value < 0 or p_value > 1:
+            #     print("Invalid p-value (%f) encountered for set pair (%s, %s)" %(p_value, set_id_i, set_id_j))
+            #     p_value = 0.0
+
+            # print(set_id_i, set_id_j)
+            # print(table)
+            # print(p_value)
+
+            table_str = str(table)
+
+            p_val_list.append(p_value)
+
+            pval_ll[i][j] = p_value
+            pval_ll[j][i] = p_value
+            pval_cont_lll[j][i][0] = str(p_value)
+            pval_cont_lll[j][i][1] = str(p_value)  # p-value to be plotted.
+            pval_cont_lll[j][i][2] = id_str
+            pval_cont_lll[j][i][3] = table_str
+
+
+    # Multiple testing correction.
+
+    if cooc_pval_mode == 1:  # BH correction.
+
+        print("Applying BH correction ... ")
+
+        pvals_corrected = false_discovery_control(p_val_list, method='bh')
+
+        # Count number of values in list pvals_corrected < 0.05.
+        c_sig_pval = sum([1 for x in pvals_corrected if x < cooc_pval_thr])
+        print("# of p-values < %f after BH correction: %i" %(cooc_pval_thr, c_sig_pval))
+
+        if np.any(np.isnan(pvals_corrected)):
+            print("pvals_corrected contains nan values")
+
+        # print("BH:")
+        # print("p_val_list:", p_val_list)
+        # print("pvals_corrected:", pvals_corrected)
+
+        for i in range(len(p_val_list)):
+            p_val_list[i] = pvals_corrected[i]
+
+    elif cooc_pval_mode == 2:  # Bonferroni correction.
+
+        print("Applying Bonferroni correction ... ")
+
+        # Multiple testing correction factor.
+        mult_test_corr_factor = 1
+        if len_set_list > 1:
+            mult_test_corr_factor = (len_set_list*(len_set_list-1))/2
+
+        cooc_pval_thr = cooc_pval_thr / mult_test_corr_factor
+
+        c_sig_pval = sum([1 for x in p_val_list if x < cooc_pval_thr])
+        print("# of p-values < %f (Bonferroni corrected p-value): %i" %(cooc_pval_thr, c_sig_pval))
+
+
+    elif cooc_pval_mode == 3:  # No correction.
+
+        print("No multiple testing correction ... ")
+
+        c_sig_pval = sum([1 for x in p_val_list if x < cooc_pval_thr])
+        print("# of p-values < %f: %i" %(cooc_pval_thr, c_sig_pval))
+
+    else:
+        assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(cooc_pval_mode)
+
+
+    # Update + filter p-values.
+
+    # print("pval_ll before MTC:")
+    # print(pval_ll)
+
+    seen_pairs_dic = {}
+    pv_idx = 0
+
+    for i,set_id_i in enumerate(set_plot_ids_list):
+        for j,set_id_j in enumerate(set_plot_ids_list):
+            if i == j:
+                continue
+            pair = [i, j]
+            pair.sort()
+            pair_str = str(pair[0]) + "," + str(pair[1])
+            if pair_str in seen_pairs_dic:
+                continue
+            seen_pairs_dic[pair_str] = 1
+
+            p_value = p_val_list[pv_idx]
+
+            p_value_rounded = round_to_n_significant_digits(p_value, 4)
+
+            if isnan(p_value_rounded):
+                print("NaN p-value encountered after rounding for set pair (%s, %s)" %(set_id_i, set_id_j))
+                print("p-value was:", p_value)
+                p_value_rounded = 0.0
+
+            if p_value < 0 or p_value > 1:
+                print("Invalid p-value (%f) encountered after rounding for set pair (%s, %s)" %(p_value, set_id_i, set_id_j))
+                if p_value > 1:
+                    p_value_rounded = 1.0
+                else:
+                    p_value_rounded = 0.0
+
+
+            p_value_plotted = p_value
+
+            if p_value > cooc_pval_thr:
+                p_value_plotted = 1.0
+
+            pval_ll[i][j] = p_value_plotted
+            pval_ll[j][i] = p_value_plotted
+            pval_cont_lll[j][i][0] = str(p_value)
+            pval_cont_lll[j][i][1] = str(p_value_plotted)
+
+            pv_idx += 1
+
+
+    # print("pval_ll after MTC:")
+    # print(pval_ll)
+
+    # Fisher p-value dataframe.
+    for i in range(len(set_plot_ids_list)):
+        for j in range(len(set_plot_ids_list)):
+            if j > i:
+                pval_ll[i][j] = None
+
+    df_pval = pd.DataFrame(pval_ll, columns=set_plot_ids_list, index=set_plot_ids_list)
+
+    # print("df_pval:")
+    # print(df_pval)
+
+    for i in range(len(df_pval)):
+        for j in range(len(df_pval)):
+            if j > i:
+                df_pval.iloc[i, j] = None
+
+    # for i,set_i in enumerate(set_list):
+    #     for j,set_j in enumerate(set_list):
+    #         if j > i:
+    #             df_pval.loc[set_i, set_j] = None
+
+    log_tf_df(df_pval, convert_zero_pv=True, rbp_list=set_plot_ids_list)
+
+    # print("df_pval after log transform:")
+    # print(df_pval)
+
+    return df_pval, pval_cont_lll, cooc_pval_thr
+
+
+################################################################################
+
+def create_gene_occ_cooc_plot_plotly(df_pval, pval_cont_lll, plot_out,
+                                     include_plotlyjs="cdn",
+                                     full_html=False):
+    """
+    Plot gene occupancy co-occurrences between batch input datasets 
+    as heat map with plotly.
+
+    """
+
+    colors = ['darkblue', 'blue', 'purple', 'red', 'orange', 'yellow']
+    min_val = 0.01
+    max_val = 1  # df.max().max() # color scale values need to be 0 .. 1.
+
+    color_scale = create_color_scale(min_val, max_val, colors)
+    color_scale.insert(0, [0, "dimgray"])
+
+    # Set the color scale range according to the data (minimum 0 .. 1).
+    zmin = min(0, df_pval.min().min())
+    zmax = max(1, df_pval.max().max())
+
+    plot = px.imshow(df_pval, color_continuous_scale=color_scale, zmin=zmin, zmax=zmax)
+
+    plot.update(data=[{'customdata': pval_cont_lll,
+                        'hovertemplate': '1) Set1: %{x}<br>2) Set2: %{y}<br>3) p-value: %{customdata[0]}<br>4) p-value after filtering: %{customdata[1]}<br>5) Datasets: %{customdata[2]}<br>6) Counts: %{customdata[3]}<br>7) -log10(p-value after filtering): %{z}<extra></extra>'}])
+    plot.update_layout(plot_bgcolor='white')
+    plot.write_html(plot_out,
+                    full_html=full_html,
+                    include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
+def batch_generate_html_report(dataset_ids_list, 
+                               kmer_list,
                                kmer_freqs_ll,
                                id2infos_dic, 
                                id2reg_annot_dic,
@@ -4765,12 +5151,15 @@ def batch_generate_html_report(dataset_ids_list,
                                html_report_out="report.rbpbench_batch.html",
                                unstranded=False,
                                unstranded_ct=False,
-                               id2regex_stats_dic=None,  # AALAMO.
+                               id2regex_stats_dic=None,
                                regex="",
                                wrs_mode=1,
                                fisher_mode=1,
                                max_motif_dist=50,
                                id2occ_list_dic=False,
+                               gene_occ_cooc_plot=False,
+                               cooc_pval_thr=0.05,
+                               cooc_pval_mode=1,
                                plot_abs_paths=False,
                                plotly_js_mode=1,
                                sort_js_mode=1,
@@ -4779,6 +5168,7 @@ def batch_generate_html_report(dataset_ids_list,
                                plotly_embed_style=1,
                                add_motif_db_info=False,
                                motif_db_str="custom",
+                               report_header=False,
                                plots_subfolder="html_report_plots"):
     """
     Create plots for RBPBench batch run results.
@@ -4807,6 +5197,10 @@ def batch_generate_html_report(dataset_ids_list,
     md_out = out_folder + "/" + "report.rbpbench_batch.md"
     if html_report_out:
         html_out = html_report_out
+
+    report_header_info = ""
+    if report_header:
+        report_header_info = "RBPBench "
 
     """
     Setup sorttable.js to make tables in HTML sortable.
@@ -4882,12 +5276,12 @@ def batch_generate_html_report(dataset_ids_list,
     # Markdown part.
     mdtext = """
 
-# Batch report
+# %sBatch report
 
 List of available statistics and plots generated
 by RBPBench (rbpbench batch --report, used motif database: %s):
 
-- [Input datasets sequence length statistics](#seq-len-stats)""" %(motif_db_str)
+- [Input datasets sequence length statistics](#seq-len-stats)""" %(report_header_info, motif_db_str)
     mdtext += "\n"
 
     if id2regex_stats_dic:  # if not empty.
@@ -4898,6 +5292,8 @@ by RBPBench (rbpbench batch --report, used motif database: %s):
 
     if id2reg_annot_dic:  # if --gtf provided.
         mdtext += "- [Input datasets gene region occupancies comparative plot](#occ-comp-plot)\n"
+        if gene_occ_cooc_plot:
+            mdtext += "- [Input datasets gene region occupancies co-occurrence heat map](#cooc-heat-map)\n"
         mdtext += "- [Input datasets genomic region annotations comparative plot](#annot-comp-plot)\n"
 
     if id2reg_annot_dic:  # if --gtf provided.
@@ -4970,14 +5366,12 @@ Input dataset ID format: %s. %s
 
 
 
-
-
     """
     regex motif enrichment statistics.
     
     """
 
-    if id2regex_stats_dic:  # AALAMO
+    if id2regex_stats_dic:
 
         # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
         wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low p-values mean regex-containing regions have significantly higher scores."
@@ -5040,7 +5434,7 @@ By default, BED genomic regions input file column 5 is used as the score column 
     
     """
 
-    if id2regex_stats_dic:  # AALAMO
+    if id2regex_stats_dic:
 
         # Inform about set alterntive hypothesis for Fisher exact test on regex RBP motif co-occurrences.
         fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., low p-values mean that regex and RBP motifs have significantly high co-occurrence."
@@ -5126,10 +5520,10 @@ D: NOT regex AND NOT RBP.
         kmer_comp_plot_plotly =  "kmer_comparative_plot.plotly.html"
         kmer_comp_plot_plotly_out = plots_out_folder + "/" + kmer_comp_plot_plotly
 
-        create_kmer_comp_plot_plotly(dataset_ids_list, kmer_freqs_ll, 
-                                    kmer_comp_plot_plotly_out,
-                                    include_plotlyjs=include_plotlyjs,
-                                    full_html=plotly_full_html)
+        create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll, 
+                                     kmer_comp_plot_plotly_out,
+                                     include_plotlyjs=include_plotlyjs,
+                                     full_html=plotly_full_html)
 
         plot_path = plots_folder + "/" + kmer_comp_plot_plotly
 
@@ -5172,11 +5566,9 @@ No plot generated since < 4 datasets were provided.
 
 
     """
-    Input datasets transcript region occupancies comparative plot.
+    Input datasets gene / transcript region occupancies comparative plot.
 
     """
-
-    # AALAMO
 
     if id2reg_annot_dic:  # if --gtf provided.
 
@@ -5189,6 +5581,12 @@ No plot generated since < 4 datasets were provided.
 
             occ_comp_plot_plotly =  "gene_reg_occ_comparative_plot.plotly.html"
             occ_comp_plot_plotly_out = plots_out_folder + "/" + occ_comp_plot_plotly
+
+            # Get number of gene regions considered.
+            c_total_number_genes = 0
+            for internal_id in id2occ_list_dic:
+                c_total_number_genes = len(id2occ_list_dic[internal_id])
+                break
 
             create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
                                            occ_comp_plot_plotly_out,
@@ -5203,27 +5601,29 @@ No plot generated since < 4 datasets were provided.
                 # Read in plotly code.
                 # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
                 js_code = read_file_content_into_str_var(occ_comp_plot_plotly_out)
-                js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1000px;")
+                js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1200px;")
                 mdtext += js_code + "\n"
                 # mdtext += '</div>'
             else:
                 if plotly_embed_style == 1:
                     # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
                     mdtext += "<div>\n"
-                    mdtext += '<iframe src="' + plot_path + '" width="1000" height="1000"></iframe>' + "\n"
+                    mdtext += '<iframe src="' + plot_path + '" width="1200" height="1000"></iframe>' + "\n"
                     mdtext += '</div>'
                 elif plotly_embed_style == 2:
-                    mdtext += '<object data="' + plot_path + '" width="1000" height="1000"> </object>' + "\n"
+                    mdtext += '<object data="' + plot_path + '" width="1200" height="1000"> </object>' + "\n"
 
             mdtext += """
 
 **Figure:** Comparison of input datasets, using gene region occupancy of input regions (3-dimensional PCA) as features, 
 to show similarities of input datasets based on the gene regions they occupy (points close to each other have similar occupancy profiles).
+Note that only gene regions covered by regions in any of the input datasets are considered (# of gene regions: %i).
+Datasets are colored by the percentage of the total %i gene regions they occupy.
 Input dataset IDs (show via hovering over data points) have following format: %s.
 
 &nbsp;
 
-""" %(dataset_id_format)
+""" %(c_total_number_genes, c_total_number_genes, dataset_id_format)
 
         else:
             mdtext += """
@@ -5241,6 +5641,118 @@ No plot generated since < 4 datasets were provided.
 
 
 
+    """
+    Input datasets gene / transcript region occupancies co-occurrence heat map plot.
+
+    AALAMO
+    
+    """
+
+    if id2reg_annot_dic and gene_occ_cooc_plot:
+
+        mdtext += """
+## Input datasets gene region occupancies co-occurrence heat map ### {#cooc-heat-map}
+
+"""
+
+        # Get tables for plotting heatmap.
+        df_pval, pval_cont_lll, upd_cooc_pval_thr = get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic,
+                                                          cooc_pval_thr=cooc_pval_thr,
+                                                          cooc_pval_mode=cooc_pval_mode)
+
+        cooc_plot_plotly =  "gene_occ_cooc_heatmap.plotly.html"
+        cooc_plot_plotly_out = plots_out_folder + "/" + cooc_plot_plotly
+
+        create_gene_occ_cooc_plot_plotly(df_pval, pval_cont_lll, cooc_plot_plotly_out,
+                                        include_plotlyjs=include_plotlyjs,
+                                        full_html=plotly_full_html)
+
+
+        plot_path = plots_folder + "/" + cooc_plot_plotly
+
+        if plotly_js_mode in [5, 6, 7]:
+            # Read in plotly code.
+            # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+            js_code = read_file_content_into_str_var(cooc_plot_plotly_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:1200px; width:1200px;")
+            mdtext += js_code + "\n"
+            # mdtext += '</div>'
+        else:
+            if plotly_embed_style == 1:
+                # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                mdtext += "<div>\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1200" height="1200"></iframe>' + "\n"
+                mdtext += '</div>'
+            elif plotly_embed_style == 2:
+                mdtext += '<object data="' + plot_path + '" width="1200" height="1200"> </object>' + "\n"
+
+        p_val_info = "P-values below %s are considered significant." %(str(upd_cooc_pval_thr))
+
+        if cooc_pval_mode == 1:
+            p_val_info = "Benjamini-Hochberg multiple testing corrected p-values below %s are considered significant." %(str(upd_cooc_pval_thr))
+        elif cooc_pval_mode == 2:
+            p_val_info = "P-values below %s (p-value threshold Bonferroni multiple testing corrected) are considered significant." %(str(upd_cooc_pval_thr))
+        elif cooc_pval_mode == 3:
+            p_val_info = "P-values below %s are considered significant." %(str(upd_cooc_pval_thr))
+        else:
+            assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(cooc_pval_mode)
+    
+        # Inform about set alterntive hypothesis for Fisher exact test on RBP motif co-occurrences.
+        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., significantly overrepresented co-occurrences are reported."
+        # if fisher_mode == 2:
+        #     fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'two-sided', i.e., significantly over- and underrepresented co-occurrences are reported."
+        # elif fisher_mode == 3:
+        #     fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., significantly underrepresented co-occurrences are reported."
+
+
+        mdtext += """
+
+**Figure:** Heat map comparing gene region occupancies between input datasets, with low p-values indicating significant 
+similarities (or co-occurrences) in gene region occupancy between an input dataset pair.
+Co-occurrences that are not significant are colored gray, while significant co-occurrences are colored 
+according to their -log10 p-value (used as legend color, i.e., the higher the more significant).
+%s
+%s
+Hover box: 
+**1)** dataset 1 ID.
+**2)** dataset 2 ID.
+**3)** p-value: Fisher's exact test p-value (calculated based on contingency table (6) between dataset 1 and dataset 2 gene region occupancies). 
+**4)** p-value after filtering: p-value after filtering, i.e., p-value is kept if significant (< %s), otherwise it is set to 1.0.
+**5)** RBPs compaired. 
+**6)** Counts[]: contingency table of co-occurrence counts (i.e., number of gene regions with/without shared dataset regions) between compaired datasets, 
+with format [[A, B], [C, D]], where 
+A: dataset1 AND dataset2, 
+B: NOT dataset1 AND dataset2
+C: dataset1 AND NOT dataset2
+D: NOT dataset1 AND NOT dataset2.
+Gene regions are labelled 1 or 0 (1 if a genomic region from the dataset overlaps with the gene region, otherwise 0), 
+resulting in a vector of 1s and 0s for each RBP, which is then used to construct the contigency table.
+**10)** -log10 of p-value after filtering, used for legend coloring. Using p-value after filtering, all non-significant p-values become 0 
+for easier distinction between significant and non-significant co-occurrences.
+
+&nbsp;
+
+""" %(p_val_info, fisher_mode_info, str(upd_cooc_pval_thr))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     """
@@ -5248,6 +5760,7 @@ No plot generated since < 4 datasets were provided.
 
     """
 
+    # Format: id2reg_annot_dic[internal_id][annot] = count
     if id2reg_annot_dic:  # if --gtf provided.
 
 
@@ -5265,6 +5778,10 @@ No plot generated since < 4 datasets were provided.
                     annot_dic[annot] = 1
                 else:
                     annot_dic[annot] += 1
+
+        annot_ids_list = []
+        for annot in sorted(annot_dic, reverse=True):
+            annot_ids_list.append(annot)
 
         annot_dataset_ids_list = []
         annot_freqs_ll = []
@@ -5296,7 +5813,9 @@ No plot generated since < 4 datasets were provided.
             annot_comp_plot_plotly =  "gen_annot_comparative_plot.plotly.html"
             annot_comp_plot_plotly_out = plots_out_folder + "/" + annot_comp_plot_plotly
 
-            create_annot_comp_plot_plotly(annot_dataset_ids_list, annot_freqs_ll, 
+            # AALAMO
+            create_annot_comp_plot_plotly(annot_dataset_ids_list, annot_freqs_ll,
+                                          annot_ids_list,
                                           annot_comp_plot_plotly_out,
                                           include_plotlyjs=include_plotlyjs,
                                           full_html=plotly_full_html)
@@ -5307,17 +5826,17 @@ No plot generated since < 4 datasets were provided.
                 # Read in plotly code.
                 # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
                 js_code = read_file_content_into_str_var(annot_comp_plot_plotly_out)
-                js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1000px;")
+                js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1200px;")
                 mdtext += js_code + "\n"
                 # mdtext += '</div>'
             else:
                 if plotly_embed_style == 1:
                     # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
                     mdtext += "<div>\n"
-                    mdtext += '<iframe src="' + plot_path + '" width="1000" height="1000"></iframe>' + "\n"
+                    mdtext += '<iframe src="' + plot_path + '" width="1200" height="1000"></iframe>' + "\n"
                     mdtext += '</div>'
                 elif plotly_embed_style == 2:
-                    mdtext += '<object data="' + plot_path + '" width="1000" height="1000"> </object>' + "\n"
+                    mdtext += '<object data="' + plot_path + '" width="1200" height="1000"> </object>' + "\n"
 
             mdtext += """
 
@@ -5420,7 +5939,7 @@ No plot generated since no regions for plotting.
                 mdtext += """
 **Figure:** Genomic region annotations for input dataset **%s** (dataset ID format: %s). 
 Input regions are overlapped with genomic regions from GTF file and genomic region feature with highest overlap 
-is assigned to each input region. "intergenic" feature means no GTF region features overlap with input region 
+is assigned to each input region. "intergenic" feature means none of the used GTF region features overlap with the input region 
 (minimum overlap amount controlled by --gtf-feat-min-overlap).
 **%s**: annotations for input regions containing %s motif hits. 
 **All**: annotations for all input regions (with and without motif hits).
@@ -5802,7 +6321,7 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 seq_len_df=None,
                                 set_rbp_id=None,
                                 motif_db_str=False,
-                                regex_id="regex",
+                                regex_id=False,
                                 seq_motif_blocks_dic=None,
                                 max_motif_dist=50,
                                 motif_distance_plot_range=50,
@@ -5823,10 +6342,11 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 plotly_js_mode=1,
                                 plotly_embed_style=1,
                                 plotly_full_html=False,
-                                cooc_pval_thr=0.05,  # AALAMO
+                                cooc_pval_thr=0.05,
                                 cooc_pval_mode=1,
                                 rbpbench_mode="search --report",
                                 disable_motif_enrich_table=False,
+                                report_header=False,
                                 plots_subfolder="html_report_plots"):
     """
     Create additional hit statistics for selected RBPs, 
@@ -5868,6 +6388,14 @@ def search_generate_html_report(df_pval, pval_cont_lll,
     if rbpbench_mode == "searchrna":
         site_type_uc = "Transcript"
         site_type = "transcript"
+
+    regex_motif_info = ""
+    if regex_id:
+        regex_motif_info = "Used regex motif: '%s'." %(name2ids_dic[regex_id][0])
+
+    report_header_info = ""
+    if report_header:
+        report_header_info = "RBPBench "
 
     """
     Setup sorttable.js to make tables in HTML sortable.
@@ -5946,13 +6474,13 @@ def search_generate_html_report(df_pval, pval_cont_lll,
     # Markdown part.
     mdtext = """
 
-# Search report
+# %sSearch report
 
 List of available statistics and plots generated
 by RBPBench (rbpbench %s):
 
 %s
-- [RBP co-occurrences heat map](#cooc-heat-map)""" %(rbpbench_mode, motif_enrich_info)
+- [RBP co-occurrences heat map](#cooc-heat-map)""" %(report_header_info, rbpbench_mode, motif_enrich_info)
 
     mdtext += "\n"
 
@@ -5994,6 +6522,7 @@ by RBPBench (rbpbench %s):
         if wrs_mode == 2:
             wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low p-values mean motif-containing regions have significantly lower scores."
             wrs_mode_info2 = "lower"
+
         c_in_regions = 0
         for rbp_id in search_rbps_dic:
             c_in_regions += search_rbps_dic[rbp_id].c_hit_reg
@@ -6011,8 +6540,9 @@ that %s-scoring regions are more likely to contain motif hits of the respective 
 NOTE that if scores associated to input genomic regions are all the same, p-values become meaningless 
 (i.e., they result in p-values of 1.0).
 By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
+%s
 
-""" %(c_in_regions, wrs_mode_info1, wrs_mode_info2)
+""" %(c_in_regions, wrs_mode_info1, wrs_mode_info2, regex_motif_info)
 
         #     mdtext += """
         # <table id="table1" class="sortable">
@@ -6114,10 +6644,11 @@ By default, BED genomic regions input file column 5 is used as the score column 
             mdtext += '<object data="' + plot_path + '" width="1200" height="1200"> </object>' + "\n"
 
     p_val_info = "P-values below %s are considered significant." %(str(cooc_pval_thr))
+
     if cooc_pval_mode == 1:
-        p_val_info = "P-values below %s (p-value threshold Bonferroni multiple testing corrected) are considered significant." %(str(cooc_pval_thr))
-    elif cooc_pval_mode == 2:
         p_val_info = "Benjamini-Hochberg multiple testing corrected p-values below %s are considered significant." %(str(cooc_pval_thr))
+    elif cooc_pval_mode == 2:
+        p_val_info = "P-values below %s (p-value threshold Bonferroni multiple testing corrected) are considered significant." %(str(cooc_pval_thr))
     elif cooc_pval_mode == 3:
         p_val_info = "P-values below %s are considered significant." %(str(cooc_pval_thr))
     else:
@@ -6156,10 +6687,11 @@ D: NOT RBP1 AND NOT RBP2.
 Correlations are then calculated by comparing vectors for every pair of RBPs.
 **10)** -log10 of p-value after filtering, used for legend coloring. Using p-value after filtering, all non-significant p-values become 0 
 for easier distinction between significant and non-significant co-occurrences.
+%s
 
 &nbsp;
 
-""" %(p_val_info, fisher_mode_info, str(cooc_pval_thr), site_type, max_motif_dist, site_type_uc)
+""" %(p_val_info, fisher_mode_info, str(cooc_pval_thr), site_type, max_motif_dist, site_type_uc, regex_motif_info)
 
 
     """
@@ -7301,7 +7833,7 @@ def seqs_dic_count_kmer_freqs(seqs_dic, k,
     perc:
     If True, make percentages out of ratios (*100).
     return_ratios:
-    Return di-nucleotide ratios instead of frequencies (== counts).
+    Return k-mer ratios instead of frequencies (== counts).
     report_key_error:
     If True, report key error (di-nucleotide not in count_dic).
     convert_to_uc:
@@ -7475,16 +8007,28 @@ def log_tf_df(df,
                     df.iloc[i][j] = ltf_pval
     else:
         # Way to deal with pandas 2.1.0 deprecation warning "treating keys as positions is deprecated ...".
-        assert len(df) == len(rbp_list), "len(df) != len(rbp_list) (%i != %i)" %(len(df), len(rbp_list)) 
-        for i,rbp_i in enumerate(rbp_list):
-            for j,rbp_j in enumerate(rbp_list):
-                if df.loc[rbp_i][rbp_j] is not None:
-                    pv = df.loc[rbp_i][rbp_j]
+        # assert len(df) == len(rbp_list), "len(df) != len(rbp_list) (%i != %i)" %(len(df), len(rbp_list)) 
+        # for i,rbp_i in enumerate(rbp_list):
+        #     for j,rbp_j in enumerate(rbp_list):
+        #         if df.loc[rbp_i][rbp_j] is not None:
+        #             pv = df.loc[rbp_i][rbp_j]
+        #             if convert_zero_pv:
+        #                 if pv == 0:
+        #                     pv = min_pv
+        #             ltf_pval = log_tf_pval(pv)
+        #             df.loc[rbp_i, rbp_j] = ltf_pval
+
+        for i in range(len(df)):
+            for j in range(len(df)):
+                if df.iloc[i, j] is not None:
+                    pv = df.iloc[i, j]
                     if convert_zero_pv:
                         if pv == 0:
                             pv = min_pv
                     ltf_pval = log_tf_pval(pv)
-                    df.loc[rbp_i, rbp_j] = ltf_pval
+                    df.iloc[i, j] = ltf_pval
+
+
 
 
 ################################################################################
@@ -7613,6 +8157,7 @@ def search_generate_html_motif_plots(search_rbps_dic,
                                      plot_abs_paths=False,
                                      sort_js_mode=1,
                                      rbpbench_mode="search --plot-motifs",
+                                     report_header=False,
                                      plots_subfolder="html_motif_plots"):
     """
     Create motif plots for selected RBPs.
@@ -7647,6 +8192,10 @@ def search_generate_html_motif_plots(search_rbps_dic,
     if rbpbench_mode in seq_modes:
         site_type_uc = "Sequence"
         site_type = "sequence"
+
+    report_header_info = ""
+    if report_header:
+        report_header_info = "RBPBench "
 
     """
     Setup sorttable.js to make tables in HTML sortable.
@@ -7683,13 +8232,13 @@ def search_generate_html_motif_plots(search_rbps_dic,
     # Markdown part.
     mdtext = """
 
-# Motif Plots and Hit Statistics
+# %sMotif Plots and Hit Statistics
 
 List of available motif hit statistics and motif plots generated
 by RBPBench (rbpbench %s):
 
 - [Motif hit statistics](#motif-hit-stats)
-""" %(rbpbench_mode)
+""" %(report_header_info, rbpbench_mode)
 
     motif_plot_ids_dic = {}
     idx = 0
@@ -7833,7 +8382,7 @@ Number of mRNA sequences used for prediction and plot generation: %i.
             mdtext += """
 **Figure:** Genomic region annotations for RBP "%s" motif hits.
 %s motif hit regions are overlapped with genomic regions from GTF file and genomic region feature with highest overlap
-is assigned to each motif hit region. "intergenic" feature means no GTF region features overlap with motif hit region.
+is assigned to each motif hit region. "intergenic" feature means none of the used GTF region features overlap with the motif hit region.
 Genomic annotations are shown for all motifs of RBP "%s" combined, as well as for the single motifs (unless there is only one motif).
 
 &nbsp;
@@ -7955,6 +8504,7 @@ def compare_generate_html_report(compare_methods_dic, compare_datasets_dic,
                                  html_report_out="report.rbpbench_compare.html",
                                  plot_abs_paths=False,
                                  sort_js_mode=1,
+                                 report_header=False,
                                  plots_subfolder="html_plots"):
     """
     Create comparison statistics and HTML report.
@@ -7976,6 +8526,9 @@ def compare_generate_html_report(compare_methods_dic, compare_datasets_dic,
     if html_report_out:
         html_out = html_report_out
 
+    report_header_info = ""
+    if report_header:
+        report_header_info = "RBPBench "
 
     """
     Setup sorttable.js to make tables in HTML sortable.
@@ -8011,12 +8564,12 @@ def compare_generate_html_report(compare_methods_dic, compare_datasets_dic,
     # Markdown part.
     mdtext = """
 
-# Comparison Report
+# %sComparison Report
 
 List of available comparison statistics generated
 by RBPBench (rbpbench compare):
 
-"""
+""" %(report_header_info)
 
     # Comparisons based on method ID.
     method_ids_dic = {}
