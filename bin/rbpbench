@@ -581,18 +581,6 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.1,
                    help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\") (default: 0.1)")
-    p_b.add_argument("--cooc-pval-thr",
-                   dest="cooc_pval_thr",
-                   type=float,
-                   metavar='float',
-                   default=0.05,
-                   help="Gene region occupancy heatmap p-value threshold for reporting significant co-occurrences. NOTE that if --cooc-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.05)")
-    p_b.add_argument("--cooc-pval-mode",
-                   dest="cooc_pval_mode",
-                   type=int,
-                   default=1,
-                   choices=[1, 2, 3],
-                   help="Defines multiple testing correction mode for co-occurrence p-values. 1: Benjamini-Hochberg (BH), 2: Bonferroni, 3: no correction (default: 1)")
     p_b.add_argument("--no-occ-heatmap",
                    dest="no_occ_heatmap",
                    default = False,
@@ -3319,6 +3307,14 @@ def main_search(args):
 
         for i in range(len(p_val_list)):
             p_val_list[i] = pvals_corrected[i]
+        
+        # Count number of p-values below cooc_pval_thr.
+        c_sig = 0
+        for p_val in p_val_list:
+            if p_val <= cooc_pval_thr:
+                c_sig += 1
+        
+        print("Number of significant co-occurrence p-values (BH corrected): %i" %(c_sig))
 
     elif args.cooc_pval_mode == 2:  # Bonferroni correction.
 
@@ -3329,9 +3325,23 @@ def main_search(args):
 
         cooc_pval_thr = args.cooc_pval_thr / mult_test_corr_factor
 
+        c_sig = 0
+        for p_val in p_val_list:
+            if p_val <= cooc_pval_thr:
+                c_sig += 1
+        
+        print("Number of significant co-occurrence p-values (Bonferroni corrected): %i" %(c_sig))
+
     elif args.cooc_pval_mode == 3:  # No correction.
 
         cooc_pval_thr = args.cooc_pval_thr
+
+        c_sig = 0
+        for p_val in p_val_list:
+            if p_val <= cooc_pval_thr:
+                c_sig += 1
+        
+        print("Number of significant co-occurrence p-values (no correction): %i" %(c_sig))
 
     else:
         assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(args.cooc_pval_mode)
@@ -5366,8 +5376,6 @@ def main_batch(args):
                                             max_motif_dist=args.max_motif_dist,
                                             id2occ_list_dic=id2occ_list_dic,
                                             gene_occ_cooc_plot=gene_occ_cooc_plot,
-                                            cooc_pval_thr=args.cooc_pval_thr,
-                                            cooc_pval_mode=args.cooc_pval_mode,
                                             plot_abs_paths=args.plot_abs_paths,
                                             plotly_js_mode=args.plotly_js_mode,
                                             sort_js_mode=args.sort_js_mode,

@@ -4622,7 +4622,8 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
 
 ################################################################################
 
-def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll, annot_ids_list,
+def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll, 
+                                  annot_ids_list, annot2color_dic,
                                   plot_out,
                                   include_plotlyjs="cdn",
                                   full_html=False):
@@ -4670,6 +4671,7 @@ def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll, annot_ids_list,
         x='PC1',
         y='PC2',
         color='Highest percentage annotation',
+        color_discrete_map=annot2color_dic,
         # title='2D Visualization with Dataset IDs',
         labels={
             'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
@@ -4874,12 +4876,12 @@ def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll, plo
 
 ################################################################################
 
-def get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic,
-                             cooc_pval_thr=0.05,
-                             cooc_pval_mode=1):
+def get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic):
     """
-    Calculate co-occurrence matrices for plotting co-occurrence p-values and infos
-    of dataset pairs regarding their gene region occupancies.
+    Calculate co-occurrence matrices for plotting cosine similarities between datasets
+    (more precisely between their gene list binary vectors).
+    So a high cosine similarity indicates that the gene lists of two datasets are
+    similar / tend to have more co-occurrence or a lack of occurrence at same genes.
 
     id2occ_list_dic:
         Format: internal_id -> [0, 1, 0, 0, 1] (transcript/gene region occupancy list).
@@ -4889,10 +4891,13 @@ def get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic,
     AALAMO
         
     """
-    from math import isnan
 
     assert id2occ_list_dic, "id2lst_dic empty"
     assert id2infos_dic, "id2infos_dic empty"
+
+    from sklearn.metrics.pairwise import cosine_similarity
+    from sklearn.metrics import pairwise_distances
+    from scipy.cluster.hierarchy import linkage, leaves_list
 
     set_internal_ids_list = list(id2occ_list_dic.keys())
     set_plot_ids_list = []
@@ -4901,237 +4906,168 @@ def get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic,
         set_plot_id = id2infos_dic[internal_id][0] + "," + id2infos_dic[internal_id][2] + "," + id2infos_dic[internal_id][1]
         if set_plot_id in seen_ids_dic:
             assert False, "duplicate dataset ID encountered (%s), which is incompatible with gene region occupancy heatmap plot. Please provide a unique combination of selected RBP ID, method ID, and data ID for input dataset or disable plot by setting --no-occ-heatmap" %(set_plot_id)
+        seen_ids_dic[set_plot_id] = internal_id
         set_plot_ids_list.append(set_plot_id)
 
-    # set_pairs = list(combinations(set_list, 2))
     len_set_list = len(set_plot_ids_list)
 
-    pval_ll = []
-    pval_cont_lll = []
+    # Make df out of gene region occupancy lists.
+    df = pd.DataFrame.from_dict(id2occ_list_dic, orient='index')
+
+    # Calculate the cosine similarity.
+    similarity_matrix = cosine_similarity(df)
+
+    # Convert the similarity matrix to a DataFrame
+    df_sim = pd.DataFrame(similarity_matrix, index=df.index, columns=df.index)
+
+    # Calculate a cosine distance matrix for clustering.
+    dist_matrix = pairwise_distances(df, metric='cosine')
+
+    # Perform hierarchical clustering.
+    dist_matrix_condensed = dist_matrix[np.triu_indices(dist_matrix.shape[0], k=1)]
+    linkage_matrix = linkage(dist_matrix_condensed, method='average')
+
+    # Calculate leaves order.
+    leaves_order = leaves_list(linkage_matrix)
+
+    # print("df_sim:")
+    # print(df_sim)
+
+    # Assign new index IDs to df_sim, namely set_plot_ids_list.
+    df_sim.index = set_plot_ids_list
+    df_sim.columns = set_plot_ids_list
+
+    # for idx, set_internal_id in enumerate(set_internal_ids_list):
+    #     print(set_internal_id, set_plot_ids_list[idx])
+
+    # print("df_sim new IDs:")
+    # print(df_sim)
+
+    # print("leaves_order:")
+    # print(leaves_order)
+
+    df_sim_ordered = df_sim.iloc[leaves_order, :].iloc[:, leaves_order]
+
+    # Get newly ordered IDs list.
+    set_plot_ids_list_ordered = [set_plot_ids_list[i] for i in leaves_order]
+
+    # print("set_plot_ids_list_ordered:")
+    # print(set_plot_ids_list_ordered)
+
+    # print("df_sim_ordered:")
+    # print(df_sim_ordered)
+
+    # plot = px.imshow(df_sim_ordered)
+    # plot_out = "test_clustered_heatmap.html"
+    # plot.write_html(plot_out)
+
+    # Create 3d list storing additional infos for co-occurrence heatmap plot.
+    gene_cooc_lll = []
 
     for set_id in set_plot_ids_list:
-        pval_ll.append([1.0]*len_set_list)
-        pval_cont_lll.append([]*len_set_list)
+        gene_cooc_lll.append([]*len_set_list)
 
     for i in range(len_set_list):
         for j in range(len_set_list):
-            pval_cont_lll[i].append(["1.0","-", "-", "-"])
+            gene_cooc_lll[i].append(["-", "-", "-", "-"])
 
-    p_val_list = []
+    # import sys
+    # sys.exit()
+    # AALAMO
 
     seen_pairs_dic = {}
 
-    for i,set_id_i in enumerate(set_plot_ids_list):
-        for j,set_id_j in enumerate(set_plot_ids_list):
-            if i == j:
-                continue
+    for i,set_id_i in enumerate(set_plot_ids_list_ordered):
+        for j,set_id_j in enumerate(set_plot_ids_list_ordered):
+
             pair = [i, j]
             pair.sort()
             pair_str = str(pair[0]) + "," + str(pair[1])
-            id_str = set_id_i + " " + set_id_j
+            # id_pair = [set_id_i, set_id_j]
+            # id_pair.sort()
+            # id_str = id_pair[0] + " " + id_pair[1]
             if pair_str in seen_pairs_dic:
                 continue
             seen_pairs_dic[pair_str] = 1
 
-            set1 = id2occ_list_dic[set_internal_ids_list[i]]
-            set2 = id2occ_list_dic[set_internal_ids_list[j]]
+            if i == j:  # Diagonal, i.e. set_id_i == set_id_j.
+                gene_cooc_lll[i][j][0] = "1.0"
+                gene_cooc_lll[i][j][1] = set_id_i
+                gene_cooc_lll[i][j][2] = set_id_j
+                set_12 = id2occ_list_dic[seen_ids_dic[set_id_i]]
+                a = 0
+                d = 0
+                for occ in set_12:
+                    if occ == 1:
+                        a += 1
+                    else:
+                        d += 1
+                table = [[a, 0], [0, d]]
+                table_str = str(table)
+                gene_cooc_lll[i][j][3] = table_str
 
-            a = sum([1 for x, y in zip(set1, set2) if x == 1 and y == 1])
-            b = sum([1 for x, y in zip(set1, set2) if x == 1 and y == 0])
-            c = sum([1 for x, y in zip(set1, set2) if x == 0 and y == 1])
-            d = sum([1 for x, y in zip(set1, set2) if x == 0 and y == 0])
+            else:
+                # Cosine similarity.
+                cosine_sim = df_sim_ordered.loc[set_id_i, set_id_j]
+                gene_cooc_lll[i][j][0] = str(cosine_sim)
+                gene_cooc_lll[j][i][0] = str(cosine_sim)
+                # Set 1+2 IDs.
+                gene_cooc_lll[i][j][1] = set_id_i
+                gene_cooc_lll[j][i][1] = set_id_i
+                gene_cooc_lll[i][j][2] = set_id_j
+                gene_cooc_lll[j][i][2] = set_id_j
 
-            table = [[a, b], [c, d]]
-            for v in [a, b, c, d]:
-                assert v >= 0, "negative value in contingency table for set pair (%s, %s)" %(set_id_i, set_id_j)
+                set1 = id2occ_list_dic[seen_ids_dic[set_id_i]]
+                set2 = id2occ_list_dic[seen_ids_dic[set_id_j]]
 
-            _, p_value = fisher_exact(table, alternative='greater')
+                a = sum([1 for x, y in zip(set1, set2) if x == 1 and y == 1])
+                b = sum([1 for x, y in zip(set1, set2) if x == 1 and y == 0])
+                c = sum([1 for x, y in zip(set1, set2) if x == 0 and y == 1])
+                d = sum([1 for x, y in zip(set1, set2) if x == 0 and y == 0])
 
-            # if p_value > 0 and p_value < 2.2e-308:
-            #     # print("p-value < 2.2e-308 encountered for set pair (%s, %s)" %(set_id_i, set_id_j))
-            #     # print(p_value)
-            #     p_value = 2.2e-308
+                table = [[a, b], [c, d]]
+                table_str = str(table)
 
-            # if isnan(p_value):
-            #     print("NaN p-value encountered for set pair (%s, %s)" %(set_id_i, set_id_j))
-            #     p_value = 0.0
+                gene_cooc_lll[i][j][3] = table_str
+                gene_cooc_lll[j][i][3] = table_str
 
-            # if p_value < 0 or p_value > 1:
-            #     print("Invalid p-value (%f) encountered for set pair (%s, %s)" %(p_value, set_id_i, set_id_j))
-            #     p_value = 0.0
-
-            # print(set_id_i, set_id_j)
-            # print(table)
-            # print(p_value)
-
-            table_str = str(table)
-
-            p_val_list.append(p_value)
-
-            pval_ll[i][j] = p_value
-            pval_ll[j][i] = p_value
-            pval_cont_lll[j][i][0] = str(p_value)
-            pval_cont_lll[j][i][1] = str(p_value)  # p-value to be plotted.
-            pval_cont_lll[j][i][2] = id_str
-            pval_cont_lll[j][i][3] = table_str
-
-
-    # Multiple testing correction.
-
-    if cooc_pval_mode == 1:  # BH correction.
-
-        print("Applying BH correction ... ")
-
-        pvals_corrected = false_discovery_control(p_val_list, method='bh')
-
-        # Count number of values in list pvals_corrected < 0.05.
-        c_sig_pval = sum([1 for x in pvals_corrected if x < cooc_pval_thr])
-        print("# of p-values < %f after BH correction: %i" %(cooc_pval_thr, c_sig_pval))
-
-        if np.any(np.isnan(pvals_corrected)):
-            print("pvals_corrected contains nan values")
-
-        # print("BH:")
-        # print("p_val_list:", p_val_list)
-        # print("pvals_corrected:", pvals_corrected)
-
-        for i in range(len(p_val_list)):
-            p_val_list[i] = pvals_corrected[i]
-
-    elif cooc_pval_mode == 2:  # Bonferroni correction.
-
-        print("Applying Bonferroni correction ... ")
-
-        # Multiple testing correction factor.
-        mult_test_corr_factor = 1
-        if len_set_list > 1:
-            mult_test_corr_factor = (len_set_list*(len_set_list-1))/2
-
-        cooc_pval_thr = cooc_pval_thr / mult_test_corr_factor
-
-        c_sig_pval = sum([1 for x in p_val_list if x < cooc_pval_thr])
-        print("# of p-values < %f (Bonferroni corrected p-value): %i" %(cooc_pval_thr, c_sig_pval))
-
-
-    elif cooc_pval_mode == 3:  # No correction.
-
-        print("No multiple testing correction ... ")
-
-        c_sig_pval = sum([1 for x in p_val_list if x < cooc_pval_thr])
-        print("# of p-values < %f: %i" %(cooc_pval_thr, c_sig_pval))
-
-    else:
-        assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(cooc_pval_mode)
-
-
-    # Update + filter p-values.
-
-    # print("pval_ll before MTC:")
-    # print(pval_ll)
-
-    seen_pairs_dic = {}
-    pv_idx = 0
-
-    for i,set_id_i in enumerate(set_plot_ids_list):
-        for j,set_id_j in enumerate(set_plot_ids_list):
-            if i == j:
-                continue
-            pair = [i, j]
-            pair.sort()
-            pair_str = str(pair[0]) + "," + str(pair[1])
-            if pair_str in seen_pairs_dic:
-                continue
-            seen_pairs_dic[pair_str] = 1
-
-            p_value = p_val_list[pv_idx]
-
-            p_value_rounded = round_to_n_significant_digits(p_value, 4)
-
-            if isnan(p_value_rounded):
-                print("NaN p-value encountered after rounding for set pair (%s, %s)" %(set_id_i, set_id_j))
-                print("p-value was:", p_value)
-                p_value_rounded = 0.0
-
-            if p_value < 0 or p_value > 1:
-                print("Invalid p-value (%f) encountered after rounding for set pair (%s, %s)" %(p_value, set_id_i, set_id_j))
-                if p_value > 1:
-                    p_value_rounded = 1.0
-                else:
-                    p_value_rounded = 0.0
-
-
-            p_value_plotted = p_value
-
-            if p_value > cooc_pval_thr:
-                p_value_plotted = 1.0
-
-            pval_ll[i][j] = p_value_plotted
-            pval_ll[j][i] = p_value_plotted
-            pval_cont_lll[j][i][0] = str(p_value)
-            pval_cont_lll[j][i][1] = str(p_value_plotted)
-
-            pv_idx += 1
-
-
-    # print("pval_ll after MTC:")
-    # print(pval_ll)
-
-    # Fisher p-value dataframe.
-    for i in range(len(set_plot_ids_list)):
-        for j in range(len(set_plot_ids_list)):
-            if j > i:
-                pval_ll[i][j] = None
-
-    df_pval = pd.DataFrame(pval_ll, columns=set_plot_ids_list, index=set_plot_ids_list)
-
-    # print("df_pval:")
-    # print(df_pval)
-
-    for i in range(len(df_pval)):
-        for j in range(len(df_pval)):
-            if j > i:
-                df_pval.iloc[i, j] = None
-
-    # for i,set_i in enumerate(set_list):
-    #     for j,set_j in enumerate(set_list):
-    #         if j > i:
-    #             df_pval.loc[set_i, set_j] = None
-
-    log_tf_df(df_pval, convert_zero_pv=True, rbp_list=set_plot_ids_list)
-
-    # print("df_pval after log transform:")
-    # print(df_pval)
-
-    return df_pval, pval_cont_lll, cooc_pval_thr
+    return df_sim_ordered, gene_cooc_lll
 
 
 ################################################################################
 
-def create_gene_occ_cooc_plot_plotly(df_pval, pval_cont_lll, plot_out,
+def create_gene_occ_cooc_plot_plotly(df_gene_occ, gene_cooc_lll, plot_out,
                                      include_plotlyjs="cdn",
                                      full_html=False):
     """
     Plot gene occupancy co-occurrences between batch input datasets 
     as heat map with plotly.
 
+    AALAMO
     """
 
-    colors = ['darkblue', 'blue', 'purple', 'red', 'orange', 'yellow']
-    min_val = 0.01
-    max_val = 1  # df.max().max() # color scale values need to be 0 .. 1.
+    plot = px.imshow(df_gene_occ)
 
-    color_scale = create_color_scale(min_val, max_val, colors)
-    color_scale.insert(0, [0, "dimgray"])
-
-    # Set the color scale range according to the data (minimum 0 .. 1).
-    zmin = min(0, df_pval.min().min())
-    zmax = max(1, df_pval.max().max())
-
-    plot = px.imshow(df_pval, color_continuous_scale=color_scale, zmin=zmin, zmax=zmax)
-
-    plot.update(data=[{'customdata': pval_cont_lll,
-                        'hovertemplate': '1) Set1: %{x}<br>2) Set2: %{y}<br>3) p-value: %{customdata[0]}<br>4) p-value after filtering: %{customdata[1]}<br>5) Datasets: %{customdata[2]}<br>6) Counts: %{customdata[3]}<br>7) -log10(p-value after filtering): %{z}<extra></extra>'}])
+    plot.update(data=[{'customdata': gene_cooc_lll,
+                       'hovertemplate': '1) Set1: %{customdata[1]}<br>2) Set2: %{customdata[2]}<br>3) cosine similarity: %{customdata[0]}<br>4) Counts: %{customdata[3]}<extra></extra>'}])
     plot.update_layout(plot_bgcolor='white')
+    plot.update_layout(
+        annotations=[
+            dict(
+                x=1.05,
+                y=1.03,
+                align="right",
+                valign="top",
+                text="Similarity",
+                showarrow=False,
+                xref="paper",
+                yref="paper",
+                xanchor="center",
+                yanchor="top",
+                font=dict(size=14)
+            )
+        ]
+    )
     plot.write_html(plot_out,
                     full_html=full_html,
                     include_plotlyjs=include_plotlyjs)
@@ -5158,8 +5094,6 @@ def batch_generate_html_report(dataset_ids_list,
                                max_motif_dist=50,
                                id2occ_list_dic=False,
                                gene_occ_cooc_plot=False,
-                               cooc_pval_thr=0.05,
-                               cooc_pval_mode=1,
                                plot_abs_paths=False,
                                plotly_js_mode=1,
                                sort_js_mode=1,
@@ -5255,6 +5189,32 @@ def batch_generate_html_report(dataset_ids_list,
         include_plotlyjs = False
         # plotly_full_html = True
 
+    
+    annot_dic = {}
+    annot2color_dic = {}
+    if id2reg_annot_dic:  # if --gtf provided.
+
+        # All annotations.
+        annot_dic = {}
+        c_annot = 0
+        for internal_id in id2reg_annot_dic:
+            for annot in id2reg_annot_dic[internal_id]:
+                c_annot += 1
+                if annot not in annot_dic:
+                    annot_dic[annot] = 1
+                else:
+                    annot_dic[annot] += 1
+
+        # Annotation color assignments.
+        hex_colors = get_hex_colors_list(min_len=len(annot_dic))
+
+        idx = 0
+        for annot in sorted(annot_dic, reverse=False):
+            hc = hex_colors[idx]
+            # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
+            annot2color_dic[annot] = hex_colors[idx]
+            idx += 1
+
 
     # HTML head section.
     html_head = """<!DOCTYPE html>
@@ -5291,9 +5251,9 @@ by RBPBench (rbpbench batch --report, used motif database: %s):
     mdtext += "- [Input datasets k-mer frequencies comparative plot](#kmer-comp-plot)\n"
 
     if id2reg_annot_dic:  # if --gtf provided.
-        mdtext += "- [Input datasets gene region occupancies comparative plot](#occ-comp-plot)\n"
+        mdtext += "- [Input datasets occupied gene regions comparative plot](#occ-comp-plot)\n"
         if gene_occ_cooc_plot:
-            mdtext += "- [Input datasets gene region occupancies co-occurrence heat map](#cooc-heat-map)\n"
+            mdtext += "- [Input datasets occupied gene regions similarity heat map](#cooc-heat-map)\n"
         mdtext += "- [Input datasets genomic region annotations comparative plot](#annot-comp-plot)\n"
 
     if id2reg_annot_dic:  # if --gtf provided.
@@ -5573,7 +5533,7 @@ No plot generated since < 4 datasets were provided.
     if id2reg_annot_dic:  # if --gtf provided.
 
         mdtext += """
-## Input datasets gene region occupancies comparative plot ### {#occ-comp-plot}
+## Input datasets occupied gene regions comparative plot ### {#occ-comp-plot}
 
 """
 
@@ -5651,19 +5611,17 @@ No plot generated since < 4 datasets were provided.
     if id2reg_annot_dic and gene_occ_cooc_plot:
 
         mdtext += """
-## Input datasets gene region occupancies co-occurrence heat map ### {#cooc-heat-map}
+## Input datasets occupied gene regions similarity heat map ### {#cooc-heat-map}
 
 """
 
         # Get tables for plotting heatmap.
-        df_pval, pval_cont_lll, upd_cooc_pval_thr = get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic,
-                                                          cooc_pval_thr=cooc_pval_thr,
-                                                          cooc_pval_mode=cooc_pval_mode)
+        df_gene_cooc, gene_cooc_lll = get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic)
 
         cooc_plot_plotly =  "gene_occ_cooc_heatmap.plotly.html"
         cooc_plot_plotly_out = plots_out_folder + "/" + cooc_plot_plotly
 
-        create_gene_occ_cooc_plot_plotly(df_pval, pval_cont_lll, cooc_plot_plotly_out,
+        create_gene_occ_cooc_plot_plotly(df_gene_cooc, gene_cooc_lll, cooc_plot_plotly_out,
                                         include_plotlyjs=include_plotlyjs,
                                         full_html=plotly_full_html)
 
@@ -5686,53 +5644,31 @@ No plot generated since < 4 datasets were provided.
             elif plotly_embed_style == 2:
                 mdtext += '<object data="' + plot_path + '" width="1200" height="1200"> </object>' + "\n"
 
-        p_val_info = "P-values below %s are considered significant." %(str(upd_cooc_pval_thr))
-
-        if cooc_pval_mode == 1:
-            p_val_info = "Benjamini-Hochberg multiple testing corrected p-values below %s are considered significant." %(str(upd_cooc_pval_thr))
-        elif cooc_pval_mode == 2:
-            p_val_info = "P-values below %s (p-value threshold Bonferroni multiple testing corrected) are considered significant." %(str(upd_cooc_pval_thr))
-        elif cooc_pval_mode == 3:
-            p_val_info = "P-values below %s are considered significant." %(str(upd_cooc_pval_thr))
-        else:
-            assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(cooc_pval_mode)
-    
-        # Inform about set alterntive hypothesis for Fisher exact test on RBP motif co-occurrences.
-        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., significantly overrepresented co-occurrences are reported."
-        # if fisher_mode == 2:
-        #     fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'two-sided', i.e., significantly over- and underrepresented co-occurrences are reported."
-        # elif fisher_mode == 3:
-        #     fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., significantly underrepresented co-occurrences are reported."
-
 
         mdtext += """
-
-**Figure:** Heat map comparing gene region occupancies between input datasets, with low p-values indicating significant 
-similarities (or co-occurrences) in gene region occupancy between an input dataset pair.
-Co-occurrences that are not significant are colored gray, while significant co-occurrences are colored 
-according to their -log10 p-value (used as legend color, i.e., the higher the more significant).
-%s
-%s
+**Figure:** Heat map comparing gene region occupancy profiles between input datasets. Similarity between the occupied 
+gene regions of two datasets is calculated using the cosine similarity of the gene region binary vectors. A cosine similarity 
+of 1 indicates that two datasets have identical occupancy profiles (like datasets compared with themselves on diagonal), 
+while a cosine similarity of 0 means that the two vectors are completely different (i.e., if dataset 1 covers a gene region, 
+dataset 2 does not and vice versa). 
+Datasets are ordered based on hierarchical clustering of the cosine similarity values, 
+so that similar datasets are placed close to each other.
 Hover box: 
 **1)** dataset 1 ID.
 **2)** dataset 2 ID.
-**3)** p-value: Fisher's exact test p-value (calculated based on contingency table (6) between dataset 1 and dataset 2 gene region occupancies). 
-**4)** p-value after filtering: p-value after filtering, i.e., p-value is kept if significant (< %s), otherwise it is set to 1.0.
-**5)** RBPs compaired. 
-**6)** Counts[]: contingency table of co-occurrence counts (i.e., number of gene regions with/without shared dataset regions) between compaired datasets, 
+**3)** Cosine similarity value between the two datasets.
+**4)** Counts[]: contingency table of co-occurrence counts (i.e., number of gene regions covered/not covered by the two datasets), 
 with format [[A, B], [C, D]], where 
-A: dataset1 AND dataset2, 
-B: NOT dataset1 AND dataset2
-C: dataset1 AND NOT dataset2
+A: dataset 1 AND dataset 2, 
+B: NOT dataset1 AND dataset2,
+C: dataset1 AND NOT dataset2,
 D: NOT dataset1 AND NOT dataset2.
 Gene regions are labelled 1 or 0 (1 if a genomic region from the dataset overlaps with the gene region, otherwise 0), 
 resulting in a vector of 1s and 0s for each RBP, which is then used to construct the contigency table.
-**10)** -log10 of p-value after filtering, used for legend coloring. Using p-value after filtering, all non-significant p-values become 0 
-for easier distinction between significant and non-significant co-occurrences.
 
 &nbsp;
 
-""" %(p_val_info, fisher_mode_info, str(upd_cooc_pval_thr))
+""" 
 
 
 
@@ -5768,16 +5704,6 @@ for easier distinction between significant and non-significant co-occurrences.
 ## Input datasets genomic region annotations comparative plot ### {#annot-comp-plot}
 
 """
-        # All annotations.
-        annot_dic = {}
-        c_annot = 0
-        for internal_id in id2reg_annot_dic:
-            for annot in id2reg_annot_dic[internal_id]:
-                c_annot += 1
-                if annot not in annot_dic:
-                    annot_dic[annot] = 1
-                else:
-                    annot_dic[annot] += 1
 
         annot_ids_list = []
         for annot in sorted(annot_dic, reverse=True):
@@ -5815,7 +5741,7 @@ for easier distinction between significant and non-significant co-occurrences.
 
             # AALAMO
             create_annot_comp_plot_plotly(annot_dataset_ids_list, annot_freqs_ll,
-                                          annot_ids_list,
+                                          annot_ids_list, annot2color_dic,
                                           annot_comp_plot_plotly_out,
                                           include_plotlyjs=include_plotlyjs,
                                           full_html=plotly_full_html)
@@ -5878,16 +5804,6 @@ No plot generated since < 4 datasets were provided.
     """
 
     if id2reg_annot_dic:  # if --gtf provided.
-
-        hex_colors = get_hex_colors_list(min_len=len(annot_dic))
-
-        annot2color_dic = {}
-        idx = 0
-        for annot in sorted(annot_dic, reverse=False):
-            hc = hex_colors[idx]
-            # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
-            annot2color_dic[annot] = hex_colors[idx]
-            idx += 1
 
         # Generate plotting sections.
         for idx, internal_id in enumerate(internal_ids_list):
