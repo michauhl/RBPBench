@@ -1771,6 +1771,8 @@ def main_search(args):
 
 
     assert os.path.exists(args.in_sites), "--in file \"%s\" not found" % (args.in_sites)
+    assert os.path.exists(args.in_genome), "--genome file \"%s\" not found" % (args.in_genome)
+
     # Check --in BED format.
     if not args.unstranded:
         benchlib.bed_check_format(args.in_sites)
@@ -1801,6 +1803,10 @@ def main_search(args):
             fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
     if args.meme_no_pgc:
         fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
+
+    # GTF check.
+    if args.in_gtf:
+        assert os.path.exists(args.in_gtf), "--gtf file \"%s\" not found" % (args.in_gtf)
 
     # Regex check.
     if args.regex:
@@ -2128,6 +2134,8 @@ def main_search(args):
         id2name_dic
         id2type_dic
         """
+    else:
+        regex_id = False
 
     """
     If --set-rbp-id set, check if it is part of loaded RBP IDs.
@@ -3300,7 +3308,6 @@ def main_search(args):
 
     cooc_pval_thr = args.cooc_pval_thr
 
-
     if args.cooc_pval_mode == 1:  # BH correction.
 
         pvals_corrected = false_discovery_control(p_val_list, method='bh')
@@ -3308,14 +3315,6 @@ def main_search(args):
         for i in range(len(p_val_list)):
             p_val_list[i] = pvals_corrected[i]
         
-        # Count number of p-values below cooc_pval_thr.
-        c_sig = 0
-        for p_val in p_val_list:
-            if p_val <= cooc_pval_thr:
-                c_sig += 1
-        
-        print("Number of significant co-occurrence p-values (BH corrected): %i" %(c_sig))
-
     elif args.cooc_pval_mode == 2:  # Bonferroni correction.
 
         # Multiple testing correction factor.
@@ -3325,23 +3324,9 @@ def main_search(args):
 
         cooc_pval_thr = args.cooc_pval_thr / mult_test_corr_factor
 
-        c_sig = 0
-        for p_val in p_val_list:
-            if p_val <= cooc_pval_thr:
-                c_sig += 1
-        
-        print("Number of significant co-occurrence p-values (Bonferroni corrected): %i" %(c_sig))
-
     elif args.cooc_pval_mode == 3:  # No correction.
 
         cooc_pval_thr = args.cooc_pval_thr
-
-        c_sig = 0
-        for p_val in p_val_list:
-            if p_val <= cooc_pval_thr:
-                c_sig += 1
-        
-        print("Number of significant co-occurrence p-values (no correction): %i" %(c_sig))
 
     else:
         assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(args.cooc_pval_mode)
@@ -3350,7 +3335,9 @@ def main_search(args):
     # Update + filter p-values.
 
     pv_idx = 0
-    
+    c_all_fisher_pval = 0
+    c_sig_fisher_pval = 0
+
     for pair in rbp_pairs:
         pair = list(pair)
         pair.sort()
@@ -3364,6 +3351,10 @@ def main_search(args):
 
         # Round p-values to 4 significant digits.
         p_value = benchlib.round_to_n_significant_digits(p_value, 4)
+
+        c_all_fisher_pval += 1
+        if p_value <= cooc_pval_thr:
+            c_sig_fisher_pval += 1
 
         p_value_plotted = p_value
 
@@ -3379,6 +3370,20 @@ def main_search(args):
 
         pv_idx += 1
 
+    assert c_all_fisher_pval == len(p_val_list), "Number of p-values (%i) does not match number of RBP pairs (%i)" %(len(p_val_list), len(rbp_pairs))
+    # Percentage rounded to 2 digits.
+    perc_sig_fisher_pval = 0.0
+    if c_all_fisher_pval > 0:
+        perc_sig_fisher_pval = round((c_sig_fisher_pval/c_all_fisher_pval)*100, 2)
+
+    print("# of RBP co-occurrence comparisons (calculated p-values in total): %i" %(c_all_fisher_pval))
+
+    if args.cooc_pval_mode == 1:
+        print("Number of significant co-occurrence p-values (BH corrected): %i (%.2f%%)" %(c_sig_fisher_pval, perc_sig_fisher_pval))
+    elif args.cooc_pval_mode == 2:
+        print("Number of significant co-occurrence p-values (Bonferroni corrected): %i (%.2f%%)" %(c_sig_fisher_pval, perc_sig_fisher_pval))
+    elif args.cooc_pval_mode == 3:
+        print("Number of significant co-occurrence p-values (no correction): %i (%.2f%%)" %(c_sig_fisher_pval, perc_sig_fisher_pval))
 
     """
     Print out RBPs sorted by KS p-value.
@@ -3791,7 +3796,12 @@ def main_search(args):
                                          sort_js_mode=args.sort_js_mode,
                                          plotly_js_mode=args.plotly_js_mode,
                                          cooc_pval_thr=cooc_pval_thr,
+                                         c_all_fisher_pval=c_all_fisher_pval,
+                                         c_sig_fisher_pval=c_sig_fisher_pval,
+                                         perc_sig_fisher_pval=perc_sig_fisher_pval,
                                          cooc_pval_mode=args.cooc_pval_mode,
+                                         fimo_pval=args.fimo_pval,
+                                         reg_seq_str="regions",
                                          report_header=args.report_header,
                                          plots_subfolder=plots_subfolder)
 
@@ -3825,6 +3835,9 @@ def main_search(args):
                                          html_report_out=html_motif_plots_out,
                                          plot_abs_paths=args.plot_abs_paths,
                                          report_header=args.report_header,
+                                         fimo_pval=args.fimo_pval,
+                                         c_in_regions=c_regions,
+                                         reg_seq_str="regions",
                                          plots_subfolder=plots_subfolder)
 
 
@@ -3887,6 +3900,8 @@ def main_batch(args):
 
     print("Running for you in BATCH mode ... ")
 
+
+    assert os.path.exists(args.in_genome), "--genome file \"%s\" not found" % (args.in_genome)
 
     """
     Check input --bed BED files.
@@ -5381,6 +5396,7 @@ def main_batch(args):
                                             sort_js_mode=args.sort_js_mode,
                                             kmer_size=args.kmer_size,
                                             add_motif_db_info=add_motif_db_info,
+                                            fimo_pval=args.fimo_pval,
                                             motif_db_str=motif_db_str,
                                             report_header=args.report_header,
                                             plots_subfolder=plots_subfolder)
@@ -5507,15 +5523,6 @@ def main_batch(args):
     if args.report:
         print("Comparative plots report .html:\n%s" %(html_report_out))
     print("")
-
-
-
-
-
-
-
-
-
 
 
 ################################################################################
@@ -6725,6 +6732,9 @@ def main_searchseq(args):
                                          html_report_out=html_motif_plots_out,
                                          plot_abs_paths=args.plot_abs_paths,
                                          rbpbench_mode="searchseq --plot-motifs",
+                                         fimo_pval=args.fimo_pval,
+                                         c_in_regions=c_regions,
+                                         reg_seq_str="sequences",
                                          report_header=args.report_header,
                                          plots_subfolder=plots_subfolder)
 
@@ -6789,6 +6799,7 @@ def main_searchlong(args):
     print("Running for you in SEARCHLONG mode ... ")
 
     assert os.path.exists(args.in_file), "--in file \"%s\" not found" % (args.in_file)
+    assert os.path.exists(args.in_genome), "--genome file \"%s\" not found" % (args.in_genome)
 
     if args.tr_list:
         assert args.in_gtf, "set --tr-list requires --gtf GTF file"
@@ -8042,6 +8053,9 @@ def main_searchlong(args):
                                         html_report_out=html_motif_plots_out,
                                         plot_abs_paths=args.plot_abs_paths,
                                         rbpbench_mode="searchlong --plot-motifs",
+                                        fimo_pval=args.fimo_pval,
+                                        c_in_regions=c_regions,
+                                        reg_seq_str="regions",
                                         report_header=args.report_header,
                                         plots_subfolder=plots_subfolder)
 
@@ -8118,7 +8132,9 @@ def main_searchrna(args):
     print("Running for you in SEARCHRNA mode ... ")
 
     assert os.path.exists(args.in_sites), "--in file \"%s\" not found" % (args.in_sites)
-
+    assert os.path.exists(args.in_gtf), "--gtf file \"%s\" not found" % (args.in_gtf)
+    assert os.path.exists(args.in_genome), "--genome file \"%s\" not found" % (args.in_genome)
+    
     # Is MEME >= v5 installed?
     if not args.meme_disable_check:
         assert benchlib.is_tool("meme"), "meme not in PATH"
@@ -8461,6 +8477,8 @@ def main_searchrna(args):
         id2name_dic
         id2type_dic
         """
+    else:
+        regex_id = False
 
     """
     If --set-rbp-id set, check if it is part of loaded RBP IDs.
@@ -8660,8 +8678,6 @@ def main_searchrna(args):
 
     """
     Calculate effective size of genomic regions.
-
-    AALAMO
 
     """
     print("Calculate effective genomic region size ... ")
@@ -9540,7 +9556,9 @@ def main_searchrna(args):
     # Update + filter p-values.
 
     pv_idx = 0
-    
+    c_all_fisher_pval = 0
+    c_sig_fisher_pval = 0
+
     for pair in rbp_pairs:
         pair = list(pair)
         pair.sort()
@@ -9553,6 +9571,10 @@ def main_searchrna(args):
         p_value = p_val_list[pv_idx]
 
         p_value = benchlib.round_to_n_significant_digits(p_value, 4)
+
+        c_all_fisher_pval += 1
+        if p_value <= cooc_pval_thr:
+            c_sig_fisher_pval += 1
 
         p_value_plotted = p_value
 
@@ -9568,6 +9590,19 @@ def main_searchrna(args):
 
         pv_idx += 1
 
+    assert c_all_fisher_pval == len(p_val_list), "Number of p-values (%i) does not match number of RBP pairs (%i)" %(len(p_val_list), len(rbp_pairs))
+    perc_sig_fisher_pval = 0.0
+    if c_all_fisher_pval > 0:
+        perc_sig_fisher_pval = round((c_sig_fisher_pval/c_all_fisher_pval)*100, 2)
+
+    print("# of RBP co-occurrence comparisons (calculated p-values in total): %i" %(c_all_fisher_pval))
+
+    if args.cooc_pval_mode == 1:
+        print("Number of significant co-occurrence p-values (BH corrected): %i (%.2f%%)" %(c_sig_fisher_pval, perc_sig_fisher_pval))
+    elif args.cooc_pval_mode == 2:
+        print("Number of significant co-occurrence p-values (Bonferroni corrected): %i (%.2f%%)" %(c_sig_fisher_pval, perc_sig_fisher_pval))
+    elif args.cooc_pval_mode == 3:
+        print("Number of significant co-occurrence p-values (no correction): %i (%.2f%%)" %(c_sig_fisher_pval, perc_sig_fisher_pval))
 
     """
     Print out RBPs sorted by KS p-value.
@@ -9740,7 +9775,12 @@ def main_searchrna(args):
                                         plotly_js_mode=args.plotly_js_mode,
                                         cooc_pval_thr=cooc_pval_thr,
                                         cooc_pval_mode=args.cooc_pval_mode,
+                                        c_all_fisher_pval=c_all_fisher_pval,
+                                        c_sig_fisher_pval=c_sig_fisher_pval,
+                                        perc_sig_fisher_pval=perc_sig_fisher_pval,
                                         rbpbench_mode="searchrna",
+                                        fimo_pval=args.fimo_pval,
+                                        reg_seq_str="regions",
                                         disable_motif_enrich_table=True,
                                         report_header=args.report_header,
                                         plots_subfolder=plots_subfolder)
@@ -9775,6 +9815,9 @@ def main_searchrna(args):
                                          html_report_out=html_motif_plots_out,
                                          plot_abs_paths=args.plot_abs_paths,
                                          rbpbench_mode="searchrna --plot-motifs",
+                                         fimo_pval=args.fimo_pval,
+                                         c_in_regions=c_regions,
+                                         reg_seq_str="regions",
                                          report_header=args.report_header,
                                          plots_subfolder=plots_subfolder)
 
@@ -9823,31 +9866,6 @@ def main_searchrna(args):
         print("Motif plots and hit statistics .html:\n%s" %(html_motif_plots_out))
     print("Search report .html:\n%s" %(html_report_out))
     print("")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 ################################################################################
@@ -10707,8 +10725,6 @@ def main_searchlongrna(args):
     """
     Number of motif nucleotides over called + effective region size.
 
-    ALAMO
-
     """
 
     print("Calculate effective motif region sizes for each RBP ... ")
@@ -11223,6 +11239,9 @@ def main_searchlongrna(args):
                                         html_report_out=html_motif_plots_out,
                                         plot_abs_paths=args.plot_abs_paths,
                                         rbpbench_mode="searchlongrna",
+                                        fimo_pval=args.fimo_pval,
+                                        c_in_regions=c_regions,
+                                        reg_seq_str="regions",
                                         report_header=args.report_header,
                                         plots_subfolder=plots_subfolder)
 

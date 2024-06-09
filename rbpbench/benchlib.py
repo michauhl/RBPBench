@@ -4024,8 +4024,6 @@ def get_regex_hits(regex, regex_id, seqs_dic,
         If true, input to regex search was sequences, so use coordinates as they are (not genomic + relative).
         Also seq_name is the sequence ID, and does not have to have format like "chr6:35575787-35575923(-)"
 
-    ALAMO
-
     """
 
     assert is_valid_regex(regex), "invalid regex given"
@@ -4567,7 +4565,6 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
 
     """
 
-    # ALAMO
     # Threshold value for grey coloring.
     # threshold = 0.2
     # # color_scale = ["grey", "darkblue", "blue", "purple", "red", "yellow"]
@@ -4581,7 +4578,6 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
     # color_scale = [[0, 'grey'], [0.01, 'darkblue'], [1, 'yellow']]
 
     # color_scale = [[0, "midnightblue"], [0, 'darkblue'], [0.25, 'blue'], [0.5, 'purple'], [0.75, 'red'], [1, 'yellow']]
-
 
     colors = ['darkblue', 'blue', 'purple', 'red', 'orange', 'yellow']
     # colors = ['green', 'red']
@@ -4888,8 +4884,7 @@ def get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic):
     id2infos_dic:
         id2infos_dic[internal_id] = [rbp_id, data_id, method_id, motif_db_str, bed_file_path]
 
-    AALAMO
-        
+
     """
 
     assert id2occ_list_dic, "id2lst_dic empty"
@@ -4971,10 +4966,6 @@ def get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic):
         for j in range(len_set_list):
             gene_cooc_lll[i].append(["-", "-", "-", "-"])
 
-    # import sys
-    # sys.exit()
-    # AALAMO
-
     seen_pairs_dic = {}
 
     for i,set_id_i in enumerate(set_plot_ids_list_ordered):
@@ -5043,7 +5034,6 @@ def create_gene_occ_cooc_plot_plotly(df_gene_occ, gene_cooc_lll, plot_out,
     Plot gene occupancy co-occurrences between batch input datasets 
     as heat map with plotly.
 
-    AALAMO
     """
 
     plot = px.imshow(df_gene_occ)
@@ -5101,6 +5091,7 @@ def batch_generate_html_report(dataset_ids_list,
                                kmer_size=5,
                                plotly_embed_style=1,
                                add_motif_db_info=False,
+                               fimo_pval=0.001,
                                motif_db_str="custom",
                                report_header=False,
                                plots_subfolder="html_report_plots"):
@@ -5233,15 +5224,15 @@ def batch_generate_html_report(dataset_ids_list,
 </html>
 """ %(sorttable_js_html)
 
-    # Markdown part.
+    # Markdown part.   AALAMO
     mdtext = """
 
 # %sBatch report
 
 List of available statistics and plots generated
-by RBPBench (rbpbench batch --report, used motif database: %s):
+by RBPBench (rbpbench batch --report):
 
-- [Input datasets sequence length statistics](#seq-len-stats)""" %(report_header_info, motif_db_str)
+- [Input datasets sequence length statistics](#seq-len-stats)""" %(report_header_info)
     mdtext += "\n"
 
     if id2regex_stats_dic:  # if not empty.
@@ -5271,7 +5262,10 @@ by RBPBench (rbpbench batch --report, used motif database: %s):
             internal_ids_list.append(internal_id)
             mdtext += "- [%s region annotations](#annot-plot-%i)\n" %(combined_id, data_idx)
             data_idx += 1
-        mdtext += "\n&nbsp;\n"
+        # mdtext += "\n&nbsp;\n"
+
+    mdtext += "\nUsed motif database = %s. FIMO p-value threshold (--fimo-pval) = %s.\n" %(motif_db_str, str(fimo_pval))
+    mdtext += "\n&nbsp;\n"
 
     """
     Input sequence stats table.
@@ -5596,16 +5590,9 @@ No plot generated since < 4 datasets were provided.
 
 
 
-
-
-
-
-
     """
     Input datasets gene / transcript region occupancies co-occurrence heat map plot.
 
-    AALAMO
-    
     """
 
     if id2reg_annot_dic and gene_occ_cooc_plot:
@@ -5739,7 +5726,6 @@ resulting in a vector of 1s and 0s for each RBP, which is then used to construct
             annot_comp_plot_plotly =  "gen_annot_comparative_plot.plotly.html"
             annot_comp_plot_plotly_out = plots_out_folder + "/" + annot_comp_plot_plotly
 
-            # AALAMO
             create_annot_comp_plot_plotly(annot_dataset_ids_list, annot_freqs_ll,
                                           annot_ids_list, annot2color_dic,
                                           annot_comp_plot_plotly_out,
@@ -5897,8 +5883,6 @@ def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic,
 
     motif_ids_list:
         List of motif IDs to plot mRNA occupancy profiles for.
-
-    AALAMO.
 
     """
 
@@ -6260,8 +6244,13 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 plotly_full_html=False,
                                 cooc_pval_thr=0.05,
                                 cooc_pval_mode=1,
+                                c_all_fisher_pval=0,
+                                c_sig_fisher_pval=0,
+                                perc_sig_fisher_pval=0.0,
                                 rbpbench_mode="search --report",
                                 disable_motif_enrich_table=False,
+                                fimo_pval=0.001,
+                                reg_seq_str="regions",
                                 report_header=False,
                                 plots_subfolder="html_report_plots"):
     """
@@ -6312,6 +6301,13 @@ def search_generate_html_report(df_pval, pval_cont_lll,
     report_header_info = ""
     if report_header:
         report_header_info = "RBPBench "
+
+    # Number of input regions.
+    c_in_regions = 0
+    for rbp_id in search_rbps_dic:
+        c_in_regions += search_rbps_dic[rbp_id].c_hit_reg
+        c_in_regions += search_rbps_dic[rbp_id].c_no_hit_reg      
+        break
 
     """
     Setup sorttable.js to make tables in HTML sortable.
@@ -6422,6 +6418,8 @@ by RBPBench (rbpbench %s):
             mdtext += "    - [Motif %s distance statistics](#single-motif-%i-dist-stats)\n" %(motif_id, idx)
             # mdtext += "    - [Single motif %s distance plot](#single-motif-%i-dist-plot)\n" %(motif_id, idx)
 
+
+    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s. # of input %s = %i.\n" %(str(fimo_pval), reg_seq_str, c_in_regions)
     mdtext += "\n&nbsp;\n"
 
 
@@ -6438,12 +6436,6 @@ by RBPBench (rbpbench %s):
         if wrs_mode == 2:
             wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low p-values mean motif-containing regions have significantly lower scores."
             wrs_mode_info2 = "lower"
-
-        c_in_regions = 0
-        for rbp_id in search_rbps_dic:
-            c_in_regions += search_rbps_dic[rbp_id].c_hit_reg
-            c_in_regions += search_rbps_dic[rbp_id].c_no_hit_reg      
-            break
 
         mdtext += """
 ## RBP motif enrichment statistics ### {#rbp-enrich-stats}
@@ -6570,6 +6562,8 @@ By default, BED genomic regions input file column 5 is used as the score column 
     else:
         assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(cooc_pval_mode)
     
+    p_val_info += " # of RBP co-occurrence comparisons: %i. # of significant co-occurrences: %i (%.2f%%)." %(c_all_fisher_pval, c_sig_fisher_pval, perc_sig_fisher_pval)
+
     # Inform about set alterntive hypothesis for Fisher exact test on RBP motif co-occurrences.
     fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., significantly overrepresented co-occurrences are reported."
     if fisher_mode == 2:
@@ -6623,8 +6617,6 @@ for easier distinction between significant and non-significant co-occurrences.
 ## Input sequence length distribution ### {#seq-len-plot}
 
 """
-
-        # ALAMO
 
         seq_len_plot_plotly =  "seq_len_violin_plot.plotly.html"
         seq_len_plot_plotly_out = plots_out_folder + "/" + seq_len_plot_plotly
@@ -6725,8 +6717,6 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
     if upset_plot_max_rbp_rank is not None:
         if upset_plot_max_rbp_rank < upset_plot_nr_included_rbps:
             upset_plot_nr_included_rbps = upset_plot_max_rbp_rank
-
-    # ALAMO
 
     plotted, reason, count = create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list, 
                                   reg2annot_dic=reg2annot_dic,
@@ -7690,7 +7680,7 @@ def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg
         # Get annotation ID -> hex color mapping for plotting.
         annot2color_dic = {}
 
-        # ALAMO Colors for all annotations.
+        # Colors for all annotations.
         hex_colors = get_hex_colors_list(min_len=len(annot_dic))
         # hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
 
@@ -8074,6 +8064,9 @@ def search_generate_html_motif_plots(search_rbps_dic,
                                      sort_js_mode=1,
                                      rbpbench_mode="search --plot-motifs",
                                      report_header=False,
+                                     fimo_pval=0.001,
+                                     c_in_regions=0,
+                                     reg_seq_str="regions",
                                      plots_subfolder="html_motif_plots"):
     """
     Create motif plots for selected RBPs.
@@ -8163,6 +8156,9 @@ by RBPBench (rbpbench %s):
         tab_id = "plot-%i" %(idx)
         motif_plot_ids_dic[rbp_id] = tab_id
         mdtext += "- [%s motifs](#%s)\n" %(rbp_id, tab_id)
+
+
+    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s. # input %s = %i.\n" %(str(fimo_pval), reg_seq_str, c_in_regions)
     mdtext += "\n&nbsp;\n"
 
 
@@ -8173,7 +8169,8 @@ by RBPBench (rbpbench %s):
     mdtext += """
 ## Motif hit statistics ### {#motif-hit-stats}
 
-**Table:** RBP motif hit statistics with RBP ID, motif ID, motif database ID (set to "user" if user-supplied motif, otherwise internal database ID), and respective number of motif hits found in supplied %s regions.
+**Table:** RBP motif hit statistics with RBP ID, motif ID, motif database ID (set to "user" if user-supplied motif, otherwise internal database ID), 
+and respective number of motif hits found in supplied %s regions.
 
 """ %(site_type)
 
@@ -8277,7 +8274,6 @@ Number of mRNA sequences used for prediction and plot generation: %i.
 
 """ %(rbp_id, rbp_id, norm_mrna_reg_dic["mode"], norm_mrna_reg_dic["5'UTR"], norm_mrna_reg_dic["CDS"], norm_mrna_reg_dic["3'UTR"], norm_mrna_reg_dic["c_mrna_seqs"])
 
-
         # If there are motif hit region annotations and hits for the RBP.
         if rbp2motif2annot2c_dic and c_total_rbp_hits:
 
@@ -8286,7 +8282,6 @@ Number of mRNA sequences used for prediction and plot generation: %i.
             annot_stacked_bars_plot =  "annotation_stacked_bars_plot.%s.png" %(rbp_id)
             annot_stacked_bars_plot_out = plots_out_folder + "/" + annot_stacked_bars_plot
 
-            # AALAMO adjust figure text for single motif RBPs.
             create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, annot2color_dic,
                                                 annot_stacked_bars_plot_out)
 
