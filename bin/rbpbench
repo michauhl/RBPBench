@@ -1933,12 +1933,14 @@ def main_search(args):
 
     rbp_stats_out = args.out_folder + "/rbp_hit_stats.tsv"
     motif_stats_out = args.out_folder + "/motif_hit_stats.tsv"
-    con_res_out_tsv = args.out_folder + "/contingency_table_results.tsv"
+    # con_res_out_tsv = args.out_folder + "/contingency_table_results.tsv"
     settings_file = args.out_folder + "/settings.find_motifs.out"
     rbp_reg_occ_table_out = args.out_folder + "/rbp_region_occupancies.tsv"
 
     # Output unique motif hits.
     motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_search.bed"
+    # Output RBP co-ooccurrence stats as table.
+    cooc_stats_out = args.out_folder + "/rbp_cooc_stats.tsv"
 
     # Temp files.
     # random_id = uuid.uuid1()
@@ -2645,7 +2647,6 @@ def main_search(args):
     This however needs same input sizes (x,y)
     Alternatively, use Wilcoxon rank-sum test (Mann-Whitney U test)
 
-    
     """
 
     # print("Calculate Kolmogorov-Smirnov (KS) statistics ... ")
@@ -3333,6 +3334,9 @@ def main_search(args):
 
 
     # Update + filter p-values.
+    # AALAMO
+    COSOUT = open(cooc_stats_out, "w")
+    COSOUT.write("rbp_id1\trbp_id2\tc_1and2\tc_only2\tc_only1\tc_not1not2\tcooc_pval\tavg_min_dist\tperc_close_hits_%int\n" %(args.max_motif_dist))
 
     pv_idx = 0
     c_all_fisher_pval = 0
@@ -3369,6 +3373,17 @@ def main_search(args):
         con_pval_dic[pair_str] = p_value
 
         pv_idx += 1
+
+        # Get stats for output.
+        rbp1 = pair[0]
+        rbp2 = pair[1]
+        con_table = con_table_dic[pair_str]
+        avg_min_dist = pval_cont_lll[idx2][idx1][4]
+        perc_close_hits = pval_cont_lll[idx2][idx1][5]
+
+        COSOUT.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" %(rbp1, rbp2, str(con_table[0][0]), str(con_table[0][1]), str(con_table[1][0]), str(con_table[1][1]), str(p_value), avg_min_dist, perc_close_hits))
+
+    COSOUT.close()
 
     assert c_all_fisher_pval == len(p_val_list), "Number of p-values (%i) does not match number of RBP pairs (%i)" %(len(p_val_list), len(rbp_pairs))
     # Percentage rounded to 2 digits.
@@ -3426,9 +3441,8 @@ def main_search(args):
 
     print("")
 
-    # Print table to file.
-    benchlib.output_con_table_results(con_res_out_tsv, pval_ll, rbp_list)
-
+    # # Print table to file.
+    # benchlib.output_con_table_results(con_res_out_tsv, pval_ll, rbp_list)
 
     """
     If --report set, calcuate correlations.
@@ -3874,7 +3888,8 @@ def main_search(args):
     print("============")
     print("")
     print("Run parameter settings:\n%s" %(settings_file))
-    print("Co-occurrence p-values for each RBP pair .tsv:\n%s" %(con_res_out_tsv))
+    # print("Co-occurrence p-values for each RBP pair .tsv:\n%s" %(con_res_out_tsv))
+    print("RBP co-occurrence stats .tsv:\n%s" %(cooc_stats_out))
     print("Filtered input regions .bed:\n%s" %(filtered_sites_bed))
     print("Filtered input regions .fa:\n%s" %(filtered_sites_fa))
     print("Motif hits .bed:\n%s" %(motif_hits_bed_out))
@@ -5897,7 +5912,7 @@ def main_searchseq(args):
 
     rbp_stats_out = args.out_folder + "/rbp_hit_stats.tsv"
     motif_stats_out = args.out_folder + "/motif_hit_stats.tsv"
-    con_res_out_tsv = args.out_folder + "/contingency_table_results.tsv"
+    # con_res_out_tsv = args.out_folder + "/contingency_table_results.tsv"
     settings_file = args.out_folder + "/settings.find_motifs.out"
     rbp_reg_occ_table_out = args.out_folder + "/rbp_region_occupancies.tsv"
 
@@ -8276,9 +8291,11 @@ def main_searchrna(args):
 
     rbp_stats_out = args.out_folder + "/rbp_hit_stats.tsv"
     motif_stats_out = args.out_folder + "/motif_hit_stats.tsv"
-    con_res_out_tsv = args.out_folder + "/contingency_table_results.tsv"
+    # con_res_out_tsv = args.out_folder + "/contingency_table_results.tsv"
     settings_file = args.out_folder + "/settings.find_motifs.out"
     rbp_reg_occ_table_out = args.out_folder + "/rbp_region_occupancies.tsv"
+    # Output RBP co-ooccurrence stats as table.
+    cooc_stats_out = args.out_folder + "/rbp_cooc_stats.tsv"
 
     # Output unique motif hits.
     motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_searchrna.bed"
@@ -9559,6 +9576,9 @@ def main_searchrna(args):
     c_all_fisher_pval = 0
     c_sig_fisher_pval = 0
 
+    COSOUT = open(cooc_stats_out, "w")
+    COSOUT.write("rbp_id1\trbp_id2\tc_1and2\tc_only2\tc_only1\tc_not1not2\tcooc_pval\tavg_min_dist\tperc_close_hits_%int\n" %(args.max_motif_dist))
+
     for pair in rbp_pairs:
         pair = list(pair)
         pair.sort()
@@ -9589,6 +9609,17 @@ def main_searchrna(args):
         con_pval_dic[pair_str] = p_value
 
         pv_idx += 1
+
+        # Get stats for output.
+        rbp1 = pair[0]
+        rbp2 = pair[1]
+        con_table = con_table_dic[pair_str]
+        avg_min_dist = pval_cont_lll[idx2][idx1][4]
+        perc_close_hits = pval_cont_lll[idx2][idx1][5]
+
+        COSOUT.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" %(rbp1, rbp2, str(con_table[0][0]), str(con_table[0][1]), str(con_table[1][0]), str(con_table[1][1]), str(p_value), avg_min_dist, perc_close_hits))
+
+    COSOUT.close()
 
     assert c_all_fisher_pval == len(p_val_list), "Number of p-values (%i) does not match number of RBP pairs (%i)" %(len(p_val_list), len(rbp_pairs))
     perc_sig_fisher_pval = 0.0
@@ -9645,9 +9676,8 @@ def main_searchrna(args):
 
     print("")
 
-    # Print table to file.
-    benchlib.output_con_table_results(con_res_out_tsv, pval_ll, rbp_list)
-
+    # # Print table to file.
+    # benchlib.output_con_table_results(con_res_out_tsv, pval_ll, rbp_list)
 
     """
     For HTML report, calculate correlations too.
@@ -9855,7 +9885,8 @@ def main_searchrna(args):
     print("============")
     print("")
     print("Run parameter settings:\n%s" %(settings_file))
-    print("Co-occurrence p-values for each RBP pair .tsv:\n%s" %(con_res_out_tsv))
+    # print("Co-occurrence p-values for each RBP pair .tsv:\n%s" %(con_res_out_tsv))
+    print("RBP co-occurrence stats .tsv:\n%s" %(cooc_stats_out))
     print("Filtered input regions .bed:\n%s" %(filtered_sites_bed))
     print("Filtered input regions .fa:\n%s" %(filtered_sites_fa))
     print("Motif hits .bed:\n%s" %(motif_hits_bed_out))
