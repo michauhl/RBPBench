@@ -107,7 +107,20 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
-    # New options ALAMO, add to call:
+    # Test modes.
+    p.add_argument("--wrs-mode",
+                   dest="wrs_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Defines Wilcoxon rank sum test alternative hypothesis for testing whether motif-containing regions have significantly different scores. 1: test for higher (greater) scores, 2: test for lower (less) scores (default: 1)")
+    p.add_argument("--fisher-mode",
+                   dest="fisher_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Defines Fisher exact test alternative hypothesis for testing co-occurrences of RBP motifs. 1: greater, 2: two-sided, 3: less (default: 1)")
+    # Report.
     p.add_argument("--report",
                    dest="report",
                    default = False,
@@ -119,6 +132,35 @@ def setup_argument_parser():
                    metavar='int',
                    default=5,
                    help="K-mer size for comparative plots (default: 5)")
+    p.add_argument("--no-occ-heatmap",
+                   dest="no_occ_heatmap",
+                   default = False,
+                   action = "store_true",
+                   help = "Do not produce gene region occupancy heatmap plot in HTML report (default: False)")
+    p.add_argument("--report-header",
+                   dest="report_header",
+                   default = False,
+                   action = "store_true",
+                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
+    # Regex.
+    p.add_argument("--regex",
+                   dest="regex",
+                   type=str,
+                   metavar='str',
+                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', ..")
+    p.add_argument("--regex-search-mode",
+                   dest="regex_search_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit end position, 2: when motif hit encountered, continue +1 of motif hit start position (default: 1)")
+    p.add_argument("--max-motif-dist",
+                   dest="max_motif_dist",
+                   type=int,
+                   metavar='int',
+                   default=20,
+                   help="Set maximum motif distance for regex-RBP co-occurrence statistic in HTML report (default: 20)")
+    # GTF.
     p.add_argument("--gtf",
                    dest="in_gtf",
                    type=str,
@@ -144,6 +186,50 @@ def setup_argument_parser():
                    default=0.1,
                    help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\") (default: 0.1)")
     return p
+
+
+################################################################################
+
+def is_valid_regex(regex):
+    """
+    Check if regex string is valid regex.
+
+    >>> is_valid_regex(".*")
+    True
+    >>> is_valid_regex(".*[")
+    False
+    >>> is_valid_regex("ACGT")
+    True
+
+    """
+
+    try:
+        re.compile(regex)
+        return True
+    except re.error:
+        return False
+
+
+################################################################################
+
+def remove_special_chars_from_str(check_str,
+                                  reg_ex='[^A-Za-z0-9_-]+'):
+    """
+    Remove special characters from string.
+
+    reg_ex:
+        Regular expression defining what to keep.
+
+    >>> check_str = "{_}[-](_)\V/"
+    >>> remove_special_chars_from_str(check_str)
+    '_-_V'
+    >>> check_str = ""
+    >>> remove_special_chars_from_str(check_str)
+    ''
+
+    """
+    clean_string = re.sub(reg_ex, '', check_str)
+    return clean_string
 
 
 ###############################################################################
@@ -280,6 +366,28 @@ if __name__ == '__main__':
         if args.tr_types_list:
             tr_types = (" ").join(args.tr_types_list)
             batch_call += " --tr-types %s" % (tr_types)
+
+    batch_call += " --gtf-feat-min-overlap %s" % (str(args.gtf_feat_min_overlap))
+    if args.report_header:
+        batch_call += " --report-header"
+    if args.no_occ_heatmap:
+        batch_call += " --no-occ-heatmap"
+
+    batch_call += " --fisher-mode %i" % (args.fisher_mode)
+    batch_call += " --wrs-mode %i" % (args.wrs_mode)
+
+    if args.regex:
+        # Check if given regex is valid.
+        assert is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
+        # Remove , ; from given regex, to avoid motif_id format conflicts.
+        regex = remove_special_chars_from_str(args.regex,
+                                              reg_ex="[ ,;]")
+        
+        assert regex, "empty string after removing special chars ( [ ,;] ) from --regex. Please provide a valid regex with DNA letters"
+
+        batch_call += " --regex %s" % (regex)
+        batch_call += " --regex-search-mode %i" % (args.regex_search_mode)
+        batch_call += " --max-motif-dist %i" % (args.max_motif_dist)
 
     rbp_ids = (" ").join(id_collect_dic["rbp_id"])
     method_ids = (" ").join(id_collect_dic["method_id"])

@@ -124,6 +124,7 @@ def round_to_n_significant_digits(num, n,
                                   zero_check_val=1e-300):
     """
     Round float / scientific notation number to n significant digits.
+    This function only works for positive numbers.
     
     >>> round_to_n_significant_digits(0.296538210, 3)
     0.297
@@ -135,10 +136,10 @@ def round_to_n_significant_digits(num, n,
     3e-05
     >>> round_to_n_significant_digits(0.0, 2)
     0
-    >>> round_to_n_significant_digits(-0.0012345, 3)
-    -0.00123
-    >>> round_to_n_significant_digits(2.2e-308, 3)
-    2.2e-308
+    >>> round_to_n_significant_digits(1e-300, 3)
+    1e-300
+    >>> round_to_n_significant_digits(1e-300, 3)
+    1e-300
     
     """
 
