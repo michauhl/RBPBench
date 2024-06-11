@@ -13,10 +13,16 @@ from markdown import markdown
 import pandas as pd
 import plotly.express as px
 from math import log10
+from math import floor
 import textdistance
 import numpy as np
 from upsetplot import UpSet
 from packaging import version
+from sklearn.decomposition import PCA
+from sklearn.decomposition import SparsePCA
+from itertools import combinations
+from scipy.stats import fisher_exact
+from scipy.stats import false_discovery_control  # Benjamini-Hochberg correction.
 
 
 """
@@ -92,6 +98,123 @@ def check_tool_version(tool_call, min_version):
 
 ################################################################################
 
+def is_valid_regex(regex):
+    """
+    Check if regex string is valid regex.
+
+    >>> is_valid_regex(".*")
+    True
+    >>> is_valid_regex(".*[")
+    False
+    >>> is_valid_regex("ACGT")
+    True
+
+    """
+
+    try:
+        re.compile(regex)
+        return True
+    except re.error:
+        return False
+
+
+################################################################################
+
+def round_to_n_significant_digits(num, n,
+                                  zero_check_val=1e-300):
+    """
+    Round float / scientific notation number to n significant digits.
+    This function only works for positive numbers.
+    
+    >>> round_to_n_significant_digits(0.296538210, 3)
+    0.297
+    >>> round_to_n_significant_digits(0.0002964982, 3)
+    0.000296
+    >>> round_to_n_significant_digits(0.0000296498, 3)
+    2.96e-05
+    >>> round_to_n_significant_digits(0.0000296498, 2)
+    3e-05
+    >>> round_to_n_significant_digits(0.0, 2)
+    0
+    >>> round_to_n_significant_digits(1e-300, 3)
+    1e-300
+    >>> round_to_n_significant_digits(1e-300, 3)
+    1e-300
+    
+    """
+
+    if num < zero_check_val:
+        return 0
+    else:
+        return round(num, -int(floor(log10(abs(num))) - (n - 1)))
+
+
+################################################################################
+
+def search_regex_in_seqs_dic(regex, seqs_dic,
+                             step_size_one=False,
+                             case_sensitive=True):
+    """
+    Get regex matches in sequences stored in seqs_dic.
+    match.start : 0-based index of the start of the match
+    match.end : 1-based index of the end of the match
+    match.group : the matched string
+    
+    >>> seqs_dic = {'seq1': 'XXXXXXX'}
+    >>> regex = "AA"
+    >>> search_regex_in_seqs_dic(regex, seqs_dic)
+    {}
+    >>> seqs_dic = {'seq1': 'ATXXAGX'}
+    >>> regex = "A[GT]"
+    >>> search_regex_in_seqs_dic(regex, seqs_dic)
+    {'seq1': [[0, 2, 'AT'], [4, 6, 'AG']]}
+    >>> regex = "a[GT]"
+    >>> seqs_dic = {'seq1': 'ATXXAGX'}
+    >>> search_regex_in_seqs_dic(regex, seqs_dic, case_sensitive=False)
+    {'seq1': [[0, 2, 'AT'], [4, 6, 'AG']]}
+    >>> regex = "AAAC"
+    >>> seqs_dic = {'seq1': 'AAA'}
+    >>> search_regex_in_seqs_dic(regex, seqs_dic)
+    {}
+    >>> regex = "AA"
+    >>> seqs_dic = {'seq1': 'AAAA', 'seq2': 'TTTT'}
+    >>> search_regex_in_seqs_dic(regex, seqs_dic, step_size_one=True)
+    {'seq1': [[0, 2, 'AA'], [1, 3, 'AA'], [2, 4, 'AA']]}
+
+    """
+
+    if not is_valid_regex(regex):
+        return "Invalid regex"
+    
+    hits_dic = {}
+
+    if step_size_one:
+
+        for seq_name, seq in seqs_dic.items():
+            seq_length = len(seq)
+            for i in range(seq_length):
+                for match in re.finditer(regex, seq[i:], re.IGNORECASE if not case_sensitive else 0):
+                    if match.start() != 0:
+                        break
+                    if seq_name not in hits_dic:
+                        hits_dic[seq_name] = [[i + match.start(), i + match.end(), match.group()]]
+                    else:
+                        hits_dic[seq_name].append([i + match.start(), i + match.end(), match.group()])
+
+    else:
+
+        for seq_name, seq in seqs_dic.items():
+            for match in re.finditer(regex, seq, re.IGNORECASE if not case_sensitive else 0):
+                if seq_name not in hits_dic:
+                    hits_dic[seq_name] = [[match.start(), match.end(), match.group()]]
+                else:
+                    hits_dic[seq_name].append([match.start(), match.end(), match.group()])
+
+    return hits_dic
+
+
+################################################################################
+
 def get_colormap_hex_colors(cm_id):
     """
     Get all colors of a matplotlib colormap (provided ID cm_id), as HEX values.
@@ -132,6 +255,64 @@ def calc_edit_dist(s1, s2):
     assert s1, "given s1 empty"
     assert s2, "given s2 empty"
     return textdistance.levenshtein(s1, s2)
+
+
+################################################################################
+
+def check_table_file(in_file):
+    """
+    Check if file is a 4 column tab-separated table file, with last column containing 
+    valid file paths.
+
+    Table file containing dataset infos, with columns:
+    rbp_id method_id data_id path_to_BED_file
+    PUM1 	clipper_rep1 	k562_eclip 	path/to/PUM1.k562_eclip.clipper_rep1.bed
+    PUM1 	clipper_rep2 	k562_eclip 	path/to/PUM1.k562_eclip.clipper_rep2.bed
+    PUM1 	clipper_idr 	k562_eclip 	path/to/PUM1.k562_eclip.clipper_idr.bed
+    PUM1 	dewseq_w100_s5 	k562_eclip 	path/to/PUM1.k562_eclip.dewseq_w100_s5.bed
+    RBFOX2 	clipper_idr 	hepg2_eclip 	path/to/RBFOX2.hepg2_eclip.clipper_idr.bed
+    RBFOX2 	clipper_idr 	k562_eclip 	path/to/RBFOX2.k562_eclip.clipper_idr.bed 
+
+    """
+
+    is_table = True
+
+    with open(in_file) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            if len(cols) != 4:
+                is_table = False
+            if not os.path.exists(cols[3]):
+                is_table = False
+            break
+    f.closed
+
+    return is_table
+
+
+################################################################################
+
+def read_in_table_file(in_file):
+    """
+    Read in table file, containing dataset infos, with tab-separated columns:
+    rbp_id method_id data_id path_to_BED_file
+
+    """
+
+    dataset_list = []
+    with open(in_file) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            rbp_id = cols[0]
+            method_id = cols[1]
+            data_id = cols[2]
+            path = cols[3]
+            assert os.path.exists(path), "BED file path %s in --bed table file not found. Please provide valid file paths inside table file" %(path)
+            dataset_list.append([rbp_id, method_id, data_id, path])
+    f.closed
+    assert dataset_list, "no dataset infos read in from --bed table file %s" %(in_file)
+
+    return dataset_list
 
 
 ################################################################################
@@ -276,6 +457,7 @@ def make_contingency_table_2x2(region_labels_dic, idx1, idx2):
     for reg_id in region_labels_dic:
         in1 = region_labels_dic[reg_id][idx1]
         in2 = region_labels_dic[reg_id][idx2]
+
         if in1 and in2:
             cont_a += 1
         elif not in1 and in2:
@@ -287,6 +469,118 @@ def make_contingency_table_2x2(region_labels_dic, idx1, idx2):
 
     table = [[cont_a, cont_b], [cont_c, cont_d]]
     return table
+
+
+################################################################################
+
+def closest_dist_motif_pos_lists(l1, l2):
+    """
+    Given two lists of motif center positions, calculate closest distance 
+    between any two positions in the two lists.
+
+    >>> l1 = [30, 90]
+    >>> l2 = [50, 100]
+    >>> closest_dist_motif_pos_lists(l1, l2)
+    10
+    >>> l1 = []
+    >>> print(closest_dist_motif_pos_lists(l1, l2))
+    None
+
+    """
+
+    min_dist = None
+    for i in l1:
+        for j in l2:
+            dist = abs(i-j)
+            if min_dist is None:
+                min_dist = dist
+            else:
+                if dist < min_dist:
+                    min_dist = dist
+    return min_dist
+
+
+################################################################################
+
+def make_contingency_table_2x2_v2(region_labels_dic, idx1, idx2,
+                                  rid2rbpidx2hcp_dic,
+                                  max_motif_dist=50):
+    """
+    Make a contingency table 2x2, using region_labels_dic.
+    region_labels_dic format:
+    region_id -> [False, True, False ... ]
+    with list number of RBP IDs (len_rbp_list), alphabetically sorted.
+    True: region covered by RBP at idx (i.e. motif hits)
+    False: region not covered by RBP at idx (i.e. no motif hits)
+    Also use hit center position(s) list from rid2rbpidx2hcp_dic to calculate
+    average distance of closest pairs of motif hits for both RBPs.
+    rid2rbpidx2hcp_dic format:
+    region_id -> rbp_idx -> hit center position(s) list
+
+    Return table format:
+    table = [[A, B], [C, D]]
+
+    https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.fisher_exact.html
+                   List 1              Not in List 1
+    List 2         A                   B
+    Not in List 2  C                   D
+
+    table = [[A, B], [C, D]]
+
+    >>> region_labels_dic = {'r1': [True, False], 'r2': [False, True], 'r3': [True, True], 'r4': [False, False], 'r5': [True, True]}
+    >>> rid2rbpidx2hcp_dic = {'r1': {0: [30]}, 'r2': {1: [100]}, 'r3': {0: [30], 1: [50, 70]}, 'r4': {}, 'r5': {0: [30, 40], 1: [20, 100]}}
+    >>> make_contingency_table_2x2_v2(region_labels_dic, 0, 1, rid2rbpidx2hcp_dic, max_motif_dist=50)
+    ([[2, 1], [1, 1]], '15.0', '100.0')
+    >>> make_contingency_table_2x2_v2(region_labels_dic, 0, 1, rid2rbpidx2hcp_dic, max_motif_dist=10)
+    ([[2, 1], [1, 1]], '15.0', '50.0')
+    >>> make_contingency_table_2x2_v2(region_labels_dic, 0, 1, rid2rbpidx2hcp_dic, max_motif_dist=5)
+    ([[2, 1], [1, 1]], '15.0', '0.0')
+    
+    """
+
+    cont_a = 0
+    cont_b = 0
+    cont_c = 0
+    cont_d = 0
+
+    sum_min_dist = 0
+    c_cont_a_max_motif_dist = 0
+
+    for reg_id in region_labels_dic:
+        in1 = region_labels_dic[reg_id][idx1]
+        in2 = region_labels_dic[reg_id][idx2]
+
+        if in1 and in2:
+            cont_a += 1
+            min_dist = closest_dist_motif_pos_lists(rid2rbpidx2hcp_dic[reg_id][idx1], rid2rbpidx2hcp_dic[reg_id][idx2])
+            if min_dist is not None:
+                # print(reg_id, min_dist)
+                sum_min_dist += min_dist
+                if min_dist <= max_motif_dist:
+                    c_cont_a_max_motif_dist += 1
+
+        elif not in1 and in2:
+            cont_b += 1
+        elif in1 and not in2:
+            cont_c += 1
+        else: # not in1 and not in2
+            cont_d += 1
+
+    avg_min_dist = "-"
+    if cont_a:
+        avg_min_dist = sum_min_dist / cont_a
+        # Round avg_min_dist to 1 decimal.
+        avg_min_dist = str(round(avg_min_dist, 1))
+
+    # Percentage of regions with motif hits for both RBPs, where closest motif hits are <= max_motif_dist away.
+    perc_close_hits = "-"
+    if cont_a:
+        perc_close_hits = 100 * c_cont_a_max_motif_dist / cont_a
+        # Round perc_close_hits to 2 decimals.
+        perc_close_hits = str(round(perc_close_hits, 2))
+
+    table = [[cont_a, cont_b], [cont_c, cont_d]]
+    return table, avg_min_dist, perc_close_hits
 
 
 ################################################################################
@@ -589,6 +883,7 @@ def run_fimo(in_fa, in_meme_xml, out_folder,
 ################################################################################
 
 def bed_extract_sequences_from_fasta(in_bed, in_fa, out_fa,
+                                     add_param="",
                                      print_warnings=False,
                                      ignore_errors=False):
     """
@@ -624,7 +919,7 @@ def bed_extract_sequences_from_fasta(in_bed, in_fa, out_fa,
     assert os.path.exists(in_bed), "in_bed %s does not exist" %(in_bed)
     assert os.path.exists(in_fa), "in_fa %s does not exist" %(in_fa)
 
-    check_cmd = "bedtools getfasta -fi " + in_fa +  " -bed " + in_bed + " -s  -fo " +  out_fa
+    check_cmd = "bedtools getfasta -fi " + in_fa +  " -bed " + in_bed + " " + add_param + " -s  -fo " +  out_fa
     output = subprocess.getoutput(check_cmd)
     if print_warnings:
         if output:
@@ -646,9 +941,12 @@ def read_fasta_into_dic(fasta_file,
                         full_header=False,
                         report=1,
                         all_uc=False,
+                        name_bed=False,
                         empty_check=True,
                         id_check=True,
                         skip_data_id="set",
+                        new_header_id="site",
+                        make_uniq_headers=False,
                         skip_n_seqs=True):
     """
     Read in FASTA sequences, store in dictionary and return dictionary.
@@ -666,6 +964,7 @@ def read_fasta_into_dic(fasta_file,
     if not seqs_dic:
         seqs_dic = {}
     seq_id = ""
+    header_idx = 0
 
     # Open FASTA either as .gz or as text file.
     if re.search(".+\.gz$", fasta_file):
@@ -683,8 +982,19 @@ def read_fasta_into_dic(fasta_file,
             assert m, "header ID extraction failed for FASTA header line \"%s\"" %(line)
             seq_id = m.group(1)
 
+            # If name_bed, get first part of ID (before "::").
+            if name_bed:
+                m = re.search("^(.+)::", seq_id)
+                assert m, "BED column 4 ID extraction failed for FASTA header \"%s\"" %(seq_id)
+                seq_id = m.group(1)
+
             if id_check:
                 assert seq_id not in seqs_dic, "non-unique FASTA header \"%s\" in \"%s\"" % (seq_id, fasta_file)
+
+            if make_uniq_headers:
+                header_idx += 1
+                seq_id = new_header_id + "_" + str(header_idx)
+
             if ids_dic:
                 if seq_id in ids_dic:
                     seqs_dic[seq_id] = ""
@@ -1630,6 +1940,201 @@ def get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e,
 
 ################################################################################
 
+def get_transcript_sequences_from_gtf(tid2tio_dic, in_genome_fasta,
+                                      tr_ids_dic=False,
+                                      tmp_out_folder=False):
+    """
+    Given tid2tio_dic, extract transcript sequences from genome FASTA file.
+    
+    Return dictionary with transcript ID -> sequence mapping.
+
+    tr_ids_dic:
+        Defines transcript IDs for which sequences should be extracted.
+    
+    """
+
+    assert tid2tio_dic, "given tid2tio_dic empty"
+
+    tr_seqs_dic = {}
+
+    tids_to_extract = []
+    if tr_ids_dic:
+        tids_to_extract = list(tr_ids_dic.keys())
+    else:
+        for tid in tid2tio_dic:
+            tids_to_extract.append(tr_id)
+    
+
+    # Generate .tmp files.
+    tmp_bed = "exon_regions.tmp.bed"
+    tmp_fa = "exon_regions.tmp.fa"
+    if tmp_out_folder:
+        tmp_bed = tmp_out_folder + "/" + tmp_bed
+        tmp_fa = tmp_out_folder + "/" + tmp_fa
+
+
+    """
+    Output exon regions to BED.
+
+    """
+
+    OUTEXONBED = open(tmp_bed, "w")
+
+    extracted_exon_ids_dic = {}
+
+    for tr_id in tids_to_extract:
+
+        assert tr_id in tid2tio_dic, "transcript ID \"%s\" not in tid2tio_dic" %(tr_id)
+        tio = tid2tio_dic[tr_id]
+
+        chr_id = tio.chr_id
+        tr_pol = tio.tr_pol
+
+        for idx, exon in enumerate(tio.exon_coords):
+            exon_s = exon[0] - 1
+            exon_e = exon[1]
+            idx += 1
+            exon_id = tr_id + "_e" + str(idx)
+            extracted_exon_id = exon_id + "::" + chr_id + ":" + str(exon_s) + "-" + str(exon_e) + "(" + tr_pol + ")"
+            extracted_exon_ids_dic[exon_id] = extracted_exon_id
+
+            OUTEXONBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, exon_s, exon_e, exon_id, tr_pol))
+
+    OUTEXONBED.close()
+
+    """
+    Get exon region sequences from genome FASTA.
+
+    chr6	113868012	113873351	mrocki_201	0	-
+    -name option allows to keep the BED name field in the FASTA header.
+    Unfortunately additional crap is added as well to the header (no matter what option,
+    -name, nameOnly ...)
+    >mrocki_201::chr6:113868012-113873351(-)
+    
+    """
+
+    bed_extract_sequences_from_fasta(tmp_bed, in_genome_fasta, tmp_fa,
+                                     add_param="-name",
+                                     print_warnings=False,
+                                     ignore_errors=False)
+
+    exon_seqs_dic = read_fasta_into_dic(tmp_fa,
+                                        dna=True,
+                                        all_uc=True,
+                                        skip_n_seqs=False)
+
+    """
+    Concatenate exon region sequences to transcript sequences.
+
+    """
+
+    for tr_id in tids_to_extract:
+        ex_c = tid2tio_dic[tr_id].exon_c
+
+        for i in range(ex_c):
+            i += 1
+            ex_id = tr_id + "_e" + str(i)
+            extr_ex_id = extracted_exon_ids_dic[ex_id]
+
+            if extr_ex_id in exon_seqs_dic:
+                ex_seq = exon_seqs_dic[extr_ex_id]
+                if tr_id not in tr_seqs_dic:
+                    tr_seqs_dic[tr_id] = ex_seq
+                else:
+                    tr_seqs_dic[tr_id] += ex_seq
+            else:
+                print("WARNING: no sequence extracted for exon ID \"%s\". Skipping \"%s\" .. " %(ex_id, tr_id))
+                if tr_id in tr_seqs_dic:
+                    del tr_seqs_dic[tr_id]
+                break
+
+    assert tr_seqs_dic, "tr_seqs_dic empty (no FASTA sequences extracted?)"
+    for tr_id in tr_seqs_dic:
+        tr_len = len(tr_seqs_dic[tr_id])
+        exp_len = tid2tio_dic[tr_id].tr_length
+        assert tr_len == exp_len, "BED transcript length != FASTA transcript length for \"%s\"" %(tr_id)
+
+    # Take out the trash.
+    if os.path.exists(tmp_bed):
+        os.remove(tmp_bed)
+    if os.path.exists(tmp_fa):
+        os.remove(tmp_fa)
+
+    return tr_seqs_dic
+
+
+################################################################################
+
+def output_mrna_regions_to_bed(tid2regl_dic, mrna_regions_bed):
+    """
+    Given dictionary with transcript ID -> list of 5'UTR, CDS, 3'UTR lengths,
+    output the UTR and CDS regions to BED file.
+    
+    """
+
+    assert tid2regl_dic, "given tid2regl_dic empty"
+
+    OUTREGBED = open(mrna_regions_bed, "w")
+
+    for tid in tid2regl_dic:
+        trl = tid2regl_dic[tid]
+        utr5_s = 0
+        utr5_e = trl[0]
+        cds_s = utr5_e
+        cds_e = cds_s + trl[1]
+        utr3_s = cds_e
+        utr3_e = utr3_s + trl[2]
+
+        utr5l = utr5_e - utr5_s
+        cds_l = cds_e - cds_s
+        utr3_l = utr3_e - utr3_s
+
+        if utr5l > 0:
+            OUTREGBED.write("%s\t%i\t%i\t%s;5'UTR\t0\t+\n" % (tid, utr5_s, utr5_e, tid))
+        if cds_l > 0:
+            OUTREGBED.write("%s\t%i\t%i\t%s;CDS\t0\t+\n" % (tid, cds_s, cds_e, tid))
+        if utr3_l > 0:
+            OUTREGBED.write("%s\t%i\t%i\t%s;3'UTR\t0\t+\n" % (tid, utr3_s, utr3_e, tid))
+
+    OUTREGBED.close()
+
+
+################################################################################
+
+def get_mrna_region_lengths(tid2tio_dic):
+    """
+    Given a dictionary of TranscriptInfo objects (tid2tio_dic), calculate
+    5'UTR, CDS, and 3'UTR lengths for each transcript.
+    Return dictionary with transcript ID as key and list of 5'UTR, CDS, 3'UTR
+    lengths as value.
+
+    """
+    tid2regl_dic = {}
+
+    for tid in tid2tio_dic:
+        tio = tid2tio_dic[tid]
+
+        if tio.cds_s is not None:
+            
+            tid2regl_dic[tid] = [0, 0, 0]
+
+            for exon in tio.exon_coords:
+                cds_se, utr5_se, utr3_se, cds, utr5, utr3 = get_cds_exon_overlap(tio.cds_s, tio.cds_e, exon[0], exon[1], strand=tio.tr_pol)
+                if cds:
+                    cds_len = cds_se[1] - cds_se[0] + 1
+                    tid2regl_dic[tid][1] += cds_len
+                if utr5:
+                    utr5_len = utr5_se[1] - utr5_se[0] + 1
+                    tid2regl_dic[tid][0] += utr5_len
+                if utr3:
+                    utr3_len = utr3_se[1] - utr3_se[0] + 1
+                    tid2regl_dic[tid][2] += utr3_len
+
+    return tid2regl_dic
+
+
+################################################################################
+
 def output_exon_annotations(tid2tio_dic, out_bed,
                             custom_annot_dic=None,
                             append=False):
@@ -1816,11 +2321,76 @@ IG_pseudogene	1
 
 ################################################################################
 
+def get_motif_hit_region_annotations(overlap_annotations_bed):
+    """
+    Get motif hit region annotations from overlap_annotations_bed. This file 
+    was produced using intersectBed -wao, so also motif hit regions that do not
+    overlap with genomic regions are present in the file.
+    motif hit region id format: HNRNPL,HNRNPL_1;1;method_id,data_id
+    genomic annotation region id format: intron;ENST00000434296
+    
+    """
+
+    assert os.path.exists(overlap_annotations_bed), "file %s does not exist" %(overlap_annotations_bed)
+
+    reg2maxol_dic = {}
+    reg2annot_dic = {}
+    # These shift since motif hits BED contains additional (4) p-value and score columns.
+    annot_col = 13
+    c_ol_nt_col = 16
+
+    with open(overlap_annotations_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+
+            chr_id = cols[0]
+            reg_s = str(int(cols[1]) + 1)
+            reg_e = cols[2]
+            reg_id = cols[3]
+            reg_strand = cols[5]
+
+            # col[3] has format: "rbp_id,motif_id;1;method_id,data_id". Extract motif_id from this string.
+            motif_id = reg_id.split(",")[1].split(";")[0]
+            reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + reg_strand + ")," + motif_id
+
+            annot_id = "intergenic"
+            tr_id = False
+
+            if cols[annot_col] != ".":
+                annot_ids = cols[annot_col].split(";")
+                assert len(annot_ids) == 2, "len(annot_ids) != 2 (expected ; separated string, but got: \"%s\")" %(cols[9])
+                annot_id = annot_ids[0]
+                tr_id = annot_ids[1]
+
+            c_overlap_nts = cols[c_ol_nt_col]
+
+            if reg_id not in reg2maxol_dic:
+                reg2maxol_dic[reg_id] = c_overlap_nts
+                reg2annot_dic[reg_id] = [annot_id, tr_id]
+            else:
+                if c_overlap_nts > reg2maxol_dic[reg_id]:
+                    reg2maxol_dic[reg_id] = c_overlap_nts
+                    reg2annot_dic[reg_id][0] = annot_id
+                    reg2annot_dic[reg_id][1] = tr_id
+    f.closed
+
+    return reg2annot_dic
+
+
+################################################################################
+
 def get_region_annotations(overlap_annotations_bed,
+                           motif_hits=False,
                            reg_ids_dic=None):
     """
     Get region annotations from overlapping genomic regions with exon / intron 
     / transript biotype annotations.
+
+    motif_hits:
+        If True, the -a file is the motif hits BED file. In this case, the region ID
+        has to be reconstructed from the BED region info.
+        Format of reg_ids_dic key if motif_hits=True:
+        "chr1:10-15(+),motif_id"
 
     reg_ids_dic:
         If set, compare genomic region IDs with IDs in dictionary. If region ID 
@@ -1832,16 +2402,31 @@ def get_region_annotations(overlap_annotations_bed,
 
     reg2maxol_dic = {}
     reg2annot_dic = {}
+    annot_col = 9
+    c_ol_nt_col = 12
 
     with open(overlap_annotations_bed) as f:
         for line in f:
             cols = line.strip().split("\t")
             reg_id = cols[3]
-            annot_ids = cols[9].split(";")
+
+            # If motif_ids, construct new unique region_id from BED region info.
+            if motif_hits:
+                chr_id = cols[0]
+                reg_s = str(int(cols[1]) + 1)
+                reg_e = cols[2]
+                reg_strand = cols[5]
+                # col[3] has format: "rbp_id,motif_id;1;method_id,data_id". Extract motif_id from this string.
+                motif_id = reg_id.split(",")[1].split(";")[0]
+                reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + reg_strand + ")," + motif_id
+                annot_col = 13  # These shift since motif hits BED contains additional (4) p-value and score columns.
+                c_ol_nt_col = 16
+
+            annot_ids = cols[annot_col].split(";")
             assert len(annot_ids) == 2, "len(annot_ids) != 2 (expected ; separated string, but got: \"%s\")" %(cols[9])
             annot_id = annot_ids[0]
             tr_id = annot_ids[1]
-            c_overlap_nts = cols[12]
+            c_overlap_nts = cols[c_ol_nt_col]
             if reg_id not in reg2maxol_dic:
                 reg2maxol_dic[reg_id] = c_overlap_nts
                 reg2annot_dic[reg_id] = [annot_id, tr_id]
@@ -1866,6 +2451,73 @@ chr1	1980	2020	s1	0	+	chr1	1000	2000	exon	0	+	20
 chr1	1980	2020	s1	0	+	chr1	2000	3000	intron	0	+	20
 
 """
+
+
+
+################################################################################
+
+def get_mrna_region_annotations(overlap_annotations_bed,
+                                reg_ids_dic=None):
+    """
+    Get mRNA region annotations from overlapping motif hit regions with 
+    mRNA region annotations (i.e. 5'UTR, CDS, 3'UTR in transcript context).
+
+    Format of motif hit regions BED file:
+    ENST00000434296.2	1368	1375	HNRNPL,HNRNPL_3;1;method_id,data_id	0	+	10.6566	7.24e-05	-1.0	-1.0
+    ENST00000434296.2	832	840	HNRNPL,HNRNPL_4;1;method_id,data_id	0	+	10.47	8.96e-05	-1.0	-1.0
+    ENST00000434296.2	1432	1440	HNRNPL,HNRNPL_4;1;method_id,data_id	0	+	10.66	7.4e-05	-1.0	-1.0
+
+    reg_ids_dic:
+        If set, compare genomic region IDs with IDs in dictionary. If region ID 
+        from dictionary not in overlap_annotations_bed, set label "intergenic".
+
+    """
+
+    assert os.path.exists(overlap_annotations_bed), "file %s does not exist" %(overlap_annotations_bed)
+
+    reg2maxol_dic = {}
+    reg2annot_dic = {}
+    annot_col = 9
+    c_ol_nt_col = 12
+
+    with open(overlap_annotations_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            tr_id = cols[0]
+            motif_hit_s = int(cols[1])
+            motif_hit_e = int(cols[2])
+            motif_hit_id = cols[3]
+            mrna_reg_s = cols[11]
+            mrna_reg_e = cols[12]
+            mrna_reg_id = cols[13]
+            c_overlap_nts = cols[16]
+
+            # motif_hit_id has format: "rbp_id,motif_id;1;method_id,data_id". Extract motif_id from this string.
+            motif_id = motif_hit_id.split(",")[1].split(";")[0]
+            # mrna_reg_id has format: ENST00000434296;3utr. Extract region type from this string.
+            mrna_reg_type = mrna_reg_id.split(";")[1]  # can be: 5'UTR, CDS, 3'UTR
+
+            # ID that identifies motif hit.
+            reg_s = str(motif_hit_s + 1)
+            reg_e = str(motif_hit_e)
+            reg_id = tr_id + ":" + reg_s + "-" + reg_e + "(+)," + motif_id
+
+            if reg_id not in reg2maxol_dic:
+                reg2maxol_dic[reg_id] = c_overlap_nts
+                reg2annot_dic[reg_id] = [mrna_reg_type, tr_id]
+            else:
+                if c_overlap_nts > reg2maxol_dic[reg_id]:
+                    reg2maxol_dic[reg_id] = c_overlap_nts
+                    reg2annot_dic[reg_id][0] = mrna_reg_type
+                    reg2annot_dic[reg_id][1] = tr_id
+    f.closed
+
+    if reg_ids_dic is not None:
+        for reg_id in reg_ids_dic:
+            if reg_id not in reg2annot_dic:
+                reg2annot_dic[reg_id] = ["intergenic", False]
+
+    return reg2annot_dic
 
 
 ################################################################################
@@ -1942,7 +2594,7 @@ def read_ids_into_dic(ids_file,
 
 ################################################################################
 
-def gtf_check_exon_order(in_gtf, check_minus=False):
+def gtf_check_exon_order(in_gtf):
     """
     Check exon_number ordering. Return True if ordering for minus strand
     and plus strand is different (i.e. for minus exon_number 1 is most downstream).
@@ -2266,12 +2918,12 @@ def is_tool(name):
 
 ################################################################################
 
-def bed_check_format(bed_file, gimme=False):
+def bed_check_format(bed_file, asserts=True):
     """
     Check whether given BED file is not empty + has >= 6 columns.
 
     >>> bed_file = "test_data/test2.bed"
-    >>> bed_check_format(bed_file, gimme=True)
+    >>> bed_check_format(bed_file)
     True
     
     """
@@ -2280,15 +2932,46 @@ def bed_check_format(bed_file, gimme=False):
     with open(bed_file) as f:
         for line in f:
             cols = line.strip().split("\t")
-            assert len(cols) >= 6, "invalid --in BED format. Please provide valid BED file (i.e., >= 6 column format)"
-            reg_pol = cols[5]
-            assert reg_pol in pols, "invalid polarity in --in BED column 6 (found: \"%s\", expected \"+\" or \"-\"). Please provide valid BED file (i.e., >= 6 column format), or use --unstranded option" %(reg_pol)
-            okay = True
-            break
+            if asserts:
+                assert len(cols) >= 6, "invalid --in BED format. Please provide valid BED file (i.e., >= 6 column format)"
+                reg_pol = cols[5]
+                assert reg_pol in pols, "invalid polarity in --in BED column 6 (found: \"%s\", expected \"+\" or \"-\"). Please provide valid BED file (i.e., >= 6 column format), or use --unstranded option" %(reg_pol)
+                okay = True
+                break
+            else:
+                if len(cols) >= 6:
+                    reg_pol = cols[5]
+                    if reg_pol in pols:
+                        okay = True
+                        break
     f.closed
-    assert okay, "invalid --in BED format (file empty?)"
-    if gimme:
-        return okay
+    if asserts:
+        assert okay, "invalid --in BED format (file empty?)"
+    return okay
+
+
+################################################################################
+
+def fasta_check_format(fasta_file):
+    """
+    Quick check if file is a valid FASTA file.
+
+    >>> test_fa = "test_data/test.fa"
+    >>> fasta_check_format(test_fa)
+    True
+    >>> test_fa = "test_data/test.bed"
+    >>> fasta_check_format(test_fa)
+    False
+
+    """
+    with open(fasta_file, 'r') as f:
+        lines = f.readlines()
+    if len(lines) == 0:
+        return False
+    if not lines[0].startswith(">"):
+        return False
+    
+    return True
 
 
 ################################################################################
@@ -2526,6 +3209,31 @@ def bed_extend_bed(in_bed, out_bed,
 
 ################################################################################
 
+def bed_read_chr_ids_dic(in_bed):
+    """
+    Read in chromosome IDs from BED file.
+    Mapping is chromosome ID -> row count.
+
+    """
+
+    chr_ids_dic = {}
+
+    with open(in_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            chr_id = cols[0]
+            if chr_id in chr_ids_dic:
+                chr_ids_dic[chr_id] += 1
+            else:
+                chr_ids_dic[chr_id] = 1
+
+    f.closed
+
+    return chr_ids_dic
+
+
+################################################################################
+
 def bed_read_rows_into_dic(in_bed, to_list=False):
     """
     Read in .bed file rows into dictionary.
@@ -2574,8 +3282,54 @@ def extract_pol_from_seq_ids(out_seqs_dic):
             m = re.search("\w+:\d+-\d+\(([+|-])\)", seq_id)
             reg2pol_dic[seq_id] = m.group(1)
         else:
-            assert False, "region ID has invalid format (%s). Please contact developers" %(reg_id)
+            assert False, "region ID has invalid format (%s). Please contact developers" %(seq_id)
     return reg2pol_dic
+
+
+################################################################################
+
+def bed_check_ids_output_bed(in_bed, out_bed,
+                             id_check=True,
+                             new_header_id="reg",
+                             make_uniq_headers=False):
+    """
+    Given in_bed BED file, check column 4 IDs, 
+    output to out_bed with unique IDs. 
+    Return regions in dictionary.
+    
+    """
+
+    OUTBED = open(out_bed, "w")
+
+    c_reg = 0
+
+    bed_reg_dic = {}
+
+    with open(in_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            chr_id = cols[0]
+            reg_s = cols[1]
+            reg_e = cols[2]
+            reg_id = cols[3]
+            reg_sc = cols[4]
+            reg_pol = cols[5]
+
+            c_reg += 1
+            if make_uniq_headers:
+                reg_id = new_header_id + "_" + str(c_reg)
+
+            if id_check:
+                assert reg_id not in bed_reg_dic, "non-unique region ID \"%s\" found in --in BED file. Please provide unique column 4 IDs or set --make-uniq-headers" %(reg_id)
+            
+            bed_reg_dic[reg_id] = [chr_id, reg_s, reg_e, reg_pol]
+
+            OUTBED.write("%s\t%s\t%s\t%s\t%s\t%s\n" % (chr_id, reg_s, reg_e, reg_id, reg_sc, reg_pol))
+
+    f.closed
+    OUTBED.close()
+
+    return bed_reg_dic
 
 
 ################################################################################
@@ -2589,6 +3343,8 @@ def bed_filter_extend_bed(in_bed, out_bed,
                           chr_ids_dic=None,
                           bed_chr_ids_dic=None,
                           use_region_ids=False,
+                          chr_len_dic=False,
+                          transcript_sites=False,
                           unstranded=False):
     """
     Filter / extend in_bed BED file, output to out_bed.
@@ -2604,6 +3360,10 @@ def bed_filter_extend_bed(in_bed, out_bed,
         input region, two output regions are generated.
     reg2sc_dic:
         region ID -> column score_col BED score
+    transcript_sites:
+        If transcript sites, just use first three columns.
+    chr_len_dic:
+        Provide transcript lengths for each chromosome, to extend not beyond ends.
 
     """
 
@@ -2625,11 +3385,22 @@ def bed_filter_extend_bed(in_bed, out_bed,
             chr_id = cols[0]
             reg_s = int(cols[1])
             reg_e = int(cols[2])
-            reg_id = cols[3]
-            reg_sc = float(cols[score_col-1])
-            reg_pol = cols[5]
+            reg_id = "-"
+            reg_sc = 0
+            reg_pol = "+"
 
-            assert len(cols) >= score_col, "given score column for --in BED file out of range (# columns = %i, set score column = %i)" %(len(cols), score_col)
+            # If input regions are transcript sites, we just need first three columns.
+            if transcript_sites:
+                reg_id = "%s:%i-%i" %(chr_id, reg_s, reg_e)
+                reg_sc = 0
+                reg_pol = "+"
+            else:
+                # If not transcript sites (usual case, e.g. with rbpbench search).
+                reg_id = cols[3]
+                reg_sc = float(cols[score_col-1])
+                reg_pol = cols[5]
+
+                assert len(cols) >= score_col, "given score column for --in BED file out of range (# columns = %i, set score column = %i)" %(len(cols), score_col)
 
             c_in += 1
 
@@ -2658,9 +3429,15 @@ def bed_filter_extend_bed(in_bed, out_bed,
 
                 # Extend (use + region style extension for both).
                 new_s = reg_s - ext_up
+                new_e = reg_e + ext_down
+                # Bound checks.
                 if new_s < 0:
                     new_s = 0
-                new_e = reg_e + ext_down
+                if chr_len_dic:
+                    if chr_id in chr_len_dic:
+                        chr_len = chr_len_dic[chr_id]
+                        if new_e > chr_len:
+                            new_e = chr_len
 
                 if remove_dupl:
                     reg_str = "%s:%i-%i(+)" % (chr_id, new_s, new_e)
@@ -2702,9 +3479,14 @@ def bed_filter_extend_bed(in_bed, out_bed,
                 if reg_pol == "-":
                     new_s = reg_s - ext_down
                     new_e = reg_e + ext_up
-                # Lower bound check.
+                # Bound checks.
                 if new_s < 0:
                     new_s = 0
+                if chr_len_dic:
+                    if chr_id in chr_len_dic:
+                        chr_len = chr_len_dic[chr_id]
+                        if new_e > chr_len:
+                            new_e = chr_len
 
                 if remove_dupl:
                     reg_str = "%s:%i-%i(%s)" % (chr_id, new_s, new_e, reg_pol)
@@ -2735,6 +3517,28 @@ def bed_filter_extend_bed(in_bed, out_bed,
     stats_dic["reg_len_sum"] = reg_len_sum 
 
     return stats_dic
+
+
+################################################################################
+
+def seq_id_get_parts(seq_id):
+    """
+    Given sequence ID with format chr20:62139082-62139128(-),
+    return single parts.
+
+    """
+
+    if re.search("\w+:\d+-\d+\([+|-]\)", seq_id):
+        m = re.search("(\w+):(\d+)-(\d+)\(([+|-])\)", seq_id)
+        chr_id = m.group(1)
+        reg_s = int(m.group(2))
+        reg_e = int(m.group(3))
+        strand = m.group(4)
+
+        return [chr_id, reg_s, reg_e, strand]
+
+    else:
+        assert False, "invalid sequence ID format (%s). Expected format: chr6:666-6666(-)" %(seq_id)
 
 
 ################################################################################
@@ -3206,7 +4010,84 @@ class FimoHit(GenomicRegion):
 
 ################################################################################
 
+def get_regex_hits(regex, regex_id, seqs_dic,
+                   step_size_one=False,
+                   seq_based=False,
+                   use_motif_regex_id=False):
+    """
+    Given a regular expression (regex), get all hits in sequence dictionary.
+    Store hits as FimoHit objects in list.
+
+    use_motif_regex_id:
+        If True, store regex_id as motif ID. If False, store regex as motif ID. 
+
+    seq_based:
+        If true, input to regex search was sequences, so use coordinates as they are (not genomic + relative).
+        Also seq_name is the sequence ID, and does not have to have format like "chr6:35575787-35575923(-)"
+
+    """
+
+    assert is_valid_regex(regex), "invalid regex given"
+
+    hits_dic = search_regex_in_seqs_dic(regex, seqs_dic,
+                                        step_size_one=step_size_one,
+                                        case_sensitive=True)
+
+    regex_hits_list = []
+
+    motif_id = regex
+    if use_motif_regex_id:
+        motif_id = regex_id
+
+    for hit in hits_dic:
+        seq_name = hit
+        for hit_info in hits_dic[hit]:
+            start = hit_info[0]  # 0-based.
+            end = hit_info[1]  # 1-based.
+            matched_seq = hit_info[2]  # matched sequence.
+
+            if seq_based:
+
+                regex_hit = FimoHit(chr_id=seq_name, 
+                                start=start+1, 
+                                end=end,
+                                strand="+", 
+                                score=0.0, 
+                                motif_id=motif_id, 
+                                seq_name=seq_name, 
+                                pval=0.0, 
+                                qval=0.0,
+                                seq_s=start+1,
+                                seq_e=end,
+                                matched_seq=matched_seq)
+
+            else:
+
+                gen_motif_coords = get_genomic_coords_from_seq_name(seq_name, start, end,
+                                                                    one_based_start=True)
+
+                regex_hit = FimoHit(chr_id=gen_motif_coords[0], 
+                                start=gen_motif_coords[1], 
+                                end=gen_motif_coords[2],
+                                strand=gen_motif_coords[3], 
+                                score=0.0, 
+                                motif_id=motif_id, 
+                                seq_name=seq_name, 
+                                pval=0.0, 
+                                qval=0.0,
+                                seq_s=start+1,
+                                seq_e=end,
+                                matched_seq=matched_seq)
+
+            regex_hits_list.append(regex_hit)
+
+    return regex_hits_list
+
+
+################################################################################
+
 def read_in_fimo_results(fimo_tsv,
+                         seq_based=False,
                          fast_fimo=True):
     """
     Read in FIMO motif finding results (TSV file).
@@ -3239,10 +4120,23 @@ def read_in_fimo_results(fimo_tsv,
     PUM2_2		chr18:100000-100096(+)	17	24	+	15.7959	0.0000171		
     PUM2_2		chr18:100000-100096(+)	75	82	+	15.7959	0.0000171    
 
+    With transcripts/sequences (rbpbench searchseq):
+    motif_id	motif_alt_id	sequence_name	start	stop	strand	score	p-value	q-value	matched_sequence
+    PUM1_1		ENST00000561978.1	1242	1248	+	9.84848	0.000296		
+    PUM1_1		ENST00000561978.1	1305	1311	+	6.9798	0.000768		
+    PUM1_2		ENST00000561978.1	1127	1135	+	-2.35354	0.000906		
+    PUM1_2		ENST00000561978.1	1949	1957	+	6.29293	0.00025		
+    PUM1_3		ENST00000561978.1	1414	1421	+	3.61616	0.000958		
+
     UPDATES:
     Do not read in q-value or matched_sequence, as these are not produced when 
     using run_fast_fimo().
 
+    seq_based:
+        If true, input to FIMO search was sequences, so use coordinates as they are (not genomic + relative).
+        Also seq_name is the sequence ID, and does not have to have format like "chr6:35575787-35575923(-)"
+        Note that if prediction is on subsequences of transcripts, seq_based should be False too.
+        
     """
 
     fimo_hits_list = []
@@ -3267,21 +4161,38 @@ def read_in_fimo_results(fimo_tsv,
                 qval = float(cols[8])
                 matched_seq = cols[9]
 
-            gen_motif_coords = get_genomic_coords_from_seq_name(seq_name, motif_s, motif_e,
-                                                                one_based_start=True)
-            
-            fimo_hit = FimoHit(chr_id=gen_motif_coords[0], 
-                               start=gen_motif_coords[1], 
-                               end=gen_motif_coords[2],
-                               strand=gen_motif_coords[3], 
-                               score=score, 
-                               motif_id=motif_id, 
-                               seq_name=seq_name, 
-                               pval=pval, 
-                               qval=qval,
-                               seq_s=motif_s+1,
-                               seq_e=motif_e,
-                               matched_seq=matched_seq)
+            if seq_based:
+
+                fimo_hit = FimoHit(chr_id=seq_name, 
+                                start=motif_s+1, 
+                                end=motif_e,
+                                strand="+", 
+                                score=score, 
+                                motif_id=motif_id, 
+                                seq_name=seq_name, 
+                                pval=pval, 
+                                qval=qval,
+                                seq_s=motif_s+1,
+                                seq_e=motif_e,
+                                matched_seq=matched_seq)
+                
+            else:
+
+                gen_motif_coords = get_genomic_coords_from_seq_name(seq_name, motif_s, motif_e,
+                                                                    one_based_start=True)
+                
+                fimo_hit = FimoHit(chr_id=gen_motif_coords[0], 
+                                start=gen_motif_coords[1], 
+                                end=gen_motif_coords[2],
+                                strand=gen_motif_coords[3], 
+                                score=score, 
+                                motif_id=motif_id, 
+                                seq_name=seq_name, 
+                                pval=pval, 
+                                qval=qval,
+                                seq_s=motif_s+1,
+                                seq_e=motif_e,
+                                matched_seq=matched_seq)
 
             fimo_hits_list.append(fimo_hit)
 
@@ -3370,6 +4281,7 @@ def batch_output_motif_hits_to_bed(unique_motifs_dic, out_bed,
 
 def read_in_cmsearch_results(in_tab,
                              check=True,
+                             seq_based=False,
                              hits_list=None):
     """
     Read in cmsearch motif finding results file.
@@ -3431,26 +4343,45 @@ def read_in_cmsearch_results(in_tab,
 
             assert strand == "+", "invalid cmsearch results table row encountered. strand (column 10) expected to be +, but found:\n%s" %(str(cols))
 
-            gen_motif_coords = get_genomic_coords_from_seq_name(seq_name, seq_s, seq_e,
-                                                                one_based_start=True)
+            if seq_based:
 
-            # print("cols:", cols)
-            # print("e_value:", e_value)
+                cmsearch_hit = CmsearchHit(chr_id=seq_name, 
+                                    start=seq_s+1, 
+                                    end=seq_e,
+                                    strand="+",
+                                    score=score,
+                                    motif_id=motif_id,
+                                    query_name=query_name,
+                                    seq_name=seq_name,
+                                    e_value=e_value,
+                                    model=model,
+                                    seq_s=seq_s+1,
+                                    seq_e=seq_e,
+                                    model_s=model_s,
+                                    model_e=model_e)
 
-            cmsearch_hit = CmsearchHit(chr_id=gen_motif_coords[0], 
-                                start=gen_motif_coords[1], 
-                                end=gen_motif_coords[2],
-                                strand=gen_motif_coords[3], 
-                                score=score,
-                                motif_id=motif_id,
-                                query_name=query_name,
-                                seq_name=seq_name,
-                                e_value=e_value,
-                                model=model,
-                                seq_s=seq_s+1,
-                                seq_e=seq_e,
-                                model_s=model_s,
-                                model_e=model_e)
+            else:
+
+                gen_motif_coords = get_genomic_coords_from_seq_name(seq_name, seq_s, seq_e,
+                                                                    one_based_start=True)
+
+                # print("cols:", cols)
+                # print("e_value:", e_value)
+
+                cmsearch_hit = CmsearchHit(chr_id=gen_motif_coords[0], 
+                                    start=gen_motif_coords[1], 
+                                    end=gen_motif_coords[2],
+                                    strand=gen_motif_coords[3], 
+                                    score=score,
+                                    motif_id=motif_id,
+                                    query_name=query_name,
+                                    seq_name=seq_name,
+                                    e_value=e_value,
+                                    model=model,
+                                    seq_s=seq_s+1,
+                                    seq_e=seq_e,
+                                    model_s=model_s,
+                                    model_e=model_e)
 
             # print(cmsearch_hit.__dict__)
             c_hits += 1
@@ -3499,6 +4430,31 @@ class CmsearchHit(GenomicRegion):
 
     def __repr__(self) -> str:
         return f"{self.chr_id}:{self.start}-{self.end}({self.strand}),{self.motif_id}"
+
+
+################################################################################
+
+def insert_line_breaks(sequence,
+                       line_len=60):
+    """
+    Insert line breaks for inserting sequence into hover box.
+    
+    """
+    return '<br>'.join(sequence[i:i+line_len] for i in range(0, len(sequence), 40))
+
+
+################################################################################
+
+def join_motif_hits(motif_hits_list,
+                    motifs_per_line=3,
+                    line_break_char="\n"):
+    """
+    Join motif hits list into string by groups of motifs_per_line.
+    Define line break character via line_break_char.
+
+    """
+
+    return line_break_char.join(" ".join(motif_hits_list[i:i+motifs_per_line]) for i in range(0, len(motif_hits_list), motifs_per_line))
 
 
 ################################################################################
@@ -3574,6 +4530,1684 @@ def read_file_content_into_str_var(file):
 
 ################################################################################
 
+def create_color_scale(min_value, max_value, colors):
+    """
+    Create a color scale with equal intervals between colors.
+
+    Parameters:
+    min_value (float): The minimum value of the data.
+    max_value (float): The maximum value of the data.
+    colors (list of str): The colors to use in the color scale.
+
+    Returns:
+    list of [float, str]: The color scale.
+    """
+
+    # Calculate the range and interval
+    range_ = max_value - min_value
+    interval = range_ / (len(colors) - 1)
+
+    # Create the color scale
+    color_scale = [[min_value + i * interval, color] for i, color in enumerate(colors)]
+
+    return color_scale
+
+
+################################################################################
+
+def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
+                            max_motif_dist=50,
+                            include_plotlyjs="cdn",
+                            full_html=False):
+    """
+    Plot co-occurrences as heat map with plotly.
+
+    https://plotly.github.io/plotly.py-docs/generated/plotly.io.write_html.html
+
+    """
+
+    # Threshold value for grey coloring.
+    # threshold = 0.2
+    # # color_scale = ["grey", "darkblue", "blue", "purple", "red", "yellow"]
+    # # color_scale = ["grey", "blue", "orange", "yellow"]
+    # color_scale = ["grey", "darkblue", "purple", "yellow"]
+
+    # plot = px.imshow(df, color_continuous_scale=color_scale, color_continuous_midpoint=threshold)
+    # plot = px.imshow(df)
+
+    # Define a custom color scale
+    # color_scale = [[0, 'grey'], [0.01, 'darkblue'], [1, 'yellow']]
+
+    # color_scale = [[0, "midnightblue"], [0, 'darkblue'], [0.25, 'blue'], [0.5, 'purple'], [0.75, 'red'], [1, 'yellow']]
+
+    colors = ['darkblue', 'blue', 'purple', 'red', 'orange', 'yellow']
+    # colors = ['green', 'red']
+
+    min_val = 0.01
+    max_val = 1  # df.max().max() # color scale values need to be 0 .. 1.
+
+    color_scale = create_color_scale(min_val, max_val, colors)
+
+    color_scale.insert(0, [0, "dimgray"])
+
+    # Set the color scale range according to the data (minimum 0 .. 1).
+    zmin = min(0, df.min().min())
+    zmax = max(1, df.max().max())
+
+    # color_scale = [[0, 'midnightblue'], [0.01, 'red'], [1, 'yellow']]
+    # print("color_scale:")
+    # print(color_scale)
+
+    plot = px.imshow(df, color_continuous_scale=color_scale, zmin=zmin, zmax=zmax)
+    # plot = px.imshow(df)
+
+
+    """
+    Old:
+    'hovertemplate': 'RBP1: %{x}<br>RBP2: %{y}<br>p-value: %{customdata[0]}<br>p-value after filtering: %{customdata[1]}<br>RBPs: %{customdata[2]}<br>Counts: %{customdata[3]}<br>Mean minimum motif distance: %{customdata[4]}<br>Motif pairs within set motif distance: %{customdata[5]} %<br>Correlation: %{customdata[6]}<br>-log10(p-value after filtering): %{z}'}])
+    New:
+    'hovertemplate': f'RBP1: {{x}}<br>RBP2: {{y}}<br>p-value: {{customdata[0]}}<br>p-value after filtering: {{customdata[1]}}<br>RBPs: {{customdata[2]}}<br>Counts: {{customdata[3]}}<br>Mean minimum motif distance: {{customdata[4]}}<br>Motif pairs within {max_motif_dist} nt: {{customdata[5]}} %<br>Correlation: {{customdata[6]}}<br>-log10(p-value after filtering): {{z}}'}])
+
+    """
+
+    plot.update(data=[{'customdata': pval_cont_lll,
+                      'hovertemplate': '1) RBP1: %{x}<br>2) RBP2: %{y}<br>3) p-value: %{customdata[0]}<br>4) p-value after filtering: %{customdata[1]}<br>5) RBPs: %{customdata[2]}<br>6) Counts: %{customdata[3]}<br>7) Mean minimum motif distance (nt): %{customdata[4]}<br>8) Motif pairs within ' + str(max_motif_dist) + ' nt (%): %{customdata[5]}<br>9) Correlation: %{customdata[6]}<br>10) -log10(p-value after filtering): %{z}<extra></extra>'}])
+    plot.update_layout(plot_bgcolor='white')
+    plot.write_html(plot_out,
+                    full_html=full_html,
+                    include_plotlyjs=include_plotlyjs)
+
+################################################################################
+
+def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll, 
+                                  annot_ids_list, annot2color_dic,
+                                  plot_out,
+                                  include_plotlyjs="cdn",
+                                  full_html=False):
+
+    """
+    Create plotly 2d scatter plot of PCA reduced genomic annotations.
+
+    annots_ll:
+        List of list containing annotation frequencies (0 to 1). In order of dataset_ids_list.
+    annot_ids_list:
+        List of annotation IDs (e.g. "CDS", "UTR", "Intron", "Intergenic").
+        In order of annots_ll, so that annots_ll[i][0] corresponds to annot_ids_list[0].
+
+    """
+    # Get highest percentage for every dataset.
+    highest_perc_annot_list = []
+    perc_annot_str_list = []
+    for annots_l in annots_ll:
+        perc_annot_string = "<br>"
+        highest_perc_annot = "-"
+        highest_freq = 0.0
+        for idx, annot_freq in enumerate(annots_l):
+            annot = annot_ids_list[idx]
+            if annot_freq > highest_freq:
+                highest_freq = annot_freq
+                highest_perc_annot = annot
+            # Make percentage out of frequency and round to two decimal places.
+            annot_perc = round(annot_freq * 100, 2)
+            perc_annot_string += annot + ": " + str(annot_perc) + '%<br>'
+        highest_perc_annot_list.append(highest_perc_annot)
+        perc_annot_str_list.append(perc_annot_string)
+    
+
+    pca = PCA(n_components=2)  # Reduce data to 2 dimensions.
+    data_2d_pca = pca.fit_transform(annots_ll)
+    df = pd.DataFrame(data_2d_pca, columns=['PC1', 'PC2'])
+    df['Dataset ID'] = dataset_ids_list
+    df['Highest percentage annotation'] = highest_perc_annot_list
+    df['Annotation percentages'] = perc_annot_str_list
+
+    explained_variance = pca.explained_variance_ratio_ * 100
+
+    fig = px.scatter(
+        df,  # Use the DataFrame directly
+        x='PC1',
+        y='PC2',
+        color='Highest percentage annotation',
+        color_discrete_map=annot2color_dic,
+        # title='2D Visualization with Dataset IDs',
+        labels={
+            'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+            'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
+        },
+        hover_name='Dataset ID',
+        hover_data=['Highest percentage annotation', 'Annotation percentages']
+    )
+
+    fig.update_traces(
+        hovertemplate='<b>%{hovertext}</b><br>Annotation percentages: %{customdata[1]}<extra></extra>'
+    )
+
+    fig.update_traces(marker=dict(size=8))
+    # fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
+def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic, 
+                                   plot_out,
+                                   sparse_pca=False,
+                                   add_motif_db_info=False,
+                                   include_plotlyjs="cdn",
+                                   full_html=False):
+    """
+    Create plotly 3d scatter plot of PCA reduced gene/ transcript occupancies.
+
+    id2occ_list_dic:
+        Format: internal_id -> [0, 1, 0, 0, 1] (transcript occupancy list).
+    
+    id2infos_dic:
+        id2infos_dic[internal_id] = [rbp_id, data_id, method_id, motif_db_str, bed_file_path]
+    
+    """
+
+    assert id2occ_list_dic, "id2lst_dic empty"
+
+    occ_ll = []
+    dataset_ids_list = []
+    c_one_labels_list = []
+    perc_one_labels_list = []
+    c_total_number_genes = 0
+
+    for internal_id in sorted(id2occ_list_dic):
+
+        if not c_total_number_genes:
+            c_total_number_genes = len(id2occ_list_dic[internal_id])
+        else:
+            assert c_total_number_genes == len(id2occ_list_dic[internal_id]), "inconsistent number of genes/transcripts in occupancy lists"
+
+        # Count number of 1's in occupancy list.
+        c_one_labels = id2occ_list_dic[internal_id].count(1)
+        c_one_labels_list.append(c_one_labels)
+        # Percentage of 1's in occupancy list. Round to two decimal places.
+        perc_one_labels = round((c_one_labels / c_total_number_genes) * 100, 2)
+        perc_one_labels_list.append(perc_one_labels)
+
+        rbp_id = id2infos_dic[internal_id][0]
+        data_id = id2infos_dic[internal_id][1]
+        method_id = id2infos_dic[internal_id][2]
+        database_id = id2infos_dic[internal_id][3]
+
+        combined_id = rbp_id + "," + method_id + "," + data_id
+        if add_motif_db_info:
+            combined_id = rbp_id + "," + database_id + "," + method_id + "," + data_id
+
+        occ_ll.append(id2occ_list_dic[internal_id])
+        dataset_ids_list.append(combined_id)
+
+        # print("combined_id:", combined_id)
+        # print(id2occ_list_dic[internal_id])
+
+    if sparse_pca:
+
+        from sklearn.decomposition import SparsePCA
+
+        pca = SparsePCA(n_components=3, random_state=0, ridge_alpha=0.01)
+        data_3d_pca = pca.fit_transform(occ_ll)
+
+        df = pd.DataFrame(data_3d_pca, columns=['PC1', 'PC2', 'PC3'])
+        df['Dataset ID'] = dataset_ids_list
+        df['# occupied genes'] = c_one_labels_list
+        df['% occupied genes'] = perc_one_labels_list
+
+        fig = px.scatter_3d(
+            df,  # Use the DataFrame directly
+            x='PC1',
+            y='PC2',
+            z='PC3',
+            title='3D Visualization with Dataset IDs',
+            hover_name='Dataset ID'
+        )
+
+    else:
+        pca = PCA(n_components=3)  # Reduce data to 3 dimensions.
+        data_3d_pca = pca.fit_transform(occ_ll)
+
+        df = pd.DataFrame(data_3d_pca, columns=['PC1', 'PC2', 'PC3'])
+        df['Dataset ID'] = dataset_ids_list
+        df['# occupied genes'] = c_one_labels_list
+        df['% occupied genes'] = perc_one_labels_list
+
+        explained_variance = pca.explained_variance_ratio_ * 100
+
+        fig = px.scatter_3d(
+            df,  # Use the DataFrame directly
+            x='PC1',
+            y='PC2',
+            z='PC3',
+            color='% occupied genes',
+            title='3D Visualization with Dataset IDs',
+            labels={
+                'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+                'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)',
+                'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
+            },
+            hover_name='Dataset ID',
+            hover_data=['# occupied genes', '% occupied genes']
+        )
+
+    fig.update_traces(
+        hovertemplate='<b>%{hovertext}</b><br>Occupied genes (#): %{customdata[0]}<br>Occupied genes (%): %{customdata[1]}<extra></extra>'
+    )
+
+    fig.update_scenes(aspectmode='cube')
+    fig.update_traces(marker=dict(size=3))
+    fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
+def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll, plot_out,
+                                 include_plotlyjs="cdn",
+                                 full_html=False):
+    
+    """
+    Create plotly 3d scatter plot of PCA reduced k-mer frequencies.
+
+    kmer_list:
+        1d list of k-mers, corresponding in order to k-mer frequency vectors in
+        kmer_freqs_ll.
+
+    """
+
+    kmer_len = len(kmer_list[0])
+    n_top_kmers = 10
+    top_kmer_str_list = []
+    top_kmer_str_header = "Top " + str(n_top_kmers) + " k-mers"
+    for kmer_freqs_l in kmer_freqs_ll:
+        kmer2freq_dic = {}
+        for idx, kmer_freq in enumerate(kmer_freqs_l):
+            kmer = kmer_list[idx]
+            kmer2freq_dic[kmer] = kmer_freq
+        # Go over sorted kmer2freq_dic descending by value, outputting top n_top_kmers entries.
+        top_kmer_str = "<br>"
+        for kmer, freq in sorted(kmer2freq_dic.items(), key=lambda x: x[1], reverse=True)[:n_top_kmers]:
+            # Convert frequency to percentage.
+            perc = round(freq * 100, 2)
+            top_kmer_str += kmer + ": " + str(perc) + "%<br>"
+        top_kmer_str_list.append(top_kmer_str)
+
+    # No .np conversion needed.
+    # data = np.array(kmer_freqs_ll)
+    pca = PCA(n_components=3)  # Reduce data to 3 dimensions.
+    data_3d_pca = pca.fit_transform(kmer_freqs_ll)
+
+    df = pd.DataFrame(data_3d_pca, columns=['PC1', 'PC2', 'PC3'])
+    df['Dataset ID'] = dataset_ids_list
+    df[top_kmer_str_header] = top_kmer_str_list
+
+    explained_variance = pca.explained_variance_ratio_ * 100
+
+    fig = px.scatter_3d(
+        df,  # Use the DataFrame directly
+        x='PC1',
+        y='PC2',
+        z='PC3',
+        title='3D Visualization with Dataset IDs',
+        labels={
+            'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+            'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)',
+            'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
+        },
+        #hover_data=['Dataset ID'],  # This adds dataset IDs to the hover information
+        hover_name='Dataset ID',
+        hover_data=[top_kmer_str_header]
+    )
+
+    fig.update_traces(
+        hovertemplate='<b>%{hovertext}</b><br>Top ' + str(n_top_kmers) + ' ' + str(kmer_len) + '-mer percentages: %{customdata[0]}<extra></extra>'
+    )
+
+    # fig.update_traces(hovertemplate='%{hovertext}')  # This sets the hover template to only show the hover text
+    fig.update_scenes(aspectmode='cube')
+    fig.update_traces(marker=dict(size=3))
+    fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
+def get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic):
+    """
+    Calculate co-occurrence matrices for plotting cosine similarities between datasets
+    (more precisely between their gene list binary vectors).
+    So a high cosine similarity indicates that the gene lists of two datasets are
+    similar / tend to have more co-occurrence or a lack of occurrence at same genes.
+
+    id2occ_list_dic:
+        Format: internal_id -> [0, 1, 0, 0, 1] (transcript/gene region occupancy list).
+    id2infos_dic:
+        id2infos_dic[internal_id] = [rbp_id, data_id, method_id, motif_db_str, bed_file_path]
+
+
+    """
+
+    assert id2occ_list_dic, "id2lst_dic empty"
+    assert id2infos_dic, "id2infos_dic empty"
+
+    from sklearn.metrics.pairwise import cosine_similarity
+    from sklearn.metrics import pairwise_distances
+    from scipy.cluster.hierarchy import linkage, leaves_list
+
+    set_internal_ids_list = list(id2occ_list_dic.keys())
+    set_plot_ids_list = []
+    seen_ids_dic = {}
+    for internal_id in set_internal_ids_list:
+        set_plot_id = id2infos_dic[internal_id][0] + "," + id2infos_dic[internal_id][2] + "," + id2infos_dic[internal_id][1]
+        if set_plot_id in seen_ids_dic:
+            assert False, "duplicate dataset ID encountered (%s), which is incompatible with gene region occupancy heatmap plot. Please provide a unique combination of selected RBP ID, method ID, and data ID for input dataset or disable plot by setting --no-occ-heatmap" %(set_plot_id)
+        seen_ids_dic[set_plot_id] = internal_id
+        set_plot_ids_list.append(set_plot_id)
+
+    len_set_list = len(set_plot_ids_list)
+
+    # Make df out of gene region occupancy lists.
+    df = pd.DataFrame.from_dict(id2occ_list_dic, orient='index')
+
+    # Calculate the cosine similarity.
+    similarity_matrix = cosine_similarity(df)
+
+    # Convert the similarity matrix to a DataFrame
+    df_sim = pd.DataFrame(similarity_matrix, index=df.index, columns=df.index)
+
+    # Calculate a cosine distance matrix for clustering.
+    dist_matrix = pairwise_distances(df, metric='cosine')
+
+    # Perform hierarchical clustering.
+    dist_matrix_condensed = dist_matrix[np.triu_indices(dist_matrix.shape[0], k=1)]
+    linkage_matrix = linkage(dist_matrix_condensed, method='average')
+
+    # Calculate leaves order.
+    leaves_order = leaves_list(linkage_matrix)
+
+    # print("df_sim:")
+    # print(df_sim)
+
+    # Assign new index IDs to df_sim, namely set_plot_ids_list.
+    df_sim.index = set_plot_ids_list
+    df_sim.columns = set_plot_ids_list
+
+    # for idx, set_internal_id in enumerate(set_internal_ids_list):
+    #     print(set_internal_id, set_plot_ids_list[idx])
+
+    # print("df_sim new IDs:")
+    # print(df_sim)
+
+    # print("leaves_order:")
+    # print(leaves_order)
+
+    df_sim_ordered = df_sim.iloc[leaves_order, :].iloc[:, leaves_order]
+
+    # Get newly ordered IDs list.
+    set_plot_ids_list_ordered = [set_plot_ids_list[i] for i in leaves_order]
+
+    # print("set_plot_ids_list_ordered:")
+    # print(set_plot_ids_list_ordered)
+
+    # print("df_sim_ordered:")
+    # print(df_sim_ordered)
+
+    # plot = px.imshow(df_sim_ordered)
+    # plot_out = "test_clustered_heatmap.html"
+    # plot.write_html(plot_out)
+
+    # Create 3d list storing additional infos for co-occurrence heatmap plot.
+    gene_cooc_lll = []
+
+    for set_id in set_plot_ids_list:
+        gene_cooc_lll.append([]*len_set_list)
+
+    for i in range(len_set_list):
+        for j in range(len_set_list):
+            gene_cooc_lll[i].append(["-", "-", "-", "-"])
+
+    seen_pairs_dic = {}
+
+    for i,set_id_i in enumerate(set_plot_ids_list_ordered):
+        for j,set_id_j in enumerate(set_plot_ids_list_ordered):
+
+            pair = [i, j]
+            pair.sort()
+            pair_str = str(pair[0]) + "," + str(pair[1])
+            # id_pair = [set_id_i, set_id_j]
+            # id_pair.sort()
+            # id_str = id_pair[0] + " " + id_pair[1]
+            if pair_str in seen_pairs_dic:
+                continue
+            seen_pairs_dic[pair_str] = 1
+
+            if i == j:  # Diagonal, i.e. set_id_i == set_id_j.
+                gene_cooc_lll[i][j][0] = "1.0"
+                gene_cooc_lll[i][j][1] = set_id_i
+                gene_cooc_lll[i][j][2] = set_id_j
+                set_12 = id2occ_list_dic[seen_ids_dic[set_id_i]]
+                a = 0
+                d = 0
+                for occ in set_12:
+                    if occ == 1:
+                        a += 1
+                    else:
+                        d += 1
+                table = [[a, 0], [0, d]]
+                table_str = str(table)
+                gene_cooc_lll[i][j][3] = table_str
+
+            else:
+                # Cosine similarity.
+                cosine_sim = df_sim_ordered.loc[set_id_i, set_id_j]
+                gene_cooc_lll[i][j][0] = str(cosine_sim)
+                gene_cooc_lll[j][i][0] = str(cosine_sim)
+                # Set 1+2 IDs.
+                gene_cooc_lll[i][j][1] = set_id_i
+                gene_cooc_lll[j][i][1] = set_id_i
+                gene_cooc_lll[i][j][2] = set_id_j
+                gene_cooc_lll[j][i][2] = set_id_j
+
+                set1 = id2occ_list_dic[seen_ids_dic[set_id_i]]
+                set2 = id2occ_list_dic[seen_ids_dic[set_id_j]]
+
+                a = sum([1 for x, y in zip(set1, set2) if x == 1 and y == 1])
+                b = sum([1 for x, y in zip(set1, set2) if x == 1 and y == 0])
+                c = sum([1 for x, y in zip(set1, set2) if x == 0 and y == 1])
+                d = sum([1 for x, y in zip(set1, set2) if x == 0 and y == 0])
+
+                table = [[a, b], [c, d]]
+                table_str = str(table)
+
+                gene_cooc_lll[i][j][3] = table_str
+                gene_cooc_lll[j][i][3] = table_str
+
+    return df_sim_ordered, gene_cooc_lll
+
+
+################################################################################
+
+def create_gene_occ_cooc_plot_plotly(df_gene_occ, gene_cooc_lll, plot_out,
+                                     include_plotlyjs="cdn",
+                                     full_html=False):
+    """
+    Plot gene occupancy co-occurrences between batch input datasets 
+    as heat map with plotly.
+
+    """
+
+    plot = px.imshow(df_gene_occ)
+
+    plot.update(data=[{'customdata': gene_cooc_lll,
+                       'hovertemplate': '1) Set1: %{customdata[1]}<br>2) Set2: %{customdata[2]}<br>3) cosine similarity: %{customdata[0]}<br>4) Counts: %{customdata[3]}<extra></extra>'}])
+    plot.update_layout(plot_bgcolor='white')
+    plot.update_layout(
+        annotations=[
+            dict(
+                x=1.05,
+                y=1.03,
+                align="right",
+                valign="top",
+                text="Similarity",
+                showarrow=False,
+                xref="paper",
+                yref="paper",
+                xanchor="center",
+                yanchor="top",
+                font=dict(size=14)
+            )
+        ]
+    )
+    plot.write_html(plot_out,
+                    full_html=full_html,
+                    include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
+def batch_generate_html_report(dataset_ids_list, 
+                               kmer_list,
+                               kmer_freqs_ll,
+                               id2infos_dic, 
+                               id2reg_annot_dic,
+                               id2hit_reg_annot_dic,
+                               out_folder,
+                               benchlib_path,
+                               seq_len_stats_ll,
+                               html_report_out="report.rbpbench_batch.html",
+                               unstranded=False,
+                               unstranded_ct=False,
+                               id2regex_stats_dic=None,
+                               regex="",
+                               wrs_mode=1,
+                               fisher_mode=1,
+                               max_motif_dist=50,
+                               id2occ_list_dic=False,
+                               gene_occ_cooc_plot=False,
+                               plot_abs_paths=False,
+                               plotly_js_mode=1,
+                               sort_js_mode=1,
+                               plotly_full_html=False,
+                               kmer_size=5,
+                               plotly_embed_style=1,
+                               add_motif_db_info=False,
+                               fimo_pval=0.001,
+                               motif_db_str="custom",
+                               report_header=False,
+                               plots_subfolder="html_report_plots"):
+    """
+    Create plots for RBPBench batch run results.
+
+    """
+
+    # Minimum dataset_ids_list and kmer_freqs_ll needed for plotting anything.
+    assert dataset_ids_list, "no dataset IDs found for report creation"
+    assert kmer_freqs_ll, "no k-mer frequencies found for report creation"
+
+    # Use absolute paths?
+    if plot_abs_paths:
+        out_folder = os.path.abspath(out_folder)
+
+    plots_folder = plots_subfolder
+    plots_out_folder = out_folder + "/" + plots_folder
+    if plot_abs_paths:
+        plots_folder = plots_out_folder
+
+    # Delete folder if already present.
+    if os.path.exists(plots_out_folder):
+        shutil.rmtree(plots_out_folder)
+    os.makedirs(plots_out_folder)
+
+    html_out = out_folder + "/" + "report.rbpbench_batch.html"
+    md_out = out_folder + "/" + "report.rbpbench_batch.md"
+    if html_report_out:
+        html_out = html_report_out
+
+    report_header_info = ""
+    if report_header:
+        report_header_info = "RBPBench "
+
+    """
+    Setup sorttable.js to make tables in HTML sortable.
+
+    """
+    sorttable_js_path = benchlib_path + "/content/sorttable.js"
+    assert os.path.exists(sorttable_js_path), "sorttable.js not at %s" %(sorttable_js_path)
+    sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    if sort_js_mode == 2:
+        shutil.copy(sorttable_js_path, plots_out_folder)
+        sorttable_js_path = plots_folder + "/sorttable.js"
+        sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    elif sort_js_mode == 3:
+        js_code = read_file_content_into_str_var(sorttable_js_path)
+        sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
+
+    """
+    Setup plotly .js to support plotly plots.
+
+    https://plotly.com/javascript/getting-started/#download
+    plotly-latest.min.js
+    Packaged version: plotly-2.20.0.min.js
+    
+    """
+
+    include_plotlyjs = "cdn"
+    # plotly_full_html = False
+    plotly_js_html = ""
+    plotly_js_path = benchlib_path + "/content/plotly-2.20.0.min.js"
+    assert os.path.exists(plotly_js_path), "plotly .js %s not found" %(plotly_js_path)
+    if plotly_js_mode == 2:
+        include_plotlyjs = plotly_js_path
+    elif plotly_js_mode == 3:
+        shutil.copy(plotly_js_path, plots_out_folder)
+        include_plotlyjs = "plotly-2.20.0.min.js" # Or plots_folder + "/plotly-2.20.0.min.js" ?
+    elif plotly_js_mode == 4:
+        include_plotlyjs = True
+        # plotly_full_html = False # Don't really need full html (head body ..) in plotly html.
+    elif plotly_js_mode == 5:
+        plotly_js_web = "https://cdn.plot.ly/plotly-2.25.2.min.js"
+        plotly_js_html = '<script src="' + plotly_js_web + '"></script>' + "\n"
+        include_plotlyjs = False
+        # plotly_full_html = True
+    elif plotly_js_mode == 6:
+        shutil.copy(plotly_js_path, plots_out_folder)
+        plotly_js = plots_folder + "/plotly-2.20.0.min.js"
+        plotly_js_html = '<script src="' + plotly_js + '"></script>' + "\n"
+        include_plotlyjs = False
+    elif plotly_js_mode == 7:
+        js_code = read_file_content_into_str_var(plotly_js_path)
+        plotly_js_html = "<script>\n" + js_code + "\n</script>\n"
+        include_plotlyjs = False
+        # plotly_full_html = True
+
+    
+    annot_dic = {}
+    annot2color_dic = {}
+    if id2reg_annot_dic:  # if --gtf provided.
+
+        # All annotations.
+        annot_dic = {}
+        c_annot = 0
+        for internal_id in id2reg_annot_dic:
+            for annot in id2reg_annot_dic[internal_id]:
+                c_annot += 1
+                if annot not in annot_dic:
+                    annot_dic[annot] = 1
+                else:
+                    annot_dic[annot] += 1
+
+        # Annotation color assignments.
+        hex_colors = get_hex_colors_list(min_len=len(annot_dic))
+
+        idx = 0
+        for annot in sorted(annot_dic, reverse=False):
+            hc = hex_colors[idx]
+            # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
+            annot2color_dic[annot] = hex_colors[idx]
+            idx += 1
+
+
+    # HTML head section.
+    html_head = """<!DOCTYPE html>
+<html>
+<head>
+<title>RBPBench - Batch Report</title>
+%s
+</head>
+<body>
+""" %(plotly_js_html)
+
+    # HTML tail section.
+    html_tail = """
+%s
+</body>
+</html>
+""" %(sorttable_js_html)
+
+    # Markdown part.   AALAMO
+    mdtext = """
+
+# %sBatch report
+
+List of available statistics and plots generated
+by RBPBench (rbpbench batch --report):
+
+- [Input datasets sequence length statistics](#seq-len-stats)""" %(report_header_info)
+    mdtext += "\n"
+
+    if id2regex_stats_dic:  # if not empty.
+        mdtext += "- [Regular expression motif enrichment statistics](#regex-enrich-stats)\n"
+        mdtext += "- [Regular expression RBP motif co-occurrence statistics](#regex-rbp-cooc-stats)\n"
+
+    mdtext += "- [Input datasets k-mer frequencies comparative plot](#kmer-comp-plot)\n"
+
+    if id2reg_annot_dic:  # if --gtf provided.
+        mdtext += "- [Input datasets occupied gene regions comparative plot](#occ-comp-plot)\n"
+        if gene_occ_cooc_plot:
+            mdtext += "- [Input datasets occupied gene regions similarity heat map](#cooc-heat-map)\n"
+        mdtext += "- [Input datasets genomic region annotations comparative plot](#annot-comp-plot)\n"
+
+    if id2reg_annot_dic:  # if --gtf provided.
+        data_idx = 0
+        internal_ids_list = []
+        for internal_id in id2infos_dic:
+            rbp_id = id2infos_dic[internal_id][0]
+            data_id = id2infos_dic[internal_id][1]
+            method_id = id2infos_dic[internal_id][2]
+            database_id = id2infos_dic[internal_id][3]
+            if add_motif_db_info:
+                combined_id = rbp_id + "," + database_id + "," + method_id + "," + data_id
+            else:
+                combined_id = rbp_id + "," + method_id + "," + data_id
+            internal_ids_list.append(internal_id)
+            mdtext += "- [%s region annotations](#annot-plot-%i)\n" %(combined_id, data_idx)
+            data_idx += 1
+        # mdtext += "\n&nbsp;\n"
+
+    mdtext += "\nUsed motif database = %s. FIMO p-value threshold (--fimo-pval) = %s.\n" %(motif_db_str, str(fimo_pval))
+    mdtext += "\n&nbsp;\n"
+
+    """
+    Input sequence stats table.
+
+    """
+
+    dataset_id_format = "rbp_id,method_id,data_id"
+    if add_motif_db_info:
+        dataset_id_format = "rbp_id,motif_database_id,method_id,data_id"
+
+    seq_stats_info = ""
+    if unstranded and not unstranded_ct:
+        seq_stats_info = "--unstranded option selected, i.e., both strands of a region are included in the length statistics, but the two strands are counted as one region."
+    elif unstranded and unstranded_ct:
+        seq_stats_info = "--unstranded and --unstranded-ct options selected, i.e., both strands of a region are included in the length statistics, and each strand counts as separate region."
+
+    mdtext += """
+## Input datasets sequence length statistics ### {#seq-len-stats}
+
+**Table:** Sequence length statistics of input datasets.
+Input dataset ID format: %s. %s
+
+""" %(dataset_id_format, seq_stats_info)
+
+    # return [nr_seqs, seq_len_mean, seq_len_median, seq_len_q1, seq_len_q3, seq_len_min, seq_len_max]
+
+    mdtext += '| Dataset ID | # input regions | mean length | median length | Q1 percentile | Q3 percentile | min length | max length |' + " \n"
+    mdtext += '| :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |' + " \n"
+    for seq_len_stats in seq_len_stats_ll:
+        mdtext += "| %s | %i | %.1f | %.1f | %.1f | %.1f | %i | %i |\n" %(seq_len_stats[0], seq_len_stats[1], seq_len_stats[2], seq_len_stats[3], seq_len_stats[4], seq_len_stats[5], seq_len_stats[6], seq_len_stats[7])
+    # mdtext += "\n&nbsp;\n&nbsp;\n"
+    mdtext += "\n&nbsp;\n"
+
+    #     mdtext += "| :-: | :-: | :-: | :-: | :-: |\n"
+    # for rbp_id, wc_pval in sorted(pval_dic.items(), key=lambda item: item[1], reverse=False):
+    #     wc_pval_str = convert_sci_not_to_decimal(wc_pval)  # Convert scientific notation to decimal string for sorting to work.
+    #     c_hit_reg = search_rbps_dic[rbp_id].c_hit_reg
+    #     perc_hit_reg = search_rbps_dic[rbp_id].perc_hit_reg
+    #     c_uniq_motif_hits = search_rbps_dic[rbp_id].c_uniq_motif_hits
+    #     mdtext += "| %s | %i | %.2f | %i | %s |\n" %(rbp_id, c_hit_reg, perc_hit_reg, c_uniq_motif_hits, wc_pval)
+    # mdtext += "\n&nbsp;\n&nbsp;\n"
+    # mdtext += "\nColumn IDs have the following meanings: "
+    # mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
+    # mdtext += '**# hit regions** -> number of input genomic regions with motif hits (after filtering and optional extension), '
+    # mdtext += '**% hit regions** -> percentage of hit regions over all regions (i.e. how many input regions contain >= 1 RBP binding motif), '
+    # mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
+    # mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
+    # mdtext += "\n&nbsp;\n"
+
+
+
+
+
+
+    """
+    regex motif enrichment statistics.
+    
+    """
+
+    if id2regex_stats_dic:
+
+        # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
+        wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low p-values mean regex-containing regions have significantly higher scores."
+        wrs_mode_info2 = "higher"
+        if wrs_mode == 2:
+            wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low p-values mean regex-containing regions have significantly lower scores."
+            wrs_mode_info2 = "lower"
+
+        mdtext += """
+## Regular expression motif enrichment statistics ### {#regex-enrich-stats}
+
+**Table:** Regular expression (regex) '%s' motif enrichment statistics for all input datasets.
+For each input dataset, consisting of a set of genomic regions with associated scores (set BED score column via --bed-score-col),
+RBPbench checks whether regex-containing regions have significantly different scores compared to regions without regex hits.
+%s
+In other words, a low test p-value for a given dataset indicates 
+that %s-scoring regions are more likely to contain regex hits.
+NOTE that if scores associated to input genomic regions are all the same, p-values become meaningless 
+(i.e., they result in p-values of 1.0).
+By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
+
+""" %(regex, wrs_mode_info1, wrs_mode_info2)
+
+        mdtext += '| Dataset ID  | # regions | # hit regions | % hit regions | # regex hits | p-value |' + " \n"
+        mdtext += '| :-: | :-: | :-: | :-: | :-: | :-: |' + " \n"
+
+        for internal_id in id2regex_stats_dic:
+            rbp_id = id2infos_dic[internal_id][0]
+            data_id = id2infos_dic[internal_id][1]
+            method_id = id2infos_dic[internal_id][2]
+            database_id = id2infos_dic[internal_id][3]
+
+            combined_id = rbp_id + "," + method_id + "," + data_id
+            if add_motif_db_info:
+                combined_id = rbp_id + "," + database_id + "," + method_id + "," + data_id
+
+            c_regex_hit_reg = id2regex_stats_dic[internal_id][0]
+            c_regex_no_hit_reg = id2regex_stats_dic[internal_id][1]
+            c_uniq_regex_hits = id2regex_stats_dic[internal_id][2]
+            wc_pval = id2regex_stats_dic[internal_id][3]
+            c_all_set_reg = c_regex_hit_reg + c_regex_no_hit_reg
+            perc_hit_reg = (c_regex_hit_reg / c_all_set_reg) * 100
+            perc_hit_reg = str(round(perc_hit_reg, 2))
+
+            mdtext += "| %s | %i | %i | %s | %i | %s |\n" %(combined_id, c_all_set_reg, c_regex_hit_reg, perc_hit_reg, c_uniq_regex_hits, str(wc_pval))
+
+        mdtext += "\n&nbsp;\n&nbsp;\n"
+        mdtext += "\nColumn IDs have the following meanings: "
+        mdtext += "**Dataset ID** -> Dataset ID with following format: %s, " %(dataset_id_format)
+        mdtext += '**# regions** -> number of input genomic regions in dataset (after filtering and optional extension), '
+        mdtext += '**# hit regions** -> number of input genomic regions with regex hits (after filtering and optional extension), '
+        mdtext += '**% hit regions** -> percentage of regex hit regions over all regions (i.e., how many input regions contain >= 1 regex motif hit), '
+        mdtext += '**# regex hits** -> number of unique regex motif hits in input regions (removed double counts), '
+        mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
+        mdtext += "\n&nbsp;\n"
+
+
+    """
+    regex RBP motif co-occurrence statistics.
+    
+    """
+
+    if id2regex_stats_dic:
+
+        # Inform about set alterntive hypothesis for Fisher exact test on regex RBP motif co-occurrences.
+        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., low p-values mean that regex and RBP motifs have significantly high co-occurrence."
+        if fisher_mode == 2:
+            fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'two-sided', i.e., low p-values mean that regex and RBP motifs have significantly high or low co-occurrence."
+        elif fisher_mode == 3:
+            fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., low p-values mean that regex and RBP motifs have significantly low co-occurrence."
+
+        mdtext += """
+## Regular expression RBP motif co-occurrence statistics ### {#regex-rbp-cooc-stats}
+
+**Table:** Motif hit co-occurrences (Fisher's exact test p-values) between 
+regular expression (regex) '%s' and RBP motif hits for each input dataset.
+Fisher's exact test p-value is calculated based on contingency table of co-occurrence 
+counts (i.e., number of genomic regions with/without shared motif hits) 
+between regex and RBP motif(s) for each dataset.
+%s
+
+""" %(regex, fisher_mode_info)
+
+        mdtext += '| Dataset ID  | contingency table | avg min distance | perc close hits |  p-value |' + " \n"
+        mdtext += '| :-: | :-: | :-: | :-: | :-: |' + " \n"
+
+        for internal_id in id2regex_stats_dic:
+            rbp_id = id2infos_dic[internal_id][0]
+            data_id = id2infos_dic[internal_id][1]
+            method_id = id2infos_dic[internal_id][2]
+            database_id = id2infos_dic[internal_id][3]
+
+            avg_min_dist = id2regex_stats_dic[internal_id][4]
+            perc_close_hits = id2regex_stats_dic[internal_id][5]
+            cont_table = id2regex_stats_dic[internal_id][6]
+            fisher_pval = id2regex_stats_dic[internal_id][7]
+
+            combined_id = rbp_id + "," + method_id + "," + data_id
+            if add_motif_db_info:
+                combined_id = rbp_id + "," + database_id + "," + method_id + "," + data_id
+
+            mdtext += "| %s | %s | %s | %s | %s |\n" %(combined_id, cont_table, avg_min_dist, perc_close_hits, fisher_pval)
+
+        mdtext += "\n&nbsp;\n&nbsp;\n"
+
+        mdtext += """
+
+Column IDs have the following meanings: 
+**Dataset ID** -> Dataset ID with following format: %s,
+**contingency table** -> contingency table of co-occurrence counts (i.e., number of genomic regions with/without shared regex + RBP motif hits), 
+with format [[A, B], [C, D]], where 
+A: regex AND RBP, 
+B: NOT regex AND RBP
+C: regex AND NOT RBP
+D: NOT regex AND NOT RBP. 
+**avg min distance** -> Mean minimum distance of regex and RBP motif hits (mean over all regions containing regex + RBP motif hits).
+**perc close hits** -> Over all regions containing regex and RBP motif hit pairs, percentage of regions where regex + RBP motif hits are within %i nt distance (set via --max-motif-dist).
+**p-value** -> Fisher's exact test p-value (calculated based on contingency table).
+
+&nbsp;
+
+""" %(dataset_id_format, max_motif_dist)
+
+
+
+
+
+
+
+
+
+
+
+    """
+    Input datasets k-mer frequencies comparative plot.
+
+    """
+
+    mdtext += """
+## Input datasets k-mer frequencies comparative plot ### {#kmer-comp-plot}
+
+"""
+
+    if len(dataset_ids_list) > 3:
+
+        kmer_comp_plot_plotly =  "kmer_comparative_plot.plotly.html"
+        kmer_comp_plot_plotly_out = plots_out_folder + "/" + kmer_comp_plot_plotly
+
+        create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll, 
+                                     kmer_comp_plot_plotly_out,
+                                     include_plotlyjs=include_plotlyjs,
+                                     full_html=plotly_full_html)
+
+        plot_path = plots_folder + "/" + kmer_comp_plot_plotly
+
+        if plotly_js_mode in [5, 6, 7]:
+            # Read in plotly code.
+            # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+            js_code = read_file_content_into_str_var(kmer_comp_plot_plotly_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1000px;")
+            mdtext += js_code + "\n"
+            # mdtext += '</div>'
+        else:
+            if plotly_embed_style == 1:
+                # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                mdtext += "<div>\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1000" height="1000"></iframe>' + "\n"
+                mdtext += '</div>'
+            elif plotly_embed_style == 2:
+                mdtext += '<object data="' + plot_path + '" width="1000" height="1000"> </object>' + "\n"
+
+        mdtext += """
+
+**Figure:** Comparison of input datasets, using k-mer (k = %i) frequencies of input region sequences (3-dimensional PCA) as features, 
+to show similarities of input datasets based on their sequence k-mer frequencies (points close to each other have similar k-mer frequencies).
+Input dataset IDs (show via hovering over data points) have following format: %s.
+
+&nbsp;
+
+""" %(kmer_size, dataset_id_format)
+
+    else:
+        mdtext += """
+
+No plot generated since < 4 datasets were provided.
+
+&nbsp;
+
+"""
+
+
+
+
+    """
+    Input datasets gene / transcript region occupancies comparative plot.
+
+    """
+
+    if id2reg_annot_dic:  # if --gtf provided.
+
+        mdtext += """
+## Input datasets occupied gene regions comparative plot ### {#occ-comp-plot}
+
+"""
+
+        if len(dataset_ids_list) > 3:
+
+            occ_comp_plot_plotly =  "gene_reg_occ_comparative_plot.plotly.html"
+            occ_comp_plot_plotly_out = plots_out_folder + "/" + occ_comp_plot_plotly
+
+            # Get number of gene regions considered.
+            c_total_number_genes = 0
+            for internal_id in id2occ_list_dic:
+                c_total_number_genes = len(id2occ_list_dic[internal_id])
+                break
+
+            create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
+                                           occ_comp_plot_plotly_out,
+                                           sparse_pca=False,
+                                           add_motif_db_info=add_motif_db_info,
+                                           include_plotlyjs=include_plotlyjs,
+                                           full_html=plotly_full_html)
+
+            plot_path = plots_folder + "/" + occ_comp_plot_plotly
+
+            if plotly_js_mode in [5, 6, 7]:
+                # Read in plotly code.
+                # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+                js_code = read_file_content_into_str_var(occ_comp_plot_plotly_out)
+                js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1200px;")
+                mdtext += js_code + "\n"
+                # mdtext += '</div>'
+            else:
+                if plotly_embed_style == 1:
+                    # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                    mdtext += "<div>\n"
+                    mdtext += '<iframe src="' + plot_path + '" width="1200" height="1000"></iframe>' + "\n"
+                    mdtext += '</div>'
+                elif plotly_embed_style == 2:
+                    mdtext += '<object data="' + plot_path + '" width="1200" height="1000"> </object>' + "\n"
+
+            mdtext += """
+
+**Figure:** Comparison of input datasets, using gene region occupancy of input regions (3-dimensional PCA) as features, 
+to show similarities of input datasets based on the gene regions they occupy (points close to each other have similar occupancy profiles).
+Note that only gene regions covered by regions in any of the input datasets are considered (# of gene regions: %i).
+Datasets are colored by the percentage of the total %i gene regions they occupy.
+Input dataset IDs (show via hovering over data points) have following format: %s.
+
+&nbsp;
+
+""" %(c_total_number_genes, c_total_number_genes, dataset_id_format)
+
+        else:
+            mdtext += """
+
+No plot generated since < 4 datasets were provided.
+
+&nbsp;
+
+"""
+
+
+
+    """
+    Input datasets gene / transcript region occupancies co-occurrence heat map plot.
+
+    """
+
+    if id2reg_annot_dic and gene_occ_cooc_plot:
+
+        mdtext += """
+## Input datasets occupied gene regions similarity heat map ### {#cooc-heat-map}
+
+"""
+
+        # Get tables for plotting heatmap.
+        df_gene_cooc, gene_cooc_lll = get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic)
+
+        cooc_plot_plotly =  "gene_occ_cooc_heatmap.plotly.html"
+        cooc_plot_plotly_out = plots_out_folder + "/" + cooc_plot_plotly
+
+        create_gene_occ_cooc_plot_plotly(df_gene_cooc, gene_cooc_lll, cooc_plot_plotly_out,
+                                        include_plotlyjs=include_plotlyjs,
+                                        full_html=plotly_full_html)
+
+
+        plot_path = plots_folder + "/" + cooc_plot_plotly
+
+        if plotly_js_mode in [5, 6, 7]:
+            # Read in plotly code.
+            # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+            js_code = read_file_content_into_str_var(cooc_plot_plotly_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:1200px; width:1200px;")
+            mdtext += js_code + "\n"
+            # mdtext += '</div>'
+        else:
+            if plotly_embed_style == 1:
+                # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                mdtext += "<div>\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1200" height="1200"></iframe>' + "\n"
+                mdtext += '</div>'
+            elif plotly_embed_style == 2:
+                mdtext += '<object data="' + plot_path + '" width="1200" height="1200"> </object>' + "\n"
+
+
+        mdtext += """
+**Figure:** Heat map comparing gene region occupancy profiles between input datasets. Similarity between the occupied 
+gene regions of two datasets is calculated using the cosine similarity of the gene region binary vectors. A cosine similarity 
+of 1 indicates that two datasets have identical occupancy profiles (like datasets compared with themselves on diagonal), 
+while a cosine similarity of 0 means that the two vectors are completely different (i.e., if dataset 1 covers a gene region, 
+dataset 2 does not and vice versa). 
+Datasets are ordered based on hierarchical clustering of the cosine similarity values, 
+so that similar datasets are placed close to each other.
+Hover box: 
+**1)** dataset 1 ID.
+**2)** dataset 2 ID.
+**3)** Cosine similarity value between the two datasets.
+**4)** Counts[]: contingency table of co-occurrence counts (i.e., number of gene regions covered/not covered by the two datasets), 
+with format [[A, B], [C, D]], where 
+A: dataset 1 AND dataset 2, 
+B: NOT dataset1 AND dataset2,
+C: dataset1 AND NOT dataset2,
+D: NOT dataset1 AND NOT dataset2.
+Gene regions are labelled 1 or 0 (1 if a genomic region from the dataset overlaps with the gene region, otherwise 0), 
+resulting in a vector of 1s and 0s for each RBP, which is then used to construct the contigency table.
+
+&nbsp;
+
+""" 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    """
+    Input datasets region annotations comparative plot.
+
+    """
+
+    # Format: id2reg_annot_dic[internal_id][annot] = count
+    if id2reg_annot_dic:  # if --gtf provided.
+
+
+        mdtext += """
+## Input datasets genomic region annotations comparative plot ### {#annot-comp-plot}
+
+"""
+
+        annot_ids_list = []
+        for annot in sorted(annot_dic, reverse=True):
+            annot_ids_list.append(annot)
+
+        annot_dataset_ids_list = []
+        annot_freqs_ll = []
+        for internal_id in id2reg_annot_dic:
+            annot_freqs_list = []
+            sum_annot = 0
+            rbp_id, data_id, method_id, motif_db_str, bed_file_path = id2infos_dic[internal_id]
+
+            if add_motif_db_info:
+                dataset_id = rbp_id + "," + motif_db_str + "," + method_id + "," + data_id
+            else:
+                dataset_id = rbp_id + "," + method_id + "," + data_id
+
+            for annot in sorted(annot_dic, reverse=True):
+                c_annot = 0
+                if annot in id2reg_annot_dic[internal_id]:
+                    c_annot = id2reg_annot_dic[internal_id][annot]
+                annot_freqs_list.append(c_annot)
+                sum_annot += c_annot
+            
+            # Normalize counts in list by sum.
+            annot_freqs_list = [x/sum_annot for x in annot_freqs_list]
+            # Append to list of lists.
+            annot_freqs_ll.append(annot_freqs_list)
+            annot_dataset_ids_list.append(dataset_id)
+
+        if len(annot_dataset_ids_list) > 2:
+
+            annot_comp_plot_plotly =  "gen_annot_comparative_plot.plotly.html"
+            annot_comp_plot_plotly_out = plots_out_folder + "/" + annot_comp_plot_plotly
+
+            create_annot_comp_plot_plotly(annot_dataset_ids_list, annot_freqs_ll,
+                                          annot_ids_list, annot2color_dic,
+                                          annot_comp_plot_plotly_out,
+                                          include_plotlyjs=include_plotlyjs,
+                                          full_html=plotly_full_html)
+
+            plot_path = plots_folder + "/" + annot_comp_plot_plotly
+
+            if plotly_js_mode in [5, 6, 7]:
+                # Read in plotly code.
+                # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+                js_code = read_file_content_into_str_var(annot_comp_plot_plotly_out)
+                js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1200px;")
+                mdtext += js_code + "\n"
+                # mdtext += '</div>'
+            else:
+                if plotly_embed_style == 1:
+                    # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                    mdtext += "<div>\n"
+                    mdtext += '<iframe src="' + plot_path + '" width="1200" height="1000"></iframe>' + "\n"
+                    mdtext += '</div>'
+                elif plotly_embed_style == 2:
+                    mdtext += '<object data="' + plot_path + '" width="1200" height="1000"> </object>' + "\n"
+
+            mdtext += """
+
+**Figure:** Comparison of input datasets, using genomic region annotations from GTF file of input regions as features, 
+to show similarities between input datasets based on similar genomic region occupancy (see detailed annotations for each input dataset below).
+Input dataset IDs (show via hovering over data points) have following format: %s.
+
+&nbsp;
+
+""" %(dataset_id_format)
+
+        else:
+            mdtext += """
+
+No plot generated since < 4 datasets were provided.
+
+&nbsp;
+
+"""
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    """
+    Region annotation plots for each dataset.
+
+    """
+
+    if id2reg_annot_dic:  # if --gtf provided.
+
+        # Generate plotting sections.
+        for idx, internal_id in enumerate(internal_ids_list):
+            rbp_id = id2infos_dic[internal_id][0]
+            data_id = id2infos_dic[internal_id][1]
+            method_id = id2infos_dic[internal_id][2]
+            database_id = id2infos_dic[internal_id][3]
+
+            if add_motif_db_info:
+                combined_id = rbp_id + "," + database_id + "," + method_id + "," + data_id
+            else:
+                combined_id = rbp_id + "," + method_id + "," + data_id
+
+            annot_stacked_bars_plot =  "annotation_stacked_bars_plot.%i.png" %(idx)
+            annot_stacked_bars_plot_out = plots_out_folder + "/" + annot_stacked_bars_plot
+
+            mdtext += """
+## %s region annotations ### {#annot-plot-%i}
+
+""" %(combined_id, idx)
+
+            # Check if no regions in dataset (i.e. no annotations).
+            if not c_annot:
+                mdtext += """
+
+No plot generated since no regions for plotting.
+
+&nbsp;
+
+"""
+
+            else:
+
+                # print("rbp2regidx_dic:")
+                # print(rbp2regidx_dic)
+                # print("reg_ids_list:")
+                # print(reg_ids_list)
+                # print("reg2annot_dic:")
+                # print(reg2annot_dic)
+
+                create_batch_annotation_stacked_bars_plot(internal_id, id2infos_dic, id2reg_annot_dic, id2hit_reg_annot_dic,
+                                                          annot2color_dic, annot_stacked_bars_plot_out)
+
+                plot_path = plots_folder + "/" + annot_stacked_bars_plot
+
+                mdtext += '<img src="' + plot_path + '" alt="Annotation stacked bars plot"' + "\n"
+                # mdtext += 'title="Annotation stacked bars plot" width="800" />' + "\n"
+                mdtext += 'title="Annotation stacked bars plot" />' + "\n"
+                mdtext += """
+**Figure:** Genomic region annotations for input dataset **%s** (dataset ID format: %s). 
+Input regions are overlapped with genomic regions from GTF file and genomic region feature with highest overlap 
+is assigned to each input region. "intergenic" feature means none of the used GTF region features overlap with the input region 
+(minimum overlap amount controlled by --gtf-feat-min-overlap).
+**%s**: annotations for input regions containing %s motif hits. 
+**All**: annotations for all input regions (with and without motif hits).
+
+&nbsp;
+
+""" %(combined_id, dataset_id_format, rbp_id, rbp_id)
+
+
+
+
+
+    # Convert mdtext to html.
+    md2html = markdown(mdtext, extensions=['attr_list', 'tables'])
+
+    # OUTMD = open(md_out,"w")
+    # OUTMD.write("%s\n" %(mdtext))
+    # OUTMD.close()
+
+    html_content = html_head + md2html + html_tail
+
+    OUTHTML = open(html_out,"w")
+    OUTHTML.write("%s\n" %(html_content))
+    OUTHTML.close()
+
+
+################################################################################
+
+def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic, 
+                                annot2color_dic, plot_out,
+                                rbp_id=False):
+    """
+    Create mRNA region occupancy stacked line plot for rbp_id and associated 
+    motif IDs.
+    
+    mrna_reg_occ_dic:
+        mRNA region occupancy dictionary for rbp_id and motif IDs.
+        rbp_id/motif_id -> mrna_region -> positional counts list
+
+    motif_ids_list:
+        List of motif IDs to plot mRNA occupancy profiles for.
+
+    """
+
+    datasets = {}
+    if rbp_id and len(motif_ids_list) > 1:
+        datasets[rbp_id] = mrna_reg_occ_dic[rbp_id]
+    for motif_id in motif_ids_list:
+        datasets[motif_id] = mrna_reg_occ_dic[motif_id]
+
+    # Number of datasets
+    num_datasets = len(datasets)
+
+    # Create a figure and subplots
+    fig, axs = plt.subplots(nrows=num_datasets, sharex=True, figsize=(12, 2 * num_datasets))
+
+    # Check if axs is an array or not (not if there's only one subplot).
+    if num_datasets == 1:
+        axs = [axs]
+
+    utr5color = annot2color_dic["5'UTR"]
+    cds_color = annot2color_dic["CDS"]
+    utr3color = annot2color_dic["3'UTR"]
+
+    # Plot each dataset
+    for ax, (label, data) in zip(axs, datasets.items()):
+
+        # Concatenate data for plotting
+        all_counts = data["5'UTR"] + data["CDS"] + data["3'UTR"]
+        x_positions = np.arange(len(all_counts))
+        
+        # Fill the area under the line for each region with different colors
+        ax.fill_between(x_positions[:len(data["5'UTR"])+1], all_counts[:len(data["5'UTR"])+1], color=utr5color, alpha=1, zorder=3)
+        ax.fill_between(x_positions[len(data["5'UTR"]):len(data["5'UTR"]) + len(data["CDS"])+1], all_counts[len(data["5'UTR"]):len(data["5'UTR"]) + len(data["CDS"])+1], color=cds_color, alpha=1, zorder=3)
+        ax.fill_between(x_positions[-len(data["3'UTR"]):], all_counts[-len(data["3'UTR"]):], color=utr3color, alpha=1, zorder=3)
+        
+        # Use dataset ID as y-axis label
+        # label_y = label + ' motif coverage'
+        ax.set_ylabel(label)
+
+        # Remove x-axis ticks for each subplot
+        ax.set_xticks([])
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+
+        # Enable horizontal grid lines in light gray
+        ax.grid(axis='y', color='lightgray', linestyle='-', linewidth=0.7, zorder=1)
+
+    # Set common x-axis label
+    axs[-1].set_xlabel('mRNA regions')
+
+    # Create a single legend for all plots, positioned more optimally
+    fig.legend(['5\'UTR', 'CDS', '3\'UTR'], loc='upper right', bbox_to_anchor=(0.975, 0.975))
+
+    # Reduce padding and adjust subplots to fit the layout, minimizing vertical space
+    plt.subplots_adjust(left=0.08, right=0.9, top=0.95, bottom=0.05, hspace=0.1)  # Adjusted hspace here
+
+    # # Show plot
+    # plt.show()
+
+    plt.savefig(plot_out, dpi=110, bbox_inches='tight')
+    plt.close()
+
+
+################################################################################
+
+def create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, annot2color_dic,
+                                        plot_out):
+    """
+    Do the motif hit genomic region annotations stacked bars plot.
+    Plot all bars in one plot, one for all rbp_id hits, and one for each motif_id hits. 
+    
+    rbp2motif2annot2c_dic:
+        rbp_id -> motif_id -> annot -> annot_c.
+    annot2color_dic:
+        annot -> hex color for plotting.
+
+    """
+    # Determine height of plot.
+    c_height = 1  # rbp_id plot is set.
+    motifs_ids_with_hits = []
+    for motif_id in rbp2motif2annot2c_dic[rbp_id]:
+        if rbp2motif2annot2c_dic[rbp_id][motif_id]:
+            motifs_ids_with_hits.append(motif_id)
+            c_height += 1
+
+    # If only one motif, just plot the RBP.
+    if len(motifs_ids_with_hits) == 1:
+        c_height = 1
+
+    fheight = 0.8*c_height
+    fwidth = 10
+
+    data_dic = {}
+    # First sum up all annotations for rbp_id.
+    for motif_id in motifs_ids_with_hits:
+        for annot in rbp2motif2annot2c_dic[rbp_id][motif_id]:
+            annot_c = rbp2motif2annot2c_dic[rbp_id][motif_id][annot]
+            if annot not in data_dic:
+                data_dic[annot] = [annot_c]
+            else:
+                data_dic[annot][0] += annot_c
+
+    # Now for the single motif IDs.
+    if len(motifs_ids_with_hits) > 1:
+        for motif_id in motifs_ids_with_hits:
+            for annot in data_dic:
+                if annot in rbp2motif2annot2c_dic[rbp_id][motif_id]:
+                    annot_c = rbp2motif2annot2c_dic[rbp_id][motif_id][annot]
+                    data_dic[annot].append(annot_c)
+                else:
+                    data_dic[annot].append(0)
+
+        data_dic["rbp_id"] = [rbp_id]
+        for motif_id in motifs_ids_with_hits:
+            data_dic["rbp_id"].append(motif_id)
+    else:
+        data_dic["rbp_id"] = [motifs_ids_with_hits[0]]
+
+    df = pd.DataFrame(data_dic)
+    # Reverse plotting order for bars.
+    df = df.sort_values('rbp_id', ascending=False)
+
+    ax = df.set_index('rbp_id').plot(kind='barh', stacked=True, legend=False, color=annot2color_dic, edgecolor="none", figsize=(fwidth, fheight))
+
+    plt.xlabel('Annotation overlap')
+    ax.set_ylabel('')
+    ax.yaxis.grid(False)
+    ax.xaxis.grid(True)
+    ax.set_axisbelow(True)
+
+    # Remove border lines.
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+
+    # plt.legend(loc=(1.01, 0.4), fontsize=12, framealpha=0)
+    # plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.5)
+    plt.legend(bbox_to_anchor=(1.01, 1), loc='upper left')
+
+    plt.savefig(plot_out, dpi=110, bbox_inches='tight')
+    plt.close()
+
+
+################################################################################
+
+def create_batch_annotation_stacked_bars_plot(internal_id, id2infos_dic, id2reg_annot_dic, id2hit_reg_annot_dic,
+                                              annot2color_dic, plot_out):
+    """
+    Created stacked genomic region annotation plot.
+
+    """
+    fheight = 0.8*2
+    fwidth = 10
+
+    rbp_id = id2infos_dic[internal_id][0]
+
+    data_dic = {}
+    for annot in sorted(id2reg_annot_dic[internal_id], reverse=True):
+        data_dic[annot] = []
+        data_dic[annot].append(id2reg_annot_dic[internal_id][annot])
+        if annot in id2hit_reg_annot_dic[internal_id]:
+            data_dic[annot].append(id2hit_reg_annot_dic[internal_id][annot])
+        else:
+            data_dic[annot].append(0)
+    data_dic["rbp_id"] = ["All", rbp_id]
+
+    df = pd.DataFrame(data_dic)
+
+    # print(internal_id)
+    # print(df)
+
+    ax = df.set_index('rbp_id').plot(kind='barh', stacked=True, legend=False, color=annot2color_dic, edgecolor="none", figsize=(fwidth, fheight))
+
+    plt.xlabel('Annotation overlap')
+    ax.set_ylabel('')
+    ax.yaxis.grid(False)
+    ax.xaxis.grid(True)
+    ax.set_axisbelow(True)
+
+    # Remove border lines.
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+
+    # plt.legend(loc=(1.01, 0.4), fontsize=12, framealpha=0)
+    # plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.5)
+    plt.legend(bbox_to_anchor=(1.01, 1), loc='upper left')
+
+    plt.savefig(plot_out, dpi=110, bbox_inches='tight')
+    plt.close()
+
+
+################################################################################
+
+def filter_rbp2regidx_dic(rbp2regidx_dic,
+                          min_rbp_count=0,
+                          max_rbp_rank=None):
+    """
+    Filter RBP to region index dictionary by count and rank.
+
+    """
+    # Go through RBPs, and count number of sites for each RBP.
+    max_count = 0
+    rbp_count = 0
+    rbp2count_dic = {}
+    for rbp_id in rbp2regidx_dic:
+        rbp_count += 1
+        count = len(rbp2regidx_dic[rbp_id])
+        rbp2count_dic[rbp_id] = count
+        if count > max_count:
+            max_count = count
+
+    # Sort RBPs by count, and keep the max_rank top counting RBP IDs in list.
+    sorted_rbp2count_list = sorted(rbp2count_dic.items(), key=lambda x: x[1], reverse=True)
+    max_rank = rbp_count
+    if max_rbp_rank is not None and max_rbp_rank < max_rank:
+        max_rank = max_rbp_rank
+    top_rbp2count_list = sorted_rbp2count_list[:max_rbp_rank]
+
+    # Remove RBPs with count less than min_count.
+    # if min_rbp_count > max_count:
+    #     min_rbp_count = max_count
+    top_rbp2count_list = [x for x in top_rbp2count_list if x[1] >= min_rbp_count]
+
+    # print("top_rbp2count_list after removing RBPs with count less than %d:" %(min_rbp_count))
+    # print(top_rbp2count_list)
+
+    # Remove entries from rbp2regidx_dic for RBPs not in top_rbp2count_list.
+    top_rbp2count_dic = dict(top_rbp2count_list)
+    rbp2regidx_dic = {k: v for k, v in rbp2regidx_dic.items() if k in top_rbp2count_dic}
+
+    # print("rbp2regidx_dic after removing RBPs not in top_rbp2count_list:")
+    # print(rbp2regidx_dic)
+
+    return rbp2regidx_dic
+
+
+################################################################################
+
+def create_len_distr_violin_plot_plotly(in_df, plot_out,
+                                        include_plotlyjs="cdn",
+                                        full_html=False):
+    """
+    Create sequence lengths violin plot, including various infos in hover box,
+    such as sequences and motif hits.
+    
+    in_df format created from seqs_dic:
+
+    # Sequences dataframe for plotting sequence lengths violin plot.
+    sequences = []
+    seq_ids = []
+    for seq_id in out_seqs_dic:
+        seq_ids.append(seq_id)
+        sequences.append(seqs_dic[seq_id])
+
+    motif_hits = []
+    for seq_id in seq_ids:
+        # region_rbp_motif_pos_dic[seq_id].sort()
+        motif_hits.append(";".join(region_rbp_motif_pos_dic[seq_id]))
+
+    seq_len_df = pd.DataFrame({
+        'Sequence ID': seq_ids,
+        'Sequence Length': [len(seq) for seq in sequences],
+        'Sequence': [benchlib.insert_line_breaks(seq, line_len=60) for seq in sequences],
+        'Motif hits': motif_hits
+    })
+
+    """
+
+    fig = px.violin(in_df, y='Sequence Length', box=True, points='all')
+    # Set customdata and hovertemplate
+    fig.update_traces(customdata=in_df[['Sequence ID', 'Sequence', 'Motif hits']].values, hovertemplate='>%{customdata[0]}<br>%{customdata[1]}<br>Sequence Length: %{y}<br>Motif hits:<br>%{customdata[2]}')
+    fig.update_layout(xaxis_title='Density', yaxis_title='Sequence Length', violinmode='overlay')
+    fig.write_html(plot_out,
+                   full_html=full_html,
+                   include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
+def get_sequence_length_statistics(seq_dic,
+                                   unstranded=False):
+    """
+    Given a dictionary of sequences (key: sequence ID, value: sequence),
+    calculate mean, median, q1 q3, min max for sequence lengths.
+
+    unstranded:
+        If True, seqs_dic contains both strands of a region, but should be counted 
+        as one region. Format of sequence ID:  chr1:100-200(+), chr1:100-200(-)
+
+    Return list of statistics.
+
+    """
+    
+    assert seq_dic, "no sequences given for length statistics calculation"
+
+    seen_ids_dic = {}
+
+    seq_len_list = []
+    for seq_id in seq_dic:
+        if unstranded:
+            core_id = reg_get_core_id(seq_id)
+            if core_id in seen_ids_dic:
+                continue
+            seen_ids_dic[core_id] = 1
+            seq_len_list.append(len(seq_dic[seq_id]))
+        else:
+            seq_len_list.append(len(seq_dic[seq_id]))
+
+    nr_seqs = len(seq_len_list)
+    seq_len_arr = np.array(seq_len_list)
+    seq_len_mean = np.mean(seq_len_arr)
+    seq_len_median = np.median(seq_len_arr)
+    seq_len_q1 = np.percentile(seq_len_arr, 25)
+    seq_len_q3 = np.percentile(seq_len_arr, 75)
+    seq_len_min = np.min(seq_len_arr)
+    seq_len_max = np.max(seq_len_arr)
+
+    return [nr_seqs, seq_len_mean, seq_len_median, seq_len_q1, seq_len_q3, seq_len_min, seq_len_max]
+     
+
+################################################################################
+
 def search_generate_html_report(df_pval, pval_cont_lll,
                                 search_rbps_dic,
                                 id2name_dic, name2ids_dic,
@@ -3583,22 +6217,42 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 benchlib_path,
                                 rbp2regidx_dic,
                                 reg_ids_list,
+                                fisher_mode=1,
+                                wrs_mode=1,
+                                seq_len_df=None,
                                 set_rbp_id=None,
                                 motif_db_str=False,
+                                regex_id=False,
                                 seq_motif_blocks_dic=None,
+                                max_motif_dist=50,
                                 motif_distance_plot_range=50,
                                 motif_min_pair_count=10,
                                 rbp_min_pair_count=10,
-                                reg2annot_dic=None,
+                                reg2annot_dic=False,
+                                annot2color_dic=False,
                                 upset_plot_min_degree=2,
                                 upset_plot_max_degree=None,
                                 upset_plot_min_subset_size=10,
+                                upset_plot_max_subset_rank=20,
+                                upset_plot_min_rbp_count=0,
+                                upset_plot_max_rbp_rank=None,
                                 html_report_out="report.rbpbench_search.html",
+                                add_all_reg_bar=False,
                                 plot_abs_paths=False,
                                 sort_js_mode=1,
                                 plotly_js_mode=1,
                                 plotly_embed_style=1,
                                 plotly_full_html=False,
+                                cooc_pval_thr=0.05,
+                                cooc_pval_mode=1,
+                                c_all_fisher_pval=0,
+                                c_sig_fisher_pval=0,
+                                perc_sig_fisher_pval=0.0,
+                                rbpbench_mode="search --report",
+                                disable_motif_enrich_table=False,
+                                fimo_pval=0.001,
+                                reg_seq_str="regions",
+                                report_header=False,
                                 plots_subfolder="html_report_plots"):
     """
     Create additional hit statistics for selected RBPs, 
@@ -3634,6 +6288,27 @@ def search_generate_html_report(df_pval, pval_cont_lll,
         if rbp2regidx_dic[rbp_id]:
             no_region_hits = False 
             break
+
+    site_type_uc = "Genomic"
+    site_type = "genomic"
+    if rbpbench_mode == "searchrna":
+        site_type_uc = "Transcript"
+        site_type = "transcript"
+
+    regex_motif_info = ""
+    if regex_id:
+        regex_motif_info = "Used regex motif: '%s'." %(name2ids_dic[regex_id][0])
+
+    report_header_info = ""
+    if report_header:
+        report_header_info = "RBPBench "
+
+    # Number of input regions.
+    c_in_regions = 0
+    for rbp_id in search_rbps_dic:
+        c_in_regions += search_rbps_dic[rbp_id].c_hit_reg
+        c_in_regions += search_rbps_dic[rbp_id].c_no_hit_reg      
+        break
 
     """
     Setup sorttable.js to make tables in HTML sortable.
@@ -3705,22 +6380,29 @@ def search_generate_html_report(df_pval, pval_cont_lll,
 </html>
 """ %(sorttable_js_html)
 
+    motif_enrich_info = "- [RBP motif enrichment statistics](#rbp-enrich-stats)"
+    if disable_motif_enrich_table:
+        motif_enrich_info = ""
+
     # Markdown part.
     mdtext = """
 
-# Search report
+# %sSearch report
 
 List of available statistics and plots generated
-by RBPBench (rbpbench search --report):
+by RBPBench (rbpbench %s):
 
-- [RBP motif enrichment statistics](#rbp-enrich-stats)
-- [RBP co-occurrences heat map](#cooc-heat-map)"""
+%s
+- [RBP co-occurrences heat map](#cooc-heat-map)""" %(report_header_info, rbpbench_mode, motif_enrich_info)
 
     mdtext += "\n"
 
+    # Additional plot if GTF annotations given.
+    if seq_len_df is not None:
+        mdtext += "- [Input sequence length distribution](#seq-len-plot)\n"
 
     # Additional plot if GTF annotations given.
-    if reg2annot_dic is not None:
+    if reg2annot_dic:
         mdtext += "- [Region annotations per RBP](#annot-rbp-plot)\n"
 
     # Upset plot.
@@ -3737,6 +6419,8 @@ by RBPBench (rbpbench search --report):
             mdtext += "    - [Motif %s distance statistics](#single-motif-%i-dist-stats)\n" %(motif_id, idx)
             # mdtext += "    - [Single motif %s distance plot](#single-motif-%i-dist-plot)\n" %(motif_id, idx)
 
+
+    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s. # of input %s = %i.\n" %(str(fimo_pval), reg_seq_str, c_in_regions)
     mdtext += "\n&nbsp;\n"
 
 
@@ -3745,89 +6429,92 @@ by RBPBench (rbpbench search --report):
 
     """
 
-    c_in_regions = 0
-    for rbp_id in search_rbps_dic:
-        c_in_regions += search_rbps_dic[rbp_id].c_hit_reg
-        c_in_regions += search_rbps_dic[rbp_id].c_no_hit_reg      
-        break
+    if not disable_motif_enrich_table:
 
-    mdtext += """
+        # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
+        wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low p-values mean motif-containing regions have significantly higher scores."
+        wrs_mode_info2 = "higher"
+        if wrs_mode == 2:
+            wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low p-values mean motif-containing regions have significantly lower scores."
+            wrs_mode_info2 = "lower"
+
+        mdtext += """
 ## RBP motif enrichment statistics ### {#rbp-enrich-stats}
 
 **Table:** RBP motif enrichment statistics. Given a score for each genomic region (# input regions = %i), 
-RBPbench checks whether motifs are enriched 
-in higher-scoring regions (using Wilcoxon rank-sum test). 
-A low Wilcoxon rank-sum test p-value for a given RBP thus indicates 
-that higher-scoring regions are more likely to contain motif hits of the respective RBP. NOTE that if scores associated to 
-input genomic regions are all the same, p-values become meaningless (i.e., they result in p-values of 1.0).
+RBPbench checks whether motif-containing regions have significantly different scores compared to regions without motif hits.
+%s
+In other words, a low test p-value for a given RBP indicates 
+that %s-scoring regions are more likely to contain motif hits of the respective RBP.
+NOTE that if scores associated to input genomic regions are all the same, p-values become meaningless 
+(i.e., they result in p-values of 1.0).
 By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
+%s
 
-""" %(c_in_regions)
+""" %(c_in_regions, wrs_mode_info1, wrs_mode_info2, regex_motif_info)
 
-#     mdtext += """
-# <table id="table1" class="sortable">
-# <thead>
-# <tr>
-# <th style="text-align: center;" onclick="sortTable('table1', 0, false)">RBP ID</th>
-# <th style="text-align: center;" onclick="sortTable('table1', 1, true)"># hit regions</th>
-# <th style="text-align: center;" onclick="sortTable('table1', 2, true)">% hit regions</th>
-# <th style="text-align: center;" onclick="sortTable('table1', 3, true)"># motif hits</th>
-# <th style="text-align: center;" onclick="sortTable('table1', 4, true)">p-value</th>
-# </tr>
-# </thead>
-# <tbody>
-# """
+        #     mdtext += """
+        # <table id="table1" class="sortable">
+        # <thead>
+        # <tr>
+        # <th style="text-align: center;" onclick="sortTable('table1', 0, false)">RBP ID</th>
+        # <th style="text-align: center;" onclick="sortTable('table1', 1, true)"># hit regions</th>
+        # <th style="text-align: center;" onclick="sortTable('table1', 2, true)">% hit regions</th>
+        # <th style="text-align: center;" onclick="sortTable('table1', 3, true)"># motif hits</th>
+        # <th style="text-align: center;" onclick="sortTable('table1', 4, true)">p-value</th>
+        # </tr>
+        # </thead>
+        # <tbody>
+        # """
 
-    pval_dic = {}
-    for rbp_id in search_rbps_dic:
-        wc_pval = search_rbps_dic[rbp_id].wc_pval
-        pval_dic[rbp_id] = wc_pval
+        pval_dic = {}
+        for rbp_id in search_rbps_dic:
+            wc_pval = search_rbps_dic[rbp_id].wc_pval
+            pval_dic[rbp_id] = wc_pval
 
-    # for rbp_id, wc_pval in sorted(pval_dic.items(), key=lambda item: item[1], reverse=False):
-    #     wc_pval_str = convert_sci_not_to_decimal(wc_pval)  # Convert scientific notation to decimal string for sorting to work.
-    #     c_hit_reg = search_rbps_dic[rbp_id].c_hit_reg
-    #     perc_hit_reg = search_rbps_dic[rbp_id].perc_hit_reg
-    #     c_uniq_motif_hits = search_rbps_dic[rbp_id].c_uniq_motif_hits
-    #     mdtext += '<tr>' + "\n"
-    #     mdtext += '<td style="text-align: center;"' + ">%s</td>\n" %(rbp_id)
-    #     mdtext += '<td style="text-align: center;"' + ">%i</td>\n" %(c_hit_reg) 
-    #     mdtext += '<td style="text-align: center;"' + ">%.2f</td>\n" %(perc_hit_reg) 
-    #     mdtext += '<td style="text-align: center;"' + ">%i</td>\n" %(c_uniq_motif_hits) 
-    #     mdtext += '<td style="text-align: center;"' + ">" + str(wc_pval) + "</td>\n"
-    #     mdtext += '</tr>' + "\n"
+        # for rbp_id, wc_pval in sorted(pval_dic.items(), key=lambda item: item[1], reverse=False):
+        #     wc_pval_str = convert_sci_not_to_decimal(wc_pval)  # Convert scientific notation to decimal string for sorting to work.
+        #     c_hit_reg = search_rbps_dic[rbp_id].c_hit_reg
+        #     perc_hit_reg = search_rbps_dic[rbp_id].perc_hit_reg
+        #     c_uniq_motif_hits = search_rbps_dic[rbp_id].c_uniq_motif_hits
+        #     mdtext += '<tr>' + "\n"
+        #     mdtext += '<td style="text-align: center;"' + ">%s</td>\n" %(rbp_id)
+        #     mdtext += '<td style="text-align: center;"' + ">%i</td>\n" %(c_hit_reg) 
+        #     mdtext += '<td style="text-align: center;"' + ">%.2f</td>\n" %(perc_hit_reg) 
+        #     mdtext += '<td style="text-align: center;"' + ">%i</td>\n" %(c_uniq_motif_hits) 
+        #     mdtext += '<td style="text-align: center;"' + ">" + str(wc_pval) + "</td>\n"
+        #     mdtext += '</tr>' + "\n"
 
-    mdtext += '| RBP ID | # hit regions | % hit regions | # motif hits | p-value |' + " \n"
-    mdtext += "| :-: | :-: | :-: | :-: | :-: |\n"
-    for rbp_id, wc_pval in sorted(pval_dic.items(), key=lambda item: item[1], reverse=False):
-        wc_pval_str = convert_sci_not_to_decimal(wc_pval)  # Convert scientific notation to decimal string for sorting to work.
-        c_hit_reg = search_rbps_dic[rbp_id].c_hit_reg
-        perc_hit_reg = search_rbps_dic[rbp_id].perc_hit_reg
-        c_uniq_motif_hits = search_rbps_dic[rbp_id].c_uniq_motif_hits
-        mdtext += "| %s | %i | %.2f | %i | %s |\n" %(rbp_id, c_hit_reg, perc_hit_reg, c_uniq_motif_hits, wc_pval)
-    mdtext += "\n&nbsp;\n&nbsp;\n"
-    mdtext += "\nColumn IDs have the following meanings: "
-    mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
-    mdtext += '**# hit regions** -> number of input genomic regions with motif hits (after filtering and optional extension), '
-    mdtext += '**% hit regions** -> percentage of hit regions over all regions (i.e. how many input regions contain >= 1 RBP binding motif), '
-    mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
-    mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
-    mdtext += "\n&nbsp;\n"
+        mdtext += '| RBP ID | # hit regions | % hit regions | # motif hits | p-value |' + " \n"
+        mdtext += "| :-: | :-: | :-: | :-: | :-: |\n"
+        for rbp_id, wc_pval in sorted(pval_dic.items(), key=lambda item: item[1], reverse=False):
+            wc_pval_str = convert_sci_not_to_decimal(wc_pval)  # Convert scientific notation to decimal string for sorting to work.
+            c_hit_reg = search_rbps_dic[rbp_id].c_hit_reg
+            perc_hit_reg = search_rbps_dic[rbp_id].perc_hit_reg
+            c_uniq_motif_hits = search_rbps_dic[rbp_id].c_uniq_motif_hits
+            mdtext += "| %s | %i | %.2f | %i | %s |\n" %(rbp_id, c_hit_reg, perc_hit_reg, c_uniq_motif_hits, wc_pval)
+        mdtext += "\n&nbsp;\n&nbsp;\n"
+        mdtext += "\nColumn IDs have the following meanings: "
+        mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
+        mdtext += '**# hit regions** -> number of input genomic regions with motif hits (after filtering and optional extension), '
+        mdtext += '**% hit regions** -> percentage of hit regions over all regions (i.e., how many input regions contain >= 1 RBP binding motif), '
+        mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
+        mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
+        mdtext += "\n&nbsp;\n"
 
+    #     mdtext += """
+    # </tbody>
+    # </table>
+    # """
 
-
-#     mdtext += """
-# </tbody>
-# </table>
-# """
-
-#     mdtext += "\n&nbsp;\n&nbsp;\n"
-#     mdtext += "\nColumn IDs have the following meanings: "
-#     mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
-#     mdtext += '**# hit regions** -> number of input genomic regions with motif hits (after filtering and optional extension), '
-#     mdtext += '**% hit regions** -> percentage of hit regions over all regions (i.e. how many input regions contain >= 1 RBP binding motif), '
-#     mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
-#     mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
-#     mdtext += "\n&nbsp;\n"
+    #     mdtext += "\n&nbsp;\n&nbsp;\n"
+    #     mdtext += "\nColumn IDs have the following meanings: "
+    #     mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
+    #     mdtext += '**# hit regions** -> number of input genomic regions with motif hits (after filtering and optional extension), '
+    #     mdtext += '**% hit regions** -> percentage of hit regions over all regions (i.e. how many input regions contain >= 1 RBP binding motif), '
+    #     mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
+    #     mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
+    #     mdtext += "\n&nbsp;\n"
 
 
     """
@@ -3839,6 +6526,7 @@ By default, BED genomic regions input file column 5 is used as the score column 
     cooc_plot_plotly_out = plots_out_folder + "/" + cooc_plot_plotly
 
     create_cooc_plot_plotly(df_pval, pval_cont_lll, cooc_plot_plotly_out,
+                            max_motif_dist=max_motif_dist,
                             include_plotlyjs=include_plotlyjs,
                             full_html=plotly_full_html)
 
@@ -3864,21 +6552,105 @@ By default, BED genomic regions input file column 5 is used as the score column 
         elif plotly_embed_style == 2:
             mdtext += '<object data="' + plot_path + '" width="1200" height="1200"> </object>' + "\n"
 
+    p_val_info = "P-values below %s are considered significant." %(str(cooc_pval_thr))
+
+    if cooc_pval_mode == 1:
+        p_val_info = "Benjamini-Hochberg multiple testing corrected p-values below %s are considered significant." %(str(cooc_pval_thr))
+    elif cooc_pval_mode == 2:
+        p_val_info = "P-values below %s (p-value threshold Bonferroni multiple testing corrected) are considered significant." %(str(cooc_pval_thr))
+    elif cooc_pval_mode == 3:
+        p_val_info = "P-values below %s are considered significant." %(str(cooc_pval_thr))
+    else:
+        assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(cooc_pval_mode)
+    
+    p_val_info += " # of RBP co-occurrence comparisons: %i. # of significant co-occurrences: %i (%.2f%%)." %(c_all_fisher_pval, c_sig_fisher_pval, perc_sig_fisher_pval)
+
+    # Inform about set alterntive hypothesis for Fisher exact test on RBP motif co-occurrences.
+    fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., significantly overrepresented co-occurrences are reported."
+    if fisher_mode == 2:
+        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'two-sided', i.e., significantly over- and underrepresented co-occurrences are reported."
+    elif fisher_mode == 3:
+        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., significantly underrepresented co-occurrences are reported."
+
     mdtext += """
 
 **Figure:** Heat map of co-occurrences (Fisher's exact test p-values) between RBPs. 
-Legend color: negative logarithm (base 10) of Fisher's exact test p-value.
-Hover box: 1) RBP1. 2) RBP2. 3) p-value: Fisher's exact test p-value (calculated based on contingency table between RBP1 and RBP2). 
-4) RBPs compaired. 5) Counts[]: contingency table of co-occurrence counts (i.e., number of genomic regions with/without shared motif hits) between compaired RBPs, 
+RBP co-occurrences that are not significant are colored gray, while
+significant co-occurrences are colored according to their -log10 p-value (used as legend color, i.e., the higher the more significant).
+%s
+%s
+Hover box: 
+**1)** RBP1.
+**2)** RBP2.
+**3)** p-value: Fisher's exact test p-value (calculated based on contingency table (6) between RBP1 and RBP2). 
+**4)** p-value after filtering: p-value after filtering, i.e., p-value is kept if significant (< %s), otherwise it is set to 1.0.
+**5)** RBPs compaired. 
+**6)** Counts[]: contingency table of co-occurrence counts (i.e., number of %s regions with/without shared motif hits) between compaired RBPs, 
 with format [[A, B], [C, D]], where 
 A: RBP1 AND RBP2, 
 B: NOT RBP1 AND RBP2
 C: RBP1 AND NOT RBP2
 D: NOT RBP1 AND NOT RBP2.
-6) Correlation: Pearson correlation coefficient between RBP1 and RBP2. 
-Genomic regions are labelled 1 or 0 (RBP motif present or not), resulting in a vector of 1s and 0s for each RBP.
+**7)** Mean minimum distance of RBP1 and RBP2 motifs (mean over all regions containing RBP1 + RBP2 motifs). Distances measured from motif center positions.
+**8)** Over all regions containing RBP1 and RBP2 motif pairs, percentage of regions where RBP1 + RBP2 motifs are within %i nt distance (set via --max-motif-dist).
+**9)** Correlation: Pearson correlation coefficient between RBP1 and RBP2.
+%s regions are labelled 1 or 0 (RBP motif present or not), resulting in a vector of 1s and 0s for each RBP.
 Correlations are then calculated by comparing vectors for every pair of RBPs.
-7) -log10 of p-value, used for color decoding.
+**10)** -log10 of p-value after filtering, used for legend coloring. Using p-value after filtering, all non-significant p-values become 0 
+for easier distinction between significant and non-significant co-occurrences.
+%s
+
+&nbsp;
+
+""" %(p_val_info, fisher_mode_info, str(cooc_pval_thr), site_type, max_motif_dist, site_type_uc, regex_motif_info)
+
+
+    """
+    Input sequence lengths distribution violin plot.
+    
+    """
+
+
+    # Additional plot if GTF annotations given.
+    if seq_len_df is not None:
+
+        mdtext += """
+## Input sequence length distribution ### {#seq-len-plot}
+
+"""
+
+        seq_len_plot_plotly =  "seq_len_violin_plot.plotly.html"
+        seq_len_plot_plotly_out = plots_out_folder + "/" + seq_len_plot_plotly
+
+        create_len_distr_violin_plot_plotly(seq_len_df, seq_len_plot_plotly_out,
+                                include_plotlyjs=include_plotlyjs,
+                                full_html=plotly_full_html)
+
+        plot_path = plots_folder + "/" + seq_len_plot_plotly
+
+        if plotly_js_mode in [5, 6, 7]:
+            # Read in plotly code.
+            # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+            js_code = read_file_content_into_str_var(seq_len_plot_plotly_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1000px;")
+            mdtext += js_code + "\n"
+            # mdtext += '</div>'
+        else:
+            if plotly_embed_style == 1:
+                # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                mdtext += "<div>\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1000" height="1000"></iframe>' + "\n"
+                mdtext += '</div>'
+            elif plotly_embed_style == 2:
+                mdtext += '<object data="' + plot_path + '" width="1000" height="1000"> </object>' + "\n"
+
+        mdtext += """
+
+**Figure:** Input sequence lengths (after filtering and optional extension) violin plot.
+Hover box over data points shows sequence ID, sequence, sequence length, and motif hits. 
+Motif hit format: motif ID, motif start - motif end, p-value (for sequence motifs) or bit score (structure models).
+Violin plot shows density distribution of sequence lengths, including min, max, median, 
+and length quartiles (q1: 25th percentile, q3: 75th percentile).
 
 &nbsp;
 
@@ -3889,7 +6661,7 @@ Correlations are then calculated by comparing vectors for every pair of RBPs.
 
     """
 
-    if reg2annot_dic is not None:
+    if reg2annot_dic:
 
         annot_stacked_bars_plot =  "annotation_stacked_bars_plot.png"
         annot_stacked_bars_plot_out = plots_out_folder + "/" + annot_stacked_bars_plot
@@ -3908,10 +6680,16 @@ No plot generated since no motif hits found in input regions.
 """
         else:
 
-            create_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
-                                                plot_out=annot_stacked_bars_plot_out)
+            create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
+                                                       plot_out=annot_stacked_bars_plot_out,
+                                                       annot2color_dic=annot2color_dic,
+                                                       add_all_reg_bar=add_all_reg_bar)
 
             plot_path = plots_folder + "/" + annot_stacked_bars_plot
+
+            more_infos = ""
+            if add_all_reg_bar:
+                more_infos = "**All**: annotations for all input regions (with and without motif hits)."
 
             mdtext += '<img src="' + plot_path + '" alt="Annotation stacked bars plot"' + "\n"
             # mdtext += 'title="Annotation stacked bars plot" width="800" />' + "\n"
@@ -3921,10 +6699,11 @@ No plot generated since no motif hits found in input regions.
 (from --gtf GTF file, see legend for region types) for the genomic regions 
 with motif hits for the respective RBP. 
 Total bar height equals to the number of genomic regions with >= 1 motif hit for the RBP.
+%s
 
 &nbsp;
 
-"""
+""" %(more_infos)
 
 
     """
@@ -3935,11 +6714,19 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
     rbp_reg_occ_upset_plot =  "rbp_region_occupancies.upset_plot.png"
     rbp_reg_occ_upset_plot_out = plots_out_folder + "/" + rbp_reg_occ_upset_plot
 
+    upset_plot_nr_included_rbps = len(rbp2regidx_dic)
+    if upset_plot_max_rbp_rank is not None:
+        if upset_plot_max_rbp_rank < upset_plot_nr_included_rbps:
+            upset_plot_nr_included_rbps = upset_plot_max_rbp_rank
+
     plotted, reason, count = create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list, 
                                   reg2annot_dic=reg2annot_dic,
                                   min_degree=upset_plot_min_degree,
                                   max_degree=upset_plot_max_degree,
                                   min_subset_size=upset_plot_min_subset_size,
+                                  max_subset_rank=upset_plot_max_subset_rank,
+                                  min_rbp_count=upset_plot_min_rbp_count,
+                                  max_rbp_rank=upset_plot_max_rbp_rank,
                                   plot_out=rbp_reg_occ_upset_plot_out)
 
 
@@ -3955,14 +6742,17 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
         mdtext += 'title="RBP region occupancies upset plot" />' + "\n"
         mdtext += """
 
-**Figure:** Upset plot of RBP combinations found in the given set of genomic regions (# of regions = %i). 
+**Figure:** Upset plot of RBP combinations found in the given set of %s regions (# of regions = %i). 
 Intersection size == how often a specific RBP combination is found in the regions dataset.
 For example, if two regions in the input set contain motif hits for RBP1, RBP3, and RBP5, then the RBP combination "RBP1,RBP3,RBP5" will get a count (i.e., Intersection size) of 2.
 Minimum occurrence number for a combination to be reported = %i (command line parameter: --upset-plot-min-subset-size). 
 How many RBPs a combination must at least contain to be reported = %i (command line parameter: --upset-plot-min-degree).
-The numbers on the left side for each RBP tell how many genomic regions have motif hits of the respective RBP. 
+Maximum rank of a combination (w.r.t. to its intersection size) to be reported = %i (command line parameter: --upset-plot-max-subset-rank).
+Number of top RBPs included in statistic + plot (ranked by # input regions with hits) = %i (command line parameter: --upset-plot-max-rbp-rank).
+To be included in the statistic + plot, RBPs need to have motif hits in >= %i input regions (command line parameter: --upset-plot-min-rbp-count).
+The numbers on the left side for each RBP tell how many %s regions have motif hits of the respective RBP. 
 If a GTF file was given, bar charts become stacked bar charts, showing what GTF annotations the regions overlap with (see legend for region types).
-NOTE that currently (v0.8) upsetplot only supports distinct mode (no intersect or union modes yet). 
+NOTE that upsetplot currently (v0.9) only supports distinct mode (no intersect or union modes available). 
 In distinct mode, the reported intersection/subset size for a combination is the number of times 
 this distinct RBP combination shows up in the data. For example, if the combination "RBP1,RBP3,RBP5" has a count of 2,
 it means that there are two regions in the input set which contain motif hits exclusively by RBP1, RBP2, and RBP5 (and no other RBPs!).
@@ -3970,7 +6760,7 @@ This is why the more RBPs are selected, the smaller intersection sizes typically
 
 &nbsp;
 
-""" %(c_regions, upset_plot_min_subset_size, upset_plot_min_degree)
+""" %(site_type, c_regions, upset_plot_min_subset_size, upset_plot_min_degree, upset_plot_max_subset_rank, upset_plot_nr_included_rbps, upset_plot_min_rbp_count, site_type)
 
     else:
 
@@ -3979,7 +6769,7 @@ This is why the more RBPs are selected, the smaller intersection sizes typically
             mdtext += """
 
 No upset plot generated since set --upset-plot-min-degree > maximum degree found in the RBP combination set. Please use lower number for --upset-plot-min-degree parameter.
-Also NOTE that currently (v0.8) upsetplot only supports distinct mode (no intersect or union modes yet). 
+Also NOTE that upsetplot currently (v0.9) only supports distinct mode (no intersect or union modes available). 
 In distinct mode, the reported intersection/subset size for a combination is the number of times 
 this distinct RBP combination shows up in the data. For example, if the combination "RBP1,RBP3,RBP5" has a count of 2,
 it means that there are two regions in the input set which contain motif hits exclusively by RBP1, RBP2, and RBP5 (and no other RBPs!).
@@ -3994,7 +6784,7 @@ This is why the more RBPs are selected, the smaller intersection sizes typically
             mdtext += """
 
 No upset plot generated since set --upset-plot-min-subset-size (%i) > maximum subset size (%i) found in the RBP combination set. Please use lower number for --upset-plot-min-subset-size parameter.
-Also NOTE that currently (v0.8) upsetplot only supports distinct mode (no intersect or union modes yet). 
+Also NOTE that upsetplot currently (v0.9) only supports distinct mode (no intersect or union modes available). 
 In distinct mode, the reported intersection/subset size for a combination is the number of times 
 this distinct RBP combination shows up in the data. For example, if the combination "RBP1,RBP3,RBP5" has a count of 2,
 it means that there are two regions in the input set which contain motif hits exclusively by RBP1, RBP2, and RBP5 (and no other RBPs!).
@@ -4024,6 +6814,16 @@ No plot generated since no motif hits found in input regions.
 
 """
 
+        elif reason == "min_rbp_count":
+
+            mdtext += """
+
+No plot generated since set --upset-plot-min-rbp-count results in no RBPs remaining for upset plot.
+
+&nbsp;
+
+"""
+
         else:
             assert False, "invalid reason given for not plotting upset plot"
 
@@ -4048,7 +6848,7 @@ No motif distance statistics and plots generated since no motif hits found in in
 
     if set_rbp_id is not None:
 
-        rbp_motif_dist_plot_plotly =  "%s.motif_dist.plotly.html" %(set_rbp_id)
+        rbp_motif_dist_plot_plotly =  "%s.rbp_level_dist.plotly.html" %(set_rbp_id)
         rbp_motif_dist_plot_plotly_out = plots_out_folder + "/" + rbp_motif_dist_plot_plotly
 
         plotted, pc_dic, in_dic, out_dic = plot_motif_dist_rbp_level(set_rbp_id,
@@ -4067,7 +6867,9 @@ No motif distance statistics and plots generated since no motif hits found in in
 
 **Table:** Motif distance statistics between set RBP ID (%s) motifs and other RBP ID motifs (including itself). 
 Note that the statistics are generated by focussing (i.e., centering) on the highest-scoring motif of the set RBP 
-(lowest p-value for sequence motifs, highest bit score for structure motifs) in each input region.
+(lowest p-value for sequence motifs, highest bit score for structure motifs) in each input region. 
+If a regex is included in the analysis (--regex), the first regex hit in each region is used for the statistics 
+(as all regex hits have same score).
 In case of an empty table, try to lower --rbp-min-pair-count (current value: %i).
 
 """ %(set_rbp_id, set_rbp_id, rbp_min_pair_count)
@@ -4085,8 +6887,8 @@ In case of an empty table, try to lower --rbp-min-pair-count (current value: %i)
         mdtext += "**Set RBP ID** -> set RBP ID (specified via --set-rbp-id), "
         mdtext += "**Other RBP ID** -> other RBP ID that set RBP ID is compared to, "
         mdtext += "**Pair count** -> number of input regions with motif hits from both RBP IDs (minimum pair count to be reported: %i (set by --rbp-min-pair-count)), " %(rbp_min_pair_count)
-        mdtext += '**# near motifs** -> ' + "number of other RBP ID motifs within specified distance (----motif-distance-plot-range %i) of the centered set RBP ID motifs, " %(motif_distance_plot_range)
-        mdtext += '**# distant motifs** -> ' + "number of other RBP ID motifs outside specified distance (----motif-distance-plot-range %i) of the centered set RBP ID motifs." %(motif_distance_plot_range)
+        mdtext += '**# near motifs** -> ' + "number of other RBP ID motifs within specified distance (--motif-distance-plot-range %i) of the centered set RBP ID motifs, " %(motif_distance_plot_range)
+        mdtext += '**# distant motifs** -> ' + "number of other RBP ID motifs outside specified distance (--motif-distance-plot-range %i) of the centered set RBP ID motifs." %(motif_distance_plot_range)
         # mdtext += "\n"
         mdtext += "\n&nbsp;\n"
 
@@ -4141,7 +6943,11 @@ Each RBP with a pair count (definition see table above) of >= %i is shown, and t
 
         for idx, motif_id in enumerate(name2ids_dic[set_rbp_id]):
 
-            single_motif_dist_plot_plotly =  "%s.motif_dist.plotly.html" %(motif_id)
+            motif_id_plot_str = motif_id
+            if set_rbp_id == regex_id:
+                motif_id_plot_str = regex_id
+
+            single_motif_dist_plot_plotly =  "%s.motif_level_dist.plotly.html" %(motif_id_plot_str)
             single_motif_dist_plot_plotly_out = plots_out_folder + "/" + single_motif_dist_plot_plotly
 
             plotted, pc_dic, in_dic, out_dic = plot_motif_dist_motif_level(motif_id,
@@ -4192,6 +6998,8 @@ Each RBP with a pair count (definition see table above) of >= %i is shown, and t
 **Table:** Motif distance statistics between motif %s (RBP: %s) and other motifs (from any RBP). 
 Note that the statistics are generated by focussing (i.e., centering) on the highest-scoring hit of motif %s 
 (lowest p-value for sequence motifs, highest bit score for structure motifs) in each input region.
+If a regex is included in the analysis (--regex), the first regex hit in each region is used for the statistics 
+(as all regex hits have same score).
 In case of an empty table, try to lower --motif-min-pair-count (current value: %i).
 
 """ %(motif_id, set_rbp_id, motif_id, motif_min_pair_count)
@@ -4224,8 +7032,8 @@ In case of an empty table, try to lower --motif-min-pair-count (current value: %
 
                         plot_str = '<image src = "' + plot_path + '" width="300px"></image>'
 
-                    else:
-                        print("Motif ID %s not in seq_motif_blocks_dic ... " %(seq_motif_blocks_dic))
+                    # else:
+                    #     print("Motif ID %s not in seq_motif_blocks_dic ... " %(other_motif_id))
 
                     mdtext += "| %s | %s | %s | %i | %i | %i |\n" %(motif_id, other_motif_id, plot_str, pair_c, in_dic[other_motif_id], out_dic[other_motif_id])
 
@@ -4235,8 +7043,8 @@ In case of an empty table, try to lower --motif-min-pair-count (current value: %
             mdtext += "**Other motif ID** -> other motif ID that set RBP motif ID is compared to, "
             mdtext += "**Other motif ID plot** -> other motif ID sequence motif plot (if motif is sequence motif), "
             mdtext += "**Pair count** -> number of input regions containing hits for both motifs (minimum pair count to be reported: %i (set by --motif-min-pair-count)), " %(motif_min_pair_count)
-            mdtext += '**# near motifs** -> ' + "number of other motifs within specified distance (----motif-distance-plot-range %i) of the centered motif belonging to set RBP, " %(motif_distance_plot_range)
-            mdtext += '**# distant motifs** -> ' + "number of other motifs outside specified distance (----motif-distance-plot-range %i) of the centered motif belonging to set RBP." %(motif_distance_plot_range)
+            mdtext += '**# near motifs** -> ' + "number of other motifs within specified distance (--motif-distance-plot-range %i) of the centered motif belonging to set RBP, " %(motif_distance_plot_range)
+            mdtext += '**# distant motifs** -> ' + "number of other motifs outside specified distance (--motif-distance-plot-range %i) of the centered motif belonging to set RBP." %(motif_distance_plot_range)
             # mdtext += "\n"
             mdtext += "\n&nbsp;\n"
 
@@ -4339,7 +7147,7 @@ def plot_motif_dist_rbp_level(set_rbp_id,
             if id2name_dic[motif_id] != set_rbp_id:
                 continue
             pval = float(p)
-            if pval < best_motif_pval:
+            if pval < best_motif_pval:  # for regex with all same p-value (0.0), this means first gets selected.
                 best_motif_id = motif_id
                 best_motif_str = motif_str
                 best_motif_s = int(s)
@@ -4593,10 +7401,14 @@ def plot_motif_dist_motif_level(set_motif_id,
 ################################################################################
 
 def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
-                                  reg2annot_dic=None,
+                                  reg2annot_dic=False,
                                   min_degree=2,
                                   max_degree=None,
                                   min_subset_size=10,
+                                  max_subset_rank=25,
+                                  min_rbp_count=0,
+                                  max_rbp_rank=None,
+                                  annot2color_dic=False,
                                   plot_out="rbp_region_occupancies.upset_plot.png"):
     """
     Create upset plot for RBP region occupancies.
@@ -4613,6 +7425,15 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
     # All regions (# regions).
     c_regions = len(reg_ids_list)
     assert c_regions > 0, "c_regions must be >= 0"
+
+    # Filter rbp2regidx_dic if min_rbp_count or max_rbp_rank set.
+    if min_rbp_count > 0 or max_rbp_rank is not None:
+        rbp2regidx_dic = filter_rbp2regidx_dic(rbp2regidx_dic,
+                            min_rbp_count=min_rbp_count,
+                            max_rbp_rank=max_rbp_rank)
+        # If all RBPs filtered out due to min_rbp_count > max_count.
+        if not rbp2regidx_dic:
+            return False, "min_rbp_count", 0
 
     # Check if there are regions that have motif hits.
     no_region_hits = True
@@ -4646,7 +7467,7 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
                 idx_with_hits_dic[idx] = 1
                 bool_l.append(True)
             else:
-                bool_l.append(False)        
+                bool_l.append(False)
         bool_ll.append(bool_l)
 
     df = pd.DataFrame(bool_ll, columns=rbp_id_list)
@@ -4687,7 +7508,7 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
     https://upsetplot.readthedocs.io/en/latest/auto_examples/plot_discrete.html
     """
 
-    if reg2annot_dic is not None:
+    if reg2annot_dic:
         assert len(reg2annot_dic) == c_regions, "len(reg2annot_dic) != c_regions"
         # List of annotations.
         annot_ids_list = []
@@ -4702,15 +7523,37 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
 
         # df = df.sort_values('annot', ascending=False) # Sorting does not change plot.
 
-        # Get annotation ID -> hex color dictionary.
-        annot2color_dic = {}
-        hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
-        idx = 0
-        for annot in sorted(annot_with_hits_dic, reverse=False):
-            hc = hex_colors[idx]
-            # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
-            annot2color_dic[annot] = hex_colors[idx]
-            idx += 1
+        if not annot2color_dic:
+
+            # Get annotation ID -> hex color dictionary.
+            annot2color_dic = {}
+
+            # Get all annotation IDs in dataset.
+            annot_dic = {}
+            for reg_id in reg2annot_dic:
+                annot = reg2annot_dic[reg_id][0]
+                if annot not in annot_dic:
+                    annot_dic[annot] = 1
+                else:
+                    annot_dic[annot] += 1
+
+
+            # hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
+            hex_colors = get_hex_colors_list(min_len=len(annot_dic))
+
+            idx = 0
+            for annot in sorted(annot_dic, reverse=False):
+                # hc = hex_colors[idx]
+                # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
+                annot2color_dic[annot] = hex_colors[idx]
+                idx += 1
+
+            # idx = 0
+            # for annot in sorted(annot_with_hits_dic, reverse=False):
+            #     # hc = hex_colors[idx]
+            #     # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
+            #     annot2color_dic[annot] = hex_colors[idx]
+            #     idx += 1
         
         # Set indices (== RBP ID columns).
         df = df.set_index(rbp_id_list)
@@ -4720,6 +7563,7 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
                         min_degree=min_degree,  # number of RBPs in set (e.g. 2 -> at least 2 RBP pairs, not single RBPs)
                         max_degree=max_degree,
                         min_subset_size=min_subset_size,  # min size of a set to be reported.
+                        max_subset_rank=max_subset_rank,
                         show_counts=True,
                         intersection_plot_elements=0,  # disable the default bar chart.
                         sort_by="cardinality")
@@ -4735,6 +7579,7 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
                       min_degree=min_degree,  # number of RBPs in set (e.g. 2 -> at least 2 RBP pairs, not single RBPs)
                       max_degree=max_degree,
                       min_subset_size=min_subset_size,  # min size of a set to be reported.
+                      max_subset_rank=max_subset_rank,
                       show_counts=True,
                       sort_by="cardinality")
         upset.plot()
@@ -4746,8 +7591,11 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
 
 ################################################################################
 
-def create_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
-                                        plot_out="annotation_stacked_bars_plot.png"):
+def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
+                                               plot_out="annotation_stacked_bars_plot.png",
+                                               annot2color_dic=False,
+                                               add_all_reg_bar=True,
+                                               all_regions_id="All"):
     """
     Create a stacked bars plot, with each bar showing the annotations for one RBPs,
     i.e. with which GTF annotations the sites with motifs of the RBP overlap.
@@ -4786,41 +7634,68 @@ def create_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_
         rbp2idx_dic[rbp_id] = idx
         idx += 1
 
+    # Add all regions ID to rbp_id_list.
+    if add_all_reg_bar:
+        rbp_id_list.append(all_regions_id)
+
     data_dic = {}
     for annot in sorted(annot_dic, reverse=True):  # make reverse sort to have same color coding as upset plot.
         data_dic[annot] = []
         for rbp_id in rbp_id_list:
             data_dic[annot].append(0)
 
+    # Add region annotation counts for all regions.
+    if add_all_reg_bar:
+        for annot in annot_dic:
+            annot_c = annot_dic[annot]
+            data_dic[annot][len(rbp_id_list)-1] = annot_c
+
     data_dic["rbp_id"] = []
+
     for rbp_id in rbp_id_list:
         data_dic["rbp_id"].append(rbp_id)
 
-    annot_with_hits_dic = {}
+    # annot_with_hits_dic = {}
 
     for rbp_id in rbp2regidx_dic:
         for hit_idx in rbp2regidx_dic[rbp_id]:
             reg_id = reg_ids_list[hit_idx]
             annot = reg2annot_dic[reg_id][0]
-            annot_with_hits_dic[annot] = 1
+            # annot_with_hits_dic[annot] = 1
             rbp_idx = rbp2idx_dic[rbp_id]
             data_dic[annot][rbp_idx] += 1
+
+    # data_dic:
+    # {'intron': [0, 0, 1], 'CDS': [5, 4, 7], "5'UTR": [0, 0, 1], "3'UTR": [0, 2, 2], 'rbp_id': ['RBFOX2', 'PUM2', 'PUM1']}
 
     df = pd.DataFrame(data_dic)
     # Remove annotation columns with no counts.
     df = df.loc[:, (df != 0).any(axis=0)]
 
-    # Get annotation ID -> hex color mapping for plotting.
-    annot2color_dic = {}
+    # print("data_dic:")
+    # print(data_dic)
+    # print("df:")
+    # print(df)
 
-    hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
+    if not annot2color_dic:
+        # Get annotation ID -> hex color mapping for plotting.
+        annot2color_dic = {}
 
-    idx = 0
-    for annot in sorted(annot_with_hits_dic, reverse=False):
-        hc = hex_colors[idx]
-        # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
-        annot2color_dic[annot] = hex_colors[idx]
-        idx += 1
+        # Colors for all annotations.
+        hex_colors = get_hex_colors_list(min_len=len(annot_dic))
+        # hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
+
+        idx = 0
+        for annot in sorted(annot_dic, reverse=False):
+            annot2color_dic[annot] = hex_colors[idx]
+            idx += 1
+
+    # idx = 0^
+    # for annot in sorted(annot_with_hits_dic, reverse=False):
+    #     # hc = hex_colors[idx]
+    #     # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
+    #     annot2color_dic[annot] = hex_colors[idx]
+    #     idx += 1
 
     ax = df.set_index('rbp_id').plot(kind='barh', stacked=True, legend=False, color=annot2color_dic, edgecolor="none", figsize=(fwidth, fheight))
     # ax = df.set_index('rbp_id').plot(kind='barh', stacked=True, legend=False, edgecolor="lightgrey", figsize=(fwidth, fheight))
@@ -4846,23 +7721,125 @@ def create_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_
 
 ################################################################################
 
-def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
-                            include_plotlyjs="cdn",
-                            full_html=False):
+def seqs_dic_count_kmer_freqs(seqs_dic, k,
+                              rna=False,
+                              perc=False,
+                              return_ratios=False,
+                              report_key_error=True,
+                              skip_non_dic_keys=False,
+                              convert_to_uc=False):
     """
-    Plot co-occurrences as heat map with plotly.
+    Given a dictionary with sequences seqs_dic, count how many times each
+    k-mer is found over all sequences (== get k-mer frequencies).
+    Return k-mer frequencies count dictionary.
+    By default, a DNA dictionary is used, and key errors will be reported.
 
-    https://plotly.github.io/plotly.py-docs/generated/plotly.io.write_html.html
+    rna:
+    Instead of DNA dictionary, use RNA dictionary (ACGU) for counting
+    k-mers.
+    perc:
+    If True, make percentages out of ratios (*100).
+    return_ratios:
+    Return k-mer ratios instead of frequencies (== counts).
+    report_key_error:
+    If True, report key error (di-nucleotide not in count_dic).
+    convert_to_uc:
+    Convert sequences to uppercase before counting.
+    skip_non_dic_keys:
+    Skip k-mers not in count_dic. These usually are N-containing k-mers.
+    By default, key errors are reported.
+
+
+    >>> seqs_dic = {'seq1': 'AACGTC', 'seq2': 'GGACT'}
+    >>> seqs_dic_count_kmer_freqs(seqs_dic, 2)
+    {'AA': 1, 'AC': 2, 'AG': 0, 'AT': 0, 'CA': 0, 'CC': 0, 'CG': 1, 'CT': 1, 'GA': 1, 'GC': 0, 'GG': 1, 'GT': 1, 'TA': 0, 'TC': 1, 'TG': 0, 'TT': 0}
+    >>> seqs_dic = {'seq1': 'AAACGT'}
+    >>> seqs_dic_count_kmer_freqs(seqs_dic, 2, return_ratios=True, perc=True)
+    {'AA': 40.0, 'AC': 20.0, 'AG': 0.0, 'AT': 0.0, 'CA': 0.0, 'CC': 0.0, 'CG': 20.0, 'CT': 0.0, 'GA': 0.0, 'GC': 0.0, 'GG': 0.0, 'GT': 20.0, 'TA': 0.0, 'TC': 0.0, 'TG': 0.0, 'TT': 0.0}
 
     """
+    # Checks.
+    assert seqs_dic, "given dictinary seqs_dic empty"
+    assert k, "invalid k given"
+    assert k > 0, "invalid k given"
+    # Get k-mer dictionary.
+    count_dic = get_kmer_dic(k, rna=rna)
+    # Count k-mers for all sequences in seqs_dic.
+    total_c = 0
+    for seq_id in seqs_dic:
+        seq = seqs_dic[seq_id]
+        if convert_to_uc:
+            seq = seq.upper()
+        for i in range(len(seq)-k+1):
+            kmer = seq[i:i+k]
+            if skip_non_dic_keys:
+                if kmer not in count_dic:
+                    continue
+            else:
+                if report_key_error:
+                    assert kmer in count_dic, "k-mer \"%s\" not in count_dic" %(kmer)
+            if kmer in count_dic:
+                count_dic[kmer] += 1
+                total_c += 1
+    assert total_c, "no k-mers counted for given seqs_dic (sequence lengths < set k ?)"
 
-    plot = px.imshow(df)
-    plot.update(data=[{'customdata': pval_cont_lll,
-                    'hovertemplate': 'RBP1: %{x}<br>RBP2: %{y}<br>p-value: %{customdata[0]}<br>RBPs: %{customdata[1]}<br>Counts: %{customdata[2]}<br>Correlation: %{customdata[3]}<br>-log10(p-value): %{z}<extra></extra>'}])
-    plot.update_layout(plot_bgcolor='white')
-    plot.write_html(plot_out,
-                    full_html=full_html,
-                    include_plotlyjs=include_plotlyjs)
+    # Calculate ratios.
+    if return_ratios:
+        for kmer in count_dic:
+            ratio = count_dic[kmer] / total_c
+            if perc:
+                count_dic[kmer] = ratio*100
+            else:
+                count_dic[kmer] = ratio
+    # Return k-mer counts or ratios.
+    return count_dic
+
+
+################################################################################
+
+def get_kmer_dic(k,
+                 fill_idx=False,
+                 rna=False):
+    """
+    Return a dictionary of k-mers. By default, DNA alphabet is used (ACGT).
+    Value for each k-mer key is set to 0.
+
+    rna:
+    Use RNA alphabet (ACGU).
+
+    >>> get_kmer_dic(1)
+    {'A': 0, 'C': 0, 'G': 0, 'T': 0}
+    >>> get_kmer_dic(2, rna=True)
+    {'AA': 0, 'AC': 0, 'AG': 0, 'AU': 0, 'CA': 0, 'CC': 0, 'CG': 0, 'CU': 0, 'GA': 0, 'GC': 0, 'GG': 0, 'GU': 0, 'UA': 0, 'UC': 0, 'UG': 0, 'UU': 0}
+    >>> get_kmer_dic(1, fill_idx=True)
+    {'A': 1, 'C': 2, 'G': 3, 'T': 4}
+    >>> get_kmer_dic(2, rna=True, fill_idx=True)
+    {'AA': 1, 'AC': 2, 'AG': 3, 'AU': 4, 'CA': 5, 'CC': 6, 'CG': 7, 'CU': 8, 'GA': 9, 'GC': 10, 'GG': 11, 'GU': 12, 'UA': 13, 'UC': 14, 'UG': 15, 'UU': 16}
+
+    """
+    # Check.
+    assert k, "invalid k given"
+    assert k > 0, "invalid k given"
+    # Dictionary.
+    mer2c_dic = {}
+    # Alphabet.
+    nts = ["A", "C", "G", "T"]
+    if rna:
+        nts = ["A", "C", "G", "U"]
+    # Recursive k-mer dictionary creation.
+    def fill(i, seq, mer2c_dic):
+        if i:
+            for nt in nts:
+                fill(i-1, seq+nt, mer2c_dic)
+        else:
+            mer2c_dic[seq] = 0
+    fill(k, "", mer2c_dic)
+    if fill_idx:
+        idx = 0
+        for kmer,c in sorted(mer2c_dic.items()):
+            idx += 1
+            mer2c_dic[kmer] = idx
+    return mer2c_dic
 
 
 ################################################################################
@@ -4920,7 +7897,7 @@ def log_tf_df(df,
     convert_zero_pv:
         If true, converts p-values of 0.0 to smallest float() class number 
         possible (i.e., 2.2e-308). Otherwise -log10(0.0) will cause
-        math domain error.
+        math domain error. 2.2e-308 pval -> 307.6575773191778 -log10pval.
 
     """
 
@@ -4937,16 +7914,28 @@ def log_tf_df(df,
                     df.iloc[i][j] = ltf_pval
     else:
         # Way to deal with pandas 2.1.0 deprecation warning "treating keys as positions is deprecated ...".
-        assert len(df) == len(rbp_list), "len(df) != len(rbp_list) (%i != %i)" %(len(df), len(rbp_list)) 
-        for i,rbp_i in enumerate(rbp_list):
-            for j,rbp_j in enumerate(rbp_list):
-                if df.loc[rbp_i][rbp_j] is not None:
-                    pv = df.loc[rbp_i][rbp_j]
+        # assert len(df) == len(rbp_list), "len(df) != len(rbp_list) (%i != %i)" %(len(df), len(rbp_list)) 
+        # for i,rbp_i in enumerate(rbp_list):
+        #     for j,rbp_j in enumerate(rbp_list):
+        #         if df.loc[rbp_i][rbp_j] is not None:
+        #             pv = df.loc[rbp_i][rbp_j]
+        #             if convert_zero_pv:
+        #                 if pv == 0:
+        #                     pv = min_pv
+        #             ltf_pval = log_tf_pval(pv)
+        #             df.loc[rbp_i, rbp_j] = ltf_pval
+
+        for i in range(len(df)):
+            for j in range(len(df)):
+                if df.iloc[i, j] is not None:
+                    pv = df.iloc[i, j]
                     if convert_zero_pv:
                         if pv == 0:
                             pv = min_pv
                     ltf_pval = log_tf_pval(pv)
-                    df.loc[rbp_i][rbp_j] = ltf_pval
+                    df.iloc[i, j] = ltf_pval
+
+
 
 
 ################################################################################
@@ -5066,9 +8055,19 @@ def search_generate_html_motif_plots(search_rbps_dic,
                                      seq_motif_blocks_dic, str_motif_blocks_dic,
                                      out_folder, benchlib_path, motif2db_dic,
                                      motif_db_str=False,
+                                     rbp2motif2annot2c_dic=False,
+                                     annot2color_dic=False,
+                                     mrna_reg_occ_dic=False,
+                                     norm_mrna_reg_dic=False,
+                                     regex_id="regex",
                                      html_report_out="motif_plots.rbpbench_search.html",
                                      plot_abs_paths=False,
                                      sort_js_mode=1,
+                                     rbpbench_mode="search --plot-motifs",
+                                     report_header=False,
+                                     fimo_pval=0.001,
+                                     c_in_regions=0,
+                                     reg_seq_str="regions",
                                      plots_subfolder="html_motif_plots"):
     """
     Create motif plots for selected RBPs.
@@ -5093,6 +8092,20 @@ def search_generate_html_motif_plots(search_rbps_dic,
     if html_report_out:
         html_out = html_report_out
 
+    site_type_uc = "Genomic"
+    site_type = "genomic"
+    tr_modes = ["searchlongrna", "searchrna --plot-motifs"]
+    seq_modes = ["searchseq --plot-motifs"]
+    if rbpbench_mode in tr_modes:
+        site_type_uc = "Transcript"
+        site_type = "transcript"
+    if rbpbench_mode in seq_modes:
+        site_type_uc = "Sequence"
+        site_type = "sequence"
+
+    report_header_info = ""
+    if report_header:
+        report_header_info = "RBPBench "
 
     """
     Setup sorttable.js to make tables in HTML sortable.
@@ -5129,13 +8142,13 @@ def search_generate_html_motif_plots(search_rbps_dic,
     # Markdown part.
     mdtext = """
 
-# Motif Plots and Hit Statistics
+# %sMotif Plots and Hit Statistics
 
 List of available motif hit statistics and motif plots generated
-by RBPBench (rbpbench search --plot-motifs):
+by RBPBench (rbpbench %s):
 
 - [Motif hit statistics](#motif-hit-stats)
-"""
+""" %(report_header_info, rbpbench_mode)
 
     motif_plot_ids_dic = {}
     idx = 0
@@ -5144,6 +8157,9 @@ by RBPBench (rbpbench search --plot-motifs):
         tab_id = "plot-%i" %(idx)
         motif_plot_ids_dic[rbp_id] = tab_id
         mdtext += "- [%s motifs](#%s)\n" %(rbp_id, tab_id)
+
+
+    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s. # input %s = %i.\n" %(str(fimo_pval), reg_seq_str, c_in_regions)
     mdtext += "\n&nbsp;\n"
 
 
@@ -5154,9 +8170,10 @@ by RBPBench (rbpbench search --plot-motifs):
     mdtext += """
 ## Motif hit statistics ### {#motif-hit-stats}
 
-**Table:** RBP motif hit statistics with RBP ID, motif ID, motif database ID (set to "user" if user-supplied motif, otherwise internal database ID), and respective number of motif hits found in supplied genomic regions.
+**Table:** RBP motif hit statistics with RBP ID, motif ID, motif database ID (set to "user" if user-supplied motif, otherwise internal database ID), 
+and respective number of motif hits found in supplied %s regions.
 
-"""
+""" %(site_type)
 
     mdtext += '| &nbsp; RBP ID &nbsp; | &nbsp; Motif ID &nbsp; | Motif database | # motif hits |' + " \n"
     mdtext += "| :-: | :-: | :-: | :-: |\n"
@@ -5174,7 +8191,7 @@ by RBPBench (rbpbench search --plot-motifs):
     mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
     mdtext += "**Motif ID** -> Motif ID from database or user-defined, "
     mdtext += "**Motif database** -> Motif database used for search run, "
-    mdtext += '**# motif hits** -> number of individual motif hits (i.e., hits for motif with motif ID).' + "\n"
+    mdtext += '**# motif hits** -> number of unique individual motif hits (i.e., unique hits for motif with motif ID).' + "\n"
 
     """
     Motif plots.
@@ -5184,14 +8201,44 @@ by RBPBench (rbpbench search --plot-motifs):
     for rbp_id, rbp in sorted(search_rbps_dic.items()):
         tab_id = motif_plot_ids_dic[rbp_id]
 
+        # Count number of total motif hits for RBP.
+        c_total_rbp_hits = 0
+
+        motif_ids_list = []
+
+        for idx, motif_id in enumerate(rbp.seq_motif_ids):
+            c_total_rbp_hits += rbp.seq_motif_hits[idx]
+            motif_ids_list.append(motif_id)
+        for idx, motif_id in enumerate(rbp.str_motif_ids):
+            c_total_rbp_hits += rbp.str_motif_hits[idx]
+            motif_ids_list.append(motif_id)
+
+        seq_motif_info = "RBP \"%s\" sequence motif plots." %(rbp_id)
+        if rbp2motif2annot2c_dic and c_total_rbp_hits:
+            seq_motif_info = "RBP \"%s\" sequence motif plots and %s region annotations for motif hits." %(rbp_id, site_type)
+        if mrna_reg_occ_dic and c_total_rbp_hits:
+            seq_motif_info = "RBP \"%s\" sequence motif plots and mRNA region annotations for motif hits." %(rbp_id)
+
         # RBP has sequence motifs?
-        if rbp.seq_motif_ids:
+        if rbp.seq_motif_ids and rbp_id != regex_id:
             mdtext += """
 ## %s motifs ### {#%s}
 
-RBP "%s" sequence motif plots.
+%s
 
-""" %(rbp_id, tab_id, rbp_id)
+""" %(rbp_id, tab_id, seq_motif_info)
+
+        elif rbp.seq_motif_ids and rbp_id == regex_id:
+
+            motif_id = rbp.seq_motif_ids[0]
+            c_motif_hits = rbp.seq_motif_hits[0]
+
+            mdtext += """
+## %s motifs ### {#%s}
+
+Motif ID / Regex: "%s". Number of unique motif hits in supplied %s regions: %i.
+
+""" %(rbp_id, tab_id, motif_id, site_type, c_motif_hits)
 
         else:
             mdtext += """
@@ -5200,6 +8247,62 @@ RBP "%s" sequence motif plots.
 RBP "%s" only contains structure motifs, which are currently not available for plotting.
 
 """ %(rbp_id, tab_id, rbp_id)
+
+        # If mRNA annotations given via mrna_reg_occ_dic.
+        if mrna_reg_occ_dic and c_total_rbp_hits:
+
+            assert annot2color_dic, "given mrna_reg_occ_dic but annot2color_dic is empty"
+
+            mrna_occ_stacked_plot =  "mRNA_region_occ_stacked_plot.%s.png" %(rbp_id)
+            mrna_occ_stacked_plot_out = plots_out_folder + "/" + mrna_occ_stacked_plot
+
+            create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic, 
+                                        annot2color_dic, mrna_occ_stacked_plot_out,
+                                        rbp_id=rbp_id)
+
+            plots_path = plots_folder + "/" + mrna_occ_stacked_plot
+
+            mdtext += '<img src="' + plots_path + '" alt="mRNA region occupancy stacked plot"' + "\n"
+            mdtext += 'title="mRNA region occupancy stacked plot" />' + "\n"
+            mdtext += """
+**Figure:** mRNA region motif hit coverage profiles for RBP "%s" motif hits.
+Motif hit coverage profiles are shown for all motifs of RBP "%s" combined, as well as single motifs (unless there is only one motif), over 5'UTR, CDS, and 3'UTR regions of mRNA.
+x-axis is the motif hit coverage, i.e., how many motif hits found over the mRNA regions. 
+mRNA region lengths used for plotting are the %s region lengths obtained from the GTF file (5'UTR = %i, CDS = %i, 3'UTR = %i).
+Number of mRNA sequences used for prediction and plot generation: %i.
+
+&nbsp;
+
+""" %(rbp_id, rbp_id, norm_mrna_reg_dic["mode"], norm_mrna_reg_dic["5'UTR"], norm_mrna_reg_dic["CDS"], norm_mrna_reg_dic["3'UTR"], norm_mrna_reg_dic["c_mrna_seqs"])
+
+        # If there are motif hit region annotations and hits for the RBP.
+        if rbp2motif2annot2c_dic and c_total_rbp_hits:
+
+            assert annot2color_dic, "given rbp2motif2annot2c_dic but annot2color_dic is empty"
+
+            annot_stacked_bars_plot =  "annotation_stacked_bars_plot.%s.png" %(rbp_id)
+            annot_stacked_bars_plot_out = plots_out_folder + "/" + annot_stacked_bars_plot
+
+            create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, annot2color_dic,
+                                                annot_stacked_bars_plot_out)
+
+            plot_path = plots_folder + "/" + annot_stacked_bars_plot
+
+            mdtext += '<img src="' + plot_path + '" alt="Annotation stacked bars plot"' + "\n"
+            # mdtext += 'title="Annotation stacked bars plot" width="800" />' + "\n"
+            mdtext += 'title="Annotation stacked bars plot" />' + "\n"
+            mdtext += """
+**Figure:** Genomic region annotations for RBP "%s" motif hits.
+%s motif hit regions are overlapped with genomic regions from GTF file and genomic region feature with highest overlap
+is assigned to each motif hit region. "intergenic" feature means none of the used GTF region features overlap with the motif hit region.
+Genomic annotations are shown for all motifs of RBP "%s" combined, as well as for the single motifs (unless there is only one motif).
+
+&nbsp;
+
+""" %(rbp_id, site_type_uc, rbp_id)
+
+        if rbp_id == regex_id:
+            continue
 
         for idx, motif_id in enumerate(rbp.seq_motif_ids):
             c_motif_hits = rbp.seq_motif_hits[idx]
@@ -5222,11 +8325,11 @@ RBP "%s" only contains structure motifs, which are currently not available for p
             mdtext += 'title="' + "sequence motif plot %s" %(motif_id) + '" width="500" />' + "\n"
             mdtext += """
 
-**Figure:** Sequence motif plot for motif ID "%s" (RBP ID: %s, motif database ID: %s). X-axis: motif position. Y-axis: nucleotide probability. Number of %s motif hits in supplied genomic regions: %i.
+**Figure:** Sequence motif plot for motif ID "%s" (RBP ID: %s, motif database ID: %s). X-axis: motif position. Y-axis: nucleotide probability. Number of %s unique motif hits in supplied %s regions: %i.
 
 &nbsp;
 
-""" %(motif_id, rbp_id, motif_db, motif_id, c_motif_hits)
+""" %(motif_id, rbp_id, motif_db, motif_id, site_type, c_motif_hits)
 
 
         for idx, motif_id in enumerate(rbp.str_motif_ids):
@@ -5313,6 +8416,7 @@ def compare_generate_html_report(compare_methods_dic, compare_datasets_dic,
                                  html_report_out="report.rbpbench_compare.html",
                                  plot_abs_paths=False,
                                  sort_js_mode=1,
+                                 report_header=False,
                                  plots_subfolder="html_plots"):
     """
     Create comparison statistics and HTML report.
@@ -5334,6 +8438,9 @@ def compare_generate_html_report(compare_methods_dic, compare_datasets_dic,
     if html_report_out:
         html_out = html_report_out
 
+    report_header_info = ""
+    if report_header:
+        report_header_info = "RBPBench "
 
     """
     Setup sorttable.js to make tables in HTML sortable.
@@ -5369,12 +8476,12 @@ def compare_generate_html_report(compare_methods_dic, compare_datasets_dic,
     # Markdown part.
     mdtext = """
 
-# Comparison Report
+# %sComparison Report
 
 List of available comparison statistics generated
 by RBPBench (rbpbench compare):
 
-"""
+""" %(report_header_info)
 
     # Comparisons based on method ID.
     method_ids_dic = {}
