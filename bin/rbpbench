@@ -249,6 +249,12 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3],
                    help="Defines multiple testing correction mode for co-occurrence p-values. 1: Benjamini-Hochberg (BH), 2: Bonferroni, 3: no correction (default: 1)")
+    p_s.add_argument("--min-motif-dist",
+                   dest="min_motif_dist",
+                   type=int,
+                   metavar='int',
+                   default=0,
+                   help="Set minimum mean motif distance for an RBP pair to be reported significant in RBP co-occurrence heatmap plot. By default (value 0), all RBP pairs <= set p-value are reported significant. So setting --min-motif-dist >= 0 acts as a second filter to show only RBP pairs with signficiant p-values as significant if there is the specified minimum average distance between their motifs (default: 0)")
     p_s.add_argument("--max-motif-dist",
                    dest="max_motif_dist",
                    type=int,
@@ -1782,6 +1788,7 @@ def main_search(args):
     if args.tr_list:
         assert args.in_gtf, "set --tr-list requires --gtf GTF file"
     assert benchlib.boundary_check(args.gtf_feat_min_overlap, 1E-9, 1.0), "set --gtf-feat-min-overlap expected to be >= 1E-9 and <= 1.0"
+    assert benchlib.boundary_check(args.min_motif_dist, 0, 1000), "set --min-motif-dist expected to be >= 0 and <= 1000"
     # if args.in_gtf:
     #     assert args.report, "set --gtf requires --report to be effective"
     assert args.upset_plot_min_rbp_count >= 0, "set --upset-plot-min-rbp-count needs to be >= 0"
@@ -3198,7 +3205,7 @@ def main_search(args):
     for i in range(len_rbp_list):
         for j in range(len_rbp_list):
             # Storing [p-value_str, pair_str, table_str, correlation_str].
-            pval_cont_lll[i].append(["1.0","-", "-", "-", "-", "-", "-"])  
+            pval_cont_lll[i].append(["1.0","-", "-", "-", "-", "-", "-", ""])  
 
     # Add p-values of 1.0 in diagonal.
     # for idx, rbp_id in enumerate(rbp_list):
@@ -3295,7 +3302,7 @@ def main_search(args):
         pval_cont_lll[idx2][idx1][3] = table_str
         pval_cont_lll[idx2][idx1][4] = avg_min_dist
         pval_cont_lll[idx2][idx1][5] = perc_close_hits
-
+        
         # pval_cont_lll[idx2][idx1][0] = str(p_value)
         # pval_cont_lll[idx2][idx1][1] = pair_str
         # pval_cont_lll[idx2][idx1][2] = table_str
@@ -3356,14 +3363,26 @@ def main_search(args):
         # Round p-values to 4 significant digits.
         p_value = benchlib.round_to_n_significant_digits(p_value, 4)
 
-        c_all_fisher_pval += 1
-        if p_value <= cooc_pval_thr:
-            c_sig_fisher_pval += 1
-
         p_value_plotted = p_value
+
+        avg_min_dist_str = pval_cont_lll[idx2][idx1][4]
+        avg_min_dist = 10000
+        if avg_min_dist_str != "-":
+            avg_min_dist = float(avg_min_dist_str)
+
+        # AALAMO args.min_motif_dist, add to pval_cont_lll reason for applied filter (if p_value_plotted == 1.0)
 
         if p_value > cooc_pval_thr:
             p_value_plotted = 1.0
+            pval_cont_lll[idx2][idx1][7] = "(Filter: p-value > %s)<br>" %(str(cooc_pval_thr))
+        
+        if p_value <= cooc_pval_thr and avg_min_dist < args.min_motif_dist:
+            p_value_plotted = 1.0
+            pval_cont_lll[idx2][idx1][7] = "(Filter: mean minimum motif distance < %i)<br>" %(args.min_motif_dist)
+
+        c_all_fisher_pval += 1
+        if p_value <= cooc_pval_thr and avg_min_dist >= args.min_motif_dist:
+            c_sig_fisher_pval += 1
 
         pval_ll[idx1][idx2] = p_value_plotted
         pval_ll[idx2][idx1] = p_value_plotted
@@ -3378,10 +3397,9 @@ def main_search(args):
         rbp1 = pair[0]
         rbp2 = pair[1]
         con_table = con_table_dic[pair_str]
-        avg_min_dist = pval_cont_lll[idx2][idx1][4]
         perc_close_hits = pval_cont_lll[idx2][idx1][5]
 
-        COSOUT.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" %(rbp1, rbp2, str(con_table[0][0]), str(con_table[0][1]), str(con_table[1][0]), str(con_table[1][1]), str(p_value), avg_min_dist, perc_close_hits))
+        COSOUT.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" %(rbp1, rbp2, str(con_table[0][0]), str(con_table[0][1]), str(con_table[1][0]), str(con_table[1][1]), str(p_value), avg_min_dist_str, perc_close_hits))
 
     COSOUT.close()
 
@@ -3793,6 +3811,7 @@ def main_search(args):
                                          regex_id=regex_id,
                                          seq_motif_blocks_dic=seq_motif_blocks_dic,
                                          max_motif_dist=args.max_motif_dist,
+                                         min_motif_dist=args.min_motif_dist,
                                          motif_distance_plot_range=args.motif_distance_plot_range,
                                          motif_min_pair_count=args.motif_min_pair_count,
                                          rbp_min_pair_count=args.rbp_min_pair_count,

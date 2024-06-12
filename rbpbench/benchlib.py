@@ -4557,6 +4557,7 @@ def create_color_scale(min_value, max_value, colors):
 
 def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
                             max_motif_dist=50,
+                            min_motif_dist=0,
                             include_plotlyjs="cdn",
                             full_html=False):
     """
@@ -4611,7 +4612,7 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
     """
 
     plot.update(data=[{'customdata': pval_cont_lll,
-                      'hovertemplate': '1) RBP1: %{x}<br>2) RBP2: %{y}<br>3) p-value: %{customdata[0]}<br>4) p-value after filtering: %{customdata[1]}<br>5) RBPs: %{customdata[2]}<br>6) Counts: %{customdata[3]}<br>7) Mean minimum motif distance (nt): %{customdata[4]}<br>8) Motif pairs within ' + str(max_motif_dist) + ' nt (%): %{customdata[5]}<br>9) Correlation: %{customdata[6]}<br>10) -log10(p-value after filtering): %{z}<extra></extra>'}])
+                      'hovertemplate': '1) RBP1: %{x}<br>2) RBP2: %{y}<br>3) p-value: %{customdata[0]}<br>4) p-value after filtering: %{customdata[1]}<br>%{customdata[7]}5) RBPs: %{customdata[2]}<br>6) Counts: %{customdata[3]}<br>7) Mean minimum motif distance (nt): %{customdata[4]}<br>8) Motif pairs within ' + str(max_motif_dist) + ' nt (%): %{customdata[5]}<br>9) Correlation: %{customdata[6]}<br>10) -log10(p-value after filtering): %{z}<extra></extra>'}])
     plot.update_layout(plot_bgcolor='white')
     plot.write_html(plot_out,
                     full_html=full_html,
@@ -6225,6 +6226,7 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 regex_id=False,
                                 seq_motif_blocks_dic=None,
                                 max_motif_dist=50,
+                                min_motif_dist=0,
                                 motif_distance_plot_range=50,
                                 motif_min_pair_count=10,
                                 rbp_min_pair_count=10,
@@ -6527,6 +6529,7 @@ By default, BED genomic regions input file column 5 is used as the score column 
 
     create_cooc_plot_plotly(df_pval, pval_cont_lll, cooc_plot_plotly_out,
                             max_motif_dist=max_motif_dist,
+                            min_motif_dist=min_motif_dist,
                             include_plotlyjs=include_plotlyjs,
                             full_html=plotly_full_html)
 
