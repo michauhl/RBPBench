@@ -19,7 +19,7 @@ from scipy.stats import false_discovery_control  # Benjamini-Hochberg correction
 # from scipy.stats import ks_2samp
 # from scipy.stats import wilcoxon
 
-__version__ = "0.9"
+__version__ = "0.91"
 
 
 ################################################################################
