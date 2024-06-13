@@ -5226,7 +5226,7 @@ def batch_generate_html_report(dataset_ids_list,
 </html>
 """ %(sorttable_js_html)
 
-    # Markdown part.   AALAMO
+    # Markdown part.
     mdtext = """
 
 # %sBatch report
@@ -6559,7 +6559,7 @@ By default, BED genomic regions input file column 5 is used as the score column 
 
     min_motif_dist_info = ""
     if min_motif_dist > 0:
-        min_motif_dist_info = " + a mean minimum motif distance >= %i" %(min_motif_dist)  # AALAMO
+        min_motif_dist_info = " + a mean minimum motif distance >= %i nt " %(min_motif_dist)
 
     if cooc_pval_mode == 1:
         p_val_info = "RBP co-occurrences with Benjamini-Hochberg multiple testing corrected p-values below %s %sare considered significant." %(str(cooc_pval_thr), min_motif_dist_info)
