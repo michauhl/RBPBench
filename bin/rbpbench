@@ -3331,6 +3331,7 @@ def main_search(args):
             mult_test_corr_factor = (len_rbp_list*(len_rbp_list-1))/2
 
         cooc_pval_thr = args.cooc_pval_thr / mult_test_corr_factor
+        cooc_pval_thr = benchlib.round_to_n_significant_digits(cooc_pval_thr, 4)  # AALAMO: Round to 4 significant digits for Bonferroni correction.
 
     elif args.cooc_pval_mode == 3:  # No correction.
 
@@ -3367,7 +3368,7 @@ def main_search(args):
 
         avg_min_dist_str = pval_cont_lll[idx2][idx1][4]
         avg_min_dist = 10000
-        if avg_min_dist_str != "-":
+        if avg_min_dist_str != "-":  # AALAMO
             avg_min_dist = float(avg_min_dist_str)
 
         # AALAMO args.min_motif_dist, add to pval_cont_lll reason for applied filter (if p_value_plotted == 1.0)
@@ -3411,12 +3412,16 @@ def main_search(args):
 
     print("# of RBP co-occurrence comparisons (calculated p-values in total): %i" %(c_all_fisher_pval))
 
+    min_motif_dist_info = ""
+    if args.min_motif_dist > 0:
+        min_motif_dist_info = " + --min-motif-dist >= %i" %(args.min_motif_dist)
+
     if args.cooc_pval_mode == 1:
-        print("Number of significant co-occurrence p-values (BH corrected): %i (%.2f%%)" %(c_sig_fisher_pval, perc_sig_fisher_pval))
+        print("Number of significant co-occurrence p-values (BH corrected%s): %i (%.2f%%)" %(min_motif_dist_info, c_sig_fisher_pval, perc_sig_fisher_pval))
     elif args.cooc_pval_mode == 2:
-        print("Number of significant co-occurrence p-values (Bonferroni corrected): %i (%.2f%%)" %(c_sig_fisher_pval, perc_sig_fisher_pval))
+        print("Number of significant co-occurrence p-values (Bonferroni corrected%s): %i (%.2f%%)" %(min_motif_dist_info, c_sig_fisher_pval, perc_sig_fisher_pval))
     elif args.cooc_pval_mode == 3:
-        print("Number of significant co-occurrence p-values (no correction): %i (%.2f%%)" %(c_sig_fisher_pval, perc_sig_fisher_pval))
+        print("Number of significant co-occurrence p-values (no correction%s): %i (%.2f%%)" %(min_motif_dist_info, c_sig_fisher_pval, perc_sig_fisher_pval))
 
     """
     Print out RBPs sorted by KS p-value.
@@ -8660,7 +8665,7 @@ def main_searchrna(args):
 
     # Output sequences to FASTA.
     print("Output transcript sequences to FASTA ... ")
-    benchlib.fasta_output_dic(tr_seqs_dic, tr_seqs_fa,
+    benchlib.fasta_output_dic(tr_seqs_dic, tr_seqs_fa,  # tr_seqs_fa is okay, seqs there, header format is >ENST00000447513
                               split=True)
 
     # Transcript sequence lengths.
@@ -8723,11 +8728,26 @@ def main_searchrna(args):
     print("Effective region length sum:   ", eff_reg_size)
 
     """
+    Check if old index file still there.
+    
+    If still there, bedtools getfasta will use old one, will complain and 
+    possibly not extracting sequences:
+    Warning: the index file is older than the FASTA file.
+    WARNING. chromosome (ENST00000270722) was not found in the FASTA file. Skipping.
+    ...
+
+    """
+    fasta_index_file = args.out_folder + "/transcript_sequences.fa.fai"
+    if os.path.exists(fasta_index_file):
+        os.remove(fasta_index_file)
+
+    """
     Get transcript region sequences from tr_seqs_fa.
 
     Output FASTA header format should be:
     >tr_id:10-20(+)
 
+    AALAMO
     """
 
     print("Extract sequences from --genome ... ")
@@ -8736,14 +8756,11 @@ def main_searchrna(args):
                                               print_warnings=True)
 
 
-
-
     """
     Get FASTA sequences and sequence lengths.
 
     out_seqs_dic should be in the format:
     tr_id:10-20(+) -> (extended) site sequence 
-
 
     """
 

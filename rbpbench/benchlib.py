@@ -6557,12 +6557,16 @@ By default, BED genomic regions input file column 5 is used as the score column 
 
     p_val_info = "P-values below %s are considered significant." %(str(cooc_pval_thr))
 
+    min_motif_dist_info = ""
+    if min_motif_dist > 0:
+        min_motif_dist_info = " + a mean minimum motif distance >= %i" %(min_motif_dist)  # AALAMO
+
     if cooc_pval_mode == 1:
-        p_val_info = "Benjamini-Hochberg multiple testing corrected p-values below %s are considered significant." %(str(cooc_pval_thr))
+        p_val_info = "RBP co-occurrences with Benjamini-Hochberg multiple testing corrected p-values below %s %sare considered significant." %(str(cooc_pval_thr), min_motif_dist_info)
     elif cooc_pval_mode == 2:
-        p_val_info = "P-values below %s (p-value threshold Bonferroni multiple testing corrected) are considered significant." %(str(cooc_pval_thr))
+        p_val_info = "RBP co-occurrences with p-values below %s (p-value threshold Bonferroni multiple testing corrected) %sare considered significant." %(str(cooc_pval_thr), min_motif_dist_info)
     elif cooc_pval_mode == 3:
-        p_val_info = "P-values below %s are considered significant." %(str(cooc_pval_thr))
+        p_val_info = "RBP co-occurrences with p-values below %s %sare considered significant." %(str(cooc_pval_thr), min_motif_dist_info)
     else:
         assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(cooc_pval_mode)
     
