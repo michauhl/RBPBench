@@ -5077,6 +5077,7 @@ def batch_generate_html_report(dataset_ids_list,
                                benchlib_path,
                                seq_len_stats_ll,
                                html_report_out="report.rbpbench_batch.html",
+                               id2motif_enrich_stats_dic=False,
                                unstranded=False,
                                unstranded_ct=False,
                                id2regex_stats_dic=None,
@@ -5215,6 +5216,21 @@ def batch_generate_html_report(dataset_ids_list,
 <head>
 <title>RBPBench - Batch Report</title>
 %s
+
+<style>
+    th, td {
+        border: 1px solid black;
+        padding: 8px;
+        text-align: center;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+    .page {
+        page-break-after: always;
+    }
+</style>
+
 </head>
 <body>
 """ %(plotly_js_html)
@@ -5236,6 +5252,9 @@ by RBPBench (rbpbench batch --report):
 
 - [Input datasets sequence length statistics](#seq-len-stats)""" %(report_header_info)
     mdtext += "\n"
+
+    if id2motif_enrich_stats_dic: # if not empty.
+        mdtext += "- [Input datasets motif enrichment statistics](#motif-enrich-stats)\n"
 
     if id2regex_stats_dic:  # if not empty.
         mdtext += "- [Regular expression motif enrichment statistics](#regex-enrich-stats)\n"
@@ -5294,10 +5313,40 @@ Input dataset ID format: %s. %s
 
     # return [nr_seqs, seq_len_mean, seq_len_median, seq_len_q1, seq_len_q3, seq_len_min, seq_len_max]
 
-    mdtext += '| Dataset ID | # input regions | mean length | median length | Q1 percentile | Q3 percentile | min length | max length |' + " \n"
-    mdtext += '| :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |' + " \n"
+    # mdtext += '| Dataset ID | # input regions | mean length | median length | Q1 percentile | Q3 percentile | min length | max length |' + " \n"
+    # mdtext += '| :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |' + " \n"
+
+    mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+    mdtext += "<thead>\n"
+    mdtext += "<tr>\n"
+    mdtext += "<th>Dataset ID</th>\n"
+    mdtext += "<th># input regions</th>\n"
+    mdtext += "<th>mean length</th>\n"
+    mdtext += "<th>median length</th>\n"
+    mdtext += "<th>Q1 percentile</th>\n"
+    mdtext += "<th>Q3 percentile</th>\n"
+    mdtext += "<th>min length</th>\n"
+    mdtext += "<th>max length</th>\n"
+    mdtext += "</tr>\n"
+    mdtext += "</thead>\n"
+    mdtext += "<tbody>\n"
+
     for seq_len_stats in seq_len_stats_ll:
-        mdtext += "| %s | %i | %.1f | %.1f | %.1f | %.1f | %i | %i |\n" %(seq_len_stats[0], seq_len_stats[1], seq_len_stats[2], seq_len_stats[3], seq_len_stats[4], seq_len_stats[5], seq_len_stats[6], seq_len_stats[7])
+        # mdtext += "| %s | %i | %.1f | %.1f | %.1f | %.1f | %i | %i |\n" %(seq_len_stats[0], seq_len_stats[1], seq_len_stats[2], seq_len_stats[3], seq_len_stats[4], seq_len_stats[5], seq_len_stats[6], seq_len_stats[7])
+        mdtext += "<tr>\n"
+        mdtext += "<td>%s</td>\n" %(seq_len_stats[0])
+        mdtext += "<td>%i</td>\n" %(seq_len_stats[1])
+        mdtext += "<td>%.1f</td>\n" %(seq_len_stats[2])
+        mdtext += "<td>%.1f</td>\n" %(seq_len_stats[3])
+        mdtext += "<td>%.1f</td>\n" %(seq_len_stats[4])
+        mdtext += "<td>%.1f</td>\n" %(seq_len_stats[5])
+        mdtext += "<td>%i</td>\n" %(seq_len_stats[6])
+        mdtext += "<td>%i</td>\n" %(seq_len_stats[7])
+        mdtext += "</tr>\n"
+    
+    mdtext += "</tbody>\n"
+    mdtext += "</table>\n"
+
     # mdtext += "\n&nbsp;\n&nbsp;\n"
     mdtext += "\n&nbsp;\n"
 
@@ -5318,8 +5367,88 @@ Input dataset ID format: %s. %s
     # mdtext += "\n&nbsp;\n"
 
 
+    """
+    Input datasets motif enrichment statistics.
+
+    Format:
+    id2motif_enrich_stats_dic[internal_id] = [c_reg_with_hits, perc_reg_with_hits, c_uniq_motif_hits, wc_pval]
 
 
+    """
+
+    # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
+    wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low p-values mean hit-containing regions have significantly higher scores."
+    wrs_mode_info2 = "higher"
+    if wrs_mode == 2:
+        wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low p-values mean hit-containing regions have significantly lower scores."
+        wrs_mode_info2 = "lower"
+
+    if id2motif_enrich_stats_dic:
+
+        mdtext += """
+## Input datasets motif enrichment statistics ### {#motif-enrich-stats}
+
+**Table:** Input datasets motif enrichment statistics for all input datasets.
+For each input dataset, consisting of a set of genomic regions with associated scores (set BED score column via --bed-score-col),
+RBPbench checks whether regions with RBP motif hits have significantly different scores compared to regions without hits.
+%s
+In other words, a low test p-value for a given dataset indicates 
+that %s-scoring regions are more likely to contain RBP motif hits.
+NOTE that if scores associated to input genomic regions are all the same, p-values become meaningless 
+(i.e., they result in p-values of 1.0).
+By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
+
+""" %(wrs_mode_info1, wrs_mode_info2)
+
+        mdtext += '<table style="max-width: 1000px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>Dataset ID</th>\n"
+        mdtext += "<th># hit regions</th>\n"
+        mdtext += "<th>% hit regions</th>\n"
+        mdtext += "<th># motif hits</th>\n"
+        mdtext += "<th>p-value</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
+
+        pval_dic = {}
+        for internal_id in id2motif_enrich_stats_dic:
+            wc_pval = id2motif_enrich_stats_dic[internal_id][3]
+            pval_dic[internal_id] = wc_pval
+
+        for internal_id, wc_pval in sorted(pval_dic.items(), key=lambda item: item[1], reverse=False):
+
+            rbp_id = id2infos_dic[internal_id][0]
+            data_id = id2infos_dic[internal_id][1]
+            method_id = id2infos_dic[internal_id][2]
+            database_id = id2infos_dic[internal_id][3]
+            combined_id = rbp_id + "," + method_id + "," + data_id
+
+            c_hit_reg = id2motif_enrich_stats_dic[internal_id][0]
+            perc_hit_reg = id2motif_enrich_stats_dic[internal_id][1]
+            c_uniq_motif_hits = id2motif_enrich_stats_dic[internal_id][2]
+
+            mdtext += '<tr>' + "\n"
+            mdtext += "<td>" + combined_id + "</td>\n"
+            mdtext += "<td>" + str(c_hit_reg) + "</td>\n"
+            mdtext += "<td>%.2f" %(perc_hit_reg) + "</td>\n"
+            mdtext += "<td>" + str(c_uniq_motif_hits) + "</td>\n"
+            mdtext += "<td>" + str(wc_pval) + "</td>\n"
+            mdtext += '</tr>' + "\n"
+
+        mdtext += "</tbody>\n"
+        mdtext += "</table>\n"
+        
+        mdtext += "\n&nbsp;\n&nbsp;\n"
+        mdtext += "\nColumn IDs have the following meanings: "
+        mdtext += "**Dataset ID** -> Dataset ID with following format: %s, " %(dataset_id_format)
+        mdtext += '**# regions** -> number of input genomic regions in dataset (after filtering and optional extension), '
+        mdtext += '**# hit regions** -> number of input genomic regions with motif hits (after filtering and optional extension), '
+        mdtext += '**% hit regions** -> percentage of motif hit regions over all regions (i.e., how many input regions contain >= 1 RBP motif hit), '
+        mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
+        mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
+        mdtext += "\n&nbsp;\n"
 
 
     """
@@ -5329,19 +5458,13 @@ Input dataset ID format: %s. %s
 
     if id2regex_stats_dic:
 
-        # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
-        wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low p-values mean regex-containing regions have significantly higher scores."
-        wrs_mode_info2 = "higher"
-        if wrs_mode == 2:
-            wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low p-values mean regex-containing regions have significantly lower scores."
-            wrs_mode_info2 = "lower"
 
         mdtext += """
 ## Regular expression motif enrichment statistics ### {#regex-enrich-stats}
 
 **Table:** Regular expression (regex) '%s' motif enrichment statistics for all input datasets.
 For each input dataset, consisting of a set of genomic regions with associated scores (set BED score column via --bed-score-col),
-RBPbench checks whether regex-containing regions have significantly different scores compared to regions without regex hits.
+RBPbench checks whether regions containing regex hits have significantly different scores compared to regions without regex hits.
 %s
 In other words, a low test p-value for a given dataset indicates 
 that %s-scoring regions are more likely to contain regex hits.
@@ -5351,8 +5474,21 @@ By default, BED genomic regions input file column 5 is used as the score column 
 
 """ %(regex, wrs_mode_info1, wrs_mode_info2)
 
-        mdtext += '| Dataset ID  | # regions | # hit regions | % hit regions | # regex hits | p-value |' + " \n"
-        mdtext += '| :-: | :-: | :-: | :-: | :-: | :-: |' + " \n"
+        # mdtext += '| Dataset ID  | # regions | # hit regions | % hit regions | # regex hits | p-value |' + " \n"
+        # mdtext += '| :-: | :-: | :-: | :-: | :-: | :-: |' + " \n"
+
+        mdtext += '<table style="max-width: 1000px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>Dataset ID</th>\n"
+        mdtext += "<th># regions</th>\n"
+        mdtext += "<th># hit regions</th>\n"
+        mdtext += "<th>% hit regions</th>\n"
+        mdtext += "<th># regex hits</th>\n"
+        mdtext += "<th>p-value</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
 
         for internal_id in id2regex_stats_dic:
             rbp_id = id2infos_dic[internal_id][0]
@@ -5372,7 +5508,19 @@ By default, BED genomic regions input file column 5 is used as the score column 
             perc_hit_reg = (c_regex_hit_reg / c_all_set_reg) * 100
             perc_hit_reg = str(round(perc_hit_reg, 2))
 
-            mdtext += "| %s | %i | %i | %s | %i | %s |\n" %(combined_id, c_all_set_reg, c_regex_hit_reg, perc_hit_reg, c_uniq_regex_hits, str(wc_pval))
+            # mdtext += "| %s | %i | %i | %s | %i | %s |\n" %(combined_id, c_all_set_reg, c_regex_hit_reg, perc_hit_reg, c_uniq_regex_hits, str(wc_pval))
+
+            mdtext += "<tr>\n"
+            mdtext += "<td>%s</td>\n" %(combined_id)
+            mdtext += "<td>%i</td>\n" %(c_all_set_reg)
+            mdtext += "<td>%i</td>\n" %(c_regex_hit_reg)
+            mdtext += "<td>%s</td>\n" %(perc_hit_reg)
+            mdtext += "<td>%i</td>\n" %(c_uniq_regex_hits)
+            mdtext += "<td>%s</td>\n" %(str(wc_pval))
+            mdtext += "</tr>\n"
+
+        mdtext += "</tbody>\n"
+        mdtext += "</table>\n"
 
         mdtext += "\n&nbsp;\n&nbsp;\n"
         mdtext += "\nColumn IDs have the following meanings: "
@@ -5411,8 +5559,20 @@ between regex and RBP motif(s) for each dataset.
 
 """ %(regex, fisher_mode_info)
 
-        mdtext += '| Dataset ID  | contingency table | avg min distance | perc close hits |  p-value |' + " \n"
-        mdtext += '| :-: | :-: | :-: | :-: | :-: |' + " \n"
+        # mdtext += '| Dataset ID  | contingency table | avg min distance | perc close hits |  p-value |' + " \n"
+        # mdtext += '| :-: | :-: | :-: | :-: | :-: |' + " \n"
+
+        mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>Dataset ID</th>\n"
+        mdtext += "<th>contingency table</th>\n"
+        mdtext += "<th>avg min distance</th>\n"
+        mdtext += "<th>% close hits</th>\n"
+        mdtext += "<th>p-value</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
 
         for internal_id in id2regex_stats_dic:
             rbp_id = id2infos_dic[internal_id][0]
@@ -5429,9 +5589,22 @@ between regex and RBP motif(s) for each dataset.
             if add_motif_db_info:
                 combined_id = rbp_id + "," + database_id + "," + method_id + "," + data_id
 
-            mdtext += "| %s | %s | %s | %s | %s |\n" %(combined_id, cont_table, avg_min_dist, perc_close_hits, fisher_pval)
+            # mdtext += "| %s | %s | %s | %s | %s |\n" %(combined_id, cont_table, avg_min_dist, perc_close_hits, fisher_pval)
 
+            mdtext += "<tr>\n"
+            mdtext += "<td>%s</td>\n" %(combined_id)
+            mdtext += "<td>%s</td>\n" %(cont_table)
+            mdtext += "<td>%s</td>\n" %(avg_min_dist)
+            mdtext += "<td>%s</td>\n" %(perc_close_hits)
+            mdtext += "<td>%s</td>\n" %(fisher_pval)
+            mdtext += "</tr>\n"
+
+        mdtext += "</tbody>\n"
+        mdtext += "</table>\n"
+        
         mdtext += "\n&nbsp;\n&nbsp;\n"
+
+        perc_sign = "%"
 
         mdtext += """
 
@@ -5444,20 +5617,12 @@ B: NOT regex AND RBP
 C: regex AND NOT RBP
 D: NOT regex AND NOT RBP. 
 **avg min distance** -> Mean minimum distance of regex and RBP motif hits (mean over all regions containing regex + RBP motif hits).
-**perc close hits** -> Over all regions containing regex and RBP motif hit pairs, percentage of regions where regex + RBP motif hits are within %i nt distance (set via --max-motif-dist).
+**%s close hits** -> Over all regions containing regex and RBP motif hit pairs, percentage of regions where regex + RBP motif hits are within %i nt distance (set via --max-motif-dist).
 **p-value** -> Fisher's exact test p-value (calculated based on contingency table).
 
 &nbsp;
 
-""" %(dataset_id_format, max_motif_dist)
-
-
-
-
-
-
-
-
+""" %(dataset_id_format, perc_sign, max_motif_dist)
 
 
 
@@ -5517,7 +5682,6 @@ No plot generated since < 4 datasets were provided.
 &nbsp;
 
 """
-
 
 
 
@@ -6371,6 +6535,21 @@ def search_generate_html_report(df_pval, pval_cont_lll,
 <head>
 <title>RBPBench - Search Report</title>
 %s
+
+<style>
+    th, td {
+        border: 1px solid black;
+        padding: 8px;
+        text-align: center;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+    .page {
+        page-break-after: always;
+    }
+</style>
+
 </head>
 <body>
 """ %(plotly_js_html)
@@ -6455,19 +6634,6 @@ By default, BED genomic regions input file column 5 is used as the score column 
 
 """ %(c_in_regions, wrs_mode_info1, wrs_mode_info2, regex_motif_info)
 
-        #     mdtext += """
-        # <table id="table1" class="sortable">
-        # <thead>
-        # <tr>
-        # <th style="text-align: center;" onclick="sortTable('table1', 0, false)">RBP ID</th>
-        # <th style="text-align: center;" onclick="sortTable('table1', 1, true)"># hit regions</th>
-        # <th style="text-align: center;" onclick="sortTable('table1', 2, true)">% hit regions</th>
-        # <th style="text-align: center;" onclick="sortTable('table1', 3, true)"># motif hits</th>
-        # <th style="text-align: center;" onclick="sortTable('table1', 4, true)">p-value</th>
-        # </tr>
-        # </thead>
-        # <tbody>
-        # """
 
         pval_dic = {}
         for rbp_id in search_rbps_dic:
@@ -6487,14 +6653,38 @@ By default, BED genomic regions input file column 5 is used as the score column 
         #     mdtext += '<td style="text-align: center;"' + ">" + str(wc_pval) + "</td>\n"
         #     mdtext += '</tr>' + "\n"
 
-        mdtext += '| RBP ID | # hit regions | % hit regions | # motif hits | p-value |' + " \n"
-        mdtext += "| :-: | :-: | :-: | :-: | :-: |\n"
+        # mdtext += '| RBP ID | # hit regions | % hit regions | # motif hits | p-value |' + " \n"
+        # mdtext += "| :-: | :-: | :-: | :-: | :-: |\n"
+
+        mdtext += '<table style="max-width: 800px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>RBP ID</th>\n"
+        mdtext += "<th># hit regions</th>\n"
+        mdtext += "<th>% hit regions</th>\n"
+        mdtext += "<th># motif hits</th>\n"
+        mdtext += "<th>p-value</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
+
         for rbp_id, wc_pval in sorted(pval_dic.items(), key=lambda item: item[1], reverse=False):
             wc_pval_str = convert_sci_not_to_decimal(wc_pval)  # Convert scientific notation to decimal string for sorting to work.
             c_hit_reg = search_rbps_dic[rbp_id].c_hit_reg
             perc_hit_reg = search_rbps_dic[rbp_id].perc_hit_reg
             c_uniq_motif_hits = search_rbps_dic[rbp_id].c_uniq_motif_hits
-            mdtext += "| %s | %i | %.2f | %i | %s |\n" %(rbp_id, c_hit_reg, perc_hit_reg, c_uniq_motif_hits, wc_pval)
+            # mdtext += "| %s | %i | %.2f | %i | %s |\n" %(rbp_id, c_hit_reg, perc_hit_reg, c_uniq_motif_hits, wc_pval)
+            mdtext += '<tr>' + "\n"
+            mdtext += "<td>" + rbp_id + "</td>\n"
+            mdtext += "<td>" + str(c_hit_reg) + "</td>\n"
+            mdtext += "<td>%.2f" %(perc_hit_reg) + "</td>\n"
+            mdtext += "<td>" + str(c_uniq_motif_hits) + "</td>\n"
+            mdtext += "<td>" + str(wc_pval) + "</td>\n"
+            mdtext += '</tr>' + "\n"
+
+        mdtext += '</tbody>' + "\n"
+        mdtext += '</table>' + "\n"
+
         mdtext += "\n&nbsp;\n&nbsp;\n"
         mdtext += "\nColumn IDs have the following meanings: "
         mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
@@ -6504,10 +6694,7 @@ By default, BED genomic regions input file column 5 is used as the score column 
         mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
         mdtext += "\n&nbsp;\n"
 
-    #     mdtext += """
-    # </tbody>
-    # </table>
-    # """
+
 
     #     mdtext += "\n&nbsp;\n&nbsp;\n"
     #     mdtext += "\nColumn IDs have the following meanings: "
@@ -6654,14 +6841,17 @@ for easier distinction between significant and non-significant co-occurrences.
         mdtext += """
 
 **Figure:** Input sequence lengths (after filtering and optional extension) violin plot.
-Hover box over data points shows sequence ID, sequence, sequence length, and motif hits. 
-Motif hit format: motif ID, motif start - motif end, p-value (for sequence motifs) or bit score (structure models).
+Hover box over data points shows sequence ID, sequence (60 nt per line), sequence length, and motif hits. 
+Motif hit format: motif ID, motif start - motif end.
 Violin plot shows density distribution of sequence lengths, including min, max, median, 
 and length quartiles (q1: 25th percentile, q3: 75th percentile).
 
 &nbsp;
 
 """
+    # Hover box over data points shows sequence ID, sequence, sequence length, and motif hits. 
+    # Motif hit format: motif ID, motif start - motif end, p-value (for sequence motifs) or bit score (structure models).
+
 
     """
     Region annotations per RBP plot.
@@ -6880,14 +7070,37 @@ If a regex is included in the analysis (--regex), the first regex hit in each re
 In case of an empty table, try to lower --rbp-min-pair-count (current value: %i).
 
 """ %(set_rbp_id, set_rbp_id, rbp_min_pair_count)
-        mdtext += '| Set RBP ID | Other RBP ID | Pair count | # near motifs | # distant motifs |' + " \n"
-        mdtext += "| :-: | :-: | :-: | :-: | :-: |\n"
+
+        # mdtext += '| Set RBP ID | Other RBP ID | Pair count | # near motifs | # distant motifs |' + " \n"
+        # mdtext += "| :-: | :-: | :-: | :-: | :-: |\n"
+
+        mdtext += '<table style="max-width: 800px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>Set RBP ID</th>\n"
+        mdtext += "<th>Other RBP ID</th>\n"
+        mdtext += "<th>Pair count</th>\n"
+        mdtext += "<th># near motifs</th>\n"
+        mdtext += "<th># distant motifs</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
 
         top_c = 0
         for rbp_id, pair_c in sorted(pc_dic.items(), key=lambda item: item[1], reverse=True):
             if pair_c >= rbp_min_pair_count:
                 top_c += 1
-                mdtext += "| %s | %s | %i | %i | %i |\n" %(set_rbp_id, rbp_id, pair_c, in_dic[rbp_id], out_dic[rbp_id])
+                # mdtext += "| %s | %s | %i | %i | %i |\n" %(set_rbp_id, rbp_id, pair_c, in_dic[rbp_id], out_dic[rbp_id])
+                mdtext += '<tr>' + "\n"
+                mdtext += "<td>" + set_rbp_id + "</td>\n"
+                mdtext += "<td>" + rbp_id + "</td>\n"
+                mdtext += "<td>" + str(pair_c) + "</td>\n"
+                mdtext += "<td>" + str(in_dic[rbp_id]) + "</td>\n"
+                mdtext += "<td>" + str(out_dic[rbp_id]) + "</td>\n"
+                mdtext += '</tr>' + "\n"
+
+        mdtext += '</tbody>' + "\n"
+        mdtext += '</table>' + "\n"
 
         mdtext += "\n&nbsp;\n&nbsp;\n"
         mdtext += "\nColumn IDs have the following meanings: "
@@ -7011,8 +7224,21 @@ In case of an empty table, try to lower --motif-min-pair-count (current value: %
 
 """ %(motif_id, set_rbp_id, motif_id, motif_min_pair_count)
 
-            mdtext += '| Motif ID | Other motif ID | &nbsp; Other motif ID plot &nbsp; | Pair count | # near motifs | # distant motifs |' + " \n"
-            mdtext += "| :-: | :-: | :-: | :-: | :-: | :-: |\n"
+            # mdtext += '| Motif ID | Other motif ID | &nbsp; Other motif ID plot &nbsp; | Pair count | # near motifs | # distant motifs |' + " \n"
+            # mdtext += "| :-: | :-: | :-: | :-: | :-: | :-: |\n"
+
+            mdtext += '<table style="max-width: 1000px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+            mdtext += "<thead>\n"
+            mdtext += "<tr>\n"
+            mdtext += "<th>Motif ID</th>\n"
+            mdtext += "<th>Other motif ID</th>\n"
+            mdtext += "<th>Other motif ID plot</th>\n"
+            mdtext += "<th>Pair count</th>\n"
+            mdtext += "<th># near motifs</th>\n"
+            mdtext += "<th># distant motifs</th>\n"
+            mdtext += "</tr>\n"
+            mdtext += "</thead>\n"
+            mdtext += "<tbody>\n"
 
             for other_motif_id, pair_c in sorted(pc_dic.items(), key=lambda item: item[1], reverse=True):
 
@@ -7042,7 +7268,19 @@ In case of an empty table, try to lower --motif-min-pair-count (current value: %
                     # else:
                     #     print("Motif ID %s not in seq_motif_blocks_dic ... " %(other_motif_id))
 
-                    mdtext += "| %s | %s | %s | %i | %i | %i |\n" %(motif_id, other_motif_id, plot_str, pair_c, in_dic[other_motif_id], out_dic[other_motif_id])
+                    # mdtext += "| %s | %s | %s | %i | %i | %i |\n" %(motif_id, other_motif_id, plot_str, pair_c, in_dic[other_motif_id], out_dic[other_motif_id])
+
+                    mdtext += '<tr>' + "\n"
+                    mdtext += "<td>" + motif_id + "</td>\n"
+                    mdtext += "<td>" + other_motif_id + "</td>\n"
+                    mdtext += "<td>" + plot_str + "</td>\n"
+                    mdtext += "<td>" + str(pair_c) + "</td>\n"
+                    mdtext += "<td>" + str(in_dic[other_motif_id]) + "</td>\n"
+                    mdtext += "<td>" + str(out_dic[other_motif_id]) + "</td>\n"
+                    mdtext += '</tr>' + "\n"
+            
+            mdtext += '</tbody>' + "\n"
+            mdtext += '</table>' + "\n"
 
             mdtext += "\n&nbsp;\n&nbsp;\n"
             mdtext += "\nColumn IDs have the following meanings: "
@@ -8135,6 +8373,21 @@ def search_generate_html_motif_plots(search_rbps_dic,
 <html>
 <head>
 <title>RBPBench - Motif Plots and Hit Statistics</title>
+
+<style>
+    th, td {
+        border: 1px solid black;
+        padding: 8px;
+        text-align: center;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+    .page {
+        page-break-after: always;
+    }
+</style>
+
 </head>
 <body>
 """ 
@@ -8182,17 +8435,46 @@ and respective number of motif hits found in supplied %s regions.
 
 """ %(site_type)
 
-    mdtext += '| &nbsp; RBP ID &nbsp; | &nbsp; Motif ID &nbsp; | Motif database | # motif hits |' + " \n"
-    mdtext += "| :-: | :-: | :-: | :-: |\n"
+    # mdtext += '| &nbsp; RBP ID &nbsp; | &nbsp; Motif ID &nbsp; | Motif database | # motif hits |' + " \n"
+    # mdtext += "| :-: | :-: | :-: | :-: |\n"
+
+    mdtext += '<table style="max-width: 750px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+    mdtext += "<thead>\n"
+    mdtext += "<tr>\n"
+    mdtext += "<th>RBP ID</th>\n"
+    mdtext += "<th>Motif ID</th>\n"
+    mdtext += "<th>Motif database</th>\n"
+    mdtext += "<th># motif hits</th>\n"
+    mdtext += "</tr>\n"
+    mdtext += "</thead>\n"
+    mdtext += "<tbody>\n"
+
     for rbp_id, rbp in sorted(search_rbps_dic.items()):
         for idx, motif_id in enumerate(rbp.seq_motif_ids):
             c_motif_hits = rbp.seq_motif_hits[idx]
             motif_db = motif2db_dic[motif_id]
-            mdtext += "| %s | %s | %s | %i |\n" %(rbp_id, motif_id, motif_db, c_motif_hits)
+            # mdtext += "| %s | %s | %s | %i |\n" %(rbp_id, motif_id, motif_db, c_motif_hits)
+            mdtext += "<tr>\n"
+            mdtext += "<td>%s</td>\n" %(rbp_id)
+            mdtext += "<td>%s</td>\n" %(motif_id)
+            mdtext += "<td>%s</td>\n" %(motif_db)
+            mdtext += "<td>%i</td>\n" %(c_motif_hits)
+            mdtext += "</tr>\n"
+
         for idx, motif_id in enumerate(rbp.str_motif_ids):
             c_motif_hits = rbp.str_motif_hits[idx]
             motif_db = motif2db_dic[motif_id]
-            mdtext += "| %s | %s | %s | %i |\n" %(rbp_id, motif_id, motif_db, c_motif_hits)
+            # mdtext += "| %s | %s | %s | %i |\n" %(rbp_id, motif_id, motif_db, c_motif_hits)
+            mdtext += "<tr>\n"
+            mdtext += "<td>%s</td>\n" %(rbp_id)
+            mdtext += "<td>%s</td>\n" %(motif_id)
+            mdtext += "<td>%s</td>\n" %(motif_db)
+            mdtext += "<td>%i</td>\n" %(c_motif_hits)
+            mdtext += "</tr>\n"
+            
+    mdtext += "</tbody>\n"
+    mdtext += "</table>\n"
+
     mdtext += "\n&nbsp;\n&nbsp;\n"
     mdtext += "\nColumn IDs have the following meanings: "
     mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
@@ -8469,6 +8751,21 @@ def compare_generate_html_report(compare_methods_dic, compare_datasets_dic,
 <html>
 <head>
 <title>RBPBench - Motif Search Comparison Report</title>
+
+<style>
+    th, td {
+        border: 1px solid black;
+        padding: 8px;
+        text-align: center;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+    .page {
+        page-break-after: always;
+    }
+</style>
+
 </head>
 <body>
 """ 
@@ -8532,8 +8829,23 @@ by RBPBench (rbpbench compare):
 **Table:** RBP motif hit statistics for combined ID "%s" (includes data ID, motif database ID, RBP ID) over different methods (method ID column).
 
 """ %(comp_id, tab_id, comp_id)
-        mdtext += '| Method ID | # regions | # motif hits | % regions with motifs | % motif nucleotides | # motif hits per 1000 nt |' + " \n"
-        mdtext += "| :-: | :-: | :-: | :-: | :-: | :-: |\n"
+
+        # mdtext += '| Method ID | # regions | # motif hits | % regions with motifs | % motif nucleotides | # motif hits per 1000 nt |' + " \n"
+        # mdtext += "| :-: | :-: | :-: | :-: | :-: | :-: |\n"
+
+        mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>Method ID</th>\n"
+        mdtext += "<th># regions</th>\n"
+        mdtext += "<th># motif hits</th>\n"
+        mdtext += "<th>% regions with motifs</th>\n"
+        mdtext += "<th>% motif nucleotides</th>\n"
+        mdtext += "<th># motif hits per 1000 nt</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
+
         for method_id in method_dic:
             int_id = method_dic[method_id]
             c_regions = rbp_stats_dic[int_id].c_regions
@@ -8541,7 +8853,19 @@ by RBPBench (rbpbench compare):
             perc_reg_with_hits = rbp_stats_dic[int_id].perc_reg_with_hits
             perc_uniq_motif_nts_eff_reg = rbp_stats_dic[int_id].perc_uniq_motif_nts_eff_reg
             uniq_motif_hits_cal_1000nt = rbp_stats_dic[int_id].uniq_motif_hits_cal_1000nt
-            mdtext += "| %s | %i | %i | %.2f | %.2f | %.2f |\n" %(method_id, c_regions, c_uniq_motif_hits, perc_reg_with_hits, perc_uniq_motif_nts_eff_reg, uniq_motif_hits_cal_1000nt)
+            # mdtext += "| %s | %i | %i | %.2f | %.2f | %.2f |\n" %(method_id, c_regions, c_uniq_motif_hits, perc_reg_with_hits, perc_uniq_motif_nts_eff_reg, uniq_motif_hits_cal_1000nt)
+            mdtext += "<tr>\n"
+            mdtext += "<td>%s</td>\n" %(method_id)
+            mdtext += "<td>%i</td>\n" %(c_regions)
+            mdtext += "<td>%i</td>\n" %(c_uniq_motif_hits)
+            mdtext += "<td>%.2f</td>\n" %(perc_reg_with_hits)
+            mdtext += "<td>%.2f</td>\n" %(perc_uniq_motif_nts_eff_reg)
+            mdtext += "<td>%.2f</td>\n" %(uniq_motif_hits_cal_1000nt)
+            mdtext += "</tr>\n"
+        
+        mdtext += "</tbody>\n"
+        mdtext += "</table>\n"
+
         mdtext += "\n&nbsp;\n&nbsp;\n"
         mdtext += "\nColumn IDs have the following meanings: "
         mdtext += "**Method ID** -> method ID set for dataset (typically peak calling method ID), "
@@ -8617,8 +8941,22 @@ Any given motif hit can either be found only by one method, or be identified by 
 **Table:** RBP motif hit statistics for combined ID "%s" (includes method ID, motif database ID, RBP ID) over different datasets (data ID column).
 
 """ %(comp_id, tab_id, comp_id)
-        mdtext += '| Data ID | # regions | # motif hits | % regions with motifs | % motif nucleotides | # motif hits per 1000 nt |' + " \n"
-        mdtext += "| :-: | :-: | :-: | :-: | :-: | :-: |\n"
+        # mdtext += '| Data ID | # regions | # motif hits | % regions with motifs | % motif nucleotides | # motif hits per 1000 nt |' + " \n"
+        # mdtext += "| :-: | :-: | :-: | :-: | :-: | :-: |\n"
+
+        mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>Data ID</th>\n"
+        mdtext += "<th># regions</th>\n"
+        mdtext += "<th># motif hits</th>\n"
+        mdtext += "<th>% regions with motifs</th>\n"
+        mdtext += "<th>% motif nucleotides</th>\n"
+        mdtext += "<th># motif hits per 1000 nt</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
+
         for dataset_id in data_dic:
             int_id = data_dic[dataset_id]
             c_regions = rbp_stats_dic[int_id].c_regions
@@ -8626,7 +8964,19 @@ Any given motif hit can either be found only by one method, or be identified by 
             perc_reg_with_hits = rbp_stats_dic[int_id].perc_reg_with_hits
             perc_uniq_motif_nts_eff_reg = rbp_stats_dic[int_id].perc_uniq_motif_nts_eff_reg
             uniq_motif_hits_cal_1000nt = rbp_stats_dic[int_id].uniq_motif_hits_cal_1000nt
-            mdtext += "| %s | %i | %i | %.2f | %.2f | %.2f |\n" %(dataset_id, c_regions, c_uniq_motif_hits, perc_reg_with_hits, perc_uniq_motif_nts_eff_reg, uniq_motif_hits_cal_1000nt)
+            # mdtext += "| %s | %i | %i | %.2f | %.2f | %.2f |\n" %(dataset_id, c_regions, c_uniq_motif_hits, perc_reg_with_hits, perc_uniq_motif_nts_eff_reg, uniq_motif_hits_cal_1000nt)
+            mdtext += "<tr>\n"
+            mdtext += "<td>%s</td>\n" %(dataset_id)
+            mdtext += "<td>%i</td>\n" %(c_regions)
+            mdtext += "<td>%i</td>\n" %(c_uniq_motif_hits)
+            mdtext += "<td>%.2f</td>\n" %(perc_reg_with_hits)
+            mdtext += "<td>%.2f</td>\n" %(perc_uniq_motif_nts_eff_reg)
+            mdtext += "<td>%.2f</td>\n" %(uniq_motif_hits_cal_1000nt)
+            mdtext += "</tr>\n"
+        
+        mdtext += "</tbody>\n"
+        mdtext += "</table>\n"
+
         mdtext += "\n&nbsp;\n&nbsp;\n"
         mdtext += "\nColumn IDs have the following meanings: "
         mdtext += "**Data ID** -> data ID set for dataset (typically describing CLIP data, e.g. CLIP method + cell type combination), "

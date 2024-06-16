@@ -19,7 +19,7 @@ from scipy.stats import false_discovery_control  # Benjamini-Hochberg correction
 # from scipy.stats import ks_2samp
 # from scipy.stats import wilcoxon
 
-__version__ = "0.91"
+__version__ = "0.9.1"
 
 
 ################################################################################
@@ -3016,7 +3016,9 @@ def main_search(args):
 
         # Motif hit string.
         motif_str = "%s,%i,%i,%s" %(fh.motif_id, fh.start, fh.end, str(fh.pval))
-        motif_str_plot = "%s,%i-%i,%s" %(fh.motif_id, fh.seq_s, fh.seq_e, str(fh.pval))
+        # What gets displayed in hover box in violin plot.
+        # motif_str_plot = "%s,%i-%i,%s" %(fh.motif_id, fh.seq_s, fh.seq_e, str(fh.pval))
+        motif_str_plot = "%s,%i-%i" %(fh.motif_id, fh.seq_s, fh.seq_e)
 
         # Center position of motif hit.
         motif_hit_s = fh.seq_s - 1
@@ -3087,7 +3089,8 @@ def main_search(args):
 
         # Motif hit string.
         motif_str = "%s,%i,%i,%s" %(cmsh.motif_id, cmsh.start, cmsh.end, str(-1*cmsh.score))
-        motif_str_plot = "%s,%i-%i,%s" %(cmsh.motif_id, cmsh.seq_s, cmsh.seq_e, str(cmsh.score))
+        # motif_str_plot = "%s,%i-%i,%s" %(cmsh.motif_id, cmsh.seq_s, cmsh.seq_e, str(cmsh.score))
+        motif_str_plot = "%s,%i-%i" %(cmsh.motif_id, cmsh.seq_s, cmsh.seq_e)
 
         # Center position of motif hit.
         motif_hit_s = cmsh.seq_s - 1
@@ -3787,7 +3790,7 @@ def main_search(args):
                 else:
                     motif_hits.append(benchlib.join_motif_hits(
                                     region2motif_hits_dic[seq_id],
-                                    motifs_per_line=3,
+                                    motifs_per_line=4,
                                     line_break_char="<br>"))
                     # motif_hits.append("\n".join(region2motif_hits_dic[seq_id]))
 
@@ -4461,6 +4464,7 @@ def main_batch(args):
     id2reg_annot_dic = {}  # Store internal ID to region annotation dictionary (all sites, with and without hits).
     id2hit_reg_annot_dic = {}  # Store internal ID to region annotation dictionary (only sites with hits).
     id2infos_dic = {}  # Store internal ID to list containing RBP ID, data ID, method ID, database ID, BED file path.
+    id2motif_enrich_stats_dic = {}  # Store internal ID to RBP motif enrichment stats dictionary.
     id2wc_pval_dic = {}  # Store internal ID to Wilcoxon rank-sum test p-value.
     id2regex_stats_dic = {}  # Store internal ID to regex stats dictionary.
     # id2kmer_dic = {}  # Store internal ID to k-mer dictionary.
@@ -5128,6 +5132,8 @@ def main_batch(args):
 
         OUTRBPSTATS.write(row_str)
 
+        # For motif enrichment stats table in HTML report.
+        id2motif_enrich_stats_dic[internal_id] = [c_reg_with_hits, perc_reg_with_hits, c_uniq_motif_hits, wc_pval]
 
         """
         Output motif region stats (one row per motif hit).
@@ -5424,6 +5430,7 @@ def main_batch(args):
                                             benchlib_path,
                                             seq_len_stats_ll,
                                             html_report_out=html_report_out,
+                                            id2motif_enrich_stats_dic=id2motif_enrich_stats_dic,
                                             unstranded=args.unstranded,
                                             unstranded_ct=args.unstranded_ct,
                                             id2regex_stats_dic=id2regex_stats_dic,
