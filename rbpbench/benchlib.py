@@ -5307,6 +5307,7 @@ by RBPBench (rbpbench batch --report):
 ## Input datasets sequence length statistics ### {#seq-len-stats}
 
 **Table:** Sequence length statistics of input datasets.
+Sequence length in nt.
 Input dataset ID format: %s. %s
 
 """ %(dataset_id_format, seq_stats_info)

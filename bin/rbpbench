@@ -68,7 +68,7 @@ def setup_argument_parser():
                    metavar='str',
                    nargs='+',
                    required=True,
-                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme-xml and/or --user-cm")
+                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme-xml and/or --user-cm. To search only for --regex, set --rbps REGEX")
     p_sm.add_argument("--genome",
                    dest="in_genome",
                    type=str,
@@ -181,7 +181,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2],
-                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit end position, 2: when motif hit encountered, continue +1 of motif hit start position (default: 1)")
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
     p_s.add_argument("--fimo-nt-freqs",
                    dest="fimo_nt_freqs",
                    type=str,
@@ -505,7 +505,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2],
-                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit end position, 2: when motif hit encountered, continue +1 of motif hit start position (default: 1)")
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
     p_b.add_argument("--max-motif-dist",
                    dest="max_motif_dist",
                    type=int,
@@ -826,7 +826,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2],
-                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit end position, 2: when motif hit encountered, continue +1 of motif hit start position (default: 1)")
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
     p_sr.add_argument("--add-zero-hits",
                    dest="add_zero_hits",
                    default = False,
@@ -856,7 +856,7 @@ def setup_argument_parser():
                    metavar='str',
                    nargs='+',
                    required=True,
-                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme-xml and/or --user-cm")
+                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme-xml and/or --user-cm. To search only for --regex, set --rbps REGEX")
     p_slm.add_argument("--genome",
                    dest="in_genome",
                    type=str,
@@ -963,7 +963,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2],
-                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit end position, 2: when motif hit encountered, continue +1 of motif hit start position (default: 1)")
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
     p_sl.add_argument("--fimo-nt-freqs",
                    dest="fimo_nt_freqs",
                    type=str,
@@ -1055,7 +1055,7 @@ def setup_argument_parser():
                    metavar='str',
                    nargs='+',
                    required=True,
-                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme-xml and/or --user-cm")
+                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme-xml and/or --user-cm. To search only for --regex, set --rbps REGEX")
     p_scrm.add_argument("--gtf",
                    dest="in_gtf",
                    type=str,
@@ -1204,7 +1204,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2],
-                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit end position, 2: when motif hit encountered, continue +1 of motif hit start position (default: 1)")
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
     p_scr.add_argument("--fimo-nt-freqs",
                    dest="fimo_nt_freqs",
                    type=str,
@@ -1337,7 +1337,7 @@ def setup_argument_parser():
                    metavar='str',
                    nargs='+',
                    required=True,
-                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme-xml and/or --user-cm")
+                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme-xml and/or --user-cm. To search only for --regex, set --rbps REGEX")
     p_smrm.add_argument("--gtf",
                    dest="in_gtf",
                    type=str,
@@ -1450,7 +1450,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2],
-                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit end position, 2: when motif hit encountered, continue +1 of motif hit start position (default: 1)")
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
     p_smr.add_argument("--fimo-nt-freqs",
                    dest="fimo_nt_freqs",
                    type=str,
@@ -1990,6 +1990,8 @@ def main_search(args):
         assert not args.user_cm, "--user-cm provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
         assert not args.user_rbp_id, "--user-rbp-id set but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
 
+    special_rbp_ids_list = ["USER", "REGEX"]
+
     # If ALL set, load all RBPs (+ optinally USER).
     if "ALL" in rbp_in_dic:
         if len(rbp_in_dic) == 2:
@@ -2003,7 +2005,7 @@ def main_search(args):
     else:
         # Load individual RBPs.
         for rbp_id in rbp_in_dic:
-            if rbp_id != "USER":
+            if rbp_id not in special_rbp_ids_list:
                 """
                 Check if RBP ID in database.
                 Suggest similar RBPs based on string similarity (edit distance).
@@ -2404,9 +2406,9 @@ def main_search(args):
 
             step_size_one = False
             if args.regex_search_mode == 1:
-                step_size_one = False
-            elif args.regex_search_mode == 2:
                 step_size_one = True
+            elif args.regex_search_mode == 2:
+                step_size_one = False
             else:
                 assert False, "invalid --regex-search-mode %i set" %(args.regex_search_mode)
 
@@ -4699,9 +4701,9 @@ def main_batch(args):
 
             step_size_one = False
             if args.regex_search_mode == 1:
-                step_size_one = False
-            elif args.regex_search_mode == 2:
                 step_size_one = True
+            elif args.regex_search_mode == 2:
+                step_size_one = False
             else:
                 assert False, "invalid --regex-search-mode %i set" %(args.regex_search_mode)
 
@@ -5677,9 +5679,9 @@ def main_searchregex(args):
     """
     step_size_one = False
     if args.regex_search_mode == 1:
-        step_size_one = False
-    elif args.regex_search_mode == 2:
         step_size_one = True
+    elif args.regex_search_mode == 2:
+        step_size_one = False
     else:
         assert False, "invalid --regex-search-mode %i set" %(args.regex_search_mode)
 
@@ -5993,6 +5995,8 @@ def main_searchseq(args):
         assert not args.user_cm, "--user-cm provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
         assert not args.user_rbp_id, "--user-rbp-id set but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
 
+    special_rbp_ids_list = ["USER", "REGEX"]
+
     # If ALL set, load all RBPs (+ optinally USER).
     if "ALL" in rbp_in_dic:
         if len(rbp_in_dic) == 2:
@@ -6006,7 +6010,7 @@ def main_searchseq(args):
     else:
         # Load individual RBPs.
         for rbp_id in rbp_in_dic:
-            if rbp_id != "USER":
+            if rbp_id not in special_rbp_ids_list:
                 """
                 Check if RBP ID in database.
                 Suggest similar RBPs based on string similarity (edit distance).
@@ -6753,7 +6757,7 @@ def main_searchseq(args):
     OUTSTATS.close()
 
     """
-    Output motif hits as BED.
+    Output unique motif hits as BED.
     """
 
     OUTBED = open(motif_hits_bed_out,"w")
@@ -7035,6 +7039,8 @@ def main_searchlong(args):
         assert not args.user_cm, "--user-cm provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
         assert not args.user_rbp_id, "--user-rbp-id set but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
 
+    special_rbp_ids_list = ["USER", "REGEX"]
+
     # If ALL set, load all RBPs (+ optinally USER).
     if "ALL" in rbp_in_dic:
         if len(rbp_in_dic) == 2:
@@ -7048,7 +7054,7 @@ def main_searchlong(args):
     else:
         # Load individual RBPs.
         for rbp_id in rbp_in_dic:
-            if rbp_id != "USER":
+            if rbp_id not in special_rbp_ids_list:
                 """
                 Check if RBP ID in database.
                 Suggest similar RBPs based on string similarity (edit distance).
@@ -7520,9 +7526,9 @@ def main_searchlong(args):
 
             step_size_one = False
             if args.regex_search_mode == 1:
-                step_size_one = False
-            elif args.regex_search_mode == 2:
                 step_size_one = True
+            elif args.regex_search_mode == 2:
+                step_size_one = False
             else:
                 assert False, "invalid --regex-search-mode %i set" %(args.regex_search_mode)
 
@@ -8375,6 +8381,8 @@ def main_searchrna(args):
         assert not args.user_cm, "--user-cm provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
         assert not args.user_rbp_id, "--user-rbp-id set but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
 
+    special_rbp_ids_list = ["USER", "REGEX"]
+
     # If ALL set, load all RBPs (+ optinally USER).
     if "ALL" in rbp_in_dic:
         if len(rbp_in_dic) == 2:
@@ -8388,7 +8396,7 @@ def main_searchrna(args):
     else:
         # Load individual RBPs.
         for rbp_id in rbp_in_dic:
-            if rbp_id != "USER":
+            if rbp_id not in special_rbp_ids_list:
                 """
                 Check if RBP ID in database.
                 Suggest similar RBPs based on string similarity (edit distance).
@@ -8865,9 +8873,9 @@ def main_searchrna(args):
 
             step_size_one = False
             if args.regex_search_mode == 1:
-                step_size_one = False
-            elif args.regex_search_mode == 2:
                 step_size_one = True
+            elif args.regex_search_mode == 2:
+                step_size_one = False
             else:
                 assert False, "invalid --regex-search-mode %i set" %(args.regex_search_mode)
 
@@ -10154,6 +10162,8 @@ def main_searchlongrna(args):
         assert not args.user_cm, "--user-cm provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
         assert not args.user_rbp_id, "--user-rbp-id set but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
 
+    special_rbp_ids_list = ["USER", "REGEX"]
+
     # If ALL set, load all RBPs (+ optinally USER).
     if "ALL" in rbp_in_dic:
         if len(rbp_in_dic) == 2:
@@ -10167,7 +10177,7 @@ def main_searchlongrna(args):
     else:
         # Load individual RBPs.
         for rbp_id in rbp_in_dic:
-            if rbp_id != "USER":
+            if rbp_id not in special_rbp_ids_list:
                 """
                 Check if RBP ID in database.
                 Suggest similar RBPs based on string similarity (edit distance).
@@ -10631,9 +10641,9 @@ def main_searchlongrna(args):
 
             step_size_one = False
             if args.regex_search_mode == 1:
-                step_size_one = False
-            elif args.regex_search_mode == 2:
                 step_size_one = True
+            elif args.regex_search_mode == 2:
+                step_size_one = False
             else:
                 assert False, "invalid --regex-search-mode %i set" %(args.regex_search_mode)
 
