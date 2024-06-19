@@ -12,8 +12,7 @@ from logomaker import Logo
 from markdown import markdown
 import pandas as pd
 import plotly.express as px
-from math import log10
-from math import floor
+from math import floor, log10
 import textdistance
 import numpy as np
 from upsetplot import UpSet
@@ -23,6 +22,9 @@ from sklearn.decomposition import SparsePCA
 from itertools import combinations
 from scipy.stats import fisher_exact
 from scipy.stats import false_discovery_control  # Benjamini-Hochberg correction.
+from goatools.obo_parser import GODag
+from goatools.goea.go_enrichment_ns import GOEnrichmentStudy
+from decimal import Decimal, getcontext
 
 
 """
@@ -120,6 +122,349 @@ def is_valid_regex(regex):
 
 ################################################################################
 
+def get_godag_obo_file_online(godag_obo_file,
+                              godag_obo_url="https://purl.obolibrary.org/obo/go/go-basic.obo"):
+    """
+    Try to download godag obo file via given godag_obo_url. Store file in path:
+    godag_obo_file
+
+    """
+
+    import requests
+    from requests.exceptions import RequestException
+
+    # Check if file is available via given URL.
+    try:
+        response = requests.head(godag_obo_url)
+        # if response.status_code == 200:
+        #     print("go-basic.obo file is available.")
+        # else:
+        #     print("go-basic.obo File is not available.")
+    except RequestException as e:
+        print("Internet connection for downloading go-basic.obo file not available")
+        print(f"Error details: {e}")
+
+    # Download the file.
+    try:
+        response = requests.get(godag_obo_url)
+        with open(godag_obo_file, 'wb') as f:
+            f.write(response.content)
+    except RequestException as e:
+        print(f"Error downloading go-basic.obo file: {e}")
+
+
+################################################################################
+
+def get_godag_obo_file_local(godag_obo_gz_file, godag_obo_file):
+    """
+    Extract godag obo file from godag obo gz file.
+
+    """
+
+    with gzip.open(godag_obo_gz_file, 'rb') as f_in:
+        with open(godag_obo_file, 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
+
+
+################################################################################
+
+def get_gid2go_mapping(gid2go_file,
+                       go_dag=False,
+                       remove_version_numbers=False,
+                       list2set=True):
+    """
+    Given an (Ensembl) gene ID to GO ID mapping file, read the file and return a 
+    dictionary with gene IDs as keys and GO ID list as values.
+    Gene ID to GO mapping file format:
+    gene_id<tab>go_id1,go_id2,go_id3,...
+    gid2go_file format:
+    {gene_id: [go_id1, go_id2, ...]}
+
+    list2set:
+        If True, convert GO ID lists to sets.
+    go_dag:
+        If go_dag (get via: go_dag = GODag(godag_obo_file)) provided, only 
+        keep GO IDs that are present in the GO DAG.
+
+    """
+
+    # Gene ID -> GO IDs list mapping.
+    gid2go_dic = {}
+    with gzip.open(gid2go_file, 'rt') as f:
+        for line in f:
+            if line.startswith("gene_id"):
+                continue
+            columns = line.strip().split('\t')
+            gene_id = columns[0]
+            if remove_version_numbers:
+                gene_id = re.sub("\.\d+$", "", gene_id)
+
+            go_ids = columns[1].split(",")
+            filtered_go_ids = []
+            for go_id in go_ids:
+                if go_dag:
+                    if go_id in go_dag:
+                        filtered_go_ids.append(go_id)
+                else:
+                    filtered_go_ids.append(go_id)
+            if not filtered_go_ids:
+                continue
+            if list2set:
+                filtered_go_ids = set(filtered_go_ids)
+            gid2go_dic[gene_id] = filtered_go_ids
+
+    assert gid2go_dic, "gid2go_dic empty. No GO terms stored for any gene ID. Make sure %s file has correct row format: gene_id<tab>go_id1,go_id2,..." %(gid2go_file)
+
+    return gid2go_dic
+
+
+################################################################################
+
+def run_go_analysis(target_genes_dic, background_genes_dic, 
+                    gid2go_file, out_folder,
+                    pval_thr=0.05,
+                    excluded_terms = ["GO:0005575", "GO:0008150", "GO:0003674"],
+                    goa_obo_mode=1,
+                    stats_dic=None,
+                    propagate_counts=True,
+                    store_gene_names=True,
+                    goa_obo_file=False):
+
+    """
+    Run GO enrichment analysis for target genes, using goatools:
+    conda install goatools.
+    
+    pval_thr:
+        BH corrected p-value threshold.
+    goa_obo_mode:
+        1: Get GO DAG file online.
+        2: Get GO DAG file locally.
+        3: Use provided GO DAG file.
+    store_gene_names:
+        If True, use values of background_genes_dic (which are their gene names),
+        instead of gene IDs in dataframe.
+    
+    AALAMO
+    """
+
+    assert target_genes_dic, "No target genes provided"
+    assert background_genes_dic, "No background genes provided"
+
+    godag_obo_file = out_folder + "/go-basic.obo"
+    if stats_dic is None:
+        stats_dic = {}
+
+    print("Run GO enrichment analysis ...")
+
+    # Get GO DAG file.
+    if goa_obo_mode == 1:
+
+        print("Get GO DAG obo file online ...")
+        get_godag_obo_file_online(godag_obo_file)
+        assert os.path.exists(godag_obo_file), "Downloaded GO DAG file not found in output folder. Please check internet connection or use local file via --goa_obo_mode 2"
+
+    elif goa_obo_mode == 2:
+
+        print("Use local GO DAG obo file ...")
+        get_godag_obo_file_local(goa_obo_file, godag_obo_file)
+        assert os.path.exists(godag_obo_file), "Local GO DAG file not found in output folder. Please contact developers"
+
+    elif goa_obo_mode == 3:
+
+        assert goa_obo_file, "--goa-obo-mode 3, but no GO DAG obo file provided. Please provide --goa-obo-file or change --goa-obo-mode"
+        print("Use GO DAG obo file provided via --goa-obo-file ...")
+        # Copy goa_obo_file to godag_obo_file.
+        shutil.copyfile(goa_obo_file, godag_obo_file)
+
+    # Read in GO DAG.
+    print("Load GO DAG file ...")
+    go_dag = GODag(godag_obo_file)
+
+    # Check if gene IDs have version numbers.
+    id_has_version = False
+    for gene_id in target_genes_dic:
+        if re.search("\.\d+$", gene_id):
+            id_has_version = True
+        break
+
+    # Read in gene ID 2 GO ID(s) mapping.
+    print("Load gene ID to GO ID mapping ...")
+    gid2go_dic = get_gid2go_mapping(gid2go_file,
+                                    remove_version_numbers=id_has_version,
+                                    go_dag=go_dag,  # Filter out GO terms not present in GO DAG.
+                                    list2set=True)  # Convert GO ID lists to sets.
+
+    print("# genes in gene ID to GO ID mapping:", len(gid2go_dic))
+
+    stats_dic["c_genes_from_gid2go"] = len(gid2go_dic)
+
+    print("# of target genes (before GO ID filtering):    ", len(target_genes_dic))
+    print("# of background genes (before GO ID filtering):", len(background_genes_dic))
+
+    # Remove version numbers for GOA.
+    print("Filter to keep only genes with associated GO IDs ...")
+    target_genes = []
+    for gene_id in target_genes_dic:
+        if id_has_version:
+            gene_id = re.sub("\.\d+$", "", gene_id)
+        if gene_id in gid2go_dic:  # Can only work with genes that have associated GO terms.
+            target_genes.append(gene_id)
+    background_genes = []
+    gid2gn_dic = {}
+    for gene_id in background_genes_dic:
+        new_gene_id = gene_id
+        if id_has_version:
+            new_gene_id = re.sub("\.\d+$", "", gene_id)
+        gid2gn_dic[new_gene_id] = background_genes_dic[gene_id]
+        if new_gene_id in gid2go_dic:
+            background_genes.append(new_gene_id)
+
+    assert target_genes, "No target genes left after filtering for GO terms. Make sure to provide --gtf with compatible gene IDs (internal IDs are ENSEMBL style gene IDs). Alternatively, provide gene ID to GO ID mapping file via --goa-gene2go-file"
+    assert background_genes, "No background genes left after filtering for GO terms. Make sure to provide --gtf with compatible gene IDs (internal IDs are ENSEMBL style gene IDs). Alternatively, provide gene ID to GO ID mapping file via --goa-gene2go-file"
+
+    print("# of target genes with GO IDs (used for GOA):    ", len(target_genes))
+    print("# of background genes with GO IDS (used for GOA):", len(background_genes))
+
+    stats_dic["c_target_genes_goa"] = len(target_genes)
+    stats_dic["c_background_genes_goa"] = len(background_genes)
+
+    # Namespace short to long name mapping.
+    ns2name_dic = {
+        'BP': 'biological_process',
+        'MF': 'molecular_function',
+        'CC': 'cellular_component'
+    }
+
+    # Create GOEnrichmentStudy object.
+    goeaobj = GOEnrichmentStudy(
+        background_genes,   # List of background genes.
+        gid2go_dic,         # Gene ID -> GO IDs mapping.
+        go_dag,             # GO directed acyclic graph.
+        propagate_counts=propagate_counts,
+        alpha=0.05,
+        methods=['fdr_bh']  # Multiple testing correction method.
+    )
+
+    # Run GO enrichment analysis.
+    goea_results_all = goeaobj.run_study(target_genes)
+
+    results_dic = {
+        "GO": [],
+        "term": [],
+        "class": [],
+        "p": [],
+        "p_corr": [],
+        "enrichment": [],
+        "depth": [],
+        "n_genes": [],
+        "n_study": [],
+        "perc_genes": [],
+        "study_genes": []
+    }
+
+    # Loop over significant results.
+    for res in goea_results_all:
+
+        if res.p_fdr_bh < pval_thr: 
+
+            go_id = res.GO
+
+            if go_id in excluded_terms:
+                continue
+
+            go_name = res.name
+            namespace = res.NS
+            class_name = ns2name_dic[namespace]
+            p_uncorrected = res.p_uncorrected
+            p_corrected = res.p_fdr_bh
+            study_count = res.study_count  # number of genes for this result.
+            study_items = res.study_items  # Gene names for this result.
+            study_n = res.study_n  # number target genes.
+            enrichment = res.enrichment  # e for enriched, p for purified.
+            go_depth = res.depth
+
+            # if filter_purified and enrichment == "p":
+            #     continue
+
+            perc_in_study = 0.0
+            if res.ratio_in_study[1] > 0:
+                # Rounded to 2 decimal places percentage.
+                perc_in_study = round((res.ratio_in_study[0] / res.ratio_in_study[1]) * 100, 2)
+
+            p_uncorrected = round_to_n_significant_digits_v2(p_uncorrected, 4)
+            p_corrected = round_to_n_significant_digits_v2(p_corrected, 4)
+
+            gene_list = []
+            for gene_id in study_items:
+                gene_name = gene_id
+                if store_gene_names:
+                    if gene_id in gid2gn_dic:
+                        gene_name = gid2gn_dic[gene_id]
+                gene_list.append(gene_name)
+
+            gene_list_str = ""
+            if len(study_items) > 0:
+                gene_list_str = ",".join(gene_list)
+            
+            results_dic["GO"].append(go_id)
+            results_dic["term"].append(go_name)
+            results_dic["class"].append(class_name)
+            results_dic["p"].append(p_uncorrected)
+            results_dic["p_corr"].append(p_corrected)
+            results_dic["enrichment"].append(enrichment)
+            results_dic["depth"].append(go_depth)
+            results_dic["n_genes"].append(study_count)
+            results_dic["n_study"].append(study_n)
+            results_dic["perc_genes"].append(perc_in_study)
+            results_dic["study_genes"].append(gene_list_str)
+        
+    # Make dataframe out of results dictionary.
+    goa_results_df = pd.DataFrame(results_dic)
+
+    c_goa_results = len(goa_results_df)
+
+    print("# of significant GO terms:", c_goa_results)
+    stats_dic["c_sig_go_terms"] = c_goa_results
+    if excluded_terms:
+        excluded_terms_str = ",".join(excluded_terms)
+        stats_dic["excluded_terms"] = excluded_terms_str
+
+    return goa_results_df
+
+
+################################################################################
+
+def round_to_n_significant_digits_v2(num, n, zero_check_val=1e-300):
+    """
+    Round float / scientific notation number to n significant digits.
+    This function only works for positive numbers.
+
+    >>> round_to_n_significant_digits(4.0980000000000007e-38, 4)
+    4.098e-38
+    >>> round_to_n_significant_digits(4.410999999999999e-81, 4)
+    4.411e-81
+    >>> round_to_n_significant_digits(0.0000934234823499234, 4)
+    9.342e-05
+    >>> round_to_n_significant_digits(0.0112123123123123, 4)
+    0.01121
+    >>> round_to_n_significant_digits(0.0, 2)
+    0
+    >>> round_to_n_significant_digits(1e-300, 3)
+    1e-300
+
+    """
+
+    getcontext().prec = n  # Set precision to n.
+
+    if num < zero_check_val:
+        return 0
+    else:
+        d_num = Decimal(num)  # Convert float to decimal.
+        return float(round(d_num, -int(floor(log10(abs(d_num))) - (n - 1))))
+
+
+################################################################################
+
 def round_to_n_significant_digits(num, n,
                                   zero_check_val=1e-300):
     """
@@ -138,8 +483,7 @@ def round_to_n_significant_digits(num, n,
     0
     >>> round_to_n_significant_digits(1e-300, 3)
     1e-300
-    >>> round_to_n_significant_digits(1e-300, 3)
-    1e-300
+
     
     """
 
@@ -6405,6 +6749,10 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 upset_plot_max_rbp_rank=None,
                                 html_report_out="report.rbpbench_search.html",
                                 add_all_reg_bar=False,
+                                run_goa=False,
+                                goa_results_df=False,
+                                goa_stats_dic=False,
+                                goa_filter_purified=True,
                                 plot_abs_paths=False,
                                 sort_js_mode=1,
                                 plotly_js_mode=1,
@@ -6601,6 +6949,8 @@ by RBPBench (rbpbench %s):
             mdtext += "    - [Motif %s distance statistics](#single-motif-%i-dist-stats)\n" %(motif_id, idx)
             # mdtext += "    - [Single motif %s distance plot](#single-motif-%i-dist-plot)\n" %(motif_id, idx)
 
+    if run_goa:
+        mdtext += "- [GO enrichment analysis results](#goa-results)\n"
 
     mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s. # of input %s = %i.\n" %(str(fimo_pval), reg_seq_str, c_in_regions)
     mdtext += "\n&nbsp;\n"
@@ -7332,6 +7682,113 @@ Only motifs with a pair count of >= %i appear in the plot.
 &nbsp;
 
 """ %(motif_id, motif_min_pair_count)
+
+    """
+    GOA results.
+    AALAMO
+    """
+
+    if run_goa:
+
+        mdtext += """
+## GO enrichment analysis results ### {#goa-results}
+
+"""
+        c_goa_results = 0
+        if isinstance(goa_results_df, pd.DataFrame) and not goa_results_df.empty:
+            c_goa_results = len(goa_results_df)
+
+        filter_purified_str = " GO terms with significantly higher and lower concentration in study group are shown."
+        if goa_filter_purified:
+            filter_purified_str = " Only GO terms with significantly higher concentration in study group are shown."
+
+        if c_goa_results > 0:
+
+            mdtext += """
+**Table:** GO enrichment analysis results. # of significant GO terms found: %i. Filter p-value threshold (on corrected p-value) = %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
+%s
+
+""" %(c_goa_results, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"], filter_purified_str)
+
+            mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.9;">' + "\n"
+            mdtext += "<thead>\n"
+            mdtext += "<tr>\n"
+            mdtext += "<th>GO</th>\n"
+            mdtext += "<th>Term</th>\n"
+            mdtext += "<th>Class</th>\n"
+            mdtext += "<th>p-value</th>\n"
+            mdtext += "<th>[e,p]</th>\n"
+            mdtext += "<th>Depth</th>\n"
+            mdtext += "<th># genes</th>\n"
+            mdtext += "<th># study</th>\n"
+            mdtext += "<th>% genes</th>\n"
+            mdtext += "</tr>\n"
+            mdtext += "</thead>\n"
+            mdtext += "<tbody>\n"
+
+            for index, row in goa_results_df.iterrows():  # AALAMO
+
+                go_id = row['GO']
+                go_term = row['term']
+                go_class = row['class']
+                go_p = row['p']
+                go_p_corr = row['p_corr']
+                go_enrichment = row['enrichment']
+                go_depth = row['depth']
+                go_n_genes = row['n_genes']
+                go_n_study = row['n_study']
+                go_perc_genes = row['perc_genes']
+
+                mdtext += '<tr>' + "\n"
+                mdtext += "<td>" + go_id + "</td>\n"
+                mdtext += "<td>" + go_term + "</td>\n"
+                mdtext += "<td>" + go_class + "</td>\n"
+                mdtext += "<td>" + str(go_p_corr) + "</td>\n"
+                mdtext += "<td>" + go_enrichment + "</td>\n"
+                mdtext += "<td>" + str(go_depth) + "</td>\n"
+                mdtext += "<td>" + str(go_n_genes) + "</td>\n"
+                mdtext += "<td>" + str(go_n_study) + "</td>\n"
+                mdtext += "<td>" + str(go_perc_genes) + "</td>\n"
+                mdtext += '</tr>' + "\n"
+
+            mdtext += '</tbody>' + "\n"
+            mdtext += '</table>' + "\n"
+            
+            mdtext += "\n&nbsp;\n&nbsp;\n"
+            mdtext += "\nColumn IDs have the following meanings: "
+            mdtext += "**GO** -> gene ontology (GO) ID, "
+            mdtext += "**Term** -> GO term / name, "
+            mdtext += "**Class** -> GO term class (biological_process, molecular_function, or cellular_component), "
+            mdtext += "**p-value** -> multiple testing corrected (BH) p-value, "
+            mdtext += "**[e,p]** -> e: enriched, i.e., GO term with significantly higher concentration, p: purified, GO term with significantly lower concentration), "
+            mdtext += "**Depth** -> depth / level of GO term in GO hierarchy (the higher number, the more specific), "
+            mdtext += "**# genes** -> number of genes associated with GO term, "
+            mdtext += "**# study** -> number of genes in study (i.e., target genes), "
+            mdtext += "**% genes** -> percentage of study genes associated with GO term." + "\n"
+            mdtext += "\n&nbsp;\n"
+
+        else:
+
+            if "c_target_genes_goa" in goa_stats_dic:
+
+                mdtext += """
+
+No significant GO terms found given p-value threshold of %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
+
+&nbsp;
+
+""" %(str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"])
+
+            else:
+
+                mdtext += """
+
+No significant GO terms found due to no GO IDs associated with target genes. # of initial target genes (i.e., genes overlapping with --in regions): %i.
+
+&nbsp;
+
+""" %(goa_stats_dic["c_target_genes_pre_filter"])
+
 
     # Convert mdtext to html.
     md2html = markdown(mdtext, extensions=['attr_list', 'tables'])

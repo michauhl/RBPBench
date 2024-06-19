@@ -355,6 +355,39 @@ def setup_argument_parser():
                    metavar='int',
                    default=10,
                    help="On RBP level, minimum amount of co-occurrences of motifs for an RBP ID compared to set RBP ID (--set-rbp-id) motifs to be reported and plotted (default: 10)")
+
+    # AALAMO
+    p_s.add_argument("--goa",
+                   dest="run_goa",
+                   default = False,
+                   action = "store_true",
+                   help = "Run gene ontology (GO) enrichment analysis on genes occupied by --in regions. Requires --gtf (default: False)")
+    p_s.add_argument("--goa-obo-mode",
+                   dest="goa_obo_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help = "Define how to obtain GO DAG (directed acyclic graph) obo file. 1: use local file  2: download most recent file from internet 3: provide file via --goa-obo-file (default: 1)")
+    p_s.add_argument("--goa-obo-file",
+                   dest="goa_obo_file",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide GO DAG obo file (default: False)")
+    p_s.add_argument("--goa-gene2go-file",
+                   dest="goa_gene2go_file",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide gene ID to GO IDs mapping table (row format: gene_id<tab>go_id1,go_id2). By default, a local file with ENSEMBL gene IDs is used. NOTE that gene IDs need to be compatible with --gtf (default: False)")
+    p_s.add_argument("--goa-pval",
+                   dest="goa_pval",
+                   type=float,
+                   metavar='float',
+                   default=0.05,
+                   help="GO enrichment analysis p-value threshold (applied on corrected p-value) (default: 0.05)")
+
+
     p_s.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
@@ -1801,6 +1834,13 @@ def main_search(args):
     if args.add_motif_annot:
         assert args.in_gtf, "set --add-motif-annot requires --gtf GTF file"
         assert args.plot_motifs, "set --add-motif-annot requires --plot-motifs"
+    if args.run_goa:
+        assert args.in_gtf, "set --goa requires --gtf GTF file"
+        if args.goa_obo_mode == 3:
+            assert args.goa_obo_file, "set --goa-obo-mode 3 requires --goa-obo-file"
+            assert os.path.exists(args.goa_obo_file), "--goa-obo-file file \"%s\" not found" % (args.goa_obo_file)
+        if args.goa_obo_file:
+            assert args.goa_obo_mode == 3, "--goa-obo-file requires --goa-obo-mode 3"
 
     # Is MEME >= v5 installed?
     if not args.meme_disable_check:
@@ -1954,6 +1994,9 @@ def main_search(args):
     motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_search.bed"
     # Output RBP co-ooccurrence stats as table.
     cooc_stats_out = args.out_folder + "/rbp_cooc_stats.tsv"
+
+    # GOA results.
+    goa_results_tsv = args.out_folder + "/goa_results.tsv"
 
     # Temp files.
     # random_id = uuid.uuid1()
@@ -3558,8 +3601,11 @@ def main_search(args):
     """
     reg2annot_dic = {}
     reg_annot_table_file = None
+    # For GO enrichment analysis.
+    target_genes_dic = {}  # Store gene IDs covered by regions -> region count.
+    background_genes_dic = {}  # Store all gene IDs in GTF file to use as background genes.
 
-    if args.in_gtf and c_regions_with_hits:
+    if args.in_gtf and c_regions_with_hits:  # AALAMO
 
         reg_annot_table_file = args.out_folder + "/" + "region_annotations.tsv"
 
@@ -3576,6 +3622,9 @@ def main_search(args):
         assert gid2gio_dic, "no gene infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
         c_gene_infos = len(gid2gio_dic)
         print("# gene features read in from --gtf:", c_gene_infos)
+
+        for gene_id in gid2gio_dic:
+            background_genes_dic[gene_id] = gid2gio_dic[gene_id].gene_name
 
         # If --tr-list given.
         tr_ids_dic = {}
@@ -3673,6 +3722,10 @@ def main_search(args):
                 gene_info = gid2gio_dic[gene_id]
                 tr_biotype = tid2tio_dic[tr_id].tr_biotype
                 gene_name = gene_info.gene_name
+                if gene_id not in target_genes_dic:
+                    target_genes_dic[gene_id] = 1
+                else:
+                    target_genes_dic[gene_id] += 1
             else:
                 tr_id = "-"
             OUTRAN.write("%s\t%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot, tr_biotype))
@@ -3680,6 +3733,67 @@ def main_search(args):
         
     elif args.in_gtf and not c_regions_with_hits:
         print("No need to read in --gtf since no motif hits found .. ")
+
+    """
+    GO enrichment analysis.
+
+    """
+    goa_results_df = False
+    goa_stats_dic = {}
+    propagate_counts = True
+    goa_filter_purified = True  # Filter out "purified" hits in HTML report table.
+
+    if args.run_goa:
+
+        # Write empty file.
+        open(goa_results_tsv, "w").close()
+
+        print("")
+        print("GOA enabled (--goa) ... ")
+
+        goa_stats_dic["c_target_genes_pre_filter"] = len(target_genes_dic)
+        goa_stats_dic["c_background_genes_pre_filter"] = len(background_genes_dic)
+        goa_stats_dic["pval_thr"] = args.goa_pval
+        goa_stats_dic["goa_obo_mode"] = args.goa_obo_mode
+        goa_stats_dic["propagate_counts"] = propagate_counts
+        goa_stats_dic["excluded_terms"] = "-"
+        goa_stats_dic["excluded_terms"] = goa_filter_purified
+
+        if target_genes_dic:
+            
+            local_gid2go_file = benchlib_path + "/content/ensembl_gene_id2go_ids.biomart.GRCh38.112.tsv.gz"
+            local_obo_file = benchlib_path + "/content/go-basic.obo.gz"
+
+            assert os.path.exists(local_gid2go_file), "local gene ID to GO ID file \"%s\" not found" %(local_gid2go_file)
+            assert os.path.exists(local_obo_file), "local GO OBO file \"%s\" not found" %(local_obo_file)
+
+            gid2go_file = local_gid2go_file
+            if args.goa_gene2go_file:
+                gid2go_file = args.goa_gene2go_file
+                assert os.path.exists(gid2go_file), "provided --goa-gene2go-file \"%s\" not found" %(gid2go_file)
+            goa_obo_file = local_obo_file
+            if args.goa_obo_file and args.goa_obo_mode == 3:
+                goa_obo_file = args.goa_obo_file
+                assert os.path.exists(goa_obo_file), "provided --goa-obo-file \"%s\" not found" %(goa_obo_file)
+
+            # Run GOA.
+            goa_results_df = benchlib.run_go_analysis(target_genes_dic, background_genes_dic, 
+                                                      gid2go_file, args.out_folder,
+                                                      pval_thr=args.goa_pval,
+                                                      excluded_terms = [],  # do not exclude any GO terms.
+                                                      goa_obo_mode=args.goa_obo_mode,
+                                                      propagate_counts=propagate_counts,
+                                                      stats_dic=goa_stats_dic,
+                                                      store_gene_names=True,
+                                                      goa_obo_file=goa_obo_file)
+
+            goa_results_df.to_csv(goa_results_tsv, sep="\t", index=False)
+
+        else:
+            print("No genes overlapping with --in regions. Skipping GOA ... ")
+
+    print("")
+
 
     """
     Motif annotations if --plot-motifs and --gtf set.
@@ -3837,6 +3951,10 @@ def main_search(args):
                                          upset_plot_min_rbp_count=args.upset_plot_min_rbp_count,
                                          upset_plot_max_rbp_rank=args.upset_plot_max_rbp_rank,
                                          add_all_reg_bar=args.add_all_reg_bar,
+                                         run_goa=args.run_goa,
+                                         goa_results_df=goa_results_df,
+                                         goa_stats_dic=goa_stats_dic,
+                                         goa_filter_purified=goa_filter_purified,
                                          html_report_out=html_report_out,
                                          plot_abs_paths=args.plot_abs_paths,
                                          sort_js_mode=args.sort_js_mode,
@@ -3928,6 +4046,8 @@ def main_search(args):
     print("RBP region occupancies .tsv:\n%s" %(rbp_reg_occ_table_out))
     print("RBP hit stats .tsv:\n%s" %(rbp_stats_out))
     print("Motif hit stats .tsv:\n%s" %(motif_stats_out))
+    if args.run_goa:
+        print("GO enrichment analysis results .tsv:\n%s" %(goa_results_tsv))
     if reg_annot_table_file is not None:
         print("Region annotations .tsv:\n%s" %(reg_annot_table_file))
     if args.plot_motifs:
