@@ -355,8 +355,7 @@ def setup_argument_parser():
                    metavar='int',
                    default=10,
                    help="On RBP level, minimum amount of co-occurrences of motifs for an RBP ID compared to set RBP ID (--set-rbp-id) motifs to be reported and plotted (default: 10)")
-
-    # AALAMO
+    # GO enrichment analysis.
     p_s.add_argument("--goa",
                    dest="run_goa",
                    default = False,
@@ -367,7 +366,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help = "Define how to obtain GO DAG (directed acyclic graph) obo file. 1: use local file  2: download most recent file from internet 3: provide file via --goa-obo-file (default: 1)")
+                   help = "Define how to obtain GO DAG (directed acyclic graph) obo file. 1: download most recent file from internet,  2: use local file,  3: provide file via --goa-obo-file (default: 1)")
     p_s.add_argument("--goa-obo-file",
                    dest="goa_obo_file",
                    type=str,
@@ -386,8 +385,6 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.05,
                    help="GO enrichment analysis p-value threshold (applied on corrected p-value) (default: 0.05)")
-
-
     p_s.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
@@ -1315,6 +1312,35 @@ def setup_argument_parser():
                    metavar='int',
                    default=10,
                    help="On RBP level, minimum amount of co-occurrences of motifs for an RBP ID compared to set RBP ID (--set-rbp-id) motifs to be reported and plotted (default: 10)")
+    p_scr.add_argument("--goa",
+                   dest="run_goa",
+                   default = False,
+                   action = "store_true",
+                   help = "Run gene ontology (GO) enrichment analysis on genes occupied by --in regions. Requires --gtf (default: False)")
+    p_scr.add_argument("--goa-obo-mode",
+                   dest="goa_obo_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help = "Define how to obtain GO DAG (directed acyclic graph) obo file. 1: download most recent file from internet,  2: use local file,  3: provide file via --goa-obo-file (default: 1)")
+    p_scr.add_argument("--goa-obo-file",
+                   dest="goa_obo_file",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide GO DAG obo file (default: False)")
+    p_scr.add_argument("--goa-gene2go-file",
+                   dest="goa_gene2go_file",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide gene ID to GO IDs mapping table (row format: gene_id<tab>go_id1,go_id2). By default, a local file with ENSEMBL gene IDs is used. NOTE that gene IDs need to be compatible with --gtf (default: False)")
+    p_scr.add_argument("--goa-pval",
+                   dest="goa_pval",
+                   type=float,
+                   metavar='float',
+                   default=0.05,
+                   help="GO enrichment analysis p-value threshold (applied on corrected p-value) (default: 0.05)")
     p_scr.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
@@ -1508,6 +1534,37 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.1,
                    help="Minimum amount of overlap required for a motif hit to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\") (default: 0.1)")
+    # AALAMO
+    p_smr.add_argument("--goa",
+                   dest="run_goa",
+                   default = False,
+                   action = "store_true",
+                   help = "Run gene ontology (GO) enrichment analysis on transcripts (i.e., their corresponding genes) with motif hits. Requires --gtf (default: False)")
+    p_smr.add_argument("--goa-obo-mode",
+                   dest="goa_obo_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help = "Define how to obtain GO DAG (directed acyclic graph) obo file. 1: download most recent file from internet,  2: use local file,  3: provide file via --goa-obo-file (default: 1)")
+    p_smr.add_argument("--goa-obo-file",
+                   dest="goa_obo_file",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide GO DAG obo file (default: False)")
+    p_smr.add_argument("--goa-gene2go-file",
+                   dest="goa_gene2go_file",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide gene ID to GO IDs mapping table (row format: gene_id<tab>go_id1,go_id2). By default, a local file with ENSEMBL gene IDs is used. NOTE that gene IDs need to be compatible with --gtf (default: False)")
+    p_smr.add_argument("--goa-pval",
+                   dest="goa_pval",
+                   type=float,
+                   metavar='float',
+                   default=0.05,
+                   help="GO enrichment analysis p-value threshold (applied on corrected p-value) (default: 0.05)")
+    
     p_smr.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
@@ -2160,9 +2217,9 @@ def main_search(args):
 
         # Remove , ; from given regex, to avoid motif_id format conflicts.
         regex = benchlib.remove_special_chars_from_str(args.regex,
-                                                       reg_ex="[ ,;]")
+                                                       reg_ex="[ :;\(\)]")
         
-        assert regex, "empty string after removing special chars ( [ ,;] ) from --regex. Please provide a valid regex with DNA letters"
+        assert regex, "empty string after removing special chars ( [ :;\(\)] ) from --regex. Please provide a valid regex with DNA letters"
 
         regex_id = benchlib.remove_special_chars_from_str(args.regex_id)
 
@@ -2778,7 +2835,7 @@ def main_search(args):
             # wc_stat_less, wc_pval_less = mannwhitneyu(hit_reg_scores, non_hit_reg_scores, alternative="less")
 
             # Round p-values to 4 significant digits.
-            wc_pval = benchlib.round_to_n_significant_digits(wc_pval, 4)
+            wc_pval = benchlib.round_to_n_significant_digits_v2(wc_pval, 4)
 
             #print("hit_reg_scores:", hit_reg_scores)
             #print("non_hit_reg_scores:", non_hit_reg_scores)
@@ -3003,11 +3060,11 @@ def main_search(args):
     region_id -> [False, True, False ... ]
     with list number of RBP IDs (len_rbp_list), alphabetically sorted.
     Format region_rbp_motif_pos_dic:
-    Region ID -> "motif_id,start_1based,end_1based,p_value/-(bit_score)"
+    Region ID -> "motif_id:start_1based:end_1based:p_value/-(bit_score)"
     E.g.
-    region_rbp_motif_pos_dic["reg1"] = ["rbp1_m1,98,102,0.01", "rbp1_m1,110,115,0.1", "rbp1_m2,110,115,0.05", "rbp2_m1,115,120,0.02", "rbp3_m1,90,95,0.01"]
+    region_rbp_motif_pos_dic["reg1"] = ["rbp1_m1:98:102:0.01", "rbp1_m1:110:115:0.1", "rbp1_m2:110:115:0.05", ...]
     region2motif_hits_dic:
-    region_id -> [motif_hit1, motif_hit2, ...] with motif_hit format: "motif_id,seq_start,seq_end,p_value/-(bit_score)"
+    region_id -> [motif_hit1, motif_hit2, ...] with motif_hit format: "motif_id:seq_start-seq_end"
 
     """
     region_rbp_binds_dic = {}
@@ -3046,7 +3103,7 @@ def main_search(args):
     # Unique motif regions BED.
     motif_reg_dic = {}
 
-    # hit_id = "%s:%s-%s(%s),%s" %(cols[7], cols[8], cols[9], cols[10], cols[6])
+    # hit_id = "%s:%s-%s(%s)%s" %(cols[7], cols[8], cols[9], cols[10], cols[6])
 
     for fh in fimo_hits_list:
 
@@ -3060,10 +3117,10 @@ def main_search(args):
         rbp_idx = rbp2idx_dic[rbp_id]
 
         # Motif hit string.
-        motif_str = "%s,%i,%i,%s" %(fh.motif_id, fh.start, fh.end, str(fh.pval))
+        motif_str = "%s:%i:%i:%s" %(fh.motif_id, fh.start, fh.end, str(fh.pval))
         # What gets displayed in hover box in violin plot.
         # motif_str_plot = "%s,%i-%i,%s" %(fh.motif_id, fh.seq_s, fh.seq_e, str(fh.pval))
-        motif_str_plot = "%s,%i-%i" %(fh.motif_id, fh.seq_s, fh.seq_e)
+        motif_str_plot = "%s:%i-%i" %(fh.motif_id, fh.seq_s, fh.seq_e)
 
         # Center position of motif hit.
         motif_hit_s = fh.seq_s - 1
@@ -3093,9 +3150,9 @@ def main_search(args):
         internal_id = search_rbps_dic[rbp_id].internal_id
 
         # Store motif hit as BED.
-        hit_id = "%s:%s-%s(%s),%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
+        hit_id = "%s:%s-%s(%s)%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s,%s;%i;%s,%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval))
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval))
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -3133,9 +3190,9 @@ def main_search(args):
         rbp_idx = rbp2idx_dic[rbp_id]
 
         # Motif hit string.
-        motif_str = "%s,%i,%i,%s" %(cmsh.motif_id, cmsh.start, cmsh.end, str(-1*cmsh.score))
+        motif_str = "%s:%i:%i:%s" %(cmsh.motif_id, cmsh.start, cmsh.end, str(-1*cmsh.score))
         # motif_str_plot = "%s,%i-%i,%s" %(cmsh.motif_id, cmsh.seq_s, cmsh.seq_e, str(cmsh.score))
-        motif_str_plot = "%s,%i-%i" %(cmsh.motif_id, cmsh.seq_s, cmsh.seq_e)
+        motif_str_plot = "%s:%i-%i" %(cmsh.motif_id, cmsh.seq_s, cmsh.seq_e)
 
         # Center position of motif hit.
         motif_hit_s = cmsh.seq_s - 1
@@ -3165,9 +3222,9 @@ def main_search(args):
         internal_id = search_rbps_dic[rbp_id].internal_id
 
         # Store motif hit as BED.
-        hit_id = "%s:%s-%s(%s),%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
+        hit_id = "%s:%s-%s(%s)%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s,%s;%i;%s,%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value))
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value))
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -3385,7 +3442,7 @@ def main_search(args):
             mult_test_corr_factor = (len_rbp_list*(len_rbp_list-1))/2
 
         cooc_pval_thr = args.cooc_pval_thr / mult_test_corr_factor
-        cooc_pval_thr = benchlib.round_to_n_significant_digits(cooc_pval_thr, 4)
+        cooc_pval_thr = benchlib.round_to_n_significant_digits_v2(cooc_pval_thr, 4)
 
     elif args.cooc_pval_mode == 3:  # No correction.
 
@@ -3415,7 +3472,7 @@ def main_search(args):
         p_value = p_val_list[pv_idx]
 
         # Round p-values to 4 significant digits.
-        p_value = benchlib.round_to_n_significant_digits(p_value, 4)
+        p_value = benchlib.round_to_n_significant_digits_v2(p_value, 4)
 
         p_value_plotted = p_value
 
@@ -3605,7 +3662,7 @@ def main_search(args):
     target_genes_dic = {}  # Store gene IDs covered by regions -> region count.
     background_genes_dic = {}  # Store all gene IDs in GTF file to use as background genes.
 
-    if args.in_gtf and c_regions_with_hits:  # AALAMO
+    if args.in_gtf and c_regions_with_hits:
 
         reg_annot_table_file = args.out_folder + "/" + "region_annotations.tsv"
 
@@ -3741,7 +3798,7 @@ def main_search(args):
     goa_results_df = False
     goa_stats_dic = {}
     propagate_counts = True
-    goa_filter_purified = True  # Filter out "purified" hits in HTML report table.
+    goa_filter_purified = False  # Filter out "purified" hits in HTML report table.
 
     if args.run_goa:
 
@@ -3788,11 +3845,10 @@ def main_search(args):
                                                       goa_obo_file=goa_obo_file)
 
             goa_results_df.to_csv(goa_results_tsv, sep="\t", index=False)
+            print("")
 
         else:
             print("No genes overlapping with --in regions. Skipping GOA ... ")
-
-    print("")
 
 
     """
@@ -3819,8 +3875,8 @@ def main_search(args):
                                             reg_ids_dic=motif_reg_dic)
 
         for motif_hit in motif_hit2annot_dic:
-            # motif_hit format: "chr1:10-15(+),motif_id". Get motif_id.
-            motif_id = motif_hit.split(",")[1]
+            # motif_hit format: "chr1:10-15(+)motif_id". Get motif_id.
+            motif_id = motif_hit.split(")")[1]  # Should work since motif_id/regex cannot contain ")".
             annot = motif_hit2annot_dic[motif_hit][0]
             # tr_id = motif_hit2annot_dic[motif_hit][1]
             rbp_id = id2name_dic[motif_id]
@@ -4132,9 +4188,9 @@ def main_batch(args):
 
         # Remove , ; from given regex, to avoid motif_id format conflicts.
         regex = benchlib.remove_special_chars_from_str(args.regex,
-                                                       reg_ex="[ ,;]")
+                                                       reg_ex="[ :;\(\)]")
         
-        assert regex, "empty string after removing special chars ( [ ,;] ) from --regex. Please provide a valid regex with DNA letters"
+        assert regex, "empty string after removing special chars ( [ :;\(\)] ) from --regex. Please provide a valid regex with DNA letters"
 
 
     """
@@ -5109,7 +5165,7 @@ def main_batch(args):
 
         if unique_motifs_dic:
             wc_stat, wc_pval = mannwhitneyu(hit_reg_scores, non_hit_reg_scores, alternative=wrs_alt_hypo)
-            wc_pval = benchlib.round_to_n_significant_digits(wc_pval, 4)
+            wc_pval = benchlib.round_to_n_significant_digits_v2(wc_pval, 4)
             rbp.wc_pval = wc_pval
 
         print("Compact hit stats (RBP ID, # unique hits, Wilcoxon p-value):")
@@ -5164,7 +5220,7 @@ def main_batch(args):
 
             if unique_regex_dic:
                 wc_stat, wc_pval = mannwhitneyu(hit_reg_scores, non_hit_reg_scores, alternative=wrs_alt_hypo)
-                wc_pval = benchlib.round_to_n_significant_digits(wc_pval, 4)
+                wc_pval = benchlib.round_to_n_significant_digits_v2(wc_pval, 4)
 
             print("Compact hit stats (RBP ID, # unique hits, Wilcoxon p-value):")
             print("regex\t%i\t%s" %(c_uniq_regex_hits, str(wc_pval)))
@@ -5184,7 +5240,7 @@ def main_batch(args):
 
             odds_ratio, p_value = fisher_exact(table, alternative=fisher_alt_hypo)
 
-            p_value = benchlib.round_to_n_significant_digits(p_value, 4)
+            p_value = benchlib.round_to_n_significant_digits_v2(p_value, 4)
 
             id2regex_stats_dic[internal_id].append(avg_min_dist)
             id2regex_stats_dic[internal_id].append(perc_close_hits)
@@ -5273,9 +5329,9 @@ def main_batch(args):
             uniq_count = unique_motifs_dic[fh_str]
 
             # Store motif hit as BED.
-            hit_id = "%s:%s-%s(%s),%s;%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id, internal_id)
+            hit_id = "%s:%s-%s(%s)%s;%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id, internal_id)
             if hit_id not in motif_reg_dic:
-                bed_row = "%s\t%i\t%i\t%s,%s;%i;%s,%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, method_id, data_id, fh.strand, str(fh.score), str(fh.pval))
+                bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, method_id, data_id, fh.strand, str(fh.score), str(fh.pval))
                 motif_reg_dic[hit_id] = bed_row
 
             row_str = data_id + "\t"
@@ -5310,9 +5366,9 @@ def main_batch(args):
             uniq_count = unique_motifs_dic[cmsh_str]
 
             # Store motif hit as BED.
-            hit_id = "%s:%s-%s(%s),%s;%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id, internal_id)
+            hit_id = "%s:%s-%s(%s)%s;%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id, internal_id)
             if hit_id not in motif_reg_dic:
-                bed_row = "%s\t%i\t%i\t%s,%s;%i;%s,%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, cmsh.strand, method_id, data_id, str(cmsh.score), str(cmsh.e_value))
+                bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, cmsh.strand, method_id, data_id, str(cmsh.score), str(cmsh.e_value))
                 motif_reg_dic[hit_id] = bed_row
 
             row_str = data_id + "\t"
@@ -6733,7 +6789,7 @@ def main_searchseq(args):
     Format region_rbp_motif_pos_dic:
     Region ID -> "motif_id,start_1based,end_1based,p_value/-(bit_score)"
     E.g.
-    region_rbp_motif_pos_dic["reg1"] = ["rbp1_m1,98,102,0.01", "rbp1_m1,110,115,0.1", "rbp1_m2,110,115,0.05", "rbp2_m1,115,120,0.02", "rbp3_m1,90,95,0.01"]
+    region_rbp_motif_pos_dic["reg1"] = ["rbp1_m1:98:102:0.01", "rbp1_m1:110:115:0.1", "rbp1_m2:110:115:0.05"]
 
     """
     region_rbp_binds_dic = {}
@@ -6761,7 +6817,7 @@ def main_searchseq(args):
     # Unique motif regions BED.
     motif_reg_dic = {}
 
-    # hit_id = "%s:%s-%s(%s),%s" %(cols[7], cols[8], cols[9], cols[10], cols[6])
+    # hit_id = "%s:%s-%s(%s)%s" %(cols[7], cols[8], cols[9], cols[10], cols[6])
 
     for fh in fimo_hits_list:
 
@@ -6775,7 +6831,7 @@ def main_searchseq(args):
         rbp_idx = rbp2idx_dic[rbp_id]
 
         # Motif hit string.
-        motif_str = "%s,%i,%i,%s" %(fh.motif_id, fh.start, fh.end, str(fh.pval))
+        motif_str = "%s:%i:%i:%s" %(fh.motif_id, fh.start, fh.end, str(fh.pval))
         # # Center position of motif hit.
         # motif_hit_s = fh.start - 1
         # motif_hit_e = fh.end
@@ -6789,9 +6845,9 @@ def main_searchseq(args):
         internal_id = search_rbps_dic[rbp_id].internal_id
 
         # Store motif hit as BED.
-        hit_id = "%s:%s-%s(%s),%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
+        hit_id = "%s:%s-%s(%s)%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s,%s;%i;%s,%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval))
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval))
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -6829,7 +6885,7 @@ def main_searchseq(args):
         rbp_idx = rbp2idx_dic[rbp_id]
 
         # Motif hit string.
-        motif_str = "%s,%i,%i,%s" %(cmsh.motif_id, cmsh.start, cmsh.end, str(-1*cmsh.score))
+        motif_str = "%s:%i:%i:%s" %(cmsh.motif_id, cmsh.start, cmsh.end, str(-1*cmsh.score))
         # # Center position of motif hit.
         # motif_hit_s = cmsh.start - 1
         # motif_hit_e = cmsh.end
@@ -6843,9 +6899,9 @@ def main_searchseq(args):
         internal_id = search_rbps_dic[rbp_id].internal_id
 
         # Store motif hit as BED.
-        hit_id = "%s:%s-%s(%s),%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
+        hit_id = "%s:%s-%s(%s)%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s,%s;%i;%s,%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value))
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value))
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -6884,7 +6940,6 @@ def main_searchseq(args):
     for hit_id in motif_reg_dic:
         OUTBED.write("%s\n" %(motif_reg_dic[hit_id]))
     OUTBED.close()
-
 
 
     """
@@ -7286,9 +7341,9 @@ def main_searchlong(args):
 
         # Remove , ; from given regex, to avoid motif_id format conflicts.
         regex = benchlib.remove_special_chars_from_str(args.regex,
-                                                       reg_ex="[ ,;]")
+                                                       reg_ex="[ :;\(\)]")
         
-        assert regex, "empty string after removing special chars ( [ ,;] ) from --regex. Please provide a valid regex with DNA letters"
+        assert regex, "empty string after removing special chars ( [ :;\(\)] ) from --regex. Please provide a valid regex with DNA letters"
 
         regex_id = benchlib.remove_special_chars_from_str(args.regex_id)
 
@@ -8004,9 +8059,9 @@ def main_searchlong(args):
         internal_id = search_rbps_dic[rbp_id].internal_id
 
         # Store motif hit as BED.
-        hit_id = "%s:%s-%s(%s),%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
+        hit_id = "%s:%s-%s(%s)%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s,%s;%i;%s,%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval))
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval))
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -8046,9 +8101,9 @@ def main_searchlong(args):
         internal_id = search_rbps_dic[rbp_id].internal_id
 
         # Store motif hit as BED.
-        hit_id = "%s:%s-%s(%s),%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
+        hit_id = "%s:%s-%s(%s)%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s,%s;%i;%s,%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value))
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value))
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -8159,8 +8214,8 @@ def main_searchlong(args):
         OUTBED.close()
 
         for motif_hit in motif_hit2annot_dic:
-            # motif_hit format: "chr1:10-15(+),motif_id". Get motif_id.
-            motif_id = motif_hit.split(",")[1]
+            # motif_hit format: "chr1:10-15(+)motif_id". Get motif_id.
+            motif_id = motif_hit.split(")")[1]
             annot = motif_hit2annot_dic[motif_hit][0]
             # tr_id = motif_hit2annot_dic[motif_hit][1]
             rbp_id = id2name_dic[motif_id]
@@ -8316,6 +8371,13 @@ def main_searchrna(args):
     assert os.path.exists(args.in_genome), "--genome file \"%s\" not found" % (args.in_genome)
     assert benchlib.boundary_check(args.min_motif_dist, 0, 1000), "set --min-motif-dist expected to be >= 0 and <= 1000"
 
+    if args.run_goa:
+        if args.goa_obo_mode == 3:
+            assert args.goa_obo_file, "set --goa-obo-mode 3 requires --goa-obo-file"
+            assert os.path.exists(args.goa_obo_file), "--goa-obo-file file \"%s\" not found" % (args.goa_obo_file)
+        if args.goa_obo_file:
+            assert args.goa_obo_mode == 3, "--goa-obo-file requires --goa-obo-mode 3"
+
     # Is MEME >= v5 installed?
     if not args.meme_disable_check:
         assert benchlib.is_tool("meme"), "meme not in PATH"
@@ -8462,6 +8524,9 @@ def main_searchrna(args):
     rbp_reg_occ_table_out = args.out_folder + "/rbp_region_occupancies.tsv"
     # Output RBP co-ooccurrence stats as table.
     cooc_stats_out = args.out_folder + "/rbp_cooc_stats.tsv"
+
+    # GOA results.
+    goa_results_tsv = args.out_folder + "/goa_results.tsv"
 
     # Output unique motif hits.
     motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_searchrna.bed"
@@ -8628,9 +8693,9 @@ def main_searchrna(args):
 
         # Remove , ; from given regex, to avoid motif_id format conflicts.
         regex = benchlib.remove_special_chars_from_str(args.regex,
-                                                       reg_ex="[ ,;]")
+                                                       reg_ex="[ :;\(\)]")
         
-        assert regex, "empty string after removing special chars ( [ ,;] ) from --regex. Please provide a valid regex with DNA letters"
+        assert regex, "empty string after removing special chars ( [ :;\(\)] ) from --regex. Please provide a valid regex with DNA letters"
 
         regex_id = benchlib.remove_special_chars_from_str(args.regex_id)
 
@@ -8817,9 +8882,75 @@ def main_searchrna(args):
     for tr_id in tr_seqs_dic:
         tr_seq_len_dic[tr_id] = len(tr_seqs_dic[tr_id])
 
+    """
+    GO enrichment analysis.
+
+    AALAMO
+    """
+
+    goa_results_df = False
+    goa_stats_dic = {}
+    propagate_counts = True
+    goa_filter_purified = False
+
+    if args.run_goa:
+
+        target_genes_dic = {}  # Store gene IDs covered by regions -> region count.
+        background_genes_dic = {}  # Store all gene IDs in GTF file to use as background genes.
+
+        # Get background gene IDs.
+        for gene_id in gid2gio_dic:
+            background_genes_dic[gene_id] = gid2gio_dic[gene_id].gene_name
+
+        # Get target gene IDs.
+        for tid in tr_ids_dic:
+            if tid in tr2gid_dic:
+                gene_id = tr2gid_dic[tid]
+                target_genes_dic[gene_id] = 1
+
+        print("")
+        print("GOA enabled (--goa) ... ")
+
+        goa_stats_dic["c_target_genes_pre_filter"] = len(target_genes_dic)
+        goa_stats_dic["c_background_genes_pre_filter"] = len(background_genes_dic)
+        goa_stats_dic["pval_thr"] = args.goa_pval
+        goa_stats_dic["goa_obo_mode"] = args.goa_obo_mode
+        goa_stats_dic["propagate_counts"] = propagate_counts
+        goa_stats_dic["excluded_terms"] = "-"
+        goa_stats_dic["excluded_terms"] = goa_filter_purified
+
+        local_gid2go_file = benchlib_path + "/content/ensembl_gene_id2go_ids.biomart.GRCh38.112.tsv.gz"
+        local_obo_file = benchlib_path + "/content/go-basic.obo.gz"
+
+        assert os.path.exists(local_gid2go_file), "local gene ID to GO ID file \"%s\" not found" %(local_gid2go_file)
+        assert os.path.exists(local_obo_file), "local GO OBO file \"%s\" not found" %(local_obo_file)
+
+        gid2go_file = local_gid2go_file
+        if args.goa_gene2go_file:
+            gid2go_file = args.goa_gene2go_file
+            assert os.path.exists(gid2go_file), "provided --goa-gene2go-file \"%s\" not found" %(gid2go_file)
+        goa_obo_file = local_obo_file
+        if args.goa_obo_file and args.goa_obo_mode == 3:
+            goa_obo_file = args.goa_obo_file
+            assert os.path.exists(goa_obo_file), "provided --goa-obo-file \"%s\" not found" %(goa_obo_file)
+
+        # Run GOA.
+        goa_results_df = benchlib.run_go_analysis(target_genes_dic, background_genes_dic, 
+                                                    gid2go_file, args.out_folder,
+                                                    pval_thr=args.goa_pval,
+                                                    excluded_terms = [],  # do not exclude any GO terms.
+                                                    goa_obo_mode=args.goa_obo_mode,
+                                                    propagate_counts=propagate_counts,
+                                                    stats_dic=goa_stats_dic,
+                                                    store_gene_names=True,
+                                                    goa_obo_file=goa_obo_file)
+
+        goa_results_df.to_csv(goa_results_tsv, sep="\t", index=False)
+        print("")
+
 
     """
-    Filter / extend --in genomic regions BED file.
+    Filter / extend --in transcript regions BED file.
 
     """
 
@@ -9390,9 +9521,9 @@ def main_searchrna(args):
     Format region_rbp_motif_pos_dic:
     Region ID -> "motif_id,start_1based,end_1based,p_value/-(bit_score)"
     E.g.
-    region_rbp_motif_pos_dic["reg1"] = ["rbp1_m1,98,102,0.01", "rbp1_m1,110,115,0.1", "rbp1_m2,110,115,0.05", "rbp2_m1,115,120,0.02", "rbp3_m1,90,95,0.01"]
+    region_rbp_motif_pos_dic["reg1"] = ["rbp1_m1:98:102:0.01", "rbp1_m1:110:115:0.1", ...]
     region2motif_hits_dic:
-    region_id -> [motif_hit1, motif_hit2, ...] with motif_hit format: "motif_id,seq_start,seq_end,p_value/-(bit_score)"
+    region_id -> [motif_hit1, motif_hit2, ...] with motif_hit format: "motif_id:seq_start,seq_end,p_value/-(bit_score)"
 
     """
     region_rbp_binds_dic = {}
@@ -9424,7 +9555,7 @@ def main_searchrna(args):
     # Unique motif regions BED.
     motif_reg_dic = {}
 
-    # hit_id = "%s:%s-%s(%s),%s" %(cols[7], cols[8], cols[9], cols[10], cols[6])
+    # hit_id = "%s:%s-%s(%s)%s" %(cols[7], cols[8], cols[9], cols[10], cols[6])
 
     for fh in fimo_hits_list:
 
@@ -9438,8 +9569,9 @@ def main_searchrna(args):
         rbp_idx = rbp2idx_dic[rbp_id]
 
         # Motif hit string.
-        motif_str = "%s,%i,%i,%s" %(fh.motif_id, fh.start, fh.end, str(fh.pval))
-        motif_str_plot = "%s,%i-%i,%s" %(fh.motif_id, fh.seq_s, fh.seq_e, str(fh.pval))
+        motif_str = "%s:%i:%i:%s" %(fh.motif_id, fh.start, fh.end, str(fh.pval))
+        # motif_str_plot = "%s,%i-%i,%s" %(fh.motif_id, fh.seq_s, fh.seq_e, str(fh.pval))
+        motif_str_plot = "%s:%i-%i" %(fh.motif_id, fh.seq_s, fh.seq_e)
 
         # Center position of motif hit.
         motif_hit_s = fh.seq_s - 1
@@ -9459,9 +9591,9 @@ def main_searchrna(args):
         internal_id = search_rbps_dic[rbp_id].internal_id
 
         # Store motif hit as BED.
-        hit_id = "%s:%s-%s(%s),%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
+        hit_id = "%s:%s-%s(%s)%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s,%s;%i;%s,%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval))
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval))
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -9499,8 +9631,9 @@ def main_searchrna(args):
         rbp_idx = rbp2idx_dic[rbp_id]
 
         # Motif hit string.
-        motif_str = "%s,%i,%i,%s" %(cmsh.motif_id, cmsh.start, cmsh.end, str(-1*cmsh.score))
-        motif_str_plot = "%s,%i-%i,%s" %(cmsh.motif_id, cmsh.seq_s, cmsh.seq_e, str(cmsh.score))
+        motif_str = "%s:%i:%i:%s" %(cmsh.motif_id, cmsh.start, cmsh.end, str(-1*cmsh.score))
+        # motif_str_plot = "%s,%i-%i,%s" %(cmsh.motif_id, cmsh.seq_s, cmsh.seq_e, str(cmsh.score))
+        motif_str_plot = "%s:%i-%i" %(cmsh.motif_id, cmsh.seq_s, cmsh.seq_e)
 
         # Center position of motif hit.
         motif_hit_s = cmsh.seq_s - 1
@@ -9520,9 +9653,9 @@ def main_searchrna(args):
         internal_id = search_rbps_dic[rbp_id].internal_id
 
         # Store motif hit as BED.
-        hit_id = "%s:%s-%s(%s),%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
+        hit_id = "%s:%s-%s(%s)%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s,%s;%i;%s,%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value))
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value))
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -9740,7 +9873,7 @@ def main_searchrna(args):
             mult_test_corr_factor = (len_rbp_list*(len_rbp_list-1))/2
 
         cooc_pval_thr = args.cooc_pval_thr / mult_test_corr_factor
-        cooc_pval_thr = benchlib.round_to_n_significant_digits(cooc_pval_thr, 4)
+        cooc_pval_thr = benchlib.round_to_n_significant_digits_v2(cooc_pval_thr, 4)
 
     elif args.cooc_pval_mode == 3:  # No correction.
 
@@ -9770,7 +9903,7 @@ def main_searchrna(args):
 
         p_value = p_val_list[pv_idx]
 
-        p_value = benchlib.round_to_n_significant_digits(p_value, 4)
+        p_value = benchlib.round_to_n_significant_digits_v2(p_value, 4)
 
         p_value_plotted = p_value
 
@@ -9964,50 +10097,54 @@ def main_searchrna(args):
 
     print("Create report ... ")
     benchlib.search_generate_html_report(df_pval, pval_cont_lll,
-                                        search_rbps_dic,
-                                        id2name_dic, name2ids_dic,
-                                        region_rbp_motif_pos_dic,
-                                        reg2pol_dic,
-                                        args.out_folder,
-                                        benchlib_path,
-                                        rbp2regidx_dic,
-                                        reg_ids_list,
-                                        fisher_mode=args.fisher_mode,
-                                        wrs_mode=1,  # no need.
-                                        seq_len_df=seq_len_df,
-                                        set_rbp_id=args.set_rbp_id,  # no need.
-                                        motif_db_str=motif_db_str,
-                                        regex_id=regex_id,
-                                        seq_motif_blocks_dic=seq_motif_blocks_dic,
-                                        max_motif_dist=args.max_motif_dist,
-                                        min_motif_dist=args.min_motif_dist,
-                                        motif_distance_plot_range=args.motif_distance_plot_range,
-                                        motif_min_pair_count=args.motif_min_pair_count,
-                                        rbp_min_pair_count=args.rbp_min_pair_count,
-                                        reg2annot_dic=False,  # no need.
-                                        annot2color_dic=False,  # no need.
-                                        upset_plot_min_degree=args.upset_plot_min_degree,
-                                        upset_plot_max_degree=args.upset_plot_max_degree,
-                                        upset_plot_min_subset_size=args.upset_plot_min_subset_size,
-                                        upset_plot_max_subset_rank=args.upset_plot_max_subset_rank,
-                                        upset_plot_min_rbp_count=args.upset_plot_min_rbp_count,
-                                        upset_plot_max_rbp_rank=args.upset_plot_max_rbp_rank,
-                                        add_all_reg_bar=False,  # no need.
-                                        html_report_out=html_report_out,
-                                        plot_abs_paths=args.plot_abs_paths,
-                                        sort_js_mode=args.sort_js_mode,
-                                        plotly_js_mode=args.plotly_js_mode,
-                                        cooc_pval_thr=cooc_pval_thr,
-                                        cooc_pval_mode=args.cooc_pval_mode,
-                                        c_all_fisher_pval=c_all_fisher_pval,
-                                        c_sig_fisher_pval=c_sig_fisher_pval,
-                                        perc_sig_fisher_pval=perc_sig_fisher_pval,
-                                        rbpbench_mode="searchrna",
-                                        fimo_pval=args.fimo_pval,
-                                        reg_seq_str="regions",
-                                        disable_motif_enrich_table=True,
-                                        report_header=args.report_header,
-                                        plots_subfolder=plots_subfolder)
+                                    search_rbps_dic,
+                                    id2name_dic, name2ids_dic,
+                                    region_rbp_motif_pos_dic,
+                                    reg2pol_dic,
+                                    args.out_folder,
+                                    benchlib_path,
+                                    rbp2regidx_dic,
+                                    reg_ids_list,
+                                    fisher_mode=args.fisher_mode,
+                                    wrs_mode=1,  # no need.
+                                    seq_len_df=seq_len_df,
+                                    set_rbp_id=args.set_rbp_id,  # no need.
+                                    motif_db_str=motif_db_str,
+                                    regex_id=regex_id,
+                                    seq_motif_blocks_dic=seq_motif_blocks_dic,
+                                    max_motif_dist=args.max_motif_dist,
+                                    min_motif_dist=args.min_motif_dist,
+                                    motif_distance_plot_range=args.motif_distance_plot_range,
+                                    motif_min_pair_count=args.motif_min_pair_count,
+                                    rbp_min_pair_count=args.rbp_min_pair_count,
+                                    reg2annot_dic=False,  # no need.
+                                    annot2color_dic=False,  # no need.
+                                    upset_plot_min_degree=args.upset_plot_min_degree,
+                                    upset_plot_max_degree=args.upset_plot_max_degree,
+                                    upset_plot_min_subset_size=args.upset_plot_min_subset_size,
+                                    upset_plot_max_subset_rank=args.upset_plot_max_subset_rank,
+                                    upset_plot_min_rbp_count=args.upset_plot_min_rbp_count,
+                                    upset_plot_max_rbp_rank=args.upset_plot_max_rbp_rank,
+                                    add_all_reg_bar=False,  # no need.
+                                    run_goa=args.run_goa,
+                                    goa_results_df=goa_results_df,
+                                    goa_stats_dic=goa_stats_dic,
+                                    goa_filter_purified=goa_filter_purified,
+                                    html_report_out=html_report_out,
+                                    plot_abs_paths=args.plot_abs_paths,
+                                    sort_js_mode=args.sort_js_mode,
+                                    plotly_js_mode=args.plotly_js_mode,
+                                    cooc_pval_thr=cooc_pval_thr,
+                                    cooc_pval_mode=args.cooc_pval_mode,
+                                    c_all_fisher_pval=c_all_fisher_pval,
+                                    c_sig_fisher_pval=c_sig_fisher_pval,
+                                    perc_sig_fisher_pval=perc_sig_fisher_pval,
+                                    rbpbench_mode="searchrna",
+                                    fimo_pval=args.fimo_pval,
+                                    reg_seq_str="regions",
+                                    disable_motif_enrich_table=True,
+                                    report_header=args.report_header,
+                                    plots_subfolder=plots_subfolder)
 
 
     """
@@ -10087,6 +10224,8 @@ def main_searchrna(args):
     print("RBP region occupancies .tsv:\n%s" %(rbp_reg_occ_table_out))
     print("RBP hit stats .tsv:\n%s" %(rbp_stats_out))
     print("Motif hit stats .tsv:\n%s" %(motif_stats_out))
+    if args.run_goa:
+        print("GO enrichment analysis results .tsv:\n%s" %(goa_results_tsv))
     if args.plot_motifs:
         print("Motif plots and hit statistics .html:\n%s" %(html_motif_plots_out))
     print("Search report .html:\n%s" %(html_report_out))
@@ -10107,6 +10246,14 @@ def main_searchlongrna(args):
     assert os.path.exists(args.in_genome), "--genome file \"%s\" not found" % (args.in_genome)
 
     assert benchlib.boundary_check(args.gtf_feat_min_overlap, 1E-9, 1.0), "set --gtf-feat-min-overlap expected to be >= 1E-9 and <= 1.0"
+
+    if args.run_goa:
+        assert args.in_gtf, "set --goa requires --gtf GTF file"
+        if args.goa_obo_mode == 3:
+            assert args.goa_obo_file, "set --goa-obo-mode 3 requires --goa-obo-file"
+            assert os.path.exists(args.goa_obo_file), "--goa-obo-file file \"%s\" not found" % (args.goa_obo_file)
+        if args.goa_obo_file:
+            assert args.goa_obo_mode == 3, "--goa-obo-file requires --goa-obo-mode 3"
 
     # Is MEME >= v5 installed?
     if not args.meme_disable_check:
@@ -10249,6 +10396,8 @@ def main_searchlongrna(args):
 
     # Output unique motif hits.
     motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_searchlongrna.bed"
+    # GOA results.
+    goa_results_tsv = args.out_folder + "/goa_results_on_motif_hit_transcripts.tsv"
 
     out_tmp_bed = args.out_folder + "/rbp_motif_hit_regions.tmp.bed"
     cmstat_tmp_out = args.out_folder + "/cmstat_out.tmp.txt"
@@ -10409,9 +10558,9 @@ def main_searchlongrna(args):
 
         # Remove , ; from given regex, to avoid motif_id format conflicts.
         regex = benchlib.remove_special_chars_from_str(args.regex,
-                                                       reg_ex="[ ,;]")
+                                                       reg_ex="[ :;\(\)]")
         
-        assert regex, "empty string after removing special chars ( [ ,;] ) from --regex. Please provide a valid regex with DNA letters"
+        assert regex, "empty string after removing special chars ( [ :;\(\)] ) from --regex. Please provide a valid regex with DNA letters"
 
         regex_id = benchlib.remove_special_chars_from_str(args.regex_id)
 
@@ -10436,6 +10585,8 @@ def main_searchlongrna(args):
 
         loaded_rbps_dic[regex_id] = regex_id  # rbp_id -> motif_db_str
 
+    else:
+        regex_id = False
 
     """
     Load RBP data, store in RBP() class.
@@ -10928,6 +11079,8 @@ def main_searchlongrna(args):
     """
     Get unique motif hits.
 
+    AALAMO
+
     unique_motifs_dic:
         Dictionary of dictionaries, format:
         {rbp_id1 -> {'motif_region1': c_motif_region1, 'motif_region2': c_motif_region2}, rbp_id2 -> .. }
@@ -11097,6 +11250,7 @@ def main_searchlongrna(args):
 
     """
 
+    tr_ids_with_hits_dic = {}
     motif_hit2annot_dic = {}
 
     OUTSTATS = open(motif_stats_out,"w")
@@ -11122,7 +11276,14 @@ def main_searchlongrna(args):
         internal_id = search_rbps_dic[rbp_id].internal_id
 
         # Motif hit ID.
-        hit_id = "%s:%s-%s(%s),%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
+        hit_id = "%s:%s-%s(%s)%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
+
+        # Store transcript IDs with motif hits.
+        tr_id = fh.chr_id
+        if tr_id in tr_ids_with_hits_dic:
+            tr_ids_with_hits_dic[tr_id] += 1
+        else:
+            tr_ids_with_hits_dic[tr_id] = 1
 
         annot = False
 
@@ -11131,7 +11292,7 @@ def main_searchlongrna(args):
             # Center position of motif hit.
             motif_hit_s = fh.start - 1
             motif_hit_e = fh.end
-            tr_id = fh.chr_id
+            
             center_pos = benchlib.get_center_position(motif_hit_s, motif_hit_e)  # 1-based center position.
 
             utr5_len = tid2regl_dic[tr_id][0]
@@ -11186,7 +11347,7 @@ def main_searchlongrna(args):
             annot_str = "-"
             if annot:
                 annot_str = annot[0]
-            bed_row = "%s\t%i\t%i\t%s,%s;%i;%s,%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), annot_str)
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), annot_str)
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -11226,7 +11387,14 @@ def main_searchlongrna(args):
         internal_id = search_rbps_dic[rbp_id].internal_id
 
         # Motif hit ID.
-        hit_id = "%s:%s-%s(%s),%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
+        hit_id = "%s:%s-%s(%s)%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
+
+        # Store transcript IDs with motif hits.
+        tr_id = fh.chr_id
+        if tr_id in tr_ids_with_hits_dic:
+            tr_ids_with_hits_dic[tr_id] += 1
+        else:
+            tr_ids_with_hits_dic[tr_id] = 1
 
         annot = False
 
@@ -11235,7 +11403,6 @@ def main_searchlongrna(args):
             # Center position of motif hit.
             motif_hit_s = cmsh.start - 1
             motif_hit_e = cmsh.end
-            tr_id = fh.chr_id
             center_pos = benchlib.get_center_position(motif_hit_s, motif_hit_e)  # 1-based center position.
 
             utr5_len = tid2regl_dic[tr_id][0]
@@ -11284,7 +11451,7 @@ def main_searchlongrna(args):
             annot_str = "-"
             if annot:
                 annot_str = annot[0]
-            bed_row = "%s\t%i\t%i\t%s,%s;%i;%s,%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), annot_str)
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), annot_str)
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -11331,68 +11498,92 @@ def main_searchlongrna(args):
     OUTBED.close()
 
     """
+    GO enrichment analysis.
+
+    AALAMO.
+    """
+
+    goa_results_df = False
+    goa_stats_dic = {}
+    propagate_counts = True
+    goa_filter_purified = False
+
+    if args.run_goa:
+
+        # Write empty file.
+        open(goa_results_tsv, "w").close()
+
+        print("")
+        print("GOA enabled (--goa) ... ")
+
+        target_genes_dic = {}
+        background_genes_dic = {}
+
+        # Get background gene IDs.
+        for gene_id in gid2gio_dic:
+            background_genes_dic[gene_id] = gid2gio_dic[gene_id].gene_name
+
+        # Get target gene IDs.
+        for tid in tr_ids_with_hits_dic:
+            if tid in tr2gid_dic:
+                gene_id = tr2gid_dic[tid]
+                target_genes_dic[gene_id] = 1
+
+        goa_stats_dic["c_target_genes_pre_filter"] = len(target_genes_dic)
+        goa_stats_dic["c_background_genes_pre_filter"] = len(background_genes_dic)
+        goa_stats_dic["pval_thr"] = args.goa_pval
+        goa_stats_dic["goa_obo_mode"] = args.goa_obo_mode
+        goa_stats_dic["propagate_counts"] = propagate_counts
+        goa_stats_dic["excluded_terms"] = "-"
+        goa_stats_dic["excluded_terms"] = goa_filter_purified
+
+        if tr_ids_with_hits_dic:  # If there are motif hits in transcript regions.
+
+            print("Hits on transcripts found. Running GOA on genes of transcripts with hits ... ")
+
+            local_gid2go_file = benchlib_path + "/content/ensembl_gene_id2go_ids.biomart.GRCh38.112.tsv.gz"
+            local_obo_file = benchlib_path + "/content/go-basic.obo.gz"
+
+            assert os.path.exists(local_gid2go_file), "local gene ID to GO ID file \"%s\" not found" %(local_gid2go_file)
+            assert os.path.exists(local_obo_file), "local GO OBO file \"%s\" not found" %(local_obo_file)
+
+            gid2go_file = local_gid2go_file
+            if args.goa_gene2go_file:
+                gid2go_file = args.goa_gene2go_file
+                assert os.path.exists(gid2go_file), "provided --goa-gene2go-file \"%s\" not found" %(gid2go_file)
+            goa_obo_file = local_obo_file
+            if args.goa_obo_file and args.goa_obo_mode == 3:
+                goa_obo_file = args.goa_obo_file
+                assert os.path.exists(goa_obo_file), "provided --goa-obo-file \"%s\" not found" %(goa_obo_file)
+
+            # Run GOA.
+            goa_results_df = benchlib.run_go_analysis(target_genes_dic, background_genes_dic, 
+                                                        gid2go_file, args.out_folder,
+                                                        pval_thr=args.goa_pval,
+                                                        excluded_terms = [],  # do not exclude any GO terms.
+                                                        goa_obo_mode=args.goa_obo_mode,
+                                                        propagate_counts=propagate_counts,
+                                                        stats_dic=goa_stats_dic,
+                                                        store_gene_names=True,
+                                                        goa_obo_file=goa_obo_file)
+
+            goa_results_df.to_csv(goa_results_tsv, sep="\t", index=False)
+            print("")
+
+        else:
+            print("No genes overlapping with --in regions. Skipping GOA ... ")
+
+
+    """
     Motif annotations (mRNA regions only).
 
     """
 
-    """
-
-            # Store motif hit as BED.
-        hit_id = "%s:%s-%s(%s),%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
-        if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s,%s;%i;%s,%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value))
-            motif_reg_dic[hit_id] = bed_row
-    """
-
-
-
-
-
-
-    # # Extract exon + intron regions of selected transcripts from transcript infos.
-    # print("Output intron annotations to BED ... ")
-    # intron_exon_out_bed = args.out_folder + "/intron_exon_regions.tmp.bed"
-    # benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
-    #                                     output_mode=3,  # only introns.
-    #                                     report_counts=True,
-    #                                     add_tr_id=True,
-    #                                     empty_check=False)
-
-    # # # Custom transcript biotypes for upset plot.
-    # # custom_annot_dic = None
-    # # if args.tr_types_list:
-    # #     for tr_type in args.tr_types_list:
-    # #         assert tr_type in tr_types_dic, "given transcript biotype ID \"%s\" not found in GTF file"
-    # #         custom_annot_dic[tr_type] = tr_type
-
-    # # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.
-    # print("Output exon annotations to BED ... ")
-    # benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
-    #                                  # custom_annot_dic=custom_annot_dic,
-    #                                  append=True)
-
-    # # Overlap motif hit BED with genomic annotation regions.
-    # print("Overlap mRNA annotations with motif hit regions ... ")
-
-
-    # params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
-    # overlap_motif_hit_annotations_bed = args.out_folder + "/overlap_motif_hit_annotations.tmp.bed"
-    # benchlib.bed_intersect_files(motif_hits_bed_out, mrna_regions_bed, 
-    #                              overlap_motif_hit_annotations_bed,
-    #                              params=params)
-
-
-    # motif_hit2annot_dic = benchlib.get_region_annotations(
-    #                                     overlap_motif_hit_annotations_bed,
-    #                                     motif_hits=True,
-    #                                     reg_ids_dic=motif_reg_dic)
-
-
     rbp2motif2annot2c_dic = {}  # rbp_id -> motif_id -> annot -> count
 
     for motif_hit in motif_hit2annot_dic:
-        # motif_hit format: "chr1:10-15(+),motif_id". Get motif_id.
-        motif_id = motif_hit.split(",")[1]
+        # motif_hit format: "chr1:10-15(+)motif_id". Get motif_id.
+        motif_id = motif_hit.split(")")[1]
         annot = motif_hit2annot_dic[motif_hit][0]
         # tr_id = motif_hit2annot_dic[motif_hit][1]
         rbp_id = id2name_dic[motif_id]
@@ -11469,6 +11660,10 @@ def main_searchlongrna(args):
                                         fimo_pval=args.fimo_pval,
                                         c_in_regions=c_regions,
                                         reg_seq_str="regions",
+                                        run_goa=args.run_goa,
+                                        goa_results_df=goa_results_df,
+                                        goa_stats_dic=goa_stats_dic,
+                                        goa_filter_purified=goa_filter_purified,
                                         report_header=args.report_header,
                                         plots_subfolder=plots_subfolder)
 
@@ -11513,6 +11708,8 @@ def main_searchlongrna(args):
     # print("RBP region occupancies .tsv:\n%s" %(rbp_reg_occ_table_out))
     print("RBP hit stats .tsv:\n%s" %(rbp_stats_out))
     print("Motif hit stats .tsv:\n%s" %(motif_stats_out))
+    if args.run_goa:
+        print("Motif hit GO enrichment analysis results .tsv:\n%s" %(goa_results_tsv))
     # if reg_annot_table_file is not None:
     #     print("Region annotations .tsv:\n%s" %(reg_annot_table_file))
     print("Motif plots and hit statistics .html:\n%s" %(html_motif_plots_out))
@@ -12069,7 +12266,7 @@ def main_optex(args):
 
         if unique_motifs_dic:
             wc_stat, wc_pval = mannwhitneyu(hit_reg_scores, non_hit_reg_scores, alternative="greater")
-            wc_pval = benchlib.round_to_n_significant_digits(wc_pval, 4)
+            wc_pval = benchlib.round_to_n_significant_digits_v2(wc_pval, 4)
             rbp.wc_pval = wc_pval
 
         print("Compact hit stats (RBP ID, # unique hits, Wilcoxon p-value):")
@@ -12412,7 +12609,7 @@ def main_compare(args):
     k562_eclip,clipper_idr,human_v0.1,PUM1,GeR1WaFK
     k562_eclip,clipper_idr,human_v0.1,PUM2,fEag63xM
 
-    MotifStats.hit_id : chr:s-e(+),motif_id
+    MotifStats.hit_id : chr:s-e(+)motif_id
 
     compare_methods_dic: {'k562_eclip,human_v0.1,PUM1': [['clipper_idr', 'GeR1WaFK', 'PUM1', 'k562_eclip', 'human_v0.1'], 
     ['dewseq_w100_s5', 'aErgL-gv', 'PUM1', 'k562_eclip', 'human_v0.1']], 
@@ -12600,11 +12797,11 @@ def main_compare(args):
             int_ids.append(int_id)
             method_ids.append(method_id)
 
-        # Motif Hit ID (chr_id:gen_s-gen_e(strand),motif_id) to method IDs sporting this hit.
+        # Motif Hit ID (chr_id:gen_s-gen_e(strand)motif_id) to method IDs sporting this hit.
         hid2mids_dic = {}
         mid2c_dic = {}
 
-        for idx, int_id in enumerate(int_ids):
+        for idx, int_id in enumerate(int_ids):  # AALAMO
             mid = method_ids[idx]
             for motif_stats in motif_stats_dic[int_id]:  # motif_stats instance of MotifStats object.
                 hid = motif_stats.hit_id
@@ -12640,7 +12837,7 @@ def main_compare(args):
             int_ids.append(int_id)
             data_ids.append(data_id)
 
-        # Motif Hit ID (chr_id:gen_s-gen_e(strand),motif_id) to data IDs sporting this hit.
+        # Motif Hit ID (chr_id:gen_s-gen_e(strand)motif_id) to data IDs sporting this hit.
         hid2dids_dic = {}
         did2c_dic = {}
 

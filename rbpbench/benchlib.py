@@ -439,17 +439,17 @@ def round_to_n_significant_digits_v2(num, n, zero_check_val=1e-300):
     Round float / scientific notation number to n significant digits.
     This function only works for positive numbers.
 
-    >>> round_to_n_significant_digits(4.0980000000000007e-38, 4)
+    >>> round_to_n_significant_digits_v2(4.0980000000000007e-38, 4)
     4.098e-38
-    >>> round_to_n_significant_digits(4.410999999999999e-81, 4)
+    >>> round_to_n_significant_digits_v2(4.410999999999999e-81, 4)
     4.411e-81
-    >>> round_to_n_significant_digits(0.0000934234823499234, 4)
+    >>> round_to_n_significant_digits_v2(0.0000934234823499234, 4)
     9.342e-05
-    >>> round_to_n_significant_digits(0.0112123123123123, 4)
+    >>> round_to_n_significant_digits_v2(0.0112123123123123, 4)
     0.01121
-    >>> round_to_n_significant_digits(0.0, 2)
+    >>> round_to_n_significant_digits_v2(0.0, 2)
     0
-    >>> round_to_n_significant_digits(1e-300, 3)
+    >>> round_to_n_significant_digits_v2(1e-300, 3)
     1e-300
 
     """
@@ -2694,8 +2694,8 @@ def get_motif_hit_region_annotations(overlap_annotations_bed):
             reg_strand = cols[5]
 
             # col[3] has format: "rbp_id,motif_id;1;method_id,data_id". Extract motif_id from this string.
-            motif_id = reg_id.split(",")[1].split(";")[0]
-            reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + reg_strand + ")," + motif_id
+            motif_id = reg_id.split(":")[1].split(";")[0]
+            reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + reg_strand + ")" + motif_id
 
             annot_id = "intergenic"
             tr_id = False
@@ -2761,8 +2761,8 @@ def get_region_annotations(overlap_annotations_bed,
                 reg_e = cols[2]
                 reg_strand = cols[5]
                 # col[3] has format: "rbp_id,motif_id;1;method_id,data_id". Extract motif_id from this string.
-                motif_id = reg_id.split(",")[1].split(";")[0]
-                reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + reg_strand + ")," + motif_id
+                motif_id = reg_id.split(":")[1].split(";")[0]  # AALAMO
+                reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + reg_strand + ")" + motif_id
                 annot_col = 13  # These shift since motif hits BED contains additional (4) p-value and score columns.
                 c_ol_nt_col = 16
 
@@ -3380,16 +3380,16 @@ def get_hit_id_elements(hit_id):
     From  hit ID to ID elements list.
 
     Hit ID format:
-    chr1:100-110(+),motif_id
+    chr1:100-110(+)motif_id
 
-    >>> hit_id = "chr1:100-110(+),motif_id"
+    >>> hit_id = "chr1:100-110(+)motif_id"
     >>> get_hit_id_elements(hit_id)
     ['chr1', '100', '110', '+', 'motif_id']
     
     """
 
-    if re.search("\w+:\d+-\d+\([+|-]\),\w+", hit_id):
-        m = re.search("(\w+):(\d+)-(\d+)\(([+|-])\),(.+)", hit_id)
+    if re.search("\w+:\d+-\d+\([+|-]\)\w+", hit_id):
+        m = re.search("(\w+):(\d+)-(\d+)\(([+|-])\)(.+)", hit_id)
         id_elements = [m.group(1), m.group(2), m.group(3), m.group(4), m.group(5)]
         return id_elements
     else:
@@ -3966,7 +3966,7 @@ class MotifStats:
     data_id, method_id, run_id, motif_db stored in RBPStats object, linked 
     by dictionary (common internal_id).
     
-    hit_id : chr:s-e(+),motif_id
+    hit_id : chr:s-e(+)motif_id
 
     """
 
@@ -4032,7 +4032,7 @@ def read_in_motif_stats(in_file,
             internal_id = cols[19]
             if internal_id == "internal_id":
                 continue
-            hit_id = "%s:%s-%s(%s),%s" %(cols[7], cols[8], cols[9], cols[10], cols[6])
+            hit_id = "%s:%s-%s(%s)%s" %(cols[7], cols[8], cols[9], cols[10], cols[6])
             
             int_hit_id = internal_id + "," + hit_id
             if store_uniq_only:
@@ -4349,7 +4349,7 @@ class FimoHit(GenomicRegion):
                 self.genome == other.genome)
 
     def __repr__(self) -> str:
-        return f"{self.chr_id}:{self.start}-{self.end}({self.strand}),{self.motif_id}"
+        return f"{self.chr_id}:{self.start}-{self.end}({self.strand}){self.motif_id}"
 
 
 ################################################################################
@@ -4566,8 +4566,8 @@ def output_motif_hits_to_bed(rbp_id, unique_motifs_dic, out_bed,
     OUTMRBED = open(out_bed, "w")
 
     for fh_str in unique_motifs_dic[rbp_id]:
-        if re.search("\w+:\d+-\d+\([+|-]\),.+", fh_str):
-            m = re.search("(\w+):(\d+)-(\d+)\(([+|-])\),(.+)", fh_str)
+        if re.search("\w+:\d+-\d+\([+|-]\).+", fh_str):
+            m = re.search("(\w+):(\d+)-(\d+)\(([+|-])\)(.+)", fh_str)
             chr_id = m.group(1)
             reg_s = int(m.group(2))
             reg_e = int(m.group(3))
@@ -4596,15 +4596,15 @@ def batch_output_motif_hits_to_bed(unique_motifs_dic, out_bed,
         Assumes FIMO hit string contains 1-based start.
 
     Format of fimo_hit_string:
-    chr_id:start-end(strand),motif_id
+    chr_id:start-end(strand)motif_id
 
     """
     
     OUTMRBED = open(out_bed, "w")
 
     for fh_str in unique_motifs_dic:
-        if re.search("\w+:\d+-\d+\([+|-]\),.+", fh_str):
-            m = re.search("(\w+):(\d+)-(\d+)\(([+|-])\),(.+)", fh_str)
+        if re.search("\w+:\d+-\d+\([+|-]\).+", fh_str):
+            m = re.search("(\w+):(\d+)-(\d+)\(([+|-])\)(.+)", fh_str)
             chr_id = m.group(1)
             reg_s = int(m.group(2))
             reg_e = int(m.group(3))
@@ -4773,7 +4773,7 @@ class CmsearchHit(GenomicRegion):
                 self.genome == other.genome)
 
     def __repr__(self) -> str:
-        return f"{self.chr_id}:{self.start}-{self.end}({self.strand}),{self.motif_id}"
+        return f"{self.chr_id}:{self.start}-{self.end}({self.strand}){self.motif_id}"
 
 
 ################################################################################
@@ -4817,8 +4817,12 @@ def remove_special_chars_from_str(check_str,
     >>> check_str = ""
     >>> remove_special_chars_from_str(check_str)
     ''
+    >>> check_str = "AC.+?GA[AC]A\\\\C(AAA)C;C.{2,8}AC"
+    >>> remove_special_chars_from_str(check_str, reg_ex="[ ;\(\)]")
+    'AC.+?GA[AC]ACAAACC.{2,8}AC'
 
     """
+    check_str = check_str.replace("\\t", "").replace("\\n", "").replace("\\", "")
     clean_string = re.sub(reg_ex, '', check_str)
     return clean_string
 
@@ -4828,17 +4832,20 @@ def remove_special_chars_from_str(check_str,
 def get_motif_id_from_str_repr(hit_str_repr):
     """
     From motif string representation:
-    chr1:100-200(-),motif_id
+    chr1:100-200(-)motif_id
     return motif_id
 
-    >>> hit_str_repr = "chr6:66-666(-),satan6666"
+    >>> hit_str_repr = "chr6:66-666(-)satan6666"
     >>> get_motif_id_from_str_repr(hit_str_repr)
     'satan6666'
+    >>> hit_str_repr = "chr6:66-666(-)CGGAC.{10,25}[CA]CA[CT]"
+    >>> get_motif_id_from_str_repr(hit_str_repr)
+    'CGGAC.{10,25}[CA]CA[CT]'
 
     """
 
-    if re.search("\w+:\d+-\d+\([+|-]\),.+", hit_str_repr):
-        m = re.search(".+,(.+)", hit_str_repr)
+    if re.search("\w+:\d+-\d+\([+|-]\).+", hit_str_repr):
+        m = re.search(".+?\)(.+)", hit_str_repr)
         motif_id = m.group(1)
         return motif_id
     else:
@@ -6752,7 +6759,7 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 run_goa=False,
                                 goa_results_df=False,
                                 goa_stats_dic=False,
-                                goa_filter_purified=True,
+                                goa_filter_purified=False,
                                 plot_abs_paths=False,
                                 sort_js_mode=1,
                                 plotly_js_mode=1,
@@ -7683,9 +7690,11 @@ Only motifs with a pair count of >= %i appear in the plot.
 
 """ %(motif_id, motif_min_pair_count)
 
+
+
     """
     GOA results.
-    AALAMO
+
     """
 
     if run_goa:
@@ -7698,7 +7707,7 @@ Only motifs with a pair count of >= %i appear in the plot.
         if isinstance(goa_results_df, pd.DataFrame) and not goa_results_df.empty:
             c_goa_results = len(goa_results_df)
 
-        filter_purified_str = " GO terms with significantly higher and lower concentration in study group are shown."
+        filter_purified_str = " GO terms with significantly higher and lower concentration ([e,p]) in study group are shown."
         if goa_filter_purified:
             filter_purified_str = " Only GO terms with significantly higher concentration in study group are shown."
 
@@ -7738,6 +7747,10 @@ Only motifs with a pair count of >= %i appear in the plot.
                 go_n_genes = row['n_genes']
                 go_n_study = row['n_study']
                 go_perc_genes = row['perc_genes']
+
+                if goa_filter_purified:
+                    if go_enrichment == "p":
+                        continue
 
                 mdtext += '<tr>' + "\n"
                 mdtext += "<td>" + go_id + "</td>\n"
@@ -7846,7 +7859,7 @@ def plot_motif_dist_rbp_level(set_rbp_id,
         best_motif_pval = 1000
 
         for motif_str in region_rbp_motif_pos_dic[reg_id]:
-            motif_id, s, e, p = motif_str.split(",")
+            motif_id, s, e, p = motif_str.split(":")
             if id2name_dic[motif_id] != set_rbp_id:
                 continue
             pval = float(p)
@@ -7878,7 +7891,7 @@ def plot_motif_dist_rbp_level(set_rbp_id,
         for motif_str in region_rbp_motif_pos_dic[reg_id]:
             if motif_str == best_motif_str:
                 continue
-            motif_id, s, e, p = motif_str.split(",")
+            motif_id, s, e, p = motif_str.split(":")
             rbp_id = id2name_dic[motif_id]
             paired_rbp_ids_dic[rbp_id] = 1
 
@@ -7999,7 +8012,7 @@ def plot_motif_dist_motif_level(set_motif_id,
         best_motif_pval = 1000
 
         for motif_str in region_rbp_motif_pos_dic[reg_id]:
-            motif_id, s, e, p = motif_str.split(",")
+            motif_id, s, e, p = motif_str.split(":")
             if motif_id != set_motif_id:
                 continue
             pval = float(p)
@@ -8033,7 +8046,7 @@ def plot_motif_dist_motif_level(set_motif_id,
             # Do not compare with motif hit itself.
             if motif_str == best_motif_str:
                 continue
-            motif_id, s, e, p = motif_str.split(",")
+            motif_id, s, e, p = motif_str.split(":")
             paired_motif_ids_dic[motif_id] = 1
 
             s = int(s)
@@ -8771,6 +8784,10 @@ def search_generate_html_motif_plots(search_rbps_dic,
                                      fimo_pval=0.001,
                                      c_in_regions=0,
                                      reg_seq_str="regions",
+                                     run_goa=False,
+                                     goa_results_df=False,
+                                     goa_stats_dic=False,
+                                     goa_filter_purified=False,
                                      plots_subfolder="html_motif_plots"):
     """
     Create motif plots for selected RBPs.
@@ -8868,6 +8885,9 @@ by RBPBench (rbpbench %s):
 - [Motif hit statistics](#motif-hit-stats)
 """ %(report_header_info, rbpbench_mode)
 
+    if run_goa:
+        mdtext += "- [Motif hit GO enrichment analysis results](#goa-results)\n"
+
     motif_plot_ids_dic = {}
     idx = 0
     for rbp_id, rbp in sorted(search_rbps_dic.items()):
@@ -8939,6 +8959,119 @@ and respective number of motif hits found in supplied %s regions.
     mdtext += "**Motif ID** -> Motif ID from database or user-defined, "
     mdtext += "**Motif database** -> Motif database used for search run, "
     mdtext += '**# motif hits** -> number of unique individual motif hits (i.e., unique hits for motif with motif ID).' + "\n"
+    mdtext += "\n&nbsp;\n"
+
+    """
+    GOA results on transcripts (underlying genes) with motif hits.
+
+    AALAMO
+    """
+
+    if run_goa:
+
+        mdtext += """
+## Motif hit GO enrichment analysis results ### {#goa-results}
+
+"""
+        c_goa_results = 0
+        if isinstance(goa_results_df, pd.DataFrame) and not goa_results_df.empty:
+            c_goa_results = len(goa_results_df)
+
+        filter_purified_str = " GO terms with significantly higher and lower concentration ([e,p]) in study group are shown."
+        if goa_filter_purified:
+            filter_purified_str = " Only GO terms with significantly higher concentration in study group are shown."
+
+        if c_goa_results > 0:
+
+            mdtext += """
+**Table:** GO enrichment analysis results for transcripts with motif hits, taking the corresponding genes for analysis. # of significant GO terms found: %i. Filter p-value threshold (on corrected p-value) = %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
+%s
+
+""" %(c_goa_results, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"], filter_purified_str)
+
+            mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.9;">' + "\n"
+            mdtext += "<thead>\n"
+            mdtext += "<tr>\n"
+            mdtext += "<th>GO</th>\n"
+            mdtext += "<th>Term</th>\n"
+            mdtext += "<th>Class</th>\n"
+            mdtext += "<th>p-value</th>\n"
+            mdtext += "<th>[e,p]</th>\n"
+            mdtext += "<th>Depth</th>\n"
+            mdtext += "<th># genes</th>\n"
+            mdtext += "<th># study</th>\n"
+            mdtext += "<th>% genes</th>\n"
+            mdtext += "</tr>\n"
+            mdtext += "</thead>\n"
+            mdtext += "<tbody>\n"
+
+            for index, row in goa_results_df.iterrows():
+
+                go_id = row['GO']
+                go_term = row['term']
+                go_class = row['class']
+                go_p = row['p']
+                go_p_corr = row['p_corr']
+                go_enrichment = row['enrichment']
+                go_depth = row['depth']
+                go_n_genes = row['n_genes']
+                go_n_study = row['n_study']
+                go_perc_genes = row['perc_genes']
+
+                if goa_filter_purified:
+                    if go_enrichment == "p":
+                        continue
+
+                mdtext += '<tr>' + "\n"
+                mdtext += "<td>" + go_id + "</td>\n"
+                mdtext += "<td>" + go_term + "</td>\n"
+                mdtext += "<td>" + go_class + "</td>\n"
+                mdtext += "<td>" + str(go_p_corr) + "</td>\n"
+                mdtext += "<td>" + go_enrichment + "</td>\n"
+                mdtext += "<td>" + str(go_depth) + "</td>\n"
+                mdtext += "<td>" + str(go_n_genes) + "</td>\n"
+                mdtext += "<td>" + str(go_n_study) + "</td>\n"
+                mdtext += "<td>" + str(go_perc_genes) + "</td>\n"
+                mdtext += '</tr>' + "\n"
+
+            mdtext += '</tbody>' + "\n"
+            mdtext += '</table>' + "\n"
+            
+            mdtext += "\n&nbsp;\n&nbsp;\n"
+            mdtext += "\nColumn IDs have the following meanings: "
+            mdtext += "**GO** -> gene ontology (GO) ID, "
+            mdtext += "**Term** -> GO term / name, "
+            mdtext += "**Class** -> GO term class (biological_process, molecular_function, or cellular_component), "
+            mdtext += "**p-value** -> multiple testing corrected (BH) p-value, "
+            mdtext += "**[e,p]** -> e: enriched, i.e., GO term with significantly higher concentration, p: purified, GO term with significantly lower concentration), "
+            mdtext += "**Depth** -> depth / level of GO term in GO hierarchy (the higher number, the more specific), "
+            mdtext += "**# genes** -> number of genes associated with GO term, "
+            mdtext += "**# study** -> number of genes in study (i.e., target genes), "
+            mdtext += "**% genes** -> percentage of study genes associated with GO term." + "\n"
+            mdtext += "\n&nbsp;\n"
+
+        else:
+
+            if "c_target_genes_goa" in goa_stats_dic:
+
+                mdtext += """
+
+No significant GO terms found given p-value threshold of %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
+
+&nbsp;
+
+""" %(str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"])
+
+            else:
+
+                mdtext += """
+
+No significant GO terms found due to no GO IDs associated with target genes. # of initial target genes (i.e., genes overlapping with --in regions): %i.
+
+&nbsp;
+
+""" %(goa_stats_dic["c_target_genes_pre_filter"])
+
 
     """
     Motif plots.
