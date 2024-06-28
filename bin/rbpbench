@@ -385,6 +385,34 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.05,
                    help="GO enrichment analysis p-value threshold (applied on corrected p-value) (default: 0.05)")
+    p_s.add_argument("--goa-only-cooc",
+                   dest="goa_only_cooc",
+                   default = False,
+                   action = "store_true",
+                   help = "Only look at regions in GO enrichment analysis which contain motifs by all specified RBPs (default: False)")
+    p_s.add_argument("--goa-bg-gene-list",
+                   dest="goa_bg_gene_list",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Supply file with gene IDs (one ID per row) to use as background gene list for GOA. NOTE that gene IDs need to be compatible with --gtf (default: False)")
+    p_s.add_argument("--goa-max-child",
+                   dest="goa_max_child",
+                   type=int,
+                   metavar='int',
+                   default=None,
+                   help="Specify maximum number of children for a significant GO term to be reported in HTML table, e.g. --goa-max-child 100. This allows filtering out very broad terms (default: None)")
+    p_s.add_argument("--goa-min-depth",
+                   dest="goa_min_depth",
+                   type=int,
+                   metavar='int',
+                   default=None,
+                   help="Specify minimum depth number for a significant GO term to be reported in HTML table, e.g. --goa-min-depth 5 (default: None)")
+    p_s.add_argument("--goa-filter-purified",
+                   dest="goa_filter_purified",
+                   default = False,
+                   action = "store_true",
+                   help = "Filter out GOA results labeled as purified (i.e., GO terms with significantly lower concentration) in HTML table (default: False)")
     p_s.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
@@ -1341,6 +1369,11 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.05,
                    help="GO enrichment analysis p-value threshold (applied on corrected p-value) (default: 0.05)")
+    p_scr.add_argument("--goa-filter-purified",
+                   dest="goa_filter_purified",
+                   default = False,
+                   action = "store_true",
+                   help = "Filter out GOA results labeled as purified (i.e., GO terms with significantly lower concentration) in HTML table (default: False)")
     p_scr.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
@@ -1534,7 +1567,6 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.1,
                    help="Minimum amount of overlap required for a motif hit to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\") (default: 0.1)")
-    # AALAMO
     p_smr.add_argument("--goa",
                    dest="run_goa",
                    default = False,
@@ -1564,7 +1596,22 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.05,
                    help="GO enrichment analysis p-value threshold (applied on corrected p-value) (default: 0.05)")
-    
+    p_smr.add_argument("--goa-filter-purified",
+                   dest="goa_filter_purified",
+                   default = False,
+                   action = "store_true",
+                   help = "Filter out GOA results labeled as purified (i.e., GO terms with significantly lower concentration) in HTML table (default: False)")
+    p_smr.add_argument("--goa-only-cooc",
+                   dest="goa_only_cooc",
+                   default = False,
+                   action = "store_true",
+                   help = "Only look at regions in GO enrichment analysis which contain motifs by all specified RBPs (default: False)")
+    p_smr.add_argument("--goa-rna-region",
+                   dest="goa_rna_region",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3, 4],
+                   help = "Define which (m)RNA region to use for motif hit GO enrichment analysis. 1: whole transcript, 2: only 3'UTR regions, 3: only CDS regions, 4: only 5'UTR regions (default: 1)")
     p_smr.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
@@ -1898,6 +1945,10 @@ def main_search(args):
             assert os.path.exists(args.goa_obo_file), "--goa-obo-file file \"%s\" not found" % (args.goa_obo_file)
         if args.goa_obo_file:
             assert args.goa_obo_mode == 3, "--goa-obo-file requires --goa-obo-mode 3"
+        if args.goa_max_child is not None:
+            assert args.goa_max_child >= 0, "set --goa-max-child expected to be >= 0"
+        if args.goa_min_depth is not None:
+            assert args.goa_min_depth >= 0, "set --goa-min-depth expected to be >= 0"
 
     # Is MEME >= v5 installed?
     if not args.meme_disable_check:
@@ -2645,7 +2696,7 @@ def main_search(args):
             ks_stat = 0.0,
             organism: Optional[str] = None
 
-    Number of sequences for FIMO / cmsearch: 
+    Number of sequences for FIMO / cmsearch:
     c_regions
 
     """
@@ -3788,6 +3839,49 @@ def main_search(args):
             OUTRAN.write("%s\t%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot, tr_biotype))
         OUTRAN.close()
         
+        # If only target genes with RBP motifs hits for all RBPs should be considered.
+        if args.goa_only_cooc:
+            new_target_genes_dic = benchlib.get_target_genes_with_rbp_hits(reg2annot_dic, tr2gid_dic, region_rbp_binds_dic)
+
+            print("Keep only target genes containing regions with motif hits for all RBPs ... ")
+            print("# of target genes before filtering: %i" %(len(target_genes_dic)))
+            print("# of target genes after filtering:  %i" %(len(new_target_genes_dic)))
+
+            target_genes_dic = new_target_genes_dic
+
+        if args.goa_bg_gene_list:
+
+            print("Read in background genes from --goa-gb-gene-list ... ")
+            # AALAMO
+            bg_gene_ids_dic = benchlib.read_ids_into_dic(args.goa_bg_gene_list,
+                                                    check_dic=False)
+
+            print("# of gene IDs read in: %i" %(len(bg_gene_ids_dic)))
+            print("Filter background genes by --gtf genes ... ")
+
+            new_background_genes_dic = {}
+            for gene_id in bg_gene_ids_dic:
+                if gene_id in gid2gio_dic:
+                    new_background_genes_dic[gene_id] = gid2gio_dic[gene_id].gene_name
+            
+            assert new_background_genes_dic, "given --goa-gb-gene-list gene IDs not found in --gtf. Please provide compatible --gtf and --goa-bg-gene-list files"
+
+            print("# of background genes before filtering: %i" %(len(background_genes_dic)))
+            print("# of background genes after filtering:  %i" %(len(new_background_genes_dic)))
+
+            background_genes_dic = new_background_genes_dic
+
+            print("Filter target genes by new baground gene list ... ")
+            new_target_genes_dic = {}
+            for gene_id in target_genes_dic:
+                if gene_id in background_genes_dic:
+                    new_target_genes_dic[gene_id] = target_genes_dic[gene_id]
+            
+            print("# of target genes before filtering: %i" %(len(target_genes_dic)))
+            print("# of target genes after filtering:  %i" %(len(new_target_genes_dic)))
+
+            target_genes_dic = new_target_genes_dic
+
     elif args.in_gtf and not c_regions_with_hits:
         print("No need to read in --gtf since no motif hits found .. ")
 
@@ -3798,7 +3892,6 @@ def main_search(args):
     goa_results_df = False
     goa_stats_dic = {}
     propagate_counts = True
-    goa_filter_purified = False  # Filter out "purified" hits in HTML report table.
 
     if args.run_goa:
 
@@ -3814,7 +3907,10 @@ def main_search(args):
         goa_stats_dic["goa_obo_mode"] = args.goa_obo_mode
         goa_stats_dic["propagate_counts"] = propagate_counts
         goa_stats_dic["excluded_terms"] = "-"
-        goa_stats_dic["excluded_terms"] = goa_filter_purified
+        goa_stats_dic["goa_filter_purified"] = args.goa_filter_purified
+        goa_stats_dic["goa_max_child"] = args.goa_max_child
+        goa_stats_dic["goa_min_depth"] = args.goa_min_depth
+        goa_stats_dic["goa_only_cooc"] = args.goa_only_cooc
 
         if target_genes_dic:
             
@@ -3833,7 +3929,7 @@ def main_search(args):
                 goa_obo_file = args.goa_obo_file
                 assert os.path.exists(goa_obo_file), "provided --goa-obo-file \"%s\" not found" %(goa_obo_file)
 
-            # Run GOA.
+            # Run GOA. AALAMO
             goa_results_df = benchlib.run_go_analysis(target_genes_dic, background_genes_dic, 
                                                       gid2go_file, args.out_folder,
                                                       pval_thr=args.goa_pval,
@@ -3844,11 +3940,14 @@ def main_search(args):
                                                       store_gene_names=True,
                                                       goa_obo_file=goa_obo_file)
 
+            print("# of enriched (i.e., with significantly higher concentration) GO terms: %i" %(goa_stats_dic["c_sig_go_terms_e"]))
+            print("# of purified (i.e., with significantly lower concentration) GO terms:  %i" %(goa_stats_dic["c_sig_go_terms_p"]))
+
             goa_results_df.to_csv(goa_results_tsv, sep="\t", index=False)
             print("")
 
         else:
-            print("No genes overlapping with --in regions. Skipping GOA ... ")
+            print("No target genes for GOA (either no --in regions overlapping or through --goa-only-cooc). Skipping GOA ... ")
 
 
     """
@@ -4010,7 +4109,10 @@ def main_search(args):
                                          run_goa=args.run_goa,
                                          goa_results_df=goa_results_df,
                                          goa_stats_dic=goa_stats_dic,
-                                         goa_filter_purified=goa_filter_purified,
+                                         goa_min_depth=args.goa_min_depth,
+                                         goa_max_child=args.goa_max_child,
+                                         goa_filter_purified=args.goa_filter_purified,
+                                         goa_only_cooc=args.goa_only_cooc,
                                          html_report_out=html_report_out,
                                          plot_abs_paths=args.plot_abs_paths,
                                          sort_js_mode=args.sort_js_mode,
@@ -8885,13 +8987,11 @@ def main_searchrna(args):
     """
     GO enrichment analysis.
 
-    AALAMO
     """
 
     goa_results_df = False
     goa_stats_dic = {}
     propagate_counts = True
-    goa_filter_purified = False
 
     if args.run_goa:
 
@@ -8917,7 +9017,7 @@ def main_searchrna(args):
         goa_stats_dic["goa_obo_mode"] = args.goa_obo_mode
         goa_stats_dic["propagate_counts"] = propagate_counts
         goa_stats_dic["excluded_terms"] = "-"
-        goa_stats_dic["excluded_terms"] = goa_filter_purified
+        goa_stats_dic["goa_filter_purified"] = args.goa_filter_purified
 
         local_gid2go_file = benchlib_path + "/content/ensembl_gene_id2go_ids.biomart.GRCh38.112.tsv.gz"
         local_obo_file = benchlib_path + "/content/go-basic.obo.gz"
@@ -8944,6 +9044,9 @@ def main_searchrna(args):
                                                     stats_dic=goa_stats_dic,
                                                     store_gene_names=True,
                                                     goa_obo_file=goa_obo_file)
+
+        print("# of enriched (i.e., with significantly higher concentration) GO terms: %i" %(goa_stats_dic["c_sig_go_terms_e"]))
+        print("# of purified (i.e., with significantly lower concentration) GO terms:  %i" %(goa_stats_dic["c_sig_go_terms_p"]))
 
         goa_results_df.to_csv(goa_results_tsv, sep="\t", index=False)
         print("")
@@ -10129,7 +10232,7 @@ def main_searchrna(args):
                                     run_goa=args.run_goa,
                                     goa_results_df=goa_results_df,
                                     goa_stats_dic=goa_stats_dic,
-                                    goa_filter_purified=goa_filter_purified,
+                                    goa_filter_purified=args.goa_filter_purified,
                                     html_report_out=html_report_out,
                                     plot_abs_paths=args.plot_abs_paths,
                                     sort_js_mode=args.sort_js_mode,
@@ -11079,8 +11182,6 @@ def main_searchlongrna(args):
     """
     Get unique motif hits.
 
-    AALAMO
-
     unique_motifs_dic:
         Dictionary of dictionaries, format:
         {rbp_id1 -> {'motif_region1': c_motif_region1, 'motif_region2': c_motif_region2}, rbp_id2 -> .. }
@@ -11251,6 +11352,11 @@ def main_searchlongrna(args):
     """
 
     tr_ids_with_hits_dic = {}
+    # RBP ID to transcript ID dictionary. Effectively stores which transcript IDs have motif hits for each RBP.
+    rbp2tr_id_dic = {}
+    for rbp_id in loaded_rbps_dic:
+        rbp2tr_id_dic[rbp_id] = {}
+
     motif_hit2annot_dic = {}
 
     OUTSTATS = open(motif_stats_out,"w")
@@ -11278,12 +11384,7 @@ def main_searchlongrna(args):
         # Motif hit ID.
         hit_id = "%s:%s-%s(%s)%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
 
-        # Store transcript IDs with motif hits.
         tr_id = fh.chr_id
-        if tr_id in tr_ids_with_hits_dic:
-            tr_ids_with_hits_dic[tr_id] += 1
-        else:
-            tr_ids_with_hits_dic[tr_id] = 1
 
         annot = False
 
@@ -11342,6 +11443,50 @@ def main_searchlongrna(args):
 
             motif_hit2annot_dic[hit_id] = annot
 
+        # Store transcript IDs with motif hits.
+        if args.goa_rna_region == 1:
+            if tr_id in tr_ids_with_hits_dic:
+                tr_ids_with_hits_dic[tr_id] += 1
+            else:
+                tr_ids_with_hits_dic[tr_id] = 1
+            if tr_id in rbp2tr_id_dic[rbp_id]:
+                rbp2tr_id_dic[rbp_id][tr_id] += 1
+            else:
+                rbp2tr_id_dic[rbp_id][tr_id] = 1
+            
+        elif args.goa_rna_region == 2:
+            if annot[0] == "3'UTR":
+                if tr_id in tr_ids_with_hits_dic:
+                    tr_ids_with_hits_dic[tr_id] += 1
+                else:
+                    tr_ids_with_hits_dic[tr_id] = 1
+                if tr_id in rbp2tr_id_dic[rbp_id]:
+                    rbp2tr_id_dic[rbp_id][tr_id] += 1
+                else:
+                    rbp2tr_id_dic[rbp_id][tr_id] = 1
+
+        elif args.goa_rna_region == 3:
+            if annot[0] == "CDS":
+                if tr_id in tr_ids_with_hits_dic:
+                    tr_ids_with_hits_dic[tr_id] += 1
+                else:
+                    tr_ids_with_hits_dic[tr_id] = 1
+                if tr_id in rbp2tr_id_dic[rbp_id]:
+                    rbp2tr_id_dic[rbp_id][tr_id] += 1
+                else:
+                    rbp2tr_id_dic[rbp_id][tr_id] = 1
+
+        elif args.goa_rna_region == 4:
+            if annot[0] == "5'UTR":
+                if tr_id in tr_ids_with_hits_dic:
+                    tr_ids_with_hits_dic[tr_id] += 1
+                else:
+                    tr_ids_with_hits_dic[tr_id] = 1
+                if tr_id in rbp2tr_id_dic[rbp_id]:
+                    rbp2tr_id_dic[rbp_id][tr_id] += 1
+                else:
+                    rbp2tr_id_dic[rbp_id][tr_id] = 1
+
         # Store motif hit as BED.
         if hit_id not in motif_reg_dic:
             annot_str = "-"
@@ -11389,12 +11534,7 @@ def main_searchlongrna(args):
         # Motif hit ID.
         hit_id = "%s:%s-%s(%s)%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
 
-        # Store transcript IDs with motif hits.
         tr_id = fh.chr_id
-        if tr_id in tr_ids_with_hits_dic:
-            tr_ids_with_hits_dic[tr_id] += 1
-        else:
-            tr_ids_with_hits_dic[tr_id] = 1
 
         annot = False
 
@@ -11445,6 +11585,50 @@ def main_searchlongrna(args):
                 assert False, "center position %i not in 5'UTR, CDS or 3'UTR of transcript ID %s (transcript length: %i)" %(center_pos, tr_id, len(tr_seqs_dic[tr_id]))
 
             motif_hit2annot_dic[hit_id] = annot
+
+        # Store transcript IDs with motif hits.
+        if args.goa_rna_region == 1:
+            if tr_id in tr_ids_with_hits_dic:
+                tr_ids_with_hits_dic[tr_id] += 1
+            else:
+                tr_ids_with_hits_dic[tr_id] = 1
+            if tr_id in rbp2tr_id_dic[rbp_id]:
+                rbp2tr_id_dic[rbp_id][tr_id] += 1
+            else:
+                rbp2tr_id_dic[rbp_id][tr_id] = 1
+            
+        elif args.goa_rna_region == 2:
+            if annot[0] == "3'UTR":
+                if tr_id in tr_ids_with_hits_dic:
+                    tr_ids_with_hits_dic[tr_id] += 1
+                else:
+                    tr_ids_with_hits_dic[tr_id] = 1
+                if tr_id in rbp2tr_id_dic[rbp_id]:
+                    rbp2tr_id_dic[rbp_id][tr_id] += 1
+                else:
+                    rbp2tr_id_dic[rbp_id][tr_id] = 1
+
+        elif args.goa_rna_region == 3:
+            if annot[0] == "CDS":
+                if tr_id in tr_ids_with_hits_dic:
+                    tr_ids_with_hits_dic[tr_id] += 1
+                else:
+                    tr_ids_with_hits_dic[tr_id] = 1
+                if tr_id in rbp2tr_id_dic[rbp_id]:
+                    rbp2tr_id_dic[rbp_id][tr_id] += 1
+                else:
+                    rbp2tr_id_dic[rbp_id][tr_id] = 1
+
+        elif args.goa_rna_region == 4:
+            if annot[0] == "5'UTR":
+                if tr_id in tr_ids_with_hits_dic:
+                    tr_ids_with_hits_dic[tr_id] += 1
+                else:
+                    tr_ids_with_hits_dic[tr_id] = 1
+                if tr_id in rbp2tr_id_dic[rbp_id]:
+                    rbp2tr_id_dic[rbp_id][tr_id] += 1
+                else:
+                    rbp2tr_id_dic[rbp_id][tr_id] = 1
 
         # Store motif hit as BED.
         if hit_id not in motif_reg_dic:
@@ -11500,13 +11684,36 @@ def main_searchlongrna(args):
     """
     GO enrichment analysis.
 
-    AALAMO.
     """
+
+    # Further filter tr_ids_with_hits_dic such that only transcript IDs with hits from all specified RBPs are selected for GOA.
+    if args.goa_only_cooc:
+        print("Filter transcripts by only keeping ones with hits from all specified RBPs ...")
+        print("# of transcripts with hits before filtering:", len(tr_ids_with_hits_dic))
+
+        assert len(search_rbps_dic) == len(loaded_rbps_dic), "number of search RBPs (%i) does not match number of loaded RBPs (%i)" %(len(search_rbps_dic), len(loaded_rbps_dic))
+
+        # Expected count.
+        exp_count = len(loaded_rbps_dic)
+        tids_to_remove = []
+
+        for tid in tr_ids_with_hits_dic:
+            tid_count = 0
+            for rbp_id in rbp2tr_id_dic:
+                if tid in rbp2tr_id_dic[rbp_id]:
+                    tid_count += 1
+            if tid_count < exp_count:
+                tids_to_remove.append(tid)
+        
+        for tid in tids_to_remove:
+            tr_ids_with_hits_dic.pop(tid)
+
+        print("# of transcripts with hits after filtering: ", len(tr_ids_with_hits_dic))
+
 
     goa_results_df = False
     goa_stats_dic = {}
     propagate_counts = True
-    goa_filter_purified = False
 
     if args.run_goa:
 
@@ -11535,11 +11742,19 @@ def main_searchlongrna(args):
         goa_stats_dic["goa_obo_mode"] = args.goa_obo_mode
         goa_stats_dic["propagate_counts"] = propagate_counts
         goa_stats_dic["excluded_terms"] = "-"
-        goa_stats_dic["excluded_terms"] = goa_filter_purified
+        goa_stats_dic["goa_only_cooc"] = args.goa_only_cooc
+        goa_stats_dic["goa_filter_purified"] = args.goa_filter_purified
 
         if tr_ids_with_hits_dic:  # If there are motif hits in transcript regions.
 
-            print("Hits on transcripts found. Running GOA on genes of transcripts with hits ... ")
+            if args.goa_rna_region == 1:
+                print("Hits on transcripts found. Running GOA on genes of transcripts with hits ... ")
+            elif args.goa_rna_region == 2:
+                print("Hits in 3'UTR regions found. Running GOA on genes of transcripts with 3'UTR hits ... ")
+            elif args.goa_rna_region == 3:
+                print("Hits in CDS regions found. Running GOA on genes of transcripts with CDS hits ... ")
+            elif args.goa_rna_region == 4:
+                print("Hits in 5'UTR regions found. Running GOA on genes of transcripts with 5'UTR hits ... ")
 
             local_gid2go_file = benchlib_path + "/content/ensembl_gene_id2go_ids.biomart.GRCh38.112.tsv.gz"
             local_obo_file = benchlib_path + "/content/go-basic.obo.gz"
@@ -11567,11 +11782,14 @@ def main_searchlongrna(args):
                                                         store_gene_names=True,
                                                         goa_obo_file=goa_obo_file)
 
+            print("# of enriched (i.e., with significantly higher concentration) GO terms: %i" %(goa_stats_dic["c_sig_go_terms_e"]))
+            print("# of purified (i.e., with significantly lower concentration) GO terms:  %i" %(goa_stats_dic["c_sig_go_terms_p"]))
+
             goa_results_df.to_csv(goa_results_tsv, sep="\t", index=False)
             print("")
 
         else:
-            print("No genes overlapping with --in regions. Skipping GOA ... ")
+            print("No transcripts with motif hits. Skipping GOA ... ")
 
 
     """
@@ -11663,10 +11881,11 @@ def main_searchlongrna(args):
                                         run_goa=args.run_goa,
                                         goa_results_df=goa_results_df,
                                         goa_stats_dic=goa_stats_dic,
-                                        goa_filter_purified=goa_filter_purified,
+                                        goa_filter_purified=args.goa_filter_purified,
+                                        goa_rna_region=args.goa_rna_region,
+                                        goa_only_cooc=args.goa_only_cooc,
                                         report_header=args.report_header,
                                         plots_subfolder=plots_subfolder)
-
 
     """
     Output parameter settings.
@@ -12801,7 +13020,7 @@ def main_compare(args):
         hid2mids_dic = {}
         mid2c_dic = {}
 
-        for idx, int_id in enumerate(int_ids):  # AALAMO
+        for idx, int_id in enumerate(int_ids):
             mid = method_ids[idx]
             for motif_stats in motif_stats_dic[int_id]:  # motif_stats instance of MotifStats object.
                 hid = motif_stats.hit_id

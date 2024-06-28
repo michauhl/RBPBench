@@ -244,7 +244,6 @@ def run_go_analysis(target_genes_dic, background_genes_dic,
         If True, use values of background_genes_dic (which are their gene names),
         instead of gene IDs in dataframe.
     
-    AALAMO
     """
 
     assert target_genes_dic, "No target genes provided"
@@ -356,67 +355,79 @@ def run_go_analysis(target_genes_dic, background_genes_dic,
         "p_corr": [],
         "enrichment": [],
         "depth": [],
+        "n_children": [],
         "n_genes": [],
         "n_study": [],
         "perc_genes": [],
         "study_genes": []
     }
 
+    stats_dic["c_sig_go_terms_e"] = 0
+    stats_dic["c_sig_go_terms_p"] = 0
+
     # Loop over significant results.
     for res in goea_results_all:
 
-        if res.p_fdr_bh < pval_thr: 
+        go_id = res.GO
 
-            go_id = res.GO
+        if res.p_fdr_bh > pval_thr:
+            continue
 
-            if go_id in excluded_terms:
-                continue
+        if go_id in excluded_terms:
+            continue
 
-            go_name = res.name
-            namespace = res.NS
-            class_name = ns2name_dic[namespace]
-            p_uncorrected = res.p_uncorrected
-            p_corrected = res.p_fdr_bh
-            study_count = res.study_count  # number of genes for this result.
-            study_items = res.study_items  # Gene names for this result.
-            study_n = res.study_n  # number target genes.
-            enrichment = res.enrichment  # e for enriched, p for purified.
-            go_depth = res.depth
+        go_n_children = len(res.goterm.get_all_children()) 
+        go_name = res.name
+        namespace = res.NS
+        class_name = ns2name_dic[namespace]
+        p_uncorrected = res.p_uncorrected
+        p_corrected = res.p_fdr_bh
+        study_count = res.study_count  # number of genes for this result.
+        study_items = res.study_items  # Gene names for this result.
+        study_n = res.study_n  # number target genes.
+        enrichment = res.enrichment  # e for enriched, p for purified.
+        go_depth = res.depth
 
-            # if filter_purified and enrichment == "p":
-            #     continue
+        # if filter_purified and enrichment == "p":
+        #     continue
 
-            perc_in_study = 0.0
-            if res.ratio_in_study[1] > 0:
-                # Rounded to 2 decimal places percentage.
-                perc_in_study = round((res.ratio_in_study[0] / res.ratio_in_study[1]) * 100, 2)
+        perc_in_study = 0.0
+        if res.ratio_in_study[1] > 0:
+            # Rounded to 2 decimal places percentage.
+            perc_in_study = round((res.ratio_in_study[0] / res.ratio_in_study[1]) * 100, 2)
 
-            p_uncorrected = round_to_n_significant_digits_v2(p_uncorrected, 4)
-            p_corrected = round_to_n_significant_digits_v2(p_corrected, 4)
+        p_uncorrected = round_to_n_significant_digits_v2(p_uncorrected, 4)
+        p_corrected = round_to_n_significant_digits_v2(p_corrected, 4)
 
-            gene_list = []
-            for gene_id in study_items:
-                gene_name = gene_id
-                if store_gene_names:
-                    if gene_id in gid2gn_dic:
-                        gene_name = gid2gn_dic[gene_id]
-                gene_list.append(gene_name)
+        gene_list = []
+        for gene_id in study_items:
+            gene_name = gene_id
+            if store_gene_names:
+                if gene_id in gid2gn_dic:
+                    gene_name = gid2gn_dic[gene_id]
+            gene_list.append(gene_name)
 
-            gene_list_str = ""
-            if len(study_items) > 0:
-                gene_list_str = ",".join(gene_list)
-            
-            results_dic["GO"].append(go_id)
-            results_dic["term"].append(go_name)
-            results_dic["class"].append(class_name)
-            results_dic["p"].append(p_uncorrected)
-            results_dic["p_corr"].append(p_corrected)
-            results_dic["enrichment"].append(enrichment)
-            results_dic["depth"].append(go_depth)
-            results_dic["n_genes"].append(study_count)
-            results_dic["n_study"].append(study_n)
-            results_dic["perc_genes"].append(perc_in_study)
-            results_dic["study_genes"].append(gene_list_str)
+        gene_list_str = ""
+        if len(study_items) > 0:
+            gene_list_str = ",".join(gene_list)
+        
+        results_dic["GO"].append(go_id)
+        results_dic["term"].append(go_name)
+        results_dic["class"].append(class_name)
+        results_dic["p"].append(p_uncorrected)
+        results_dic["p_corr"].append(p_corrected)
+        results_dic["enrichment"].append(enrichment)
+        results_dic["depth"].append(go_depth)
+        results_dic["n_children"].append(go_n_children)
+        results_dic["n_genes"].append(study_count)
+        results_dic["n_study"].append(study_n)
+        results_dic["perc_genes"].append(perc_in_study)
+        results_dic["study_genes"].append(gene_list_str)
+    
+        if enrichment == "e":
+            stats_dic["c_sig_go_terms_e"] += 1
+        elif enrichment == "p":
+            stats_dic["c_sig_go_terms_p"] += 1
         
     # Make dataframe out of results dictionary.
     goa_results_df = pd.DataFrame(results_dic)
@@ -531,10 +542,15 @@ def search_regex_in_seqs_dic(regex, seqs_dic,
         return "Invalid regex"
     
     hits_dic = {}
+    seq_c = 0
 
     if step_size_one:
 
         for seq_name, seq in seqs_dic.items():
+            seq_c += 1
+            if seq_c % 1000 == 0:
+                print(f"{seq_c} sequences scanned ... ")
+            
             seq_length = len(seq)
             for i in range(seq_length):
                 for match in re.finditer(regex, seq[i:], re.IGNORECASE if not case_sensitive else 0):
@@ -548,6 +564,10 @@ def search_regex_in_seqs_dic(regex, seqs_dic,
     else:
 
         for seq_name, seq in seqs_dic.items():
+            seq_c += 1
+            if seq_c % 1000 == 0:
+                print(f"{seq_c} sequences scanned ... ")
+            
             for match in re.finditer(regex, seq, re.IGNORECASE if not case_sensitive else 0):
                 if seq_name not in hits_dic:
                     hits_dic[seq_name] = [[match.start(), match.end(), match.group()]]
@@ -2734,7 +2754,7 @@ def get_region_annotations(overlap_annotations_bed,
         If True, the -a file is the motif hits BED file. In this case, the region ID
         has to be reconstructed from the BED region info.
         Format of reg_ids_dic key if motif_hits=True:
-        "chr1:10-15(+),motif_id"
+        "chr1:10-15(+)motif_id"
 
     reg_ids_dic:
         If set, compare genomic region IDs with IDs in dictionary. If region ID 
@@ -2752,7 +2772,7 @@ def get_region_annotations(overlap_annotations_bed,
     with open(overlap_annotations_bed) as f:
         for line in f:
             cols = line.strip().split("\t")
-            reg_id = cols[3]
+            reg_id = cols[3]  # format: chr8:90314134-90314381(+) (if motif_hits=False)
 
             # If motif_ids, construct new unique region_id from BED region info.
             if motif_hits:
@@ -2761,7 +2781,7 @@ def get_region_annotations(overlap_annotations_bed,
                 reg_e = cols[2]
                 reg_strand = cols[5]
                 # col[3] has format: "rbp_id,motif_id;1;method_id,data_id". Extract motif_id from this string.
-                motif_id = reg_id.split(":")[1].split(";")[0]  # AALAMO
+                motif_id = reg_id.split(":")[1].split(";")[0]
                 reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + reg_strand + ")" + motif_id
                 annot_col = 13  # These shift since motif hits BED contains additional (4) p-value and score columns.
                 c_ol_nt_col = 16
@@ -4531,7 +4551,7 @@ def read_in_fimo_results(fimo_tsv,
                                 strand=gen_motif_coords[3], 
                                 score=score, 
                                 motif_id=motif_id, 
-                                seq_name=seq_name, 
+                                seq_name=seq_name,
                                 pval=pval, 
                                 qval=qval,
                                 seq_s=motif_s+1,
@@ -4543,6 +4563,42 @@ def read_in_fimo_results(fimo_tsv,
     f.closed
 
     return fimo_hits_list
+
+
+################################################################################
+
+def get_target_genes_with_rbp_hits(reg2annot_dic, tr2gid_dic, region_rbp_binds_dic):
+    """
+    Get target genes dictionary with RBP hits.
+
+    reg2annot_dic format:
+    'chr20:62139082-62139128(-)': ['CDS', 'ENST00000367770.3'] 
+    'chr20:62139082-62139128(+)': ['intergenic', False] 
+
+    region_rbp_binds_dic format:
+    'chr20:62139082-62139128(-)': [False, False, False]
+    
+    >>> reg2annot_dic = {'chr1:1000-2000(+)': ['CDS', 'ENST6666'], 'chr1:1000-2000(-)': ['intergenic', False], 'chr1:5000-6000(-)': ['intron', 'ENST6667']}
+    >>> tr2gid_dic = {'ENST6666': 'GID1', 'ENST6667': 'GID2'}
+    >>> region_rbp_binds_dic = {'chr1:1000-2000(+)': [True, True, True], 'chr1:1000-2000(-)': [True, True, True], 'chr1:5000-6000(-)': [False, True, True]}
+    >>> get_target_genes_with_rbp_hits(reg2annot_dic, tr2gid_dic, region_rbp_binds_dic)
+    {'GID1': 1}
+
+    """
+
+    target_genes_dic = {}
+    for reg_id in region_rbp_binds_dic:
+        tr_id = reg2annot_dic[reg_id][1]
+        if tr_id:
+            # Check if region_rbp_binds_dic[reg_id] list has only True values.
+            if all(region_rbp_binds_dic[reg_id]):
+                gid = tr2gid_dic[tr_id]
+                if gid not in target_genes_dic:
+                    target_genes_dic[gid] = 1
+                else:
+                    target_genes_dic[gid] += 1
+
+    return target_genes_dic
 
 
 ################################################################################
@@ -6759,7 +6815,10 @@ def search_generate_html_report(df_pval, pval_cont_lll,
                                 run_goa=False,
                                 goa_results_df=False,
                                 goa_stats_dic=False,
+                                goa_max_child=None,
+                                goa_min_depth=None,
                                 goa_filter_purified=False,
+                                goa_only_cooc=False,
                                 plot_abs_paths=False,
                                 sort_js_mode=1,
                                 plotly_js_mode=1,
@@ -7707,17 +7766,30 @@ Only motifs with a pair count of >= %i appear in the plot.
         if isinstance(goa_results_df, pd.DataFrame) and not goa_results_df.empty:
             c_goa_results = len(goa_results_df)
 
-        filter_purified_str = " GO terms with significantly higher and lower concentration ([e,p]) in study group are shown."
+        filter_purified_info = " GO terms with significantly higher and lower concentration ([e,p]) in study group are shown."
+        filter_purified_info2 = "significant"
         if goa_filter_purified:
-            filter_purified_str = " Only GO terms with significantly higher concentration in study group are shown."
+            filter_purified_info = " Only GO terms with significantly higher concentration in study group are shown."
+            filter_purified_info2 = "significantly enriched"
+            c_goa_results = len(goa_results_df[goa_results_df["enrichment"] == "e"])
+        filter_further_info = ""
+        if goa_max_child is not None: 
+            filter_further_info += " Only GO terms with <= %i children are shown." %(goa_max_child)
+        if goa_min_depth is not None:
+            filter_further_info += " Only GO terms with >= %i depth are shown." %(goa_min_depth)
+        if filter_further_info:
+            filter_further_info += " Note that additional filters (children + depth) can result in empty table. For all significant GO terms (i.e., unfiltered results) check *goa_results.tsv* output table."
+        filter_only_cooc_info = ""
+        if goa_only_cooc:
+            filter_only_cooc_info = " Only target genes are considered which contain regions with motif hits from all specified RBPs."
 
         if c_goa_results > 0:
 
             mdtext += """
-**Table:** GO enrichment analysis results. # of significant GO terms found: %i. Filter p-value threshold (on corrected p-value) = %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
-%s
+**Table:** GO enrichment analysis results. # of %s GO terms found: %i. Filter p-value threshold (on corrected p-value) = %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
+%s %s %s
 
-""" %(c_goa_results, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"], filter_purified_str)
+""" %(filter_purified_info2, c_goa_results, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"], filter_only_cooc_info, filter_purified_info, filter_further_info)
 
             mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.9;">' + "\n"
             mdtext += "<thead>\n"
@@ -7728,6 +7800,7 @@ Only motifs with a pair count of >= %i appear in the plot.
             mdtext += "<th>p-value</th>\n"
             mdtext += "<th>[e,p]</th>\n"
             mdtext += "<th>Depth</th>\n"
+            mdtext += "<th># child</th>\n"
             mdtext += "<th># genes</th>\n"
             mdtext += "<th># study</th>\n"
             mdtext += "<th>% genes</th>\n"
@@ -7735,22 +7808,32 @@ Only motifs with a pair count of >= %i appear in the plot.
             mdtext += "</thead>\n"
             mdtext += "<tbody>\n"
 
-            for index, row in goa_results_df.iterrows():  # AALAMO
+            for index, row in goa_results_df.iterrows():
 
                 go_id = row['GO']
                 go_term = row['term']
                 go_class = row['class']
-                go_p = row['p']
+                # go_p = row['p']
                 go_p_corr = row['p_corr']
                 go_enrichment = row['enrichment']
                 go_depth = row['depth']
                 go_n_genes = row['n_genes']
                 go_n_study = row['n_study']
                 go_perc_genes = row['perc_genes']
+                go_n_children = row['n_children']
 
                 if goa_filter_purified:
                     if go_enrichment == "p":
                         continue
+
+                if goa_max_child is not None:
+                    if go_n_children > goa_max_child:
+                        continue
+                if goa_min_depth is not None:
+                    if go_depth < goa_min_depth:
+                        continue
+
+                # AALAMO
 
                 mdtext += '<tr>' + "\n"
                 mdtext += "<td>" + go_id + "</td>\n"
@@ -7759,6 +7842,7 @@ Only motifs with a pair count of >= %i appear in the plot.
                 mdtext += "<td>" + str(go_p_corr) + "</td>\n"
                 mdtext += "<td>" + go_enrichment + "</td>\n"
                 mdtext += "<td>" + str(go_depth) + "</td>\n"
+                mdtext += "<td>" + str(go_n_children) + "</td>\n"
                 mdtext += "<td>" + str(go_n_genes) + "</td>\n"
                 mdtext += "<td>" + str(go_n_study) + "</td>\n"
                 mdtext += "<td>" + str(go_perc_genes) + "</td>\n"
@@ -7775,6 +7859,7 @@ Only motifs with a pair count of >= %i appear in the plot.
             mdtext += "**p-value** -> multiple testing corrected (BH) p-value, "
             mdtext += "**[e,p]** -> e: enriched, i.e., GO term with significantly higher concentration, p: purified, GO term with significantly lower concentration), "
             mdtext += "**Depth** -> depth / level of GO term in GO hierarchy (the higher number, the more specific), "
+            mdtext += "**# child** -> number of GO term children, "
             mdtext += "**# genes** -> number of genes associated with GO term, "
             mdtext += "**# study** -> number of genes in study (i.e., target genes), "
             mdtext += "**% genes** -> percentage of study genes associated with GO term." + "\n"
@@ -7786,11 +7871,11 @@ Only motifs with a pair count of >= %i appear in the plot.
 
                 mdtext += """
 
-No significant GO terms found given p-value threshold of %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
+No %s GO terms found given p-value threshold of %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
 
 &nbsp;
 
-""" %(str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"])
+""" %(filter_purified_info2, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"])
 
             else:
 
@@ -8788,6 +8873,8 @@ def search_generate_html_motif_plots(search_rbps_dic,
                                      goa_results_df=False,
                                      goa_stats_dic=False,
                                      goa_filter_purified=False,
+                                     goa_rna_region=1,
+                                     goa_only_cooc=False,
                                      plots_subfolder="html_motif_plots"):
     """
     Create motif plots for selected RBPs.
@@ -8964,7 +9051,6 @@ and respective number of motif hits found in supplied %s regions.
     """
     GOA results on transcripts (underlying genes) with motif hits.
 
-    AALAMO
     """
 
     if run_goa:
@@ -8977,17 +9063,35 @@ and respective number of motif hits found in supplied %s regions.
         if isinstance(goa_results_df, pd.DataFrame) and not goa_results_df.empty:
             c_goa_results = len(goa_results_df)
 
-        filter_purified_str = " GO terms with significantly higher and lower concentration ([e,p]) in study group are shown."
+        filter_purified_info = "GO terms with significantly higher and lower concentration ([e,p]) in study group are shown."
+        filter_purified_info2 = "significant"
         if goa_filter_purified:
-            filter_purified_str = " Only GO terms with significantly higher concentration in study group are shown."
+            filter_purified_info = "Only GO terms with significantly higher concentration in study group are shown."
+            filter_purified_info2 = "significantly enriched"
+            c_goa_results = len(goa_results_df[goa_results_df["enrichment"] == "e"])
+
+        goa_rna_region_info = "transcripts"
+        if goa_rna_region == 1:
+            goa_rna_region_info = "transcripts"
+        elif goa_rna_region == 2:
+            goa_rna_region_info = "3'UTR regions"
+        elif goa_rna_region == 3:
+            goa_rna_region_info = "CDS regions"
+        elif goa_rna_region == 4:
+            goa_rna_region_info = "5'UTR regions"
+
+        goa_only_cooc_info = ""
+        if goa_only_cooc:
+            goa_only_cooc_info = " Only regions containing motif hits of all selected RBPs (including regex) are used for GO enrichment analysis." 
 
         if c_goa_results > 0:
 
             mdtext += """
-**Table:** GO enrichment analysis results for transcripts with motif hits, taking the corresponding genes for analysis. # of significant GO terms found: %i. Filter p-value threshold (on corrected p-value) = %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
+**Table:** GO enrichment analysis results for %s with motif hits, taking the corresponding genes for analysis. # of %s GO terms found: %i. Filter p-value threshold (on corrected p-value) = %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i. 
+%s
 %s
 
-""" %(c_goa_results, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"], filter_purified_str)
+""" %(goa_rna_region_info, filter_purified_info2, c_goa_results, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"], filter_purified_info, goa_only_cooc_info)
 
             mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.9;">' + "\n"
             mdtext += "<thead>\n"
@@ -9056,11 +9160,11 @@ and respective number of motif hits found in supplied %s regions.
 
                 mdtext += """
 
-No significant GO terms found given p-value threshold of %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
+No %s GO terms found given p-value threshold of %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
 
 &nbsp;
 
-""" %(str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"])
+""" %(filter_purified_info2, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"])
 
             else:
 
