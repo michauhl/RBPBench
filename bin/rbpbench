@@ -389,7 +389,7 @@ def setup_argument_parser():
                    dest="goa_only_cooc",
                    default = False,
                    action = "store_true",
-                   help = "Only look at regions in GO enrichment analysis which contain motifs by all specified RBPs (default: False)")
+                   help = "Only look at regions in GO enrichment analysis which contain motifs by all specified RBPs. By default, GO enrichment analysis is performed on all input regions (i.e., their underlying genes) (default: False)")
     p_s.add_argument("--goa-bg-gene-list",
                    dest="goa_bg_gene_list",
                    type=str,
@@ -1369,6 +1369,29 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.05,
                    help="GO enrichment analysis p-value threshold (applied on corrected p-value) (default: 0.05)")
+    p_scr.add_argument("--goa-only-cooc",
+                   dest="goa_only_cooc",
+                   default = False,
+                   action = "store_true",
+                   help = "Only look at regions in GO enrichment analysis which contain motifs by all specified RBPs. By default, GO enrichment analysis is performed on all input regions (i.e., their underlying genes) (default: False)")
+    p_scr.add_argument("--goa-bg-gene-list",
+                   dest="goa_bg_gene_list",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Supply file with gene IDs (one ID per row) to use as background gene list for GOA. NOTE that gene IDs need to be compatible with --gtf (default: False)")
+    p_scr.add_argument("--goa-max-child",
+                   dest="goa_max_child",
+                   type=int,
+                   metavar='int',
+                   default=None,
+                   help="Specify maximum number of children for a significant GO term to be reported in HTML table, e.g. --goa-max-child 100. This allows filtering out very broad terms (default: None)")
+    p_scr.add_argument("--goa-min-depth",
+                   dest="goa_min_depth",
+                   type=int,
+                   metavar='int',
+                   default=None,
+                   help="Specify minimum depth number for a significant GO term to be reported in HTML table, e.g. --goa-min-depth 5 (default: None)")
     p_scr.add_argument("--goa-filter-purified",
                    dest="goa_filter_purified",
                    default = False,
@@ -1596,6 +1619,18 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.05,
                    help="GO enrichment analysis p-value threshold (applied on corrected p-value) (default: 0.05)")
+    p_smr.add_argument("--goa-max-child",
+                   dest="goa_max_child",
+                   type=int,
+                   metavar='int',
+                   default=None,
+                   help="Specify maximum number of children for a significant GO term to be reported in HTML table, e.g. --goa-max-child 200. This allows filtering out very broad terms (default: None)")
+    p_smr.add_argument("--goa-min-depth",
+                   dest="goa_min_depth",
+                   type=int,
+                   metavar='int',
+                   default=None,
+                   help="Specify minimum depth number for a significant GO term to be reported in HTML table, e.g. --goa-min-depth 5 (default: None)")
     p_smr.add_argument("--goa-filter-purified",
                    dest="goa_filter_purified",
                    default = False,
@@ -3871,7 +3906,7 @@ def main_search(args):
 
             background_genes_dic = new_background_genes_dic
 
-            print("Filter target genes by new baground gene list ... ")
+            print("Filter target genes by new background gene list ... ")
             new_target_genes_dic = {}
             for gene_id in target_genes_dic:
                 if gene_id in background_genes_dic:
@@ -8479,6 +8514,10 @@ def main_searchrna(args):
             assert os.path.exists(args.goa_obo_file), "--goa-obo-file file \"%s\" not found" % (args.goa_obo_file)
         if args.goa_obo_file:
             assert args.goa_obo_mode == 3, "--goa-obo-file requires --goa-obo-mode 3"
+        if args.goa_max_child is not None:
+            assert args.goa_max_child >= 0, "set --goa-max-child expected to be >= 0"
+        if args.goa_min_depth is not None:
+            assert args.goa_min_depth >= 0, "set --goa-min-depth expected to be >= 0"
 
     # Is MEME >= v5 installed?
     if not args.meme_disable_check:
@@ -8987,6 +9026,11 @@ def main_searchrna(args):
     """
     GO enrichment analysis.
 
+    AALAMO
+    not there: reg2annot_dic
+    tr2gid_dic is there
+
+
     """
 
     goa_results_df = False
@@ -9008,6 +9052,60 @@ def main_searchrna(args):
                 gene_id = tr2gid_dic[tid]
                 target_genes_dic[gene_id] = 1
 
+        # If only target genes with RBP motifs hits for all RBPs should be considered.
+        if args.goa_only_cooc:
+
+            reg2annot_dic = {}
+            for reg_id in region_rbp_binds_dic:
+                # Region ID has format: ENST00000270722:686-752(+). Extract first part of ID.
+                tr_id = reg_id.split(":")[0]
+                reg2annot_dic[reg_id] = [False, tr_id]
+            
+            new_target_genes_dic = benchlib.get_target_genes_with_rbp_hits(reg2annot_dic, tr2gid_dic, region_rbp_binds_dic)
+
+            print("Keep only target genes containing regions with motif hits for all RBPs ... ")
+            print("# of target genes before filtering: %i" %(len(target_genes_dic)))
+            print("# of target genes after filtering:  %i" %(len(new_target_genes_dic)))
+
+            target_genes_dic = new_target_genes_dic
+
+
+        if args.goa_bg_gene_list:
+
+            print("Read in background genes from --goa-gb-gene-list ... ")
+
+            bg_gene_ids_dic = benchlib.read_ids_into_dic(args.goa_bg_gene_list,
+                                                    check_dic=False)
+
+            print("# of gene IDs read in: %i" %(len(bg_gene_ids_dic)))
+            print("Filter background genes by --gtf genes ... ")
+
+            new_background_genes_dic = {}
+            for gene_id in bg_gene_ids_dic:
+                if gene_id in gid2gio_dic:
+                    new_background_genes_dic[gene_id] = gid2gio_dic[gene_id].gene_name
+            
+            assert new_background_genes_dic, "given --goa-gb-gene-list gene IDs not found in --gtf. Please provide compatible --gtf and --goa-bg-gene-list files"
+
+            print("# of background genes before filtering: %i" %(len(background_genes_dic)))
+            print("# of background genes after filtering:  %i" %(len(new_background_genes_dic)))
+
+            background_genes_dic = new_background_genes_dic
+
+            print("Filter target genes by new background gene list ... ")
+            new_target_genes_dic = {}
+            for gene_id in target_genes_dic:
+                if gene_id in background_genes_dic:
+                    new_target_genes_dic[gene_id] = target_genes_dic[gene_id]
+            
+            print("# of target genes before filtering: %i" %(len(target_genes_dic)))
+            print("# of target genes after filtering:  %i" %(len(new_target_genes_dic)))
+
+            target_genes_dic = new_target_genes_dic
+
+            assert target_genes_dic, "no target genes left after filtering by --goa-bg-gene-list. Please provide compatible --in regions + gene list"
+
+
         print("")
         print("GOA enabled (--goa) ... ")
 
@@ -9018,6 +9116,9 @@ def main_searchrna(args):
         goa_stats_dic["propagate_counts"] = propagate_counts
         goa_stats_dic["excluded_terms"] = "-"
         goa_stats_dic["goa_filter_purified"] = args.goa_filter_purified
+        goa_stats_dic["goa_max_child"] = args.goa_max_child
+        goa_stats_dic["goa_min_depth"] = args.goa_min_depth
+        goa_stats_dic["goa_only_cooc"] = args.goa_only_cooc
 
         local_gid2go_file = benchlib_path + "/content/ensembl_gene_id2go_ids.biomart.GRCh38.112.tsv.gz"
         local_obo_file = benchlib_path + "/content/go-basic.obo.gz"
@@ -10232,7 +10333,10 @@ def main_searchrna(args):
                                     run_goa=args.run_goa,
                                     goa_results_df=goa_results_df,
                                     goa_stats_dic=goa_stats_dic,
+                                    goa_min_depth=args.goa_min_depth,
+                                    goa_max_child=args.goa_max_child,
                                     goa_filter_purified=args.goa_filter_purified,
+                                    goa_only_cooc=args.goa_only_cooc,
                                     html_report_out=html_report_out,
                                     plot_abs_paths=args.plot_abs_paths,
                                     sort_js_mode=args.sort_js_mode,
@@ -10357,6 +10461,10 @@ def main_searchlongrna(args):
             assert os.path.exists(args.goa_obo_file), "--goa-obo-file file \"%s\" not found" % (args.goa_obo_file)
         if args.goa_obo_file:
             assert args.goa_obo_mode == 3, "--goa-obo-file requires --goa-obo-mode 3"
+        if args.goa_max_child is not None:
+            assert args.goa_max_child >= 0, "set --goa-max-child expected to be >= 0"
+        if args.goa_min_depth is not None:
+            assert args.goa_min_depth >= 0, "set --goa-min-depth expected to be >= 0"
 
     # Is MEME >= v5 installed?
     if not args.meme_disable_check:
@@ -11743,6 +11851,8 @@ def main_searchlongrna(args):
         goa_stats_dic["propagate_counts"] = propagate_counts
         goa_stats_dic["excluded_terms"] = "-"
         goa_stats_dic["goa_only_cooc"] = args.goa_only_cooc
+        goa_stats_dic["goa_max_child"] = args.goa_max_child
+        goa_stats_dic["goa_min_depth"] = args.goa_min_depth
         goa_stats_dic["goa_filter_purified"] = args.goa_filter_purified
 
         if tr_ids_with_hits_dic:  # If there are motif hits in transcript regions.
@@ -11881,6 +11991,8 @@ def main_searchlongrna(args):
                                         run_goa=args.run_goa,
                                         goa_results_df=goa_results_df,
                                         goa_stats_dic=goa_stats_dic,
+                                        goa_min_depth=args.goa_min_depth,
+                                        goa_max_child=args.goa_max_child,
                                         goa_filter_purified=args.goa_filter_purified,
                                         goa_rna_region=args.goa_rna_region,
                                         goa_only_cooc=args.goa_only_cooc,

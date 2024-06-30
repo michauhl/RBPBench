@@ -7778,10 +7778,10 @@ Only motifs with a pair count of >= %i appear in the plot.
         if goa_min_depth is not None:
             filter_further_info += " Only GO terms with >= %i depth are shown." %(goa_min_depth)
         if filter_further_info:
-            filter_further_info += " Note that additional filters (children + depth) can result in empty table. For all significant GO terms (i.e., unfiltered results) check *goa_results.tsv* output table."
+            filter_further_info += " Note that additional filters (children + depth) can result in an empty table. For all significant GO terms (i.e., unfiltered results) check *goa_results.tsv* output table."
         filter_only_cooc_info = ""
         if goa_only_cooc:
-            filter_only_cooc_info = " Only target genes are considered which contain regions with motif hits from all specified RBPs."
+            filter_only_cooc_info = " Only target genes are considered which contain regions with motif hits from all specified RBPs (including regex)."
 
         if c_goa_results > 0:
 
@@ -8872,6 +8872,8 @@ def search_generate_html_motif_plots(search_rbps_dic,
                                      run_goa=False,
                                      goa_results_df=False,
                                      goa_stats_dic=False,
+                                     goa_min_depth=None,
+                                     goa_max_child=None,
                                      goa_filter_purified=False,
                                      goa_rna_region=1,
                                      goa_only_cooc=False,
@@ -9070,6 +9072,14 @@ and respective number of motif hits found in supplied %s regions.
             filter_purified_info2 = "significantly enriched"
             c_goa_results = len(goa_results_df[goa_results_df["enrichment"] == "e"])
 
+        filter_further_info = ""
+        if goa_max_child is not None: 
+            filter_further_info += " Only GO terms with <= %i children are shown." %(goa_max_child)
+        if goa_min_depth is not None:
+            filter_further_info += " Only GO terms with >= %i depth are shown." %(goa_min_depth)
+        if filter_further_info:
+            filter_further_info += " Note that additional filters (children + depth) can result in an empty table. For all significant GO terms (i.e., unfiltered results) check *goa_results.tsv* output table."
+
         goa_rna_region_info = "transcripts"
         if goa_rna_region == 1:
             goa_rna_region_info = "transcripts"
@@ -9082,16 +9092,15 @@ and respective number of motif hits found in supplied %s regions.
 
         goa_only_cooc_info = ""
         if goa_only_cooc:
-            goa_only_cooc_info = " Only regions containing motif hits of all selected RBPs (including regex) are used for GO enrichment analysis." 
+            goa_only_cooc_info = " Only target genes with motif hits from all specified RBPs (including regex) are considered." 
 
         if c_goa_results > 0:
 
             mdtext += """
 **Table:** GO enrichment analysis results for %s with motif hits, taking the corresponding genes for analysis. # of %s GO terms found: %i. Filter p-value threshold (on corrected p-value) = %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i. 
-%s
-%s
+%s %s %s
 
-""" %(goa_rna_region_info, filter_purified_info2, c_goa_results, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"], filter_purified_info, goa_only_cooc_info)
+""" %(goa_rna_region_info, filter_purified_info2, c_goa_results, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"], goa_only_cooc_info, filter_purified_info, filter_further_info)
 
             mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.9;">' + "\n"
             mdtext += "<thead>\n"
@@ -9102,6 +9111,7 @@ and respective number of motif hits found in supplied %s regions.
             mdtext += "<th>p-value</th>\n"
             mdtext += "<th>[e,p]</th>\n"
             mdtext += "<th>Depth</th>\n"
+            mdtext += "<th># child</th>\n"
             mdtext += "<th># genes</th>\n"
             mdtext += "<th># study</th>\n"
             mdtext += "<th>% genes</th>\n"
@@ -9121,9 +9131,16 @@ and respective number of motif hits found in supplied %s regions.
                 go_n_genes = row['n_genes']
                 go_n_study = row['n_study']
                 go_perc_genes = row['perc_genes']
+                go_n_children = row['n_children']
 
                 if goa_filter_purified:
                     if go_enrichment == "p":
+                        continue
+                if goa_max_child is not None:
+                    if go_n_children > goa_max_child:
+                        continue
+                if goa_min_depth is not None:
+                    if go_depth < goa_min_depth:
                         continue
 
                 mdtext += '<tr>' + "\n"
@@ -9133,6 +9150,7 @@ and respective number of motif hits found in supplied %s regions.
                 mdtext += "<td>" + str(go_p_corr) + "</td>\n"
                 mdtext += "<td>" + go_enrichment + "</td>\n"
                 mdtext += "<td>" + str(go_depth) + "</td>\n"
+                mdtext += "<td>" + str(go_n_children) + "</td>\n"
                 mdtext += "<td>" + str(go_n_genes) + "</td>\n"
                 mdtext += "<td>" + str(go_n_study) + "</td>\n"
                 mdtext += "<td>" + str(go_perc_genes) + "</td>\n"
@@ -9149,6 +9167,7 @@ and respective number of motif hits found in supplied %s regions.
             mdtext += "**p-value** -> multiple testing corrected (BH) p-value, "
             mdtext += "**[e,p]** -> e: enriched, i.e., GO term with significantly higher concentration, p: purified, GO term with significantly lower concentration), "
             mdtext += "**Depth** -> depth / level of GO term in GO hierarchy (the higher number, the more specific), "
+            mdtext += "**# child** -> number of GO term children, "
             mdtext += "**# genes** -> number of genes associated with GO term, "
             mdtext += "**# study** -> number of genes in study (i.e., target genes), "
             mdtext += "**% genes** -> percentage of study genes associated with GO term." + "\n"
