@@ -4996,7 +4996,7 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
 
     color_scale = create_color_scale(min_val, max_val, colors)
 
-    color_scale.insert(0, [0, "dimgray"])
+    color_scale.insert(0, [0, "dimgray"])  # lightgray ?
 
     # Set the color scale range according to the data (minimum 0 .. 1).
     zmin = min(0, df.min().min())
@@ -5281,7 +5281,8 @@ def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll, plo
 
 ################################################################################
 
-def get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic):
+def get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic,
+                             optimal_ordering=True):
     """
     Calculate co-occurrence matrices for plotting cosine similarities between datasets
     (more precisely between their gene list binary vectors).
@@ -5293,7 +5294,13 @@ def get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic):
     id2infos_dic:
         id2infos_dic[internal_id] = [rbp_id, data_id, method_id, motif_db_str, bed_file_path]
 
-
+    optimal_ordering:
+        If True, the linkage matrix will be reordered so that the distance between successive 
+        leaves is minimal. This results in a more intuitive tree structure when the data are 
+        visualized. defaults to False, because this algorithm can be slow, particularly on 
+        large datasets. See also the optimal_leaf_ordering function.
+        https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.hierarchy.linkage.html
+        
     """
 
     assert id2occ_list_dic, "id2lst_dic empty"
@@ -5329,7 +5336,7 @@ def get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic):
 
     # Perform hierarchical clustering.
     dist_matrix_condensed = dist_matrix[np.triu_indices(dist_matrix.shape[0], k=1)]
-    linkage_matrix = linkage(dist_matrix_condensed, method='average')
+    linkage_matrix = linkage(dist_matrix_condensed, method='average', optimal_ordering=optimal_ordering)
 
     # Calculate leaves order.
     leaves_order = leaves_list(linkage_matrix)
@@ -5503,6 +5510,7 @@ def batch_generate_html_report(dataset_ids_list,
                                add_motif_db_info=False,
                                fimo_pval=0.001,
                                motif_db_str="custom",
+                               heatmap_cluster_olo=False,
                                report_header=False,
                                plots_subfolder="html_report_plots"):
     """
@@ -6177,7 +6185,8 @@ No plot generated since < 4 datasets were provided.
 """
 
         # Get tables for plotting heatmap.
-        df_gene_cooc, gene_cooc_lll = get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic)
+        df_gene_cooc, gene_cooc_lll = get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic,
+                                                               optimal_ordering=heatmap_cluster_olo)
 
         cooc_plot_plotly =  "gene_occ_cooc_heatmap.plotly.html"
         cooc_plot_plotly_out = plots_out_folder + "/" + cooc_plot_plotly
@@ -6446,6 +6455,7 @@ is assigned to each input region. "intergenic" feature means none of the used GT
 
 def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic, 
                                 annot2color_dic, plot_out,
+                                same_y_scale=True,
                                 rbp_id=False):
     """
     Create mRNA region occupancy stacked line plot for rbp_id and associated 
@@ -6461,10 +6471,15 @@ def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic,
     """
 
     datasets = {}
+    max_pos_count = 0  # Get maximum positional count.
     if rbp_id and len(motif_ids_list) > 1:
         datasets[rbp_id] = mrna_reg_occ_dic[rbp_id]
+        for mrna_reg in mrna_reg_occ_dic[rbp_id]:
+            max_pos_count = max(max_pos_count, max(mrna_reg_occ_dic[rbp_id][mrna_reg]))
     for motif_id in motif_ids_list:
         datasets[motif_id] = mrna_reg_occ_dic[motif_id]
+        for mrna_reg in mrna_reg_occ_dic[motif_id]:
+            max_pos_count = max(max_pos_count, max(mrna_reg_occ_dic[motif_id][mrna_reg]))
 
     # Number of datasets
     num_datasets = len(datasets)
@@ -6480,7 +6495,7 @@ def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic,
     cds_color = annot2color_dic["CDS"]
     utr3color = annot2color_dic["3'UTR"]
 
-    # Plot each dataset
+    # Plot each dataset. label: rbp_id/motif_id, data: positional counts list for each mRNA region.
     for ax, (label, data) in zip(axs, datasets.items()):
 
         # Concatenate data for plotting
@@ -6492,6 +6507,10 @@ def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic,
         ax.fill_between(x_positions[len(data["5'UTR"]):len(data["5'UTR"]) + len(data["CDS"])+1], all_counts[len(data["5'UTR"]):len(data["5'UTR"]) + len(data["CDS"])+1], color=cds_color, alpha=1, zorder=3)
         ax.fill_between(x_positions[-len(data["3'UTR"]):], all_counts[-len(data["3'UTR"]):], color=utr3color, alpha=1, zorder=3)
         
+        if same_y_scale:
+            if max_pos_count > 0:
+                ax.set_ylim(0, max_pos_count)
+
         # Use dataset ID as y-axis label
         # label_y = label + ' motif coverage'
         ax.set_ylabel(label)

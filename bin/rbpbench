@@ -621,6 +621,11 @@ def setup_argument_parser():
                    metavar='int',
                    default=5,
                    help="K-mer size for comparative plots (default: 5)")
+    p_b.add_argument("--heatmap-cluster-olo",
+                   dest="heatmap_cluster_olo",
+                   default = False,
+                   action = "store_true",
+                   help="Enable optimal leave ordering for clustering gene region occupancy heatmap (default: False)")
     p_b.add_argument("--gtf",
                    dest="in_gtf",
                    type=str,
@@ -2446,7 +2451,7 @@ def main_search(args):
     print("# regions with invalid chr_id: ", reg_stats_dic["c_chr_filter"])
     print("# duplicated regions removed:  ", reg_stats_dic["c_dupl_filter"])
 
-    assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID filtering. If caused by invalid chr_id filtering, make sure chromosome IDs in --genome FASTA and --in BED files are compatible (i.e., \"chr1\" vs. \"1\" notation)"
+    assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID filtering. If caused by invalid chr_id filtering, make sure chromosome IDs in --genome FASTA and --in BED files are compatible (i.e., \"chr1\" vs. \"1\" notation). If --in regions are on transcripts, use rbpbench searchrna"
 
     """
     Guess chromosome ID style.
@@ -5762,6 +5767,7 @@ def main_batch(args):
                                             add_motif_db_info=add_motif_db_info,
                                             fimo_pval=args.fimo_pval,
                                             motif_db_str=motif_db_str,
+                                            heatmap_cluster_olo=args.heatmap_cluster_olo,
                                             report_header=args.report_header,
                                             plots_subfolder=plots_subfolder)
 
