@@ -5511,6 +5511,13 @@ def batch_generate_html_report(dataset_ids_list,
                                fimo_pval=0.001,
                                motif_db_str="custom",
                                heatmap_cluster_olo=False,
+                               run_goa=False,
+                               goa_results_df=False,
+                               goa_stats_dic=False,
+                               goa_max_child=None,
+                               goa_min_depth=None,
+                               goa_filter_purified=False,
+                               goa_only_cooc=False,
                                report_header=False,
                                plots_subfolder="html_report_plots"):
     """
@@ -5699,6 +5706,9 @@ by RBPBench (rbpbench batch --report):
             mdtext += "- [%s region annotations](#annot-plot-%i)\n" %(combined_id, data_idx)
             data_idx += 1
         # mdtext += "\n&nbsp;\n"
+
+    if run_goa:
+        mdtext += "- [GO enrichment analysis results](#goa-results)\n"
 
     mdtext += "\nUsed motif database = %s. FIMO p-value threshold (--fimo-pval) = %s.\n" %(motif_db_str, str(fimo_pval))
     mdtext += "\n&nbsp;\n"
@@ -6358,15 +6368,6 @@ No plot generated since < 4 datasets were provided.
 
 
 
-
-
-
-
-
-
-
-
-
     """
     Region annotation plots for each dataset.
 
@@ -6432,6 +6433,155 @@ is assigned to each input region. "intergenic" feature means none of the used GT
 &nbsp;
 
 """ %(combined_id, dataset_id_format, rbp_id, rbp_id)
+
+
+
+
+
+    """
+    GOA results.
+
+    """
+
+    if run_goa:
+
+        mdtext += """
+## GO enrichment analysis results ### {#goa-results}
+
+"""
+        c_goa_results = 0
+        if isinstance(goa_results_df, pd.DataFrame) and not goa_results_df.empty:
+            c_goa_results = len(goa_results_df)
+
+        filter_purified_info = " GO terms with significantly higher and lower concentration ([e,p]) in study group are shown."
+        filter_purified_info2 = "significant"
+        if goa_filter_purified:
+            filter_purified_info = " Only GO terms with significantly higher concentration in study group are shown."
+            filter_purified_info2 = "significantly enriched"
+            c_goa_results = len(goa_results_df[goa_results_df["enrichment"] == "e"])
+        filter_further_info = ""
+        if goa_max_child is not None: 
+            filter_further_info += " Only GO terms with <= %i children are shown." %(goa_max_child)
+        if goa_min_depth is not None:
+            filter_further_info += " Only GO terms with >= %i depth are shown." %(goa_min_depth)
+        if filter_further_info:
+            filter_further_info += " Note that additional filters (children + depth) can result in an empty table. For all significant GO terms (i.e., unfiltered results) check *goa_results.tsv* output table."
+        filter_only_cooc_info = "Only target genes are considered which are covered by regions from all input datasets."
+        if goa_only_cooc:
+            filter_only_cooc_info = " Only target genes are considered which are covered by regions with motif hits from all input datasets (--goa-only-cooc enabled)."
+
+        if c_goa_results > 0:
+
+            mdtext += """
+**Table:** GO enrichment analysis results. # of %s GO terms found: %i. Filter p-value threshold (on corrected p-value) = %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
+%s %s %s
+
+""" %(filter_purified_info2, c_goa_results, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"], filter_only_cooc_info, filter_purified_info, filter_further_info)
+
+            mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.9;">' + "\n"
+            mdtext += "<thead>\n"
+            mdtext += "<tr>\n"
+            mdtext += "<th>GO</th>\n"
+            mdtext += "<th>Term</th>\n"
+            mdtext += "<th>Class</th>\n"
+            mdtext += "<th>p-value</th>\n"
+            mdtext += "<th>[e,p]</th>\n"
+            mdtext += "<th>Depth</th>\n"
+            mdtext += "<th># child</th>\n"
+            mdtext += "<th># genes</th>\n"
+            mdtext += "<th># study</th>\n"
+            mdtext += "<th>% genes</th>\n"
+            mdtext += "</tr>\n"
+            mdtext += "</thead>\n"
+            mdtext += "<tbody>\n"
+
+            for index, row in goa_results_df.iterrows():
+
+                go_id = row['GO']
+                go_term = row['term']
+                go_class = row['class']
+                # go_p = row['p']
+                go_p_corr = row['p_corr']
+                go_enrichment = row['enrichment']
+                go_depth = row['depth']
+                go_n_genes = row['n_genes']
+                go_n_study = row['n_study']
+                go_perc_genes = row['perc_genes']
+                go_n_children = row['n_children']
+
+                if goa_filter_purified:
+                    if go_enrichment == "p":
+                        continue
+
+                if goa_max_child is not None:
+                    if go_n_children > goa_max_child:
+                        continue
+                if goa_min_depth is not None:
+                    if go_depth < goa_min_depth:
+                        continue
+
+                mdtext += '<tr>' + "\n"
+                mdtext += "<td>" + go_id + "</td>\n"
+                mdtext += "<td>" + go_term + "</td>\n"
+                mdtext += "<td>" + go_class + "</td>\n"
+                mdtext += "<td>" + str(go_p_corr) + "</td>\n"
+                mdtext += "<td>" + go_enrichment + "</td>\n"
+                mdtext += "<td>" + str(go_depth) + "</td>\n"
+                mdtext += "<td>" + str(go_n_children) + "</td>\n"
+                mdtext += "<td>" + str(go_n_genes) + "</td>\n"
+                mdtext += "<td>" + str(go_n_study) + "</td>\n"
+                mdtext += "<td>" + str(go_perc_genes) + "</td>\n"
+                mdtext += '</tr>' + "\n"
+
+            mdtext += '</tbody>' + "\n"
+            mdtext += '</table>' + "\n"
+            
+            mdtext += "\n&nbsp;\n&nbsp;\n"
+            mdtext += "\nColumn IDs have the following meanings: "
+            mdtext += "**GO** -> gene ontology (GO) ID, "
+            mdtext += "**Term** -> GO term / name, "
+            mdtext += "**Class** -> GO term class (biological_process, molecular_function, or cellular_component), "
+            mdtext += "**p-value** -> multiple testing corrected (BH) p-value, "
+            mdtext += "**[e,p]** -> e: enriched, i.e., GO term with significantly higher concentration, p: purified, GO term with significantly lower concentration), "
+            mdtext += "**Depth** -> depth / level of GO term in GO hierarchy (the higher number, the more specific), "
+            mdtext += "**# child** -> number of GO term children, "
+            mdtext += "**# genes** -> number of genes associated with GO term, "
+            mdtext += "**# study** -> number of genes in study (i.e., target genes), "
+            mdtext += "**% genes** -> percentage of study genes associated with GO term." + "\n"
+            mdtext += "\n&nbsp;\n"
+
+        else:
+
+            if "c_target_genes_goa" in goa_stats_dic:
+
+                mdtext += """
+
+No %s GO terms found given p-value threshold of %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
+
+&nbsp;
+
+""" %(filter_purified_info2, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"])
+
+            else:
+
+                mdtext += """
+
+No significant GO terms found due to no GO IDs associated with target genes. # of initial target genes (i.e., genes overlapping with --in regions): %i.
+
+&nbsp;
+
+""" %(goa_stats_dic["c_target_genes_pre_filter"])
+
+
+
+
+
+
+
+
+
+
+
 
 
 
