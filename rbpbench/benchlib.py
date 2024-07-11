@@ -5481,6 +5481,230 @@ def create_gene_occ_cooc_plot_plotly(df_gene_occ, gene_cooc_lll, plot_out,
 
 ################################################################################
 
+def goa_generate_html_report(goa_results_df, goa_stats_dic,
+                             out_folder, benchlib_path,
+                             goa_min_depth=None,
+                             goa_max_child=None,
+                             goa_filter_purified=False,
+                             report_header=False,
+                             sort_js_mode=1,
+                             html_report_out="goa_results.rbpbench_goa.html"):
+    """
+    Generate GOA results HTML report (rbpbench goa mode).
+
+    """
+
+    html_out = out_folder + "/" + "goa_results.rbpbench_goa.html"
+    md_out = out_folder + "/" + "goa_results.rbpbench_goa.md"
+    if html_report_out:
+        html_out = html_report_out
+
+    report_header_info = ""
+    if report_header:
+        report_header_info = "RBPBench "
+
+    """
+    Setup sorttable.js to make tables in HTML sortable.
+
+    """
+    sorttable_js_path = benchlib_path + "/content/sorttable.js"
+    assert os.path.exists(sorttable_js_path), "sorttable.js not at %s" %(sorttable_js_path)
+    sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    if sort_js_mode == 2:
+        shutil.copy(sorttable_js_path, plots_out_folder)
+        sorttable_js_path = plots_folder + "/sorttable.js"
+        sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    elif sort_js_mode == 3:
+        js_code = read_file_content_into_str_var(sorttable_js_path)
+        sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
+
+    # HTML head section.
+    html_head = """<!DOCTYPE html>
+<html>
+<head>
+<title>RBPBench - GO Enrichment Analysis Report</title>
+
+<style>
+    th, td {
+        border: 1px solid black;
+        padding: 8px;
+        text-align: center;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+    .page {
+        page-break-after: always;
+    }
+</style>
+
+</head>
+<body>
+"""
+
+    # HTML tail section.
+    html_tail = """
+%s
+</body>
+</html>
+""" %(sorttable_js_html)
+
+    # Markdown part.
+    mdtext = """
+
+# %sGO enrichment analysis (GOA) report
+
+List of available statistics and plots generated
+by RBPBench (rbpbench goa):
+
+- [GO enrichment analysis results](#goa-results)""" %(report_header_info)
+    mdtext += "\n"
+    mdtext += "\n&nbsp;\n"
+
+
+    # AALAMO
+    mdtext += """
+## GO enrichment analysis results ### {#goa-results}
+
+"""
+    c_goa_results = 0
+    if isinstance(goa_results_df, pd.DataFrame) and not goa_results_df.empty:
+        c_goa_results = len(goa_results_df)
+
+    filter_purified_info = " GO terms with significantly higher and lower concentration ([e,p]) in study group are shown."
+    filter_purified_info2 = "significant"
+    if goa_filter_purified:
+        filter_purified_info = " Only GO terms with significantly higher concentration in study group are shown."
+        filter_purified_info2 = "significantly enriched"
+        c_goa_results = len(goa_results_df[goa_results_df["enrichment"] == "e"])
+    filter_further_info = ""
+    if goa_max_child is not None: 
+        filter_further_info += " Only GO terms with <= %i children are shown." %(goa_max_child)
+    if goa_min_depth is not None:
+        filter_further_info += " Only GO terms with >= %i depth are shown." %(goa_min_depth)
+    if filter_further_info:
+        filter_further_info += " Note that additional filters (children + depth) can result in an empty table. For all significant GO terms (i.e., unfiltered results) check *goa_results.tsv* output table."
+
+    if c_goa_results > 0:
+
+        mdtext += """
+**Table:** GO enrichment analysis results. # of %s GO terms found: %i. Filter p-value threshold (on corrected p-value) = %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
+%s %s
+
+""" %(filter_purified_info2, c_goa_results, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"], filter_purified_info, filter_further_info)
+
+        mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.9;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>GO</th>\n"
+        mdtext += "<th>Term</th>\n"
+        mdtext += "<th>Class</th>\n"
+        mdtext += "<th>p-value</th>\n"
+        mdtext += "<th>[e,p]</th>\n"
+        mdtext += "<th>Depth</th>\n"
+        mdtext += "<th># child</th>\n"
+        mdtext += "<th># genes</th>\n"
+        mdtext += "<th># study</th>\n"
+        mdtext += "<th>% genes</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
+
+        for index, row in goa_results_df.iterrows():
+
+            go_id = row['GO']
+            go_term = row['term']
+            go_class = row['class']
+            # go_p = row['p']
+            go_p_corr = row['p_corr']
+            go_enrichment = row['enrichment']
+            go_depth = row['depth']
+            go_n_genes = row['n_genes']
+            go_n_study = row['n_study']
+            go_perc_genes = row['perc_genes']
+            go_n_children = row['n_children']
+
+            if goa_filter_purified:
+                if go_enrichment == "p":
+                    continue
+
+            if goa_max_child is not None:
+                if go_n_children > goa_max_child:
+                    continue
+            if goa_min_depth is not None:
+                if go_depth < goa_min_depth:
+                    continue
+
+            mdtext += '<tr>' + "\n"
+            mdtext += "<td>" + go_id + "</td>\n"
+            mdtext += "<td>" + go_term + "</td>\n"
+            mdtext += "<td>" + go_class + "</td>\n"
+            mdtext += "<td>" + str(go_p_corr) + "</td>\n"
+            mdtext += "<td>" + go_enrichment + "</td>\n"
+            mdtext += "<td>" + str(go_depth) + "</td>\n"
+            mdtext += "<td>" + str(go_n_children) + "</td>\n"
+            mdtext += "<td>" + str(go_n_genes) + "</td>\n"
+            mdtext += "<td>" + str(go_n_study) + "</td>\n"
+            mdtext += "<td>" + str(go_perc_genes) + "</td>\n"
+            mdtext += '</tr>' + "\n"
+
+        mdtext += '</tbody>' + "\n"
+        mdtext += '</table>' + "\n"
+        
+        mdtext += "\n&nbsp;\n&nbsp;\n"
+        mdtext += "\nColumn IDs have the following meanings: "
+        mdtext += "**GO** -> gene ontology (GO) ID, "
+        mdtext += "**Term** -> GO term / name, "
+        mdtext += "**Class** -> GO term class (biological_process, molecular_function, or cellular_component), "
+        mdtext += "**p-value** -> multiple testing corrected (BH) p-value, "
+        mdtext += "**[e,p]** -> e: enriched, i.e., GO term with significantly higher concentration, p: purified, GO term with significantly lower concentration), "
+        mdtext += "**Depth** -> depth / level of GO term in GO hierarchy (the higher number, the more specific), "
+        mdtext += "**# child** -> number of GO term children, "
+        mdtext += "**# genes** -> number of genes associated with GO term, "
+        mdtext += "**# study** -> number of genes in study (i.e., target genes), "
+        mdtext += "**% genes** -> percentage of study genes associated with GO term." + "\n"
+        mdtext += "\n&nbsp;\n"
+
+    else:
+
+        if "c_target_genes_goa" in goa_stats_dic:
+
+            mdtext += """
+
+No %s GO terms found given p-value threshold of %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
+
+&nbsp;
+
+""" %(filter_purified_info2, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"])
+
+        else:
+
+            mdtext += """
+
+No significant GO terms found due to no GO IDs associated with target genes. # of initial target genes (i.e., genes overlapping with --in regions): %i.
+
+&nbsp;
+
+""" %(goa_stats_dic["c_target_genes_pre_filter"])
+
+    # Convert mdtext to html.
+    md2html = markdown(mdtext, extensions=['attr_list', 'tables'])
+
+    # OUTMD = open(md_out,"w")
+    # OUTMD.write("%s\n" %(mdtext))
+    # OUTMD.close()
+
+    html_content = html_head + md2html + html_tail
+
+    OUTHTML = open(html_out,"w")
+    OUTHTML.write("%s\n" %(html_content))
+    OUTHTML.close()
+
+
+
+
+################################################################################
+
 def batch_generate_html_report(dataset_ids_list, 
                                kmer_list,
                                kmer_freqs_ll,
@@ -6575,18 +6799,6 @@ No significant GO terms found due to no GO IDs associated with target genes. # o
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
     # Convert mdtext to html.
     md2html = markdown(mdtext, extensions=['attr_list', 'tables'])
 
@@ -6599,6 +6811,9 @@ No significant GO terms found due to no GO IDs associated with target genes. # o
     OUTHTML = open(html_out,"w")
     OUTHTML.write("%s\n" %(html_content))
     OUTHTML.close()
+
+
+
 
 
 ################################################################################
