@@ -2306,6 +2306,8 @@ def get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e,
 
 def get_transcript_sequences_from_gtf(tid2tio_dic, in_genome_fasta,
                                       tr_ids_dic=False,
+                                      dna=True,
+                                      all_uc=True,
                                       tmp_out_folder=False):
     """
     Given tid2tio_dic, extract transcript sequences from genome FASTA file.
@@ -2383,8 +2385,8 @@ def get_transcript_sequences_from_gtf(tid2tio_dic, in_genome_fasta,
                                      ignore_errors=False)
 
     exon_seqs_dic = read_fasta_into_dic(tmp_fa,
-                                        dna=True,
-                                        all_uc=True,
+                                        dna=dna,
+                                        all_uc=all_uc,
                                         skip_n_seqs=False)
 
     """
