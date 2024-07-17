@@ -866,6 +866,47 @@ def closest_dist_motif_pos_lists(l1, l2):
 
 ################################################################################
 
+def run_di_nt_shuffling(seqs_fa, out_fa,
+                        kmer_size=2,
+                        params="-dna",
+                        error_check=True,
+                        seed=None):
+    """
+    
+    Do di-nucleotide (kmer_size-nt) shuffling of FASTA sequences in seqs_fa. 
+    Output shuffled sequences to out_fa.
+
+    https://meme-suite.org/meme/doc/fasta-shuffle-letters.html
+
+    fasta-shuffle-letters [options] <sequence file> [<output file>]
+
+    -kmer 2
+    -dna
+    -tag	The name of the sequence will have text appended to it.	
+            default: The name of the sequence will have "_shuf" appended to it.
+    -seed
+            
+    """
+
+    assert is_tool("fasta-shuffle-letters"), "fasta-shuffle-letters not in PATH. MEME suite (v5) not installed?"
+
+    params += " -kmer %s " %(str(kmer_size))
+
+    if seed is not None:
+        params += " -seed %s " %(str(seed))
+
+    check_cmd = "fasta-shuffle-letters " + params + " " + seqs_fa + " " + out_fa
+    output = subprocess.getoutput(check_cmd)
+
+    if error_check:
+        error = False
+        if output:
+            error = True
+        assert error == False, "fasta-shuffle-letters is complaining:\n%s\n%s" %(check_cmd, output)
+
+
+################################################################################
+
 def make_contingency_table_2x2_v2(region_labels_dic, idx1, idx2,
                                   rid2rbpidx2hcp_dic,
                                   max_motif_dist=50):
@@ -3696,6 +3737,264 @@ def bed_check_ids_output_bed(in_bed, out_bed,
     OUTBED.close()
 
     return bed_reg_dic
+
+
+################################################################################
+
+def merge_files(files_list, out_file):
+    """
+    Merge list of files into one output file.
+
+    """
+    assert files_list, "given files_list is empty"
+    # Delete out_file if exists.
+    if os.path.exists(out_file):
+        os.remove(out_file)
+    for f in files_list:
+        assert os.path.isfile(f), "list file \"%s\" not found" % (f)
+        assert f != out_file, "cat does not like to cat file into same file (%s)" %(check_cmd)
+        check_cmd = "cat " + f + " >> " + out_file
+        output = subprocess.getoutput(check_cmd)
+        error = False
+        if output:
+            error = True
+        assert error == False, "cat did not like your input (in_file: %s, out_file: %s):\n%s" %(f, out_file, output)
+
+
+################################################################################
+
+def bed_generate_random_negatives(in_bed, chr_sizes_file, out_bed,
+                                  incl_bed=False,
+                                  excl_bed=False,
+                                  allow_overlaps=False,
+                                  seed=None):
+    """
+    Shuffle given in_bed, generating random negative regions. Optionally,
+    the regions to extract negatives from can be controlled by incl_bed
+    and excl_bed.
+
+    in_bed:
+        .bed file containing regions to shuffle, i.e., generate same number
+        of random negatives (with same size distribution too)
+    chr_sizes_file:
+        File that stores chromosome IDs and their sizes
+    out_bed:
+        Output random negative regions in out_bed
+    incl_bed:
+        Regions from which to extract random negatives
+    excl_bed:
+        Regions from which no random negatives should be extracted
+    allow_overlaps:
+        Allow random negatives to overlap with each other
+
+    Returns:
+    Function returns True if no error occured.
+    If loci error occured, function returns False.
+    Any other error will throw an assertion error.
+    If it is not possible to get the number of random negatives with the given
+    restrictions, bedtools shuffle will throw the following error:
+    Error, line 3: tried 1000 potential loci for entry, but could not avoid
+    excluded regions.  Ignoring entry and moving on.
+    This error will be thrown for every failed attempt to find a random
+    negative for a certain positive instance.
+
+
+    Tool:    bedtools shuffle (aka shuffleBed)
+    Version: v2.31.1
+    Summary: Randomly permute the locations of a feature file among a genome.
+
+    Usage:   bedtools shuffle [OPTIONS] -i <bed/gff/vcf> -g <genome>
+
+    Options: 
+        -excl	A BED/GFF/VCF file of coordinates in which features in -i
+            should not be placed (e.g. gaps.bed).
+
+        -incl	Instead of randomly placing features in a genome, the -incl
+            options defines a BED/GFF/VCF file of coordinates in which 
+            features in -i should be randomly placed (e.g. genes.bed). 
+            Larger -incl intervals will contain more shuffled regions. 
+            This method DISABLES -chromFirst. 
+        -chrom	Keep features in -i on the same chromosome.
+            - By default, the chrom and position are randomly chosen.
+            - NOTE: Forces use of -chromFirst (see below).
+
+        -seed	Supply an integer seed for the shuffling.
+            - By default, the seed is chosen automatically.
+            - (INTEGER)
+
+        -f	Maximum overlap (as a fraction of the -i feature) with an -excl
+            feature that is tolerated before searching for a new, 
+            randomized locus. For example, -f 0.10 allows up to 10%
+            of a randomized feature to overlap with a given feature
+            in the -excl file. **Cannot be used with -incl file.**
+            - Default is 1E-9 (i.e., 1bp).
+            - FLOAT (e.g. 0.50)
+
+        -chromFirst	
+            Instead of choosing a position randomly among the entire
+            genome (the default), first choose a chrom randomly, and then
+            choose a random start coordinate on that chrom.  This leads
+            to features being ~uniformly distributed among the chroms,
+            as opposed to features being distribute as a function of chrom size.
+
+        -bedpe	Indicate that the A file is in BEDPE format.
+
+        -maxTries	
+            Max. number of attempts to find a home for a shuffled interval
+            in the presence of -incl or -excl.
+            Default = 1000.
+        -noOverlapping	
+            Don't allow shuffled intervals to overlap.
+        -allowBeyondChromEnd	
+            Allow shuffled intervals to be relocated to a position
+            in which the entire original interval cannot fit w/o exceeding
+            the end of the chromosome.  In this case, the end coordinate of the
+            shuffled interval will be set to the chromosome's length.
+            By default, an interval's original length must be fully-contained
+            within the chromosome.
+
+    """
+    # Check for bedtools.
+    assert is_tool("bedtools"), "bedtools not in PATH"
+    # Construct call.
+    check_cmd = "bedtools shuffle "
+    if excl_bed:
+        check_cmd = check_cmd + "-excl " + excl_bed + " "
+    if incl_bed:
+        check_cmd = check_cmd + "-incl " + incl_bed + " "
+    if not allow_overlaps:
+        check_cmd = check_cmd + "-noOverlapping "
+    if seed is not None:
+        check_cmd = check_cmd + "-seed " + str(seed) + " "
+    check_cmd = check_cmd + "-i " + in_bed + " -g " + chr_sizes_file + " > " + out_bed
+    output = subprocess.getoutput(check_cmd)
+    error = False
+    if output:
+        error = True
+    # Look for "tried 1000 potential loci" error.
+    if error:
+        if re.search("potential loci", output):
+            print("WARNING: number of extracted random negatives < requested number")
+            return False
+        else:
+            assert False, "bedtools shuffle is complaining:\n%s\n%s" %(check_cmd, output)
+    else:
+        return True
+
+
+################################################################################
+
+def output_chromosome_lengths_file(len_dic, out_file,
+                                   ids2print_dic=None):
+    """
+    Output chromosome lengths file with format:
+    sequence_ID<tab>sequence_length
+    
+    """
+    LOUT = open(out_file, "w")
+    c_pr = 0
+    for seq_id in len_dic:
+        if ids2print_dic is not None:
+            if seq_id in ids2print_dic:
+                c_pr += 1
+                LOUT.write("%s\t%i\n" %(seq_id, len_dic[seq_id]))
+        else:
+            c_pr += 1
+            LOUT.write("%s\t%i\n" %(seq_id, len_dic[seq_id]))
+    LOUT.close()
+    assert c_pr, "nothing was printed out"
+
+
+################################################################################
+
+def genome_fasta_get_chr_sizes_file(in_genome_fa, out_chr_sizes_file,
+                                    check_ids=True,
+                                    seq_len_dic=None):
+    """
+    Extract sequence names and lengths in format:
+    seq_id<tab>seq_len
+
+    >>> test_fa = "test_data/test.fa"
+    >>> exp_chr_len_file = "test_data/test.fa.chr_len.exp.txt"
+    >>> out_chr_len_file = "test_data/test.fa.chr_len.tmp.txt"
+    >>> genome_fasta_get_chr_sizes_file(test_fa, out_chr_len_file)
+    >>> diff_two_files_identical(out_chr_len_file, exp_chr_len_file)
+
+    AALAMO
+
+    """
+
+    seq_id = "id"
+    seq_len = 0
+    seen_ids_dic = {}
+
+    OUTCHRLEN = open(out_chr_sizes_file, "w")
+
+    with open(in_genome_fa) as f:
+        for line in f:
+            if re.search(">.+", line):
+                m = re.search(">(.+)", line)
+                new_id = m.group(1)
+                if check_ids:
+                    assert new_id not in seen_ids_dic, "non-unique sequence ID \"%s\" found in --in genome FASTA file. Please provide unique sequence IDs" %(new_id)
+                seen_ids_dic[new_id] = 1
+                if seq_len:
+                    OUTCHRLEN.write("%s\t%i\n" %(seq_id, seq_len))
+                    if seq_len_dic is not None:
+                        seq_len_dic[seq_id] = seq_len
+                seq_len = 0
+                seq_id = new_id
+            else:
+                seq_len += len(line.strip())
+    f.closed
+
+    # Print last sequence length.
+    if seq_len:
+        OUTCHRLEN.write("%s\t%i\n" %(seq_id, seq_len))
+        if seq_len_dic is not None:
+            seq_len_dic[seq_id] = seq_len
+
+    OUTCHRLEN.close()
+
+
+################################################################################
+
+def genome_fasta_get_chr_sizes(in_genome_fa,
+                               check_ids=True):
+    """
+    Extract sequence names and lengths and return dictionary with
+    seq_id -> seq_len mapping.
+
+    >>> test_fa = "test_data/test.fa"
+    >>> genome_fasta_get_chr_sizes(test_fa)
+    {'seq1': 12, 'seq2': 20}
+    
+    """
+
+    seq_len_dic = {}
+    seq_id = "id"
+    seq_len = 0
+
+    with open(in_genome_fa) as f:
+        for line in f:
+            if re.search(">.+", line):
+                m = re.search(">(.+)", line)
+                new_id = m.group(1)
+                if check_ids:
+                    assert new_id not in seq_len_dic, "non-unique sequence ID \"%s\" found in --in genome FASTA file. Please provide unique sequence IDs" %(new_id)
+                if seq_len:
+                    seq_len_dic[seq_id] = seq_len
+                seq_len = 0
+                seq_id = new_id
+            else:
+                seq_len += len(line.strip())
+    f.closed
+
+    # Get last sequence length.
+    if seq_len:
+        seq_len_dic[seq_id] = seq_len
+
+    return seq_len_dic
 
 
 ################################################################################

@@ -182,12 +182,21 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
-    p_s.add_argument("--fimo-nt-freqs",
-                   dest="fimo_nt_freqs",
+    p_s.add_argument("--fimo-ntf-file",
+                   dest="fimo_user_ntf_file",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file optimized for human transcripts)")
+                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file, define which with --fimo-set-freqs)")
+    p_s.add_argument("--fimo-ntf-mode",
+                   dest="fimo_ntf_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) (default: 1)")
+
+
+
     p_s.add_argument("--fimo-pval",
                    dest="fimo_pval",
                    type=float,
@@ -570,12 +579,18 @@ def setup_argument_parser():
                    metavar='int',
                    default=20,
                    help="Set maximum motif distance for regex-RBP co-occurrence statistic in HTML report (default: 20)")
-    p_b.add_argument("--fimo-nt-freqs",
-                   dest="fimo_nt_freqs",
+    p_b.add_argument("--fimo-ntf-file",
+                   dest="fimo_user_ntf_file",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file optimized for human transcripts)")
+                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file, define which with --fimo-set-freqs)")
+    p_b.add_argument("--fimo-ntf-mode",
+                   dest="fimo_ntf_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) (default: 1)")
     p_b.add_argument("--fimo-pval",
                    dest="fimo_pval",
                    type=float,
@@ -842,12 +857,18 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
-    p_ss.add_argument("--fimo-nt-freqs",
-                   dest="fimo_nt_freqs",
+    p_ss.add_argument("--fimo-ntf-file",
+                   dest="fimo_user_ntf_file",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file optimized for human transcripts)")
+                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file, define which with --fimo-set-freqs)")
+    p_ss.add_argument("--fimo-ntf-mode",
+                   dest="fimo_ntf_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) (default: 1)")
     p_ss.add_argument("--fimo-pval",
                    dest="fimo_pval",
                    type=float,
@@ -1085,12 +1106,18 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
-    p_sl.add_argument("--fimo-nt-freqs",
-                   dest="fimo_nt_freqs",
+    p_sl.add_argument("--fimo-ntf-file",
+                   dest="fimo_user_ntf_file",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file optimized for human transcripts)")
+                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file, define which with --fimo-set-freqs)")
+    p_sl.add_argument("--fimo-ntf-mode",
+                   dest="fimo_ntf_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) (default: 1)")
     p_sl.add_argument("--fimo-pval",
                    dest="fimo_pval",
                    type=float,
@@ -1326,12 +1353,18 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
-    p_scr.add_argument("--fimo-nt-freqs",
-                   dest="fimo_nt_freqs",
+    p_scr.add_argument("--fimo-ntf-file",
+                   dest="fimo_user_ntf_file",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file optimized for human transcripts)")
+                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file, define which with --fimo-set-freqs)")
+    p_scr.add_argument("--fimo-ntf-mode",
+                   dest="fimo_ntf_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) (default: 1)")
     p_scr.add_argument("--fimo-pval",
                    dest="fimo_pval",
                    type=float,
@@ -1629,12 +1662,18 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
-    p_smr.add_argument("--fimo-nt-freqs",
-                   dest="fimo_nt_freqs",
+    p_smr.add_argument("--fimo-ntf-file",
+                   dest="fimo_user_ntf_file",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file optimized for human transcripts)")
+                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file, define which with --fimo-set-freqs)")
+    p_smr.add_argument("--fimo-ntf-mode",
+                   dest="fimo_ntf_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) (default: 1)")
     p_smr.add_argument("--fimo-pval",
                    dest="fimo_pval",
                    type=float,
@@ -1749,10 +1788,243 @@ def setup_argument_parser():
                    help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to plots output folder. 3: include .js code in HTML (default: 1)")
 
 
+
+
+
+
+
+
+
+
+
+    """
+    Check for enriched motifs mode.
+    
+
+    AALAMO
+    """
+    p_em = subparsers.add_parser('enmo',
+                                help='Check for enriched motifs in input sites')
+    p_em.set_defaults(which='enmo')
+    # Add required arguments group.
+    p_emm = p_em.add_argument_group("required arguments")
+    # Required arguments for search.
+    p_emm.add_argument("--in",
+                   dest="in_sites",
+                   type=str,
+                   metavar='str',
+                   required=True,
+                   help="Genomic or transcript regions file in BED format. Use these regions together with a generated set of background regions to check for enriched motifs")
+    p_emm.add_argument("--rbps",
+                   dest="list_rbps",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   required=True,
+                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme-xml and/or --user-cm. To search only for --regex, set --rbps REGEX")
+    p_emm.add_argument("--gtf",
+                   dest="in_gtf",
+                   type=str,
+                   metavar='str',
+                   required = True,
+                   help = "Input GTF file with genomic region annotations. Used to extract gene or transcript background regions, taking the most prominent transcript regions. Note that only features on standard chromosomes (1,2,..,X,Y,MT) are currently used for annotation")
+    p_emm.add_argument("--genome",
+                   dest="in_genome",
+                   type=str,
+                   metavar='str',
+                   required = True,
+                   help = "Genomic sequences file (currently supported formats: FASTA)")
+    p_emm.add_argument("--out",
+                   dest="out_folder",
+                   type=str,
+                   metavar='str',
+                   required=True,
+                   help="Results output folder")
+
+
+    # Optional arguments for enmo.
+    p_em.add_argument("--user-rbp-id",
+                   dest="user_rbp_id",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide RBP ID belonging to provided sequence or structure motif(s) (mandatory for --rbps USER)")
+    p_em.add_argument("--user-meme-xml",
+                   dest="user_meme_xml",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide MEME/DREME XML file containing sequence motif(s) to be used for the run (needs --rbps USER)")
+    p_em.add_argument("--user-cm",
+                   dest="user_cm",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide covariance model (.cm) file containing covariance model(s) to be used for the run (needs --rbps USER)")
+    p_em.add_argument("--ext",
+                   dest="ext_up_down",
+                   type=str,
+                   metavar='str',
+                   default="0",
+                   help="Up- and downstream extension of --in sites in nucleotides (nt). Set e.g. --ext 30 for 30 nt on both sides, or --ext 20,10 for different up- and downstream extension (default: 0)")
+    p_em.add_argument("--motif-db",
+                   dest="motif_db",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.1.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.1.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
+    p_em.add_argument("--custom-db",
+                   dest="custom_db",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme-xml, --custom-db-cm, --custom-db-info")
+    p_em.add_argument("--custom-db-id",
+                   dest="custom_db_id",
+                   type=str,
+                   metavar='str',
+                   default = "custom",
+                   help = "Set ID/name for provided custom motif database via --custom-db  (default: \"custom\")")
+    p_em.add_argument("--custom-db-meme-xml",
+                   dest="custom_db_meme_xml",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide custom motif database MEME/DREME XML file containing sequence motifs")
+    p_em.add_argument("--custom-db-cm",
+                   dest="custom_db_cm",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide custom motif database covariance model (.cm) file containing covariance model(s)")
+    p_em.add_argument("--custom-db-info",
+                   dest="custom_db_info",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
+    p_em.add_argument("--regex",
+                   dest="regex",
+                   type=str,
+                   metavar='str',
+                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', ..")
+    p_em.add_argument("--regex-id",
+                   dest="regex_id",
+                   type=str,
+                   metavar='str',
+                   default = "regex",
+                   help="Set regex ID used as RBP ID and database ID associated to -regex hits (default: \"regex\")")
+    p_em.add_argument("--motif-regex-id",
+                   dest="motif_regex_id",
+                   default = False,
+                   action = "store_true",
+                   help="Use --regex-id for motif ID as well. By default, regular expression string is used as motif ID for regex motif hits")
+    p_em.add_argument("--regex-search-mode",
+                   dest="regex_search_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
+    p_em.add_argument("--bg-mode",
+                   dest="background_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3, 4],
+                   help="Define how to generate the background regions dataset 1: depending on type of --in sites (transcript, genomic), sample random regions with same length distribution from transcript or gene regions (based on given --gtf), 2: shuffle --in site sequences (di-nucleotide shuffling) and use these as background 3: use transcript regions 4: use gene regions (default: 1)")
+    p_em.add_argument("--bg-min-size",
+                   dest="background_min_size",
+                   type=int,
+                   metavar='int',
+                   default=5000,
+                   help="Minimum size of background set to be used for calculating motif enrichment. If size =< --in set, use --in set size. If size > --in set size, double the --in set until it is <= size (default: 5000)")
+    p_em.add_argument("--bg-mask-bed",
+                   dest="bg_mask_bed",
+                   type=str,
+                   metavar='str',
+                   help = "Additional BED regions file (6-column format) for masking regions (i.e. no background sites should be extracted from --bg-mask-bed regions)")
+    p_em.add_argument("--tr-list",
+                   dest="tr_list",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Supply file with transcript IDs (one ID per row) to define which transcripts to use from --gtf to extract control regions")
+    p_em.add_argument("--fimo-ntf-file",
+                   dest="fimo_user_ntf_file",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file, define which with --fimo-set-freqs)")
+    p_em.add_argument("--fimo-ntf-mode",
+                   dest="fimo_ntf_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) (default: 1)")
+    p_em.add_argument("--fimo-pval",
+                   dest="fimo_pval",
+                   type=float,
+                   metavar='float',
+                   default=0.001,
+                   help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
+    p_em.add_argument("--fisher-mode",
+                   dest="fisher_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Defines Fisher exact test alternative hypothesis for testing motif enrichment in --in sites compared to generated background / control sites. 1: greater, 2: two-sided, 3: less (default: 1)")
+    p_em.add_argument("--enmo-pval-thr",
+                   dest="enmo_pval_thr",
+                   type=float,
+                   metavar='float',
+                   default=0.05,
+                   help="P-value threshold for reporting significantly enriched motifs. NOTE that if --enmo-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.05)")
+    p_em.add_argument("--enmo-pval-mode",
+                   dest="enmo_pval_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Defines multiple testing correction mode for motif enrichment p-values. 1: Benjamini-Hochberg (BH), 2: Bonferroni, 3: no correction (default: 1)")
+    # STREME options ...
+
+    # TOMTOM options ...
+
+    p_em.add_argument("--plot-abs-paths",
+                   dest="plot_abs_paths",
+                   default = False,
+                   action = "store_true",
+                   help = "Store plot files with absolute paths in HTML files. Default is relative paths (default: False)")
+    p_em.add_argument("--meme-no-check",
+                   dest="meme_disable_check",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable MEME version check. Make sure --meme-no-pgc is set if MEME version >= 5.5.4 is installed! (default: False)")
+    p_em.add_argument("--meme-no-pgc",
+                   dest="meme_no_pgc",
+                   default = False,
+                   action = "store_true",
+                   help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
+    p_em.add_argument("--report-header",
+                   dest="report_header",
+                   default = False,
+                   action = "store_true",
+                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
+    p_em.add_argument("--sort-js-mode",
+                   dest="sort_js_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to plots output folder. 3: include .js code in HTML (default: 1)")
+
+
+
+
+
+
+
+
     """
     Run GO enrichment analysis on gene list.
-    AALAMO
-    
+
     """
     p_goa = subparsers.add_parser('goa',
                                 help='Run GO enrichment analysis on gene list')
@@ -1888,12 +2160,18 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3],
                    help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.1.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.1.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
-    p_oe.add_argument("--fimo-nt-freqs",
-                   dest="fimo_nt_freqs",
+    p_oe.add_argument("--fimo-ntf-file",
+                   dest="fimo_user_ntf_file",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file optimized for human transcripts)")
+                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file, define which with --fimo-set-freqs)")
+    p_oe.add_argument("--fimo-ntf-mode",
+                   dest="fimo_ntf_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) (default: 1)")
     p_oe.add_argument("--fimo-pval",
                    dest="fimo_pval",
                    type=float,
@@ -2171,10 +2449,13 @@ def main_search(args):
 
     """
     FIMO nt frequencies.
+
     """
-    fimo_freqs_file = db_path + "/fimo_nt_freqs.txt"
-    if args.fimo_nt_freqs:
-        fimo_freqs_file = args.fimo_nt_freqs
+    fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt.txt"
+    if args.fimo_ntf_mode == 2:
+        fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt_with_introns.txt"
+    if args.fimo_user_ntf_file:
+        fimo_freqs_file = args.fimo_user_ntf_file
     assert os.path.exists(fimo_freqs_file), "set FIMO nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
 
     """
@@ -4580,13 +4861,15 @@ def main_batch(args):
     benchlib_path = os.path.dirname(benchlib.__file__)
     db_path = benchlib_path + "/content"
 
-
     """
     FIMO nt frequencies.
+
     """
-    fimo_freqs_file = db_path + "/fimo_nt_freqs.txt" # CONDA2SET
-    if args.fimo_nt_freqs:
-        fimo_freqs_file = args.fimo_nt_freqs
+    fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt.txt"
+    if args.fimo_ntf_mode == 2:
+        fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt_with_introns.txt"
+    if args.fimo_user_ntf_file:
+        fimo_freqs_file = args.fimo_user_ntf_file
     assert os.path.exists(fimo_freqs_file), "set FIMO nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
 
     """
@@ -6551,10 +6834,13 @@ def main_searchseq(args):
 
     """
     FIMO nt frequencies.
+
     """
-    fimo_freqs_file = db_path + "/fimo_nt_freqs.txt"
-    if args.fimo_nt_freqs:
-        fimo_freqs_file = args.fimo_nt_freqs
+    fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt.txt"
+    if args.fimo_ntf_mode == 2:
+        fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt_with_introns.txt"
+    if args.fimo_user_ntf_file:
+        fimo_freqs_file = args.fimo_user_ntf_file
     assert os.path.exists(fimo_freqs_file), "set FIMO nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
 
     """
@@ -7602,10 +7888,13 @@ def main_searchlong(args):
 
     """
     FIMO nt frequencies.
+
     """
-    fimo_freqs_file = db_path + "/fimo_nt_freqs.txt"
-    if args.fimo_nt_freqs:
-        fimo_freqs_file = args.fimo_nt_freqs
+    fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt.txt"
+    if args.fimo_ntf_mode == 2:
+        fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt_with_introns.txt"
+    if args.fimo_user_ntf_file:
+        fimo_freqs_file = args.fimo_user_ntf_file
     assert os.path.exists(fimo_freqs_file), "set FIMO nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
 
     """
@@ -8944,10 +9233,13 @@ def main_searchrna(args):
 
     """
     FIMO nt frequencies.
+
     """
-    fimo_freqs_file = db_path + "/fimo_nt_freqs.txt"
-    if args.fimo_nt_freqs:
-        fimo_freqs_file = args.fimo_nt_freqs
+    fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt.txt"
+    if args.fimo_ntf_mode == 2:
+        fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt_with_introns.txt"
+    if args.fimo_user_ntf_file:
+        fimo_freqs_file = args.fimo_user_ntf_file
     assert os.path.exists(fimo_freqs_file), "set FIMO nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
 
     """
@@ -9353,6 +9645,8 @@ def main_searchrna(args):
     """
     Get transcript IDs from --in transcript sites (column 1).
     
+    AALAMO
+
     """
 
     tr_ids_dic = benchlib.bed_read_chr_ids_dic(args.in_sites)
@@ -9621,7 +9915,7 @@ def main_searchrna(args):
 
     """
 
-    print("Extract sequences from --genome ... ")
+    print("Extract sequences from transcripts ... ")
     benchlib.bed_extract_sequences_from_fasta(filtered_sites_bed, 
                                               tr_seqs_fa, filtered_sites_fa,
                                               print_warnings=True)
@@ -10886,10 +11180,13 @@ def main_searchlongrna(args):
 
     """
     FIMO nt frequencies.
+
     """
-    fimo_freqs_file = db_path + "/fimo_nt_freqs.txt"
-    if args.fimo_nt_freqs:
-        fimo_freqs_file = args.fimo_nt_freqs
+    fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt.txt"
+    if args.fimo_ntf_mode == 2:
+        fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt_with_introns.txt"
+    if args.fimo_user_ntf_file:
+        fimo_freqs_file = args.fimo_user_ntf_file
     assert os.path.exists(fimo_freqs_file), "set FIMO nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
 
     """
@@ -12443,6 +12740,1246 @@ def main_searchlongrna(args):
 
 
 
+
+
+
+
+
+
+
+################################################################################
+
+def main_enmo(args):
+    """
+    Check for enriched motifs.
+
+    """
+
+    print("Running for you in ENMO mode ... ")
+
+
+    assert os.path.exists(args.in_sites), "--in file \"%s\" not found" % (args.in_sites)
+    assert os.path.exists(args.in_genome), "--genome file \"%s\" not found" % (args.in_genome)
+    assert os.path.exists(args.in_gtf), "--gtf file \"%s\" not found" % (args.in_gtf)
+
+    # Check --in BED format.
+    benchlib.bed_check_format(args.in_sites)
+
+    # Is MEME >= v5 installed?
+    if not args.meme_disable_check:
+        assert benchlib.is_tool("meme"), "meme not in PATH"
+        check, meme_version = benchlib.check_tool_version("meme -version", "5.0")
+        assert check, "RBPBench requires meme version >= 5.0 (installed version: %s)" %(meme_version)
+
+    # Check if MEME version is >= 5.5.4 (need to add fimo --no-pgc option to produce same results!).
+    fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text"
+    if not args.meme_disable_check:
+        check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
+        if check:
+            fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
+    if args.meme_no_pgc:
+        fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
+
+    # Regex check.
+    if args.regex:
+        assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
+
+    """
+    Library path.
+    """
+    benchlib_path = os.path.dirname(benchlib.__file__)
+    db_path = benchlib_path + "/content"
+
+    """
+    FIMO nt frequencies.
+
+    """
+    fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt.txt"
+    if args.fimo_ntf_mode == 2:
+        fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt_with_introns.txt"
+    if args.fimo_user_ntf_file:
+        fimo_freqs_file = args.fimo_user_ntf_file
+    assert os.path.exists(fimo_freqs_file), "set FIMO nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
+
+    """
+    Motif database.
+    """
+    seq_motifs_db_file, str_motifs_db_file, rbp2ids_file, motif_db_str = specify_motif_db(args.motif_db, 
+                                                                            db_path=db_path)
+    # Custom motif database: folder given.
+    if args.custom_db:
+        assert not args.custom_db_meme_xml, "--custom-db folder set incompatible with --custom-db-meme-xml. Provide custom motif database either via folder (--custom-db) or as single files"
+        assert not args.custom_db_cm, "--custom-db folder set incompatible with --custom-db-cm. Provide custom motif database either via folder (--custom-db) or as single files"
+        assert not args.custom_db_info, "--custom-db folder set incompatible with --custom-db-info. Provide custom motif database either via folder (--custom-db) or as single files"
+        seq_motifs_db_file, str_motifs_db_file, rbp2ids_file = specify_custom_motif_db(args.custom_db)
+        motif_db_str = args.custom_db_id
+    # Custom motif database: single files given.
+    if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
+        motif_db_str = args.custom_db_id
+        assert not args.custom_db, "single custom motif database files provided not compatible with --custom-db. Provide custom motif database either via folder (--custom-db) or as single files"
+        assert args.custom_db_info, "--custom-db-info needed to define custom motif database"
+        rbp2ids_file = args.custom_db_info
+        assert args.custom_db_meme_xml or args.custom_db_cm, "--custom-db-meme-xml and/or --custom-db-cm needed to define custom motif database"
+        if args.custom_db_meme_xml:
+            seq_motifs_db_file = args.custom_db_meme_xml
+        else:
+            seq_motifs_db_file = ""  # setting to empty string results in os.path.exists -> False.
+        if args.custom_db_cm:
+            str_motifs_db_file = args.custom_db_cm
+        else:
+            str_motifs_db_file = ""
+
+    args.motif_db_str = motif_db_str
+
+    """
+    Get ID mappings
+
+    name2ids_dic:
+    RBP name -> motif IDs mapping
+    id2type_dic:
+    motif ID -> motif type (cm, meme_xml)
+    id2org_dic (ignore for now):
+    motif ID -> organism ID (so far only "human")
+
+    """
+    name2ids_dic, id2type_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    # Motif ID -> RBP name (== RBP ID) mapping.
+    id2name_dic = {}
+    for rbp_id in name2ids_dic:
+        for motif_id in name2ids_dic[rbp_id]:
+            id2name_dic[motif_id] = rbp_id
+
+    """
+    Get MEME XML database motif blocks dictionary.
+
+    """
+    seq_motif_blocks_dic = {}
+    if os.path.exists(seq_motifs_db_file):
+        seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
+                                                           empty_check=True)
+    for motif_id in seq_motif_blocks_dic:
+        assert motif_id in id2name_dic, "MEME XML motif ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+
+    """
+    Get covariance model database motif blocks dictionary.
+
+    """
+    str_motif_blocks_dic = {}
+    if os.path.exists(str_motifs_db_file):
+        str_motif_blocks_dic = benchlib.read_in_cm_blocks(str_motifs_db_file, 
+                                                          empty_check=True)
+    for motif_id in str_motif_blocks_dic:
+        assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+
+    """
+    Output folders + files.
+
+    """
+    if not os.path.exists(args.out_folder):
+        os.makedirs(args.out_folder)
+
+    filtered_sites_bed = args.out_folder + "/in_sites.filtered.bed"
+    filtered_sites_fa = args.out_folder + "/in_sites.filtered.fa"
+    seq_motifs_xml = args.out_folder + "/seq_motifs.xml"
+    str_motifs_cm = args.out_folder + "/str_motifs.cm"
+    fimo_res_tsv = args.out_folder + "/fimo_results.tsv"
+    cmsearch_res_txt = args.out_folder + "/cmsearch_results.txt"
+
+    chr_len_file = args.out_folder + "/" + "reference_lengths.out"
+
+    tr_seqs_fa = args.out_folder + "/transcript_sequences.fa"
+    bg_excl_bed = args.out_folder + "/background_excluded_regions.bed"
+    bg_incl_bed = args.out_folder + "/background_included_regions.bed"
+    bg_shuffle_in_bed = args.out_folder + "/" + "background_shuffle_in.bed"
+
+    rbp_stats_out = args.out_folder + "/rbp_hit_stats.tsv"
+    motif_stats_out = args.out_folder + "/motif_hit_stats.tsv"
+    # con_res_out_tsv = args.out_folder + "/contingency_table_results.tsv"
+    settings_file = args.out_folder + "/settings.rbpbench_search.out"
+    rbp_reg_occ_table_out = args.out_folder + "/rbp_region_occupancies.tsv"
+
+    # Output unique motif hits.
+    motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_search.bed"
+    # Output RBP co-ooccurrence stats as table.
+    cooc_stats_out = args.out_folder + "/rbp_cooc_stats.tsv"
+
+    # GOA results.
+    goa_results_tsv = args.out_folder + "/goa_results.tsv"
+
+    # Temp files.
+    # random_id = uuid.uuid1()
+    # tmp_out_bed = args.out_folder + "/" + str(random_id) + ".filtered_in.bed"
+    out_tmp_bed = args.out_folder + "/rbp_motif_hit_regions.tmp.bed"
+    cmstat_tmp_out = args.out_folder + "/cmstat_out.tmp.txt"
+
+    # Delete if existing folder.
+    if os.path.exists(fimo_res_tsv):
+        os.remove(fimo_res_tsv)
+    if os.path.exists(cmsearch_res_txt):
+        os.remove(cmsearch_res_txt)
+
+
+    """
+    Load RBP data based on --rbps (+ optionally USER data).
+
+    """
+
+    rbp_in_dic = {}
+    for rbp_id in args.list_rbps:
+        rbp_in_dic[rbp_id] = 1
+
+    # RBPs for motif search.
+    loaded_rbps_dic = {}
+
+    # USER set?
+    user_motifs = False
+    user_rbp_id = False
+    if "USER" in rbp_in_dic:
+        user_motifs = True
+    else:
+        assert not args.user_meme_xml, "--user-meme-xml provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
+        assert not args.user_cm, "--user-cm provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
+        assert not args.user_rbp_id, "--user-rbp-id set but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
+
+    special_rbp_ids_list = ["USER", "REGEX"]
+
+    # If ALL set, load all RBPs (+ optinally USER).
+    if "ALL" in rbp_in_dic:
+        if len(rbp_in_dic) == 2:
+            assert user_motifs, "set --rbps ALL, --rbps ALL USER, or individual RBPs (+ optinally USER) --rbps RBP1 RBP2 ... USER"
+        if len(rbp_in_dic) > 2:
+            assert False, "set --rbps ALL, --rbps ALL USER, or individual RBPs (+ optinally USER) --rbps RBP1 RBP2 ... USER"
+        print("--rbps ALL selected. Loading all database motifs ... ")
+        for rbp_id in name2ids_dic:
+            loaded_rbps_dic[rbp_id] = motif_db_str
+
+    else:
+        # Load individual RBPs.
+        for rbp_id in rbp_in_dic:
+            if rbp_id not in special_rbp_ids_list:
+                """
+                Check if RBP ID in database.
+                Suggest similar RBPs based on string similarity (edit distance).
+
+                """
+                if rbp_id not in name2ids_dic:
+                    db_rbp_list = []
+                    for db_rbp_id in name2ids_dic:
+                        db_rbp_list.append(db_rbp_id)
+                    pair_dist_dic = benchlib.calc_edit_dist_query_list(rbp_id, db_rbp_list)
+                    max_c = 10
+                    c = 0
+                    suggested_rbps = []
+                    for key, value in sorted(pair_dist_dic.items(), key=lambda item: item[1], reverse=False):
+                        if c >= max_c:
+                            break
+                        c += 1
+                        suggested_rbps.append(key)
+                    suggested_rbps_str = ",".join(suggested_rbps)
+                    assert False, "provided --rbps ID %s not in internal motif database (%s). Please provide RBP name present in database. Did you mean (any of) the following database ID(s) (top 10 hits based on string similarity): %s ?" %(rbp_id, motif_db_str, suggested_rbps_str)
+                # assert rbp_id in name2ids_dic, "provided --rbps ID %s not in internal motif database. Please provide RBP name present in database" %(rbp_id)
+                loaded_rbps_dic[rbp_id] = motif_db_str
+
+    # Motif IDs for search.
+    loaded_motif_ids_dic = {}
+    for rbp_id in loaded_rbps_dic:
+        for motif_id in name2ids_dic[rbp_id]:
+            loaded_motif_ids_dic[motif_id] = motif_db_str
+
+    """
+    Check and load provided USER data.
+
+    """
+
+    if user_motifs:
+        print("--rbps USER selected. Check + load provided USER motifs ... ")
+        assert args.user_rbp_id, "--rbps USER demands --user-rbp-id to be set to connect the supplied motif(s) with an RBP ID"
+        assert args.user_meme_xml or args.user_cm, "--rbps USER requires a provided sequence or structure motif file (via --user-meme-xml AND/OR --user-cm)"
+
+        # Reformat user_rbp_id. 
+        user_rbp_id = benchlib.remove_special_chars_from_str(args.user_rbp_id)
+        assert user_rbp_id, "empty string after removing special chars from --user-rbp-id. Please provide alphanumeric string for RBP ID (- or _ are okay as well)"
+
+        assert user_rbp_id not in loaded_rbps_dic, "user RBP ID %s already selected from database. Please deselect respective database RBP ID or provide unique user RBP ID via --user-rbp-id" %(user_rbp_id)
+        loaded_rbps_dic[user_rbp_id] = "user"
+        # In case user_rbp_id in database, reset motif IDs associated to user_rbp_id.
+        name2ids_dic[user_rbp_id] = []
+        print("RBP ID for user-supplied motifs:", user_rbp_id)
+
+        user_seq_motif_blocks_dic = {}
+        if args.user_meme_xml:
+            assert os.path.exists(args.user_meme_xml), "--user-meme-xml file \"%s\" not found" % (args.user_meme_xml)
+            user_seq_motif_blocks_dic = benchlib.read_in_xml_motifs(args.user_meme_xml, empty_check=False)
+            assert user_seq_motif_blocks_dic, "no motifs read in from provided --user-meme-xml. Make sure to supply sequence motifs in MEME XML format!"
+            # Check if motif ID already loaded.
+            for acc_id in user_seq_motif_blocks_dic:
+                assert acc_id not in loaded_motif_ids_dic, "user-supplied MEME XML motif ID %s already selected, i.e., ID is already associated with selected database RBP %s. Please change user motif ID to a unique motif ID or deselect the respective RBP" %(acc_id, id2name_dic[acc_id])
+                loaded_motif_ids_dic[acc_id] = "user"
+                # Add user to database blocks (overwrite if same ID encountered).
+                seq_motif_blocks_dic[acc_id] = user_seq_motif_blocks_dic[acc_id]
+                name2ids_dic[user_rbp_id].append(acc_id)
+                id2type_dic[acc_id] = "meme_xml"
+                id2name_dic[acc_id] = user_rbp_id
+
+        user_str_motif_blocks_dic = {}
+        if args.user_cm:
+            assert os.path.exists(args.user_cm), "--user-cm file \"%s\" not found" % (args.user_cm)
+            # Check for valid format.
+            acc_ids_dic = benchlib.check_cm_file(args.user_cm, cmstat_tmp_out, empty_check=False)
+            # Read in covariance model blocks.
+            user_str_motif_blocks_dic = benchlib.read_in_cm_blocks(args.user_cm)
+            for acc_id in acc_ids_dic:
+                assert acc_id in user_str_motif_blocks_dic, "accession ID %s not in blocks dictionary. Please contact developers!" %(acc_id)
+            # Check if motif ID already loaded.
+            for acc_id in user_str_motif_blocks_dic:
+                assert acc_id not in loaded_motif_ids_dic, "user-supplied covariance model accession (ACC) ID %s already selected, i.e., ID is already associated with selected database RBP %s. Please change to a unique accession ID or deselect the respective RBP" %(acc_id, id2name_dic[acc_id])
+                loaded_motif_ids_dic[acc_id] = "user"
+                # Add user to database blocks (overwrite if same ID encountered).
+                str_motif_blocks_dic[acc_id] = user_str_motif_blocks_dic[acc_id]
+                name2ids_dic[user_rbp_id].append(acc_id)
+                id2type_dic[acc_id] = "cm"
+                id2name_dic[acc_id] = user_rbp_id
+
+    """
+    Check if loaded RBP IDs have motifs.
+
+    """
+    for rbp_id in loaded_rbps_dic:
+        for motif_id in name2ids_dic[rbp_id]:
+            found = 0
+            if motif_id in seq_motif_blocks_dic:
+                found += 1
+            if motif_id in str_motif_blocks_dic:
+                found += 1
+            assert found, "no motifs loaded for RBP ID \"%s\". Please provide the respective motifs file" %(rbp_id)
+
+
+    """
+    If --regex is set:
+    Treat regex as sequence motif / fimo type.
+    rbp_id: regex, motif_id: regex, motif_db: regex
+
+    """
+
+    regex_id = args.regex_id
+    regex = args.regex
+    
+    if args.regex:
+
+        # Remove , ; from given regex, to avoid motif_id format conflicts.
+        regex = benchlib.remove_special_chars_from_str(args.regex,
+                                                       reg_ex="[ :;\(\)]")
+        
+        assert regex, "empty string after removing special chars ( [ :;\(\)] ) from --regex. Please provide a valid regex with DNA letters"
+
+        regex_id = benchlib.remove_special_chars_from_str(args.regex_id)
+
+        assert regex_id, "empty string after removing special chars from --regex-id. Please provide alphanumeric string for regex ID (- or _ are okay as well)"
+        assert regex_id not in name2ids_dic, "--regex set but a different RBP ID with name \"%s\" was found. Please provide a different RBP ID or --regex-id" %(regex_id)
+
+        if args.motif_regex_id:
+            assert regex_id not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or --regex-id" %(regex_id)
+
+            id2name_dic[regex_id] = regex_id    # motif_id -> rbp_id
+            id2type_dic[regex_id] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme_xml
+            loaded_motif_ids_dic[regex_id] = regex_id  # motif_id -> motif_db_str
+            name2ids_dic[regex_id] = [regex_id]  # rbp_id -> motif_ids
+
+        else:
+            assert regex not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or use --motif-regex-id" %(regex_id)
+
+            id2name_dic[regex] = regex_id    # motif_id -> rbp_id
+            id2type_dic[regex] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme_xml
+            loaded_motif_ids_dic[regex] = regex_id  # motif_id -> motif_db_str
+            name2ids_dic[regex_id] = [regex]  # rbp_id -> motif_ids
+
+        loaded_rbps_dic[regex_id] = regex_id  # rbp_id -> motif_db_str
+
+        """
+        Dictionaries that use motif_id as keys.
+        loaded_motif_ids_dic
+        name2ids_dic
+        id2name_dic
+        id2type_dic
+        """
+    else:
+        regex_id = False
+
+
+    """
+    Load RBP data, store in RBP() class.
+
+    """
+
+    # Store motif IDs for search.
+    search_rbps_dic = {}
+    seq_rbps_dic = {}
+    str_rbps_dic = {}
+    motif_id2idx_dic = {} # motif ID -> list index.
+    args.internal_id = []
+
+    for rbp_id in loaded_rbps_dic:
+    
+        internal_id = base64.urlsafe_b64encode(os.urandom(6)).decode()
+        args.internal_id.append(internal_id)
+        rbp = benchlib.RBP(rbp_id, internal_id)
+
+        for motif_id in name2ids_dic[rbp_id]:
+        
+            assert motif_id in loaded_motif_ids_dic, "motif_id %s not in loaded_motif_ids_dic" %(motif_id)
+
+            if id2type_dic[motif_id] == "meme_xml":
+                rbp.seq_motif_ids.append(motif_id)
+                motif_id2idx_dic[motif_id] = len(rbp.seq_motif_ids) - 1
+                rbp.seq_motif_hits.append(0)
+                seq_rbps_dic[rbp_id] = 1
+            elif id2type_dic[motif_id] == "regex":
+                rbp.seq_motif_ids.append(motif_id)
+                motif_id2idx_dic[motif_id] = len(rbp.seq_motif_ids) - 1
+                rbp.seq_motif_hits.append(0)
+                seq_rbps_dic[rbp_id] = 1
+            elif id2type_dic[motif_id] == "cm":
+                rbp.str_motif_ids.append(motif_id)
+                motif_id2idx_dic[motif_id] = len(rbp.str_motif_ids) - 1
+                rbp.str_motif_hits.append(0)
+                str_rbps_dic[rbp_id] = 1
+            else:
+                assert False, "unknown motif type (\"%s\") set for motif_id %s" %(id2type_dic[motif_id], motif_id)
+
+        search_rbps_dic[rbp_id] = rbp
+
+    print("# of RBP IDs for search:    ", len(loaded_rbps_dic))
+    print("# of motif IDs for search:  ", len(loaded_motif_ids_dic))
+
+
+    """
+    Get chromosome IDs + sizes from --genome.
+    """
+
+    # Get chromosome sizes.
+    chr_ids_dic = {}
+    chr_len_dic = {}
+    print("Get --genome chromosome IDs + sizes ... ")
+    benchlib.genome_fasta_get_chr_sizes_file(args.in_genome, chr_len_file,
+                                             check_ids=True,
+                                             seq_len_dic=chr_len_dic)
+    for chr_id in chr_len_dic:
+        chr_ids_dic[chr_id] = 1
+
+    """
+    Guess chromosome ID style.
+
+    chr_style:
+        1: chr1, chr2, ..., chrX, chrM
+        2: 1, 2, ... , X, MT
+
+    """
+    chr_style = 0  # no changes to chromosome IDs in GTF files.
+    
+    if "1" in chr_ids_dic:
+        assert "chr1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
+    if "chr1" in chr_ids_dic:
+        assert "1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
+    if "chr1" in chr_ids_dic:
+        chr_style = 1
+    if "1" in chr_ids_dic:
+        chr_style = 2
+
+    """
+    Get chromosome or transcript IDs from --in sites (column 1).
+    +
+    Determine type of input sites (genomic or transcript sites).
+
+    """
+
+    chr_ids_in_dic = benchlib.bed_read_chr_ids_dic(args.in_sites)
+
+    assert chr_ids_in_dic, "--in sites BED seems to be empty (no column 1 chromosome IDs read in). Make sure to provide valid BED file"
+
+    genomic_sites_input = False
+    for chr_id in chr_ids_in_dic:
+        if chr_id in chr_ids_dic:
+            genomic_sites_input = True
+        break
+
+    if genomic_sites_input:
+        print("--in site seem to be genomic sites. Checking ... ")
+        for chr_id in chr_ids_in_dic:
+            assert chr_id in chr_ids_dic, "chromosome ID %s from --in sites BED file not found in --genome FASTA file. Please provide compatible --in and --genome files"
+
+    """
+    Read in gene infos from --gtf.
+
+    """
+
+    print("Read in gene features from --gtf ... ")
+    tr2gid_dic = {}
+    gid2gio_dic = benchlib.gtf_read_in_gene_infos(args.in_gtf,
+                                                  tr2gid_dic=tr2gid_dic,
+                                                  check_chr_ids_dic=chr_ids_dic,
+                                                  chr_style=chr_style,
+                                                  empty_check=False)
+    assert gid2gio_dic, "no gene infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
+    c_gene_infos = len(gid2gio_dic)
+    print("# gene features read in from --gtf:", c_gene_infos)
+
+    if not genomic_sites_input:
+        print("--in site seem to be transcript sites. Checking ... ")
+        for tr_id in chr_ids_in_dic:
+            assert tr_id in tr2gid_dic, "transcript ID %s from --in sites BED file not found in --gtf file. Please provide compatible --in and --gtf files"
+
+    # Get most prominent transcripts or if --tr-list is set, read in transcript IDs.
+    tr_ids_dic = {}
+    if args.tr_list:
+        tr_ids_dic = benchlib.read_ids_into_dic(args.tr_list,
+                                                check_dic=False)
+        assert tr_ids_dic, "no IDs read in from provided --tr-list file. Please provide a valid IDs file (one ID per row)"
+        for tr_id in tr_ids_dic:
+            assert tr_id in tr2gid_dic, "transcript ID \"%s\" from provided --tr-list file does not appear in --gtf file. Please provide compatible files" %(tr_id)
+            tr_ids_dic[tr_id] = tr2gid_dic[tr_id]
+        print("# of transcript IDs (read in from --tr-list): ", len(tr_ids_dic))
+    else:
+        # Get most prominent transcripts from gene infos.
+        print("Select most prominent transcript (MPT) for each gene ... ")
+        tr_ids_dic = benchlib.select_mpts_from_gene_infos(gid2gio_dic,
+                                basic_tag=False,  # do not be strict (only_tsl=False too).
+                                ensembl_canonical_tag=False,
+                                prior_basic_tag=True,  # Prioritize basic tag transcript.
+                                only_tsl=False)
+        assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
+        print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
+
+    # Add transcript IDs from --in sites to tr_ids_dic.
+    if not genomic_sites_input:
+        for tr_id in chr_ids_in_dic:
+            tr_ids_dic[tr_id] = 1
+
+    # Check exon order (return True if minus strand exon 1 is most downstream, not most upstream, which is the correct way).
+    print("Check minus-strand exon order in --gtf ... ")
+    correct_min_ex_order = benchlib.gtf_check_exon_order(args.in_gtf)
+    if correct_min_ex_order:
+        print("Correct order encountered ... ")
+    else:
+        print("Reverse order encountered ... ")
+
+    # Get transcript infos.
+    print("Read in transcript infos from --gtf ... ")
+    tid2tio_dic = benchlib.gtf_read_in_transcript_infos(args.in_gtf, 
+                                                        tr_ids_dic=tr_ids_dic,
+                                                        correct_min_ex_order=correct_min_ex_order,
+                                                        chr_style=chr_style,
+                                                        empty_check=False)
+
+    assert tid2tio_dic, "no transcript infos read in from --gtf. Please contact developers"
+
+    # Get transcript lengths.
+    tr_len_dic = {}
+    for tr_id in tid2tio_dic:
+        tr_len_dic[tr_id] = tid2tio_dic[tr_id].tr_length
+
+    """
+    Write regions to BED from where to sample background sites (incl_bed).
+
+    """
+
+    OUTBED = open(bg_incl_bed, "w")
+    print("Output regions to sample background sites from ... ")
+
+    if genomic_sites_input:
+        # Output genomic transcript regions with introns.
+        for tr_id in tid2tio_dic:
+            chr_id = tid2tio_dic[tr_id].chr_id
+            tr_s = tid2tio_dic[tr_id].tr_s - 1
+            tr_e = tid2tio_dic[tr_id].tr_e
+            tr_pol = tid2tio_dic[tr_id].tr_pol
+            OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" %(chr_id, tr_s, tr_e, tr_id, tr_pol))
+
+    else:
+        # Output transcript regions (chromosome id = transcript ID).
+        for tr_id in tr_len_dic:
+            tr_len = tr_len_dic[tr_id]
+            OUTBED.write("%s\t0\t%i\t%s\t0\t+\n" %(tr_id, tr_len, tr_id))
+
+        # Overwrite chromosome lengths dictionary with transcript lengths.
+        chr_len_dic = tr_len_dic
+        # Overwrite chromsome lengths file with transcript lengths.
+        benchlib.output_chromosome_lengths_file(tr_len_dic, chr_len_file)
+
+    OUTBED.close()
+
+    """
+    Filter / extend --in regions BED file.
+
+    """
+
+    # Process extension info.
+    ext_parts = args.ext_up_down.split(",")
+    c_ext_parts = len(ext_parts)
+    ext_up = 0
+    ext_down = 0
+    if c_ext_parts == 1:
+        ext_up = int(ext_parts[0])
+        ext_down = int(ext_parts[0])
+    elif c_ext_parts == 2:
+        ext_up = int(ext_parts[0])
+        ext_down = int(ext_parts[1]) 
+    else:
+        assert False, "invalid --ext argument provided (correct format: --ext 10 OR --ext 20,10)"
+
+    # Filter / extend --in BED.
+    print("Preprocess --in sites ... ")
+
+    reg_stats_dic = benchlib.bed_filter_extend_bed(args.in_sites, filtered_sites_bed,
+                                                   ext_up=ext_up,
+                                                   ext_down=ext_down,
+                                                   remove_dupl=True,
+                                                   chr_len_dic=chr_len_dic,
+                                                   use_region_ids=True)
+
+    print("# --in regions pre-filtering:  ", reg_stats_dic["c_in"])
+    print("# --in regions post-filtering: ", reg_stats_dic["c_out"])
+    print("# regions with invalid chr_id: ", reg_stats_dic["c_chr_filter"])
+    print("# duplicated regions removed:  ", reg_stats_dic["c_dupl_filter"])
+
+    assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID filtering. If caused by invalid chr_id filtering, make sure chromosome IDs in --genome FASTA and --in BED files are compatible (i.e., \"chr1\" vs. \"1\" notation). If --in regions are on transcripts, use rbpbench searchrna"
+
+    # AALAMO
+
+    fasta_index_file = tr_seqs_fa + ".fai"
+    if os.path.exists(fasta_index_file):
+        os.remove(fasta_index_file)
+
+    pos_seqs_dic = {}
+    tr_seqs_dic = {}
+    if genomic_sites_input:
+
+        print("Extract --in sequences from --genome ... ")
+        benchlib.bed_extract_sequences_from_fasta(filtered_sites_bed, 
+                                                args.in_genome, filtered_sites_fa,
+                                                print_warnings=True)
+
+        print("Read in sequences ... ")
+        pos_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
+                                        dna=True,
+                                        all_uc=True,
+                                        id_check=True,
+                                        empty_check=False,
+                                        skip_n_seqs=False)
+
+    else:
+
+        # Get transcript sequences.
+        print("Extract transcript sequences ... ")
+        tr_seqs_dic = benchlib.get_transcript_sequences_from_gtf(tid2tio_dic, args.in_genome,
+                                                                 tr_ids_dic=tr_ids_dic,
+                                                                 tmp_out_folder=args.out_folder)
+
+        print("Output transcript sequences to FASTA ... ")
+        benchlib.fasta_output_dic(tr_seqs_dic, tr_seqs_fa,
+                                  split=True)
+
+        print("Extract site sequences from transcript sequences ... ")
+        benchlib.bed_extract_sequences_from_fasta(filtered_sites_bed, 
+                                                  tr_seqs_fa, filtered_sites_fa,
+                                                  print_warnings=True)
+
+        print("Read in sequences ... ")
+        pos_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
+                                        dna=True,
+                                        all_uc=True,
+                                        id_check=True,
+                                        empty_check=False,
+                                        skip_n_seqs=False)
+
+
+        # # Transcript sequence lengths.
+        # tr_seq_len_dic = {}
+        # for tr_id in tr_seqs_dic:
+        #     tr_seq_len_dic[tr_id] = len(tr_seqs_dic[tr_id])
+
+    """
+    Define regions to exclude (i.e. no background sites sampled from these regions).
+    
+    """
+
+    # Collect masking files and merge them to BED.
+    print("Collect regions for masking (== no negatives from these regions) ... ")
+    mask_files_list = []
+    mask_files_list.append(filtered_sites_bed)
+    if args.bg_mask_bed:
+        mask_files_list.append(args.bg_mask_bed)
+    benchlib.merge_files(mask_files_list, bg_excl_bed)
+
+
+    """
+    Make shuffle input BED file bg_shuffle_in_bed.
+
+    """
+
+    # Generate shuffle file.
+    shuffle_list = []
+    # Generate random negatives, neg_factor times number of positives.
+    for i in range(args.neg_factor):
+        shuffle_list.append(positives_with_context_bed)
+    rplib.merge_files(shuffle_list, shuffle_in_bed)
+
+
+
+
+    """
+    Create random negatives / background / control set.
+
+    bg_excl_bed:
+        Background excluded regions BED
+    bg_incl_bed:
+        Background included regions BED
+    
+    AALAMO
+    chr_len_file
+        
+    """
+    
+    neg_seqs_dic = {}
+    neg_seqs_fa = args.out_folder + "/background_sequences.fa"
+
+    if args.background_mode == 1:
+
+        print("Background mode 1 ... ")
+
+        print("Extract random background regions ... ")
+        check = benchlib.bed_generate_random_negatives(bg_shuffle_in_bed, chr_len_file, neg_seqs_fa,
+                                                       incl_bed=bg_incl_bed,
+                                                       excl_bed=bg_excl_bed,
+                                                       seed=None)
+
+        print("Read in background sequences ... ")
+        neg_seqs_dic = benchlib.read_fasta_into_dic(neg_seqs_fa,
+                                                    dna=True,
+                                                    all_uc=True,
+                                                    id_check=True, # This will fail probably, need genomic regions.
+                                                    empty_check=False,
+                                                    skip_n_seqs=False)
+
+        assert neg_seqs_dic, "no background sequences read in. Please contact developers"
+
+        if not check:
+            print("Need to sample with more regions ... ")
+
+
+        # AALAMO
+
+    elif args.background_mode == 2:
+
+        # Di-nucleotide shuffling of positive sequences.
+        print("Shuffle positive sequences ... ")
+
+        benchlib.run_di_nt_shuffling(filtered_sites_fa, neg_seqs_fa,
+                                     kmer_size=2,
+                                     params="-dna",
+                                     error_check=True,
+                                     seed=None)
+
+
+    elif args.background_mode == 3:
+
+        print("Background mode 3 ... ")
+
+
+    elif args.background_mode == 4:
+
+        print("Background mode 4 ... ")
+
+
+    # # Collect masking files and merge them to BED.
+    # print("Collect regions for masking (== no negatives from these regions) ... ")
+    # mask_files_list = []
+    # mask_files_list.append(args.in_sites)
+    # mask_files_list.append(positives_with_context_bed)
+    # if args.mask_bed:
+    #     mask_files_list.append(args.mask_bed)
+    # rplib.merge_files(mask_files_list, mask_negatives_bed)
+
+
+    # excl_bed = args.out_folder + "/excl.bed"
+
+
+    # AALAMO
+
+    # Make a transcript regions .bed file.
+    print("Output transcripts containing positive sites to BED ... ")
+    rplib.bed_sequence_lengths_to_bed(tr_len_dic, regions_with_positives_bed,
+                                       ids_dic=chr_ids_dic)
+
+
+
+    # (in)sanity checks.
+    for tr_id in tr_ids_dic:
+        assert tr_id in tid2tio_dic, "transcript ID %s from --in BED file not found in --gtf GTF file. Please provide a compatible GTF file"
+    for tr_id in tid2tio_dic:
+        assert tr_id in tr_ids_dic, "transcript ID %s not in tr_ids_dic. Please contact developers"
+
+    c_tr_infos = len(tid2tio_dic)
+    print("# transcript features read in from --gtf:", c_tr_infos)
+
+
+
+
+    """
+    print("Output transcript regions with introns to BED ... ")
+
+    OUTBED = open(tr_seqs_bed, "w")
+    # Output transcript regions.
+    for tr_id in tid2tio_dic:
+        chr_id = tid2tio_dic[tr_id].chr_id
+        tr_s = tid2tio_dic[tr_id].tr_s - 1
+        tr_e = tid2tio_dic[tr_id].tr_e
+        tr_pol = tid2tio_dic[tr_id].tr_pol
+        OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" %(chr_id, tr_s, tr_e, tr_id, tr_pol))
+    OUTBED.close()
+        
+    print("Extract transcript regions from --genome ... ")
+    benchlib.bed_extract_sequences_from_fasta(tr_seqs_bed, 
+                                              args.in_genome, tr_seqs_fa,
+                                              add_param="-name",
+                                              print_warnings=True)
+
+    print("Read in extracted sequences ... ")
+    tr_seqs_dic = benchlib.read_fasta_into_dic(tr_seqs_fa,
+                                               dna=True,
+                                               all_uc=True,
+                                               id_check=True,
+                                               name_bed=True,
+                                               empty_check=False,
+                                               skip_n_seqs=False)
+
+
+
+
+    # Get transcript sequences.
+    print("Extract transcript sequences ... ")
+    tr_seqs_dic = benchlib.get_transcript_sequences_from_gtf(tid2tio_dic, args.in_genome,
+                                                             tr_ids_dic=tr_ids_dic,
+                                                             dna=True,
+                                                             all_uc=True,
+                                                             tmp_out_folder=args.out_folder)
+
+    # Give some length statistics on the extracted sequences.
+    tr_lens = [len(seq) for seq in tr_seqs_dic.values()]
+    print("Transcript sequence length statistics:")
+    print("Min:   ", min(tr_lens))
+    print("Max:   ", max(tr_lens))
+    print("Mean:  ", statistics.mean(tr_lens))
+    print("Median:", statistics.median(tr_lens))
+
+    # Output sequences to FASTA.
+    print("Output transcript sequences to FASTA ... ")
+    benchlib.fasta_output_dic(tr_seqs_dic, tr_seqs_fa,
+                              split=True)
+
+
+    """
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    # Get transcript sequences.
+    print("Extract transcript sequences ... ")
+    tr_seqs_dic = benchlib.get_transcript_sequences_from_gtf(tid2tio_dic, args.in_genome,
+                                                             tr_ids_dic=tr_ids_dic,
+                                                             tmp_out_folder=args.out_folder)
+
+    # Output sequences to FASTA.
+    print("Output transcript sequences to FASTA ... ")
+    benchlib.fasta_output_dic(tr_seqs_dic, tr_seqs_fa,
+                              split=True)
+
+    # Transcript sequence lengths.
+    tr_seq_len_dic = {}
+    for tr_id in tr_seqs_dic:
+        tr_seq_len_dic[tr_id] = len(tr_seqs_dic[tr_id])
+
+
+
+
+
+
+
+
+
+
+    """
+    Guess chromosome ID style.
+
+    chr_style:
+        1: chr1, chr2, ..., chrX, chrM
+        2: 1, 2, ... , X, MT
+
+    """
+    chr_style = 0  # no changes to chromosome IDs in GTF files.
+    
+    if "1" in chr_ids_dic:
+        assert "chr1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
+    if "chr1" in chr_ids_dic:
+        assert "1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
+    if "chr1" in chr_ids_dic:
+        chr_style = 1
+    if "1" in chr_ids_dic:
+        chr_style = 2
+
+    """
+    Calculate effective size of genomic regions.
+    
+    """
+    print("Calculate effective genomic region size ... ")
+    eff_reg_size = benchlib.get_uniq_gen_size(filtered_sites_bed)
+
+    print("Called region length sum:      ", reg_stats_dic["reg_len_sum"])
+    print("Effective region length sum:   ", eff_reg_size)
+
+    """
+    Get genomic region sequences from --genome.
+
+    Output FASTA header format:
+    >chr8:9772198-9772297(+)
+
+    No need to convert sequences to uppercase, as FIMO works on both 
+    lower- and uppercase (as long as DNA / RNA is set correct).
+
+    """
+    print("Extract sequences from --genome ... ")
+    benchlib.bed_extract_sequences_from_fasta(filtered_sites_bed, 
+                                              args.in_genome, filtered_sites_fa,
+                                              print_warnings=True)
+
+
+    """
+    Get FASTA sequences and sequence lengths.
+    """
+
+    out_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
+                                       dna=True,
+                                       all_uc=True,
+                                       id_check=True,
+                                       empty_check=False,
+                                       skip_n_seqs=False)
+
+    assert out_seqs_dic, "no sequences extracted from FASTA file for --in BED sites. Make sure to use compatible FASTA/BED files!"
+
+    # Get region strands/polarities for motif distance calculations.
+    reg2pol_dic = benchlib.extract_pol_from_seq_ids(out_seqs_dic)
+
+    # Effective number of regions used for motif search.
+    c_regions = len(out_seqs_dic)
+    """
+    --unstranded option and not --unstranded-ct
+
+    chr8:9772198-9772297(+)
+    """
+    if args.unstranded and not args.unstranded_ct:
+        # Check if sequences are even.
+        assert not len(out_seqs_dic) % 2, "# of --in regions should be an even number since --unstranded is set. Please contact developers"
+        c_regions = len(out_seqs_dic) // 2
+    
+    # Called region size.
+    called_reg_size = 0
+    len_list = []
+    for seq_id in out_seqs_dic:
+        seq_len = len(out_seqs_dic[seq_id])
+        called_reg_size += seq_len
+        len_list.append(seq_len)
+
+    # Length statistics.
+    reg_len_median = statistics.median(len_list)
+    reg_len_mean = statistics.mean(len_list)
+    reg_len_mean = round(reg_len_mean, 2)
+    reg_len_min = min(len_list)
+    reg_len_max = max(len_list)
+
+    """
+    ====================================
+    RUN SEQUENCE MOTIF SEARCH WITH FIMO.
+    ====================================
+    
+    """
+    fimo_hits_list = []
+    call_dic = {}
+
+    if seq_rbps_dic:
+
+        """
+        Print motifs to file.
+
+        """
+
+        print("Output motifs to XML ... ")
+        out_str, c_added_motifs = benchlib.blocks_to_xml_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
+
+        benchlib.output_string_to_file(out_str, seq_motifs_xml)
+
+
+        """
+        Run FIMO on sequences + motifs.
+
+        """
+
+        print("Run FIMO ... ")
+        benchlib.run_fast_fimo(filtered_sites_fa, seq_motifs_xml, fimo_res_tsv,
+                    pval_thr=args.fimo_pval,
+                    nt_freqs_file=fimo_freqs_file,
+                    call_dic=call_dic,
+                    params=fimo_params,
+                    error_check=False)
+
+        """
+        Read in FIMO hits.
+
+        """
+
+        assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
+
+        print("Read in FIMO results ... ")
+        fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv)
+
+        c_fimo_hits = len(fimo_hits_list)
+        print("# of FIMO motif hits:", c_fimo_hits)
+
+        """
+        If --regex is set, search for regex hits in sequences (stored in out_seqs_dic).
+
+        """
+        if args.regex:
+
+            step_size_one = False
+            if args.regex_search_mode == 1:
+                step_size_one = True
+            elif args.regex_search_mode == 2:
+                step_size_one = False
+            else:
+                assert False, "invalid --regex-search-mode %i set" %(args.regex_search_mode)
+
+            print("Run search for --regex \"%s\" ... " %(regex))
+            regex_hits_list = benchlib.get_regex_hits(regex, regex_id, out_seqs_dic,
+                                                      step_size_one=step_size_one,
+                                                      use_motif_regex_id=args.motif_regex_id)
+
+            c_regex_hits = len(regex_hits_list)
+            print("# of regex hits:", c_regex_hits)
+
+            # Add regex hits to fimo_hits_list.
+            fimo_hits_list += regex_hits_list
+
+
+    """
+    =========================================
+    RUN STRUCTURE MOTIF SEARCH WITH CMSEARCH.
+    =========================================
+
+    """
+    cmsearch_hits_list = []
+
+    if str_rbps_dic:
+        
+        print("Output covariance models to .cm ... ")
+        benchlib.output_cm_blocks_to_file(str_motif_blocks_dic, loaded_motif_ids_dic, str_motifs_cm)
+
+        # Run cmsearch.
+        print("Run cmsearch ... ")
+        benchlib.run_cmsearch(filtered_sites_fa, str_motifs_cm, cmsearch_res_txt,
+                        error_check=False,
+                        call_dic=call_dic,
+                        params="-g --tformat fasta --toponly --incT 1 -T 1 --default") # or add --anytrunc and remove --g
+        # Read in hits.
+        print("Read in cmsearch results ... ")
+        cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt, 
+                                                                           check=True)
+
+        print("# of cmsearch motif hits:", c_cms_hits)
+
+
+    """
+    Store for each RBP the regions with motif hits (and hit counts), using
+    dictionary of dictionaries regions_with_motifs_dic.
+    This tells us, how many input regions have motif hits, separated by RBP.
+    Also store for each RBP the unique motif hit regions (and hit counts), using
+    dictionary of dictionaries unique_motifs_dic.
+
+    regions_with_motifs_dic:
+        Dictionary of dictionaries, format:
+        {rbp_id1 -> {'region1': motif_c_region1, 'region2': motif_c_region2}, rbp_id2 -> {'region1': motif_c_region1}}
+    unique_motifs_dic:
+        Dictionary of dictionaries, format:
+        {rbp_id1 -> {'motif_region1': c_motif_region1, 'motif_region2': c_motif_region2}, rbp_id2 -> .. }
+
+    """
+
+    regions_with_motifs_dic = {}
+    unique_motifs_dic = {}
+
+    # Store regions with sequence motifs.
+    for fh in fimo_hits_list:
+
+        rbp_id = id2name_dic[fh.motif_id]
+
+        if rbp_id in regions_with_motifs_dic:
+            # fh.seq_name : FASTA header (== --in genomic sequence region).
+            if fh.seq_name in regions_with_motifs_dic[rbp_id]:
+                regions_with_motifs_dic[rbp_id][fh.seq_name] += 1
+            else:
+                regions_with_motifs_dic[rbp_id][fh.seq_name] = 1
+        else:
+            regions_with_motifs_dic[rbp_id] = {}
+            regions_with_motifs_dic[rbp_id][fh.seq_name] = 1
+
+        fh_str = repr(fh) # genomic motif region string.
+
+        # Unique motif regions for each RBP.
+        if rbp_id in unique_motifs_dic:
+            if fh_str in unique_motifs_dic[rbp_id]:
+                unique_motifs_dic[rbp_id][fh_str] += 1
+            else:
+                unique_motifs_dic[rbp_id][fh_str] = 1
+        else:
+            unique_motifs_dic[rbp_id] = {}
+            unique_motifs_dic[rbp_id][fh_str] = 1
+
+    # Store regions with structure motifs.
+    for cmsh in cmsearch_hits_list:
+
+        rbp_id = id2name_dic[cmsh.motif_id]
+
+        if rbp_id in regions_with_motifs_dic:
+            # cmsh.seq_name : FASTA header (== --in genomic sequence region).
+            if cmsh.seq_name in regions_with_motifs_dic[rbp_id]:
+                regions_with_motifs_dic[rbp_id][cmsh.seq_name] += 1
+            else:
+                regions_with_motifs_dic[rbp_id][cmsh.seq_name] = 1
+        else:
+            regions_with_motifs_dic[rbp_id] = {}
+            regions_with_motifs_dic[rbp_id][cmsh.seq_name] = 1
+
+        cmsh_str = repr(cmsh) # genomic motif region string.
+
+        # Unique motif regions for each RBP.
+        if rbp_id in unique_motifs_dic:
+            if cmsh_str in unique_motifs_dic[rbp_id]:
+                unique_motifs_dic[rbp_id][cmsh_str] += 1
+            else:
+                unique_motifs_dic[rbp_id][cmsh_str] = 1
+        else:
+            unique_motifs_dic[rbp_id] = {}
+            unique_motifs_dic[rbp_id][cmsh_str] = 1
+
+    """
+    Store infos for each RBP in RBP class.
+
+    search_rbps_dic[rbp_id] = rbp_class
+    RBP class arguments:
+            name: str,
+            seq_motif_ids = None,
+            str_motif_ids = None,
+            c_hit_reg = 0, # # regions with motif hits.
+            perc_hit_reg = 0.0, # % hit regions over all regions (i.e. how many input regions contain >= 1 RBP motif).
+            c_motif_hits = 0, # # motif hits.
+            c_uniq_motif_hits = 0, # # unique motif hits.
+            c_uniq_motif_nts = 0, # # unique motif nucleotides.
+            perc_uniq_motif_nts_eff_reg = 0.0, # % unique motif nts over effective region length.
+            perc_uniq_motif_nts_cal_reg = 0.0, # % unique motif nts over called region length.
+            uniq_motif_hits_eff_1000nt = 0.0, # unique motif hits per effective 1000 nt.
+            uniq_motif_hits_cal_1000nt = 0.0, # unique motif hits per called 1000 nt.
+            ks_pval = 1.0, # Kolmogorov-Smirnov (KS) statistic p-value (are higher scoring sites enriched with motifs).
+            ks_stat = 0.0,
+            organism: Optional[str] = None
+
+    Number of sequences for FIMO / cmsearch:
+    c_regions
+
+    """
+    # Set number of no-hit regions.
+    for rbp_id in search_rbps_dic:
+        search_rbps_dic[rbp_id].c_no_hit_reg = c_regions
+
+    for rbp_id in regions_with_motifs_dic:
+        # Number of --in regions with RBP motif hits.
+        c_hit_reg = len(regions_with_motifs_dic[rbp_id])
+        # Count hit regions if --unstranded and not --unstranded-ct.
+        if args.unstranded and not args.unstranded_ct:
+            c_hit_reg = 0
+            seen_ids_dic = {}
+            for seq_id in regions_with_motifs_dic[rbp_id]:
+                core_id = benchlib.reg_get_core_id(seq_id)
+                if core_id not in seen_ids_dic:
+                    c_hit_reg += 1
+                    seen_ids_dic[core_id] = 1
+
+        # Number of motif hits on --in regions in total.
+        c_motif_hits = 0
+        for reg_id in regions_with_motifs_dic[rbp_id]:
+            c_motif_hits += regions_with_motifs_dic[rbp_id][reg_id]
+        search_rbps_dic[rbp_id].c_hit_reg = c_hit_reg
+        search_rbps_dic[rbp_id].c_no_hit_reg = c_regions - c_hit_reg
+        search_rbps_dic[rbp_id].c_motif_hits = c_motif_hits
+
+        # % hit regions over all regions (i.e. how many input regions contain >= 1 RBP motif).
+        search_rbps_dic[rbp_id].perc_hit_reg = (search_rbps_dic[rbp_id].c_hit_reg / c_regions) * 100
+
+    """
+    Get unique motif hits.
+
+    unique_motifs_dic:
+        Dictionary of dictionaries, format:
+        {rbp_id1 -> {'motif_region1': c_motif_region1, 'motif_region2': c_motif_region2}, rbp_id2 -> .. }
+    """
+
+    for rbp_id in unique_motifs_dic:
+        c_uniq_motif_hits = len(unique_motifs_dic[rbp_id])
+        search_rbps_dic[rbp_id].c_uniq_motif_hits = c_uniq_motif_hits
+        # Store individual motif unique hits.
+        for motif_str_repr in unique_motifs_dic[rbp_id]:
+            motif_id = benchlib.get_motif_id_from_str_repr(motif_str_repr)
+            idx = motif_id2idx_dic[motif_id]
+            if id2type_dic[motif_id] == "meme_xml":
+                search_rbps_dic[rbp_id].seq_motif_hits[idx] += 1
+            elif id2type_dic[motif_id] == "regex":
+                search_rbps_dic[rbp_id].seq_motif_hits[idx] += 1
+            elif id2type_dic[motif_id] == "cm":
+                search_rbps_dic[rbp_id].str_motif_hits[idx] += 1
+            else:
+                assert False, "unknown motif type (\"%s\") set for motif_id %s" %(id2type_dic[motif_id], motif_id)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ################################################################################
 
 def main_goa(args):
@@ -12713,13 +14250,15 @@ def main_optex(args):
     benchlib_path = os.path.dirname(benchlib.__file__)
     db_path = benchlib_path + "/content"
 
-
     """
     FIMO nt frequencies.
+
     """
-    fimo_freqs_file = db_path + "/fimo_nt_freqs.txt" # CONDA2SET
-    if args.fimo_nt_freqs:
-        fimo_freqs_file = args.fimo_nt_freqs
+    fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt.txt"
+    if args.fimo_ntf_mode == 2:
+        fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt_with_introns.txt"
+    if args.fimo_user_ntf_file:
+        fimo_freqs_file = args.fimo_user_ntf_file
     assert os.path.exists(fimo_freqs_file), "set FIMO nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
 
     """
@@ -13856,6 +15395,8 @@ if __name__ == '__main__':
         main_searchrna(args)
     elif args.which == 'searchlongrna':
         main_searchlongrna(args)
+    elif args.which == 'enmo':
+        main_enmo(args)
     elif args.which == 'goa':
         main_goa(args)
     elif args.which == 'optex':
