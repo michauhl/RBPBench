@@ -866,14 +866,15 @@ def closest_dist_motif_pos_lists(l1, l2):
 
 ################################################################################
 
-def run_di_nt_shuffling(seqs_fa, out_fa,
+def run_k_nt_shuffling(seqs_fa, out_fa,
                         kmer_size=2,
                         params="-dna",
                         error_check=True,
+                        tag="_shuf",
                         seed=None):
     """
     
-    Do di-nucleotide (kmer_size-nt) shuffling of FASTA sequences in seqs_fa. 
+    Do k-nucleotide (kmer_size-nt) shuffling of FASTA sequences in seqs_fa. 
     Output shuffled sequences to out_fa.
 
     https://meme-suite.org/meme/doc/fasta-shuffle-letters.html
@@ -894,6 +895,8 @@ def run_di_nt_shuffling(seqs_fa, out_fa,
 
     if seed is not None:
         params += " -seed %s " %(str(seed))
+
+    params += ' -tag "%s" ' %(tag)
 
     check_cmd = "fasta-shuffle-letters " + params + " " + seqs_fa + " " + out_fa
     output = subprocess.getoutput(check_cmd)
@@ -1335,6 +1338,29 @@ def bed_extract_sequences_from_fasta(in_bed, in_fa, out_fa,
             error = True
         if not ignore_errors:
             assert error == False, "bedtools getfasta is complaining:\n%s\n%s" %(check_cmd, output)
+
+
+################################################################################
+
+def plot_seq_len_distr(seq_len_list1, seq_len_list2, plot_out,
+                       label1='Set1',
+                       label2='Set2',
+                       density=True):
+    """
+    Plot histograms of sequence length distributions.
+
+    """
+
+    plt.figure(figsize=(10, 6))
+    plt.hist(seq_len_list1, bins=50, alpha=0.5, label=label1, density=density)
+    plt.hist(seq_len_list2, bins=50, alpha=0.5, label=label2, density=density)
+
+    plt.xlabel('Sequence Length')
+    plt.ylabel('Density')
+    plt.title('Length Distribution of Sequence sets')
+    plt.legend(loc='upper right')
+
+    plt.savefig(plot_out)
 
 
 ################################################################################
@@ -2542,6 +2568,41 @@ def get_mrna_region_lengths(tid2tio_dic):
 
 ################################################################################
 
+def bed_filter_by_seqs_dic(seqs_dic, in_bed, out_bed):
+    """
+    Keep only in_bed entries with column 4 ID present in seqs_dic.
+
+    """
+
+    assert os.path.isfile(in_bed), "in_bed file does not exist"
+    assert seqs_dic, "seqs_dic empty"
+    c_out = 0
+
+    OUTBED = open(out_bed, "w")
+
+    with open(in_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            chr_id = cols[0]
+            reg_s = cols[1]
+            reg_e = cols[2]
+            reg_id = cols[3]
+            sc = cols[4]
+            strand = cols[5]
+
+            exp_reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + strand + ")"
+
+            if exp_reg_id in seqs_dic:
+                OUTBED.write("%s\t%s\t%s\t%s\t0\t%s\n" % (chr_id, reg_s, reg_e, exp_reg_id, strand))
+                c_out += 1
+
+    f.closed
+    OUTBED.close()
+    assert c_out, "no entries written to out_bed"
+
+
+################################################################################
+
 def output_exon_annotations(tid2tio_dic, out_bed,
                             custom_annot_dic=None,
                             append=False):
@@ -2780,6 +2841,57 @@ def get_motif_hit_region_annotations(overlap_annotations_bed):
                     reg2annot_dic[reg_id][0] = annot_id
                     reg2annot_dic[reg_id][1] = tr_id
     f.closed
+
+    return reg2annot_dic
+
+
+################################################################################
+
+def get_mrna_region_annotations_v2(overlap_annotations_bed,
+                                   reg_ids_dic=None):
+    """
+    Get mRNA region annotations, i.e. sites are on transcripts and were overlapped
+    with 5'UTR CDS 3'UTR regions.
+
+    This function (v2) is designed for rbpbench enmo.
+
+    AALAMO
+
+    """
+    assert os.path.exists(overlap_annotations_bed), "file %s does not exist" %(overlap_annotations_bed)
+
+    reg2maxol_dic = {}
+    reg2annot_dic = {}
+    annot_col = 9
+    c_ol_nt_col = 12
+
+    with open(overlap_annotations_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            reg_id = cols[3]  # reg_id format: ENST00000663363:36-136(+)
+
+            annot_ids = cols[annot_col].split(";")  # annot_col format: ENST00000663363;5'UTR
+            assert len(annot_ids) == 2, "len(annot_ids) != 2 (expected ; separated string, but got: \"%s\")" %(cols[9])
+            tr_id = annot_ids[0]
+            annot_id = annot_ids[1]
+
+            c_overlap_nts = cols[c_ol_nt_col]
+
+            if reg_id not in reg2maxol_dic:
+                reg2maxol_dic[reg_id] = c_overlap_nts
+                reg2annot_dic[reg_id] = [annot_id, tr_id]
+            else:
+                if c_overlap_nts > reg2maxol_dic[reg_id]:
+                    reg2maxol_dic[reg_id] = c_overlap_nts
+                    reg2annot_dic[reg_id][0] = annot_id
+                    reg2annot_dic[reg_id][1] = tr_id
+    f.closed
+
+    if reg_ids_dic is not None:
+        for reg_id in reg_ids_dic:
+            if reg_id not in reg2annot_dic:
+                tr_id = reg_id.split(":")[0]
+                reg2annot_dic[reg_id] = ["ncRNA", tr_id]
 
     return reg2annot_dic
 
@@ -3920,8 +4032,6 @@ def genome_fasta_get_chr_sizes_file(in_genome_fa, out_chr_sizes_file,
     >>> genome_fasta_get_chr_sizes_file(test_fa, out_chr_len_file)
     >>> diff_two_files_identical(out_chr_len_file, exp_chr_len_file)
 
-    AALAMO
-
     """
 
     seq_id = "id"
@@ -4276,6 +4386,47 @@ def get_length_from_seq_name(seq_name):
         return reg_e - reg_s
     else:
         assert False, "invalid seq_name format given (%s)" %(seq_name)
+
+
+################################################################################
+
+class MotifEnrich:
+    """
+    Store motif enrichment stats for each motif.
+    
+    """
+
+    def __init__(self,
+                 motif_id: str,
+                 rbp_id: str,
+                 c_pos_hit_regions = 0,
+                 c_neg_hit_regions = 0,
+                 c_pos_regions = 0,
+                 c_neg_regions = 0,
+                 c_pos_hits = 0,
+                 c_neg_hits = 0,
+                 con_table = False,  # Continency table.
+                 fisher_pval = 1.0,
+                 fisher_pval_corr = 1.0,
+                 fisher_corr_mode = 1,  # 1: BH, 2: Bonferroni, 3: no correction
+                 fisher_alt_hyp_mode = 1,  # Alternative hypothesis mode, 1: greater, 2: two-sided, 3: less
+                 motif_type="meme_xml",
+                 logo_png_file = False) -> None:
+        self.motif_id = motif_id
+        self.rbp_id = rbp_id
+        self.c_pos_hit_regions = c_pos_hit_regions
+        self.c_neg_hit_regions = c_neg_hit_regions
+        self.c_pos_regions = c_pos_regions
+        self.c_neg_regions = c_neg_regions
+        self.c_pos_hits = c_pos_hits
+        self.c_neg_hits = c_neg_hits
+        self.con_table = con_table
+        self.fisher_pval = fisher_pval
+        self.fisher_pval_corr = fisher_pval_corr
+        self.fisher_corr_mode = fisher_corr_mode
+        self.fisher_alt_hyp_mode = fisher_alt_hyp_mode
+        self.motif_type = motif_type
+        self.logo_png_file = logo_png_file
 
 
 ################################################################################

@@ -1926,28 +1926,52 @@ def setup_argument_parser():
                    choices=[1, 2],
                    help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
     p_em.add_argument("--bg-mode",
-                   dest="background_mode",
+                   dest="bg_mode",
                    type=int,
                    default=1,
-                   choices=[1, 2, 3, 4],
-                   help="Define how to generate the background regions dataset 1: depending on type of --in sites (transcript, genomic), sample random regions with same length distribution from transcript or gene regions (based on given --gtf), 2: shuffle --in site sequences (di-nucleotide shuffling) and use these as background 3: use transcript regions 4: use gene regions (default: 1)")
+                   choices=[1, 2],
+                   help="Define how to generate the background regions dataset 1: depending on type of --in sites (transcript, genomic), sample random regions with same length distribution from transcript or gene regions (based on given --gtf), 2: shuffle --in site sequences (di-nucleotide shuffling) and use these as background (default: 1)")
     p_em.add_argument("--bg-min-size",
-                   dest="background_min_size",
+                   dest="bg_min_size",
                    type=int,
                    metavar='int',
                    default=5000,
-                   help="Minimum size of background set to be used for calculating motif enrichment. If size =< --in set, use --in set size. If size > --in set size, double the --in set until it is <= size (default: 5000)")
+                   help="Minimum size of background set to be used for calculating motif enrichment. If size =< --in set, use --in set size. If size > --in set size, double the --in set until it is <= size. Only applies for --bg-mode 1. For --bg-mode 2, you can use --bg-shuff-factor (default: 5000)")
     p_em.add_argument("--bg-mask-bed",
                    dest="bg_mask_bed",
                    type=str,
                    metavar='str',
                    help = "Additional BED regions file (6-column format) for masking regions (i.e. no background sites should be extracted from --bg-mask-bed regions)")
+    p_em.add_argument("--bg-mask-blacklist",
+                   dest="bg_mask_blacklist",
+                   default = False,
+                   action = "store_true",
+                   help="Add ENCODE blacklist regions (hg38) to excluded regions set, i.e. do not sample from these blacklisted regions (default: False)")
+    p_em.add_argument("--bg-shuff-factor",
+                   dest="bg_shuff_factor",
+                   type=int,
+                   metavar='int',
+                   default=1,
+                   help="Define number of times the size of the shuffled set (--bg-mode 2 set) should be compared to --in set (default: 1)")
+    p_em.add_argument("--bg-shuff-k",
+                   dest="bg_shuff_k",
+                   type=int,
+                   metavar='int',
+                   default=2,
+                   help="Define k for k-nt shuffling --in set to create background set (default: 2)")
     p_em.add_argument("--tr-list",
                    dest="tr_list",
                    type=str,
                    metavar='str',
                    default = False,
                    help = "Supply file with transcript IDs (one ID per row) to define which transcripts to use from --gtf to extract control regions")
+    p_em.add_argument("--gtf-feat-min-overlap",
+                   dest="gtf_feat_min_overlap",
+                   type=float,
+                   metavar='float',
+                   default=0.1,
+                   help="Minimum amount of overlap required for a region to be assigned to a GTF feature (default: 0.1)")
+
     p_em.add_argument("--fimo-ntf-file",
                    dest="fimo_user_ntf_file",
                    type=str,
@@ -4270,8 +4294,8 @@ def main_search(args):
         # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.
         print("Output exon annotations to BED ... ")
         benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
-                                            custom_annot_dic=custom_annot_dic,
-                                            append=True)
+                                         custom_annot_dic=custom_annot_dic,
+                                         append=True)
 
         # Overlap with input regions.
         print("Overlap annotations with input regions ... ")
@@ -9645,8 +9669,6 @@ def main_searchrna(args):
     """
     Get transcript IDs from --in transcript sites (column 1).
     
-    AALAMO
-
     """
 
     tr_ids_dic = benchlib.bed_read_chr_ids_dic(args.in_sites)
@@ -12784,6 +12806,11 @@ def main_enmo(args):
     if args.regex:
         assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
 
+    # Limit inputs.
+    assert benchlib.boundary_check(args.bg_shuff_factor, 1, 20), "set --bg-shuff-factor expected to be >= 1 and <= 20"
+    assert benchlib.boundary_check(args.bg_shuff_k, 1, 5), "set --bg-shuff-k expected to be >= 1 and <= 5"
+    assert benchlib.boundary_check(args.bg_min_size, 1, 200000), "set --bg-min-size expected to be >= 1 and <= 200000"
+
     """
     Library path.
     """
@@ -12800,6 +12827,14 @@ def main_enmo(args):
     if args.fimo_user_ntf_file:
         fimo_freqs_file = args.fimo_user_ntf_file
     assert os.path.exists(fimo_freqs_file), "set FIMO nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
+
+    """
+    ENCODE blacklist.
+
+    https://github.com/Boyle-Lab/Blacklist/
+    hg38-blacklist.v2.bed 
+    """
+    blacklist_bed = db_path + "/hg38-blacklist.v2.6col.bed"
 
     """
     Motif database.
@@ -12878,6 +12913,7 @@ def main_enmo(args):
     if not os.path.exists(args.out_folder):
         os.makedirs(args.out_folder)
 
+    f1_sites_bed = args.out_folder + "/in_sites.filtered.tmp.bed"
     filtered_sites_bed = args.out_folder + "/in_sites.filtered.bed"
     filtered_sites_fa = args.out_folder + "/in_sites.filtered.fa"
     seq_motifs_xml = args.out_folder + "/seq_motifs.xml"
@@ -12886,6 +12922,7 @@ def main_enmo(args):
     cmsearch_res_txt = args.out_folder + "/cmsearch_results.txt"
 
     chr_len_file = args.out_folder + "/" + "reference_lengths.out"
+    mrna_regions_bed = args.out_folder + "/mrna_regions.bed"
 
     tr_seqs_fa = args.out_folder + "/transcript_sequences.fa"
     bg_excl_bed = args.out_folder + "/background_excluded_regions.bed"
@@ -12901,7 +12938,7 @@ def main_enmo(args):
     # Output unique motif hits.
     motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_search.bed"
     # Output RBP co-ooccurrence stats as table.
-    cooc_stats_out = args.out_folder + "/rbp_cooc_stats.tsv"
+    enmo_stats_out = args.out_folder + "/motif_enrichment_stats.tsv"
 
     # GOA results.
     goa_results_tsv = args.out_folder + "/goa_results.tsv"
@@ -13174,7 +13211,7 @@ def main_enmo(args):
         2: 1, 2, ... , X, MT
 
     """
-    chr_style = 0  # no changes to chromosome IDs in GTF files.
+    chr_style = 1  # no changes to   IDs in GTF files.  AALAMO !!!
     
     if "1" in chr_ids_dic:
         assert "chr1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
@@ -13329,7 +13366,7 @@ def main_enmo(args):
     # Filter / extend --in BED.
     print("Preprocess --in sites ... ")
 
-    reg_stats_dic = benchlib.bed_filter_extend_bed(args.in_sites, filtered_sites_bed,
+    reg_stats_dic = benchlib.bed_filter_extend_bed(args.in_sites, f1_sites_bed,
                                                    ext_up=ext_up,
                                                    ext_down=ext_down,
                                                    remove_dupl=True,
@@ -13343,7 +13380,6 @@ def main_enmo(args):
 
     assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID filtering. If caused by invalid chr_id filtering, make sure chromosome IDs in --genome FASTA and --in BED files are compatible (i.e., \"chr1\" vs. \"1\" notation). If --in regions are on transcripts, use rbpbench searchrna"
 
-    # AALAMO
 
     fasta_index_file = tr_seqs_fa + ".fai"
     if os.path.exists(fasta_index_file):
@@ -13354,7 +13390,7 @@ def main_enmo(args):
     if genomic_sites_input:
 
         print("Extract --in sequences from --genome ... ")
-        benchlib.bed_extract_sequences_from_fasta(filtered_sites_bed, 
+        benchlib.bed_extract_sequences_from_fasta(f1_sites_bed, 
                                                 args.in_genome, filtered_sites_fa,
                                                 print_warnings=True)
 
@@ -13365,6 +13401,9 @@ def main_enmo(args):
                                         id_check=True,
                                         empty_check=False,
                                         skip_n_seqs=False)
+
+        # Filter BED file to discard regions for which no sequence was extracted.
+        benchlib.bed_filter_by_seqs_dic(pos_seqs_dic, f1_sites_bed, filtered_sites_bed)
 
     else:
 
@@ -13379,7 +13418,7 @@ def main_enmo(args):
                                   split=True)
 
         print("Extract site sequences from transcript sequences ... ")
-        benchlib.bed_extract_sequences_from_fasta(filtered_sites_bed, 
+        benchlib.bed_extract_sequences_from_fasta(f1_sites_bed, 
                                                   tr_seqs_fa, filtered_sites_fa,
                                                   print_warnings=True)
 
@@ -13391,6 +13430,8 @@ def main_enmo(args):
                                         empty_check=False,
                                         skip_n_seqs=False)
 
+        # Filter BED file to discard regions for which no sequence was extracted.
+        benchlib.bed_filter_by_seqs_dic(pos_seqs_dic, f1_sites_bed, filtered_sites_bed)
 
         # # Transcript sequence lengths.
         # tr_seq_len_dic = {}
@@ -13408,20 +13449,34 @@ def main_enmo(args):
     mask_files_list.append(filtered_sites_bed)
     if args.bg_mask_bed:
         mask_files_list.append(args.bg_mask_bed)
+    if args.bg_mask_blacklist:
+        mask_files_list.append(blacklist_bed)
     benchlib.merge_files(mask_files_list, bg_excl_bed)
 
 
     """
     Make shuffle input BED file bg_shuffle_in_bed.
 
+    bg_min_size 5000
+
+
     """
 
     # Generate shuffle file.
     shuffle_list = []
-    # Generate random negatives, neg_factor times number of positives.
-    for i in range(args.neg_factor):
-        shuffle_list.append(positives_with_context_bed)
-    rplib.merge_files(shuffle_list, shuffle_in_bed)
+    c_pos = len(pos_seqs_dic)
+    c_pos_total = 0
+    if c_pos >= args.bg_min_size:
+        shuffle_list.append(filtered_sites_bed)
+        c_pos_total = c_pos
+    else:
+        while c_pos_total < args.bg_min_size:
+            shuffle_list.append(filtered_sites_bed)
+            c_pos_total += c_pos
+
+    benchlib.merge_files(shuffle_list, bg_shuffle_in_bed)
+
+    print("# random negative regions to sample: ", c_pos_total)
 
 
 
@@ -13433,24 +13488,42 @@ def main_enmo(args):
         Background excluded regions BED
     bg_incl_bed:
         Background included regions BED
-    
-    AALAMO
-    chr_len_file
-        
+
+
     """
     
     neg_seqs_dic = {}
+    neg_seqs_tmp_bed = args.out_folder + "/background_sequences.tmp.bed"
+    neg_seqs_bed = args.out_folder + "/background_sequences.bed"
     neg_seqs_fa = args.out_folder + "/background_sequences.fa"
 
-    if args.background_mode == 1:
+
+    if args.bg_mode == 1:
 
         print("Background mode 1 ... ")
 
         print("Extract random background regions ... ")
-        check = benchlib.bed_generate_random_negatives(bg_shuffle_in_bed, chr_len_file, neg_seqs_fa,
+        check = benchlib.bed_generate_random_negatives(bg_shuffle_in_bed, chr_len_file, neg_seqs_tmp_bed,
                                                        incl_bed=bg_incl_bed,
                                                        excl_bed=bg_excl_bed,
                                                        seed=None)
+
+        seqs_fa = args.in_genome
+        if not genomic_sites_input:
+            seqs_fa = tr_seqs_fa
+        
+        """
+        For genomic regions resulting IDs look like:
+        chr22:20977398-20977456(+)
+        tr regions work as well, ID format is:
+        ENST00000663363:36-136(+)
+
+        """
+
+        print("Extract background regions from FASTA ... ")
+        benchlib.bed_extract_sequences_from_fasta(neg_seqs_tmp_bed, 
+                                                  seqs_fa, neg_seqs_fa,
+                                                  print_warnings=True)
 
         print("Read in background sequences ... ")
         neg_seqs_dic = benchlib.read_fasta_into_dic(neg_seqs_fa,
@@ -13462,301 +13535,275 @@ def main_enmo(args):
 
         assert neg_seqs_dic, "no background sequences read in. Please contact developers"
 
+        print("# of extracted background sequences: ", len(neg_seqs_dic))
+
+        # Remove N-containing sequences from neg_seqs_dic.
+        c_n_removed = 0
+        print("Remove N-containing background sequences ... ")
+        for seq_id in list(neg_seqs_dic.keys()):
+            if "N" in neg_seqs_dic[seq_id]:
+                c_n_removed += 1
+                del neg_seqs_dic[seq_id]
+        print("# of N-containing background sequences removed: ", c_n_removed)
+
+        # Filter BED file to discard regions for which no sequence was extracted.
+        benchlib.bed_filter_by_seqs_dic(neg_seqs_dic, neg_seqs_tmp_bed, neg_seqs_bed)
+
         if not check:
             print("Need to sample with more regions ... ")
+            sys.exit()
 
+    elif args.bg_mode == 2:
 
-        # AALAMO
-
-    elif args.background_mode == 2:
+        print("Prepare sequences to shuffle (factor = %i) ... " %(args.bg_shuff_factor))
+        seqs2shuffle_fa = args.out_folder + "/sequences_to_shuffle.fa"
+        OUTSHUFA = open(seqs2shuffle_fa, "w")
+        seq_idx = 0
+        for idx in range(args.bg_shuff_factor):
+            for seq_id in pos_seqs_dic:
+                new_seq_id = "shuff_%i" %(seq_idx)
+                seq_idx += 1
+                OUTSHUFA.write(">%s\n%s\n" %(new_seq_id, pos_seqs_dic[seq_id]))
+        OUTSHUFA.close()
 
         # Di-nucleotide shuffling of positive sequences.
-        print("Shuffle positive sequences ... ")
+        print("Shuffle sequences (k = %i) ... " %(args.bg_shuff_k))
 
-        benchlib.run_di_nt_shuffling(filtered_sites_fa, neg_seqs_fa,
-                                     kmer_size=2,
-                                     params="-dna",
-                                     error_check=True,
-                                     seed=None)
+        benchlib.run_k_nt_shuffling(seqs2shuffle_fa, neg_seqs_fa,
+                                    kmer_size=args.bg_shuff_k,
+                                    params="-dna",
+                                    tag="",  # add nothing to sequence IDs in seqs2shuffle_fa.
+                                    error_check=True,
+                                    seed=None)
 
+        print("Read in background sequences ... ")
+        neg_seqs_dic = benchlib.read_fasta_into_dic(neg_seqs_fa,
+                                                    dna=True,
+                                                    all_uc=True,
+                                                    id_check=True, # This will fail probably, need genomic regions.
+                                                    empty_check=False,
+                                                    skip_n_seqs=False)
 
-    elif args.background_mode == 3:
+        assert neg_seqs_dic, "no shuffled background sequences read in. Please contact developers"
 
-        print("Background mode 3 ... ")
-
-
-    elif args.background_mode == 4:
-
-        print("Background mode 4 ... ")
-
-
-    # # Collect masking files and merge them to BED.
-    # print("Collect regions for masking (== no negatives from these regions) ... ")
-    # mask_files_list = []
-    # mask_files_list.append(args.in_sites)
-    # mask_files_list.append(positives_with_context_bed)
-    # if args.mask_bed:
-    #     mask_files_list.append(args.mask_bed)
-    # rplib.merge_files(mask_files_list, mask_negatives_bed)
+        print("# of shuffled background sequences: ", len(neg_seqs_dic))
 
 
-    # excl_bed = args.out_folder + "/excl.bed"
+    print("neg_seqs_fa here:", neg_seqs_fa)
 
 
-    # AALAMO
+    print("Plot sequence lengths distributions ... ")
 
-    # Make a transcript regions .bed file.
-    print("Output transcripts containing positive sites to BED ... ")
-    rplib.bed_sequence_lengths_to_bed(tr_len_dic, regions_with_positives_bed,
-                                       ids_dic=chr_ids_dic)
+    pos_len_list = [len(seq) for seq in pos_seqs_dic.values()]
+    neg_len_list = [len(seq) for seq in neg_seqs_dic.values()]
 
-
-
-    # (in)sanity checks.
-    for tr_id in tr_ids_dic:
-        assert tr_id in tid2tio_dic, "transcript ID %s from --in BED file not found in --gtf GTF file. Please provide a compatible GTF file"
-    for tr_id in tid2tio_dic:
-        assert tr_id in tr_ids_dic, "transcript ID %s not in tr_ids_dic. Please contact developers"
-
-    c_tr_infos = len(tid2tio_dic)
-    print("# transcript features read in from --gtf:", c_tr_infos)
-
-
+    len_dist_plot_out = args.out_folder + "/sequence_lengths_distribution.png"
+    benchlib.plot_seq_len_distr(pos_len_list, neg_len_list, len_dist_plot_out,
+                                label1='Positive sequences',
+                                label2='Background sequences',
+                                density=True)
 
 
     """
-    print("Output transcript regions with introns to BED ... ")
 
-    OUTBED = open(tr_seqs_bed, "w")
-    # Output transcript regions.
-    for tr_id in tid2tio_dic:
-        chr_id = tid2tio_dic[tr_id].chr_id
-        tr_s = tid2tio_dic[tr_id].tr_s - 1
-        tr_e = tid2tio_dic[tr_id].tr_e
-        tr_pol = tid2tio_dic[tr_id].tr_pol
-        OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" %(chr_id, tr_s, tr_e, tr_id, tr_pol))
-    OUTBED.close()
+    
+    Get region annotations for genomic regions.
+
+    """
+
+    pos_reg_ids_list = []
+    pos_reg_ids_dic = {}
+    for seq_id, seq in sorted(pos_seqs_dic.items()):
+        pos_reg_ids_list.append(seq_id)
+        pos_reg_ids_dic[seq_id] = 1
+    neg_reg_ids_list = []
+    neg_reg_ids_dic = {}
+    for seq_id, seq in sorted(neg_seqs_dic.items()):
+        neg_reg_ids_list.append(seq_id)
+        neg_reg_ids_dic[seq_id] = 1
+
+    pos_reg2annot_dic = {}
+    neg_reg2annot_dic = {}
+
+    if args.bg_mode == 1 and genomic_sites_input:
+
+        """
+        reg2annot_dic[reg_id][0] = annot_string
+        reg2annot_dic[reg_id][1] = tr_id
+
+        """
+
+        print("Get genomic region annotations ... ")
+        # Extract exon + intron regions of selected transcripts from transcript infos.
+        print("Output intron annotations to BED ... ")
+        intron_exon_out_bed = args.out_folder + "/intron_exon_regions.tmp.bed"
+        benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
+                                            output_mode=3,  # only introns.
+                                            report_counts=True,
+                                            add_tr_id=True,
+                                            empty_check=False)
+    
+        # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.
+        print("Output exon annotations to BED ... ")
+        benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
+                                         append=True)
+
+        # Overlap with input regions.
+        print("Overlap annotations with input regions ... ")
+        params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
+        overlap_annotations_bed = args.out_folder + "/overlap_region_annotations.tmp.bed"
+        benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_out_bed, 
+                                     overlap_annotations_bed,
+                                     params=params)
+        pos_reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
+                                                            reg_ids_dic=pos_reg_ids_dic)
+
+        print("Overlap annotations with background regions ... ")
+        benchlib.bed_intersect_files(neg_seqs_bed, intron_exon_out_bed, 
+                                     overlap_annotations_bed,
+                                     params=params)
+        neg_reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
+                                                            reg_ids_dic=neg_reg_ids_dic)
+
+
+    elif args.bg_mode == 1 and not genomic_sites_input:
+
+        for reg_id in pos_reg_ids_dic:
+            # Get tr_id from reg_id format: ENST00000663363:36-136(+)
+            tr_id = reg_id.split(":")[0]
+            pos_reg2annot_dic[reg_id] = ["ncRNA", tr_id]
+
+        for reg_id in neg_reg_ids_dic:
+            tr_id = reg_id.split(":")[0]
+            neg_reg2annot_dic[reg_id] = ["ncRNA", tr_id]
+
+        # Get mRNA region lengths.
+        tid2regl_dic = benchlib.get_mrna_region_lengths(tid2tio_dic)
+        if tid2regl_dic:
+            print("Get mRNA region annotations ... ")
+            print("# mRNA transcripts (containing CDS):", len(tid2regl_dic))
+
+            benchlib.output_mrna_regions_to_bed(tid2regl_dic, mrna_regions_bed)
+
+            # Overlap with input regions.
+            print("Overlap mRNA annotations with input regions ... ")
+            params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
+            overlap_annotations_bed = args.out_folder + "/overlap_region_annotations.tmp.bed"
+            benchlib.bed_intersect_files(filtered_sites_bed, mrna_regions_bed, 
+                                         overlap_annotations_bed,
+                                         params=params)
+            pos_reg2annot_dic = benchlib.get_mrna_region_annotations_v2(overlap_annotations_bed,
+                                                                        reg_ids_dic=pos_reg_ids_dic)
+
+            print("Overlap mRNA annotations with background regions ... ")
+            benchlib.bed_intersect_files(neg_seqs_bed, mrna_regions_bed, 
+                                         overlap_annotations_bed,
+                                         params=params)
+            neg_reg2annot_dic = benchlib.get_mrna_region_annotations_v2(overlap_annotations_bed,
+                                                                        reg_ids_dic=neg_reg_ids_dic)
+
+
+    annot2color_dic = {}
+
+    if args.bg_mode == 1:
+
+        print("Output positive region annotations ... ")
         
-    print("Extract transcript regions from --genome ... ")
-    benchlib.bed_extract_sequences_from_fasta(tr_seqs_bed, 
-                                              args.in_genome, tr_seqs_fa,
-                                              add_param="-name",
-                                              print_warnings=True)
+        reg_annot_table_file = args.out_folder + "/" + "pos_region_annotations.tsv"
 
-    print("Read in extracted sequences ... ")
-    tr_seqs_dic = benchlib.read_fasta_into_dic(tr_seqs_fa,
-                                               dna=True,
-                                               all_uc=True,
-                                               id_check=True,
-                                               name_bed=True,
-                                               empty_check=False,
-                                               skip_n_seqs=False)
+        OUTRAN = open(reg_annot_table_file, "w")
+        OUTRAN.write("region_id\tgene_id\tgene_name\ttranscript_id\tregion_annotation\ttranscript_biotype\n")
 
+        for reg_id in pos_reg2annot_dic:
+            annot = pos_reg2annot_dic[reg_id][0]
+            tr_id = pos_reg2annot_dic[reg_id][1]
+            gene_id = "-"
+            gene_name = "-"
+            tr_biotype = "-"
+            if tr_id:
+                gene_id = tr2gid_dic[tr_id]
+                gene_info = gid2gio_dic[gene_id]
+                tr_biotype = tid2tio_dic[tr_id].tr_biotype
+                gene_name = gene_info.gene_name
+            else:
+                tr_id = "-"
+            OUTRAN.write("%s\t%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot, tr_biotype))
+        OUTRAN.close()
 
+        """
+        Get annotation to color dictionary, which is needed for region annotation plots in HTML reports.
 
+        """
+        assert pos_reg2annot_dic, "--bg-mode 1 set, but no positive region annotations found. Please contact developers"
+        assert neg_reg2annot_dic, "--bg-mode 1 set, but no negative region annotations found. Please contact developers"
 
-    # Get transcript sequences.
-    print("Extract transcript sequences ... ")
-    tr_seqs_dic = benchlib.get_transcript_sequences_from_gtf(tid2tio_dic, args.in_genome,
-                                                             tr_ids_dic=tr_ids_dic,
-                                                             dna=True,
-                                                             all_uc=True,
-                                                             tmp_out_folder=args.out_folder)
+        annot_dic = {}
 
-    # Give some length statistics on the extracted sequences.
-    tr_lens = [len(seq) for seq in tr_seqs_dic.values()]
-    print("Transcript sequence length statistics:")
-    print("Min:   ", min(tr_lens))
-    print("Max:   ", max(tr_lens))
-    print("Mean:  ", statistics.mean(tr_lens))
-    print("Median:", statistics.median(tr_lens))
+        for reg_id in pos_reg2annot_dic:
+            annot = pos_reg2annot_dic[reg_id][0]
+            if annot not in annot_dic:
+                annot_dic[annot] = 1
+            else:
+                annot_dic[annot] += 1
+        for reg_id in neg_reg2annot_dic:
+            annot = neg_reg2annot_dic[reg_id][0]
+            if annot not in annot_dic:
+                annot_dic[annot] = 1
+            else:
+                annot_dic[annot] += 1
 
-    # Output sequences to FASTA.
-    print("Output transcript sequences to FASTA ... ")
-    benchlib.fasta_output_dic(tr_seqs_dic, tr_seqs_fa,
-                              split=True)
+        hex_colors = benchlib.get_hex_colors_list(min_len=len(annot_dic))
 
-
-    """
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    # Get transcript sequences.
-    print("Extract transcript sequences ... ")
-    tr_seqs_dic = benchlib.get_transcript_sequences_from_gtf(tid2tio_dic, args.in_genome,
-                                                             tr_ids_dic=tr_ids_dic,
-                                                             tmp_out_folder=args.out_folder)
-
-    # Output sequences to FASTA.
-    print("Output transcript sequences to FASTA ... ")
-    benchlib.fasta_output_dic(tr_seqs_dic, tr_seqs_fa,
-                              split=True)
-
-    # Transcript sequence lengths.
-    tr_seq_len_dic = {}
-    for tr_id in tr_seqs_dic:
-        tr_seq_len_dic[tr_id] = len(tr_seqs_dic[tr_id])
-
-
-
-
-
-
-
-
+        idx = 0
+        for annot in sorted(annot_dic, reverse=False):
+            # hc = hex_colors[idx]
+            # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
+            annot2color_dic[annot] = hex_colors[idx]
+            idx += 1
 
 
     """
-    Guess chromosome ID style.
-
-    chr_style:
-        1: chr1, chr2, ..., chrX, chrM
-        2: 1, 2, ... , X, MT
+    Get FIMO + REGEX hits.
 
     """
-    chr_style = 0  # no changes to chromosome IDs in GTF files.
-    
-    if "1" in chr_ids_dic:
-        assert "chr1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
-    if "chr1" in chr_ids_dic:
-        assert "1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
-    if "chr1" in chr_ids_dic:
-        chr_style = 1
-    if "1" in chr_ids_dic:
-        chr_style = 2
 
-    """
-    Calculate effective size of genomic regions.
-    
-    """
-    print("Calculate effective genomic region size ... ")
-    eff_reg_size = benchlib.get_uniq_gen_size(filtered_sites_bed)
-
-    print("Called region length sum:      ", reg_stats_dic["reg_len_sum"])
-    print("Effective region length sum:   ", eff_reg_size)
-
-    """
-    Get genomic region sequences from --genome.
-
-    Output FASTA header format:
-    >chr8:9772198-9772297(+)
-
-    No need to convert sequences to uppercase, as FIMO works on both 
-    lower- and uppercase (as long as DNA / RNA is set correct).
-
-    """
-    print("Extract sequences from --genome ... ")
-    benchlib.bed_extract_sequences_from_fasta(filtered_sites_bed, 
-                                              args.in_genome, filtered_sites_fa,
-                                              print_warnings=True)
-
-
-    """
-    Get FASTA sequences and sequence lengths.
-    """
-
-    out_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
-                                       dna=True,
-                                       all_uc=True,
-                                       id_check=True,
-                                       empty_check=False,
-                                       skip_n_seqs=False)
-
-    assert out_seqs_dic, "no sequences extracted from FASTA file for --in BED sites. Make sure to use compatible FASTA/BED files!"
-
-    # Get region strands/polarities for motif distance calculations.
-    reg2pol_dic = benchlib.extract_pol_from_seq_ids(out_seqs_dic)
-
-    # Effective number of regions used for motif search.
-    c_regions = len(out_seqs_dic)
-    """
-    --unstranded option and not --unstranded-ct
-
-    chr8:9772198-9772297(+)
-    """
-    if args.unstranded and not args.unstranded_ct:
-        # Check if sequences are even.
-        assert not len(out_seqs_dic) % 2, "# of --in regions should be an even number since --unstranded is set. Please contact developers"
-        c_regions = len(out_seqs_dic) // 2
-    
-    # Called region size.
-    called_reg_size = 0
-    len_list = []
-    for seq_id in out_seqs_dic:
-        seq_len = len(out_seqs_dic[seq_id])
-        called_reg_size += seq_len
-        len_list.append(seq_len)
-
-    # Length statistics.
-    reg_len_median = statistics.median(len_list)
-    reg_len_mean = statistics.mean(len_list)
-    reg_len_mean = round(reg_len_mean, 2)
-    reg_len_min = min(len_list)
-    reg_len_max = max(len_list)
-
-    """
-    ====================================
-    RUN SEQUENCE MOTIF SEARCH WITH FIMO.
-    ====================================
-    
-    """
-    fimo_hits_list = []
-    call_dic = {}
+    pos_fimo_hits_list = []
+    neg_fimo_hits_list = []
 
     if seq_rbps_dic:
 
-        """
-        Print motifs to file.
 
-        """
-
-        print("Output motifs to XML ... ")
         out_str, c_added_motifs = benchlib.blocks_to_xml_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
-
         benchlib.output_string_to_file(out_str, seq_motifs_xml)
 
-
-        """
-        Run FIMO on sequences + motifs.
-
-        """
-
-        print("Run FIMO ... ")
+        print("Run FIMO on positive regions ... ")
         benchlib.run_fast_fimo(filtered_sites_fa, seq_motifs_xml, fimo_res_tsv,
-                    pval_thr=args.fimo_pval,
-                    nt_freqs_file=fimo_freqs_file,
-                    call_dic=call_dic,
-                    params=fimo_params,
-                    error_check=False)
-
-        """
-        Read in FIMO hits.
-
-        """
+                               pval_thr=args.fimo_pval,
+                               nt_freqs_file=fimo_freqs_file,
+                               params=fimo_params,
+                               error_check=False)
 
         assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
 
-        print("Read in FIMO results ... ")
-        fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv)
+        pos_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv)
 
-        c_fimo_hits = len(fimo_hits_list)
-        print("# of FIMO motif hits:", c_fimo_hits)
+        c_pos_fimo_hits = len(pos_fimo_hits_list)
+        print("# of FIMO motif hits in positive regions:", c_pos_fimo_hits)
 
-        """
-        If --regex is set, search for regex hits in sequences (stored in out_seqs_dic).
+        print("Run FIMO on background regions ... ")
+        benchlib.run_fast_fimo(neg_seqs_fa, seq_motifs_xml, fimo_res_tsv,
+                               pval_thr=args.fimo_pval,
+                               nt_freqs_file=fimo_freqs_file,
+                               params=fimo_params,
+                               error_check=False)
 
-        """
+        assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
+
+        neg_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv)
+
+        c_neg_fimo_hits = len(neg_fimo_hits_list)
+        print("# of FIMO motif hits in background regions:", c_neg_fimo_hits)
+
         if args.regex:
 
             step_size_one = False
@@ -13768,45 +13815,384 @@ def main_enmo(args):
                 assert False, "invalid --regex-search-mode %i set" %(args.regex_search_mode)
 
             print("Run search for --regex \"%s\" ... " %(regex))
-            regex_hits_list = benchlib.get_regex_hits(regex, regex_id, out_seqs_dic,
+            pos_regex_hits_list = benchlib.get_regex_hits(regex, regex_id, pos_seqs_dic,
                                                       step_size_one=step_size_one,
                                                       use_motif_regex_id=args.motif_regex_id)
 
-            c_regex_hits = len(regex_hits_list)
-            print("# of regex hits:", c_regex_hits)
+            c_pos_regex_hits = len(pos_regex_hits_list)
+            print("# of regex hits in positive regions:", c_pos_regex_hits)
 
             # Add regex hits to fimo_hits_list.
-            fimo_hits_list += regex_hits_list
+            pos_fimo_hits_list += pos_regex_hits_list
+
+            neg_regex_hits_list = benchlib.get_regex_hits(regex, regex_id, neg_seqs_dic,
+                                                      step_size_one=step_size_one,
+                                                      use_motif_regex_id=args.motif_regex_id)
+
+            c_neg_regex_hits = len(neg_regex_hits_list)
+            print("# of regex hits in background regions:", c_neg_regex_hits)
+
+            # Add regex hits to fimo_hits_list.
+            neg_fimo_hits_list += neg_regex_hits_list
 
 
     """
-    =========================================
-    RUN STRUCTURE MOTIF SEARCH WITH CMSEARCH.
-    =========================================
+    Get CMSEARCH hits.
 
     """
-    cmsearch_hits_list = []
+
+    pos_cmsearch_hits_list = []
+    neg_cmsearch_hits_list = []
 
     if str_rbps_dic:
         
         print("Output covariance models to .cm ... ")
         benchlib.output_cm_blocks_to_file(str_motif_blocks_dic, loaded_motif_ids_dic, str_motifs_cm)
 
-        # Run cmsearch.
-        print("Run cmsearch ... ")
+        print("Run cmsearch on positive regions ... ")
         benchlib.run_cmsearch(filtered_sites_fa, str_motifs_cm, cmsearch_res_txt,
                         error_check=False,
-                        call_dic=call_dic,
-                        params="-g --tformat fasta --toponly --incT 1 -T 1 --default") # or add --anytrunc and remove --g
-        # Read in hits.
-        print("Read in cmsearch results ... ")
-        cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt, 
+                        params="-g --tformat fasta --toponly --incT 1 -T 1 --default")
+
+        pos_cmsearch_hits_list, c_pos_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt, 
                                                                            check=True)
 
-        print("# of cmsearch motif hits:", c_cms_hits)
+        print("# of cmsearch motif hits in positive regions:", c_pos_cms_hits)
+
+        print("Run cmsearch on background regions ... ")
+        benchlib.run_cmsearch(neg_seqs_fa, str_motifs_cm, cmsearch_res_txt,
+                        error_check=False,
+                        params="-g --tformat fasta --toponly --incT 1 -T 1 --default")
+
+        neg_cmsearch_hits_list, c_neg_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt, 
+                                                                           check=True)
+
+        print("# of cmsearch motif hits in background regions:", c_neg_cms_hits)
 
 
     """
+    Get motif to region hit counts.
+
+    pos_hits_dic / neg_hits_dic format: 
+    motif_id -> region_id -> # of hits in positive regions
+
+    """
+    pos_hits_dic = {}
+    neg_hits_dic = {}
+    found_motif_ids_dic = {}
+
+    for fh in pos_fimo_hits_list:
+
+        motif_id = fh.motif_id
+        rbp_id = id2name_dic[motif_id]
+        # fh.seq_name : FASTA header (== --in genomic sequence region).
+        reg_id = fh.seq_name
+
+        if motif_id in pos_hits_dic:
+            if reg_id in pos_hits_dic[motif_id]:
+                pos_hits_dic[motif_id][reg_id] += 1
+            else:
+                pos_hits_dic[motif_id][reg_id] = 1
+        else:
+            pos_hits_dic[motif_id] = {}
+            pos_hits_dic[motif_id][reg_id] = 1
+
+        if motif_id in found_motif_ids_dic:
+            found_motif_ids_dic[motif_id] += 1
+        else:
+            found_motif_ids_dic[motif_id] = 1
+
+    for fh in neg_fimo_hits_list:
+            
+        motif_id = fh.motif_id
+        rbp_id = id2name_dic[motif_id]
+        reg_id = fh.seq_name
+
+        if motif_id in neg_hits_dic:
+            if reg_id in neg_hits_dic[motif_id]:
+                neg_hits_dic[motif_id][reg_id] += 1
+            else:
+                neg_hits_dic[motif_id][reg_id] = 1
+        else:
+            neg_hits_dic[motif_id] = {}
+            neg_hits_dic[motif_id][reg_id] = 1
+
+        if motif_id in found_motif_ids_dic:
+            found_motif_ids_dic[motif_id] += 1
+        else:
+            found_motif_ids_dic[motif_id] = 1
+
+    for cmsh in pos_cmsearch_hits_list:
+            
+        motif_id = cmsh.motif_id
+        rbp_id = id2name_dic[motif_id]
+        reg_id = cmsh.seq_name
+
+        if motif_id in pos_hits_dic:
+            if reg_id in pos_hits_dic[motif_id]:
+                pos_hits_dic[motif_id][reg_id] += 1
+            else:
+                pos_hits_dic[motif_id][reg_id] = 1
+        else:
+            pos_hits_dic[motif_id] = {}
+            pos_hits_dic[motif_id][reg_id] = 1
+
+        if motif_id in found_motif_ids_dic:
+            found_motif_ids_dic[motif_id] += 1
+        else:
+            found_motif_ids_dic[motif_id] = 1
+
+    for cmsh in neg_cmsearch_hits_list:
+            
+        motif_id = cmsh.motif_id
+        rbp_id = id2name_dic[motif_id]
+        reg_id = cmsh.seq_name
+
+        if motif_id in neg_hits_dic:
+            if reg_id in neg_hits_dic[motif_id]:
+                neg_hits_dic[motif_id][reg_id] += 1
+            else:
+                neg_hits_dic[motif_id][reg_id] = 1
+        else:
+            neg_hits_dic[motif_id] = {}
+            neg_hits_dic[motif_id][reg_id] = 1
+
+        if motif_id in found_motif_ids_dic:
+            found_motif_ids_dic[motif_id] += 1
+        else:
+            found_motif_ids_dic[motif_id] = 1
+
+    """
+    Get motif enrichment stats.
+
+    AALAMO
+    """
+
+    fisher_alt_hypo = "greater"
+    if args.fisher_mode == 1:
+        fisher_alt_hypo = "greater"
+        print("Fisher mode = 1, reporting significantly overrepresented co-occurrences ... ")
+    elif args.fisher_mode == 2:
+        fisher_alt_hypo = "two-sided"
+        print("Fisher mode = 2, reporting significantly over- AND underrepresented co-occurrences ... ")
+    elif args.fisher_mode == 3:
+        fisher_alt_hypo = "less"
+        print("Fisher mode = 3, reporting significantly underrepresented co-occurrences ... ")
+    else:
+        assert False, "Invalid Fisher mode: %i" %(args.fisher_mode)
+
+    c_pos_regions = len(pos_seqs_dic)
+    c_neg_regions = len(neg_seqs_dic)
+    p_val_list = []
+    motif_ids_list = []
+    motif2con_table_dic = {}
+    len_motif_ids = len(found_motif_ids_dic)
+    motif_enrich_stats_dic = {}  # Store MotifEnrich stats objects.
+
+    if not found_motif_ids_dic:
+        print("No motifs found in any regions (input or background). Exiting ... ")
+        sys.exit()  # AALAMO
+
+    for motif_id in sorted(found_motif_ids_dic.keys()):
+
+        motif_ids_list.append(motif_id)
+
+        rbp_id = id2name_dic[motif_id]
+        motif_type = id2type_dic[motif_id]
+
+        motif_enrich_stats = benchlib.MotifEnrich(motif_id, rbp_id)
+        motif_enrich_stats.motif_type = motif_type
+        motif_enrich_stats.c_pos_regions = c_pos_regions
+        motif_enrich_stats.c_neg_regions = c_neg_regions
+
+        c_pos_hits = 0
+        c_pos_hit_regions = 0
+
+        if motif_id in pos_hits_dic:
+            for reg_id in pos_hits_dic[motif_id]:
+                c_pos_hits += pos_hits_dic[motif_id][reg_id]
+                c_pos_hit_regions += 1
+
+        c_neg_hits = 0
+        c_neg_hit_regions = 0
+
+        if motif_id in neg_hits_dic:
+            for reg_id in neg_hits_dic[motif_id]:
+                c_neg_hits += neg_hits_dic[motif_id][reg_id]
+                c_neg_hit_regions += 1
+
+        motif_enrich_stats.c_pos_hits = c_pos_hits
+        motif_enrich_stats.c_neg_hits = c_neg_hits
+        motif_enrich_stats.c_pos_hit_regions = c_pos_hit_regions
+        motif_enrich_stats.c_neg_hit_regions = c_neg_hit_regions
+
+        print("Motif %s (%s) %i positive hit regions (%i hits) and %i negative hit regions (%i hits) ... " %(motif_id, rbp_id, c_pos_hit_regions, c_pos_hits, c_neg_hit_regions, c_neg_hits))
+
+        """
+        DREME style test for motif enrichment:
+        A: The number of foreground sequences that contain the motif.
+        B: The number of foreground sequences that do not contain the motif.
+        C: The number of background sequences that contain the motif.
+        D: The number of background sequences that do not contain the motif.
+        """
+
+        con_table = [[c_pos_hit_regions, c_pos_regions - c_pos_hit_regions],
+                     [c_neg_hit_regions, c_neg_regions - c_neg_hit_regions]]
+
+        odds_ratio, p_value = fisher_exact(con_table, alternative=fisher_alt_hypo)
+
+        p_val_list.append(p_value)
+        table_str = str(con_table)
+        motif2con_table_dic[motif_id] = con_table
+
+        motif_enrich_stats.con_table = table_str
+        motif_enrich_stats.fisher_pval = p_value
+        motif_enrich_stats.fisher_corr_mode = args.enmo_pval_mode
+        motif_enrich_stats.fisher_alt_hyp_mode = args.fisher_mode
+
+        motif_enrich_stats_dic[motif_id] = motif_enrich_stats
+
+    """
+    Multiple testing correction.
+
+    """
+
+    enmo_pval_thr = args.enmo_pval_thr
+
+    if args.enmo_pval_mode == 1:  # BH correction.
+
+        pvals_corrected = false_discovery_control(p_val_list, method='bh')
+
+        for i in range(len(p_val_list)):
+            p_val_list[i] = pvals_corrected[i]
+
+    elif args.enmo_pval_mode == 2:  # Bonferroni correction.
+
+        # Multiple testing correction factor.
+        mult_test_corr_factor = 1
+        if len_motif_ids > 1:
+            mult_test_corr_factor = len_motif_ids
+
+        enmo_pval_thr = args.enmo_pval_thr / mult_test_corr_factor
+        enmo_pval_thr = benchlib.round_to_n_significant_digits_v2(enmo_pval_thr, 4)
+
+    elif args.enmo_pval_mode == 3:  # No correction.
+
+        enmo_pval_thr = args.enmo_pval_thr
+
+    else:
+        assert False, "Invalid motif enrichment p-value mode (--enmo-pval-mode) set: %i" %(args.enmo_pval_mode)
+
+
+    # Update + filter p-values.
+
+    c_all_fisher_pval = 0
+    c_sig_fisher_pval = 0
+
+    COSOUT = open(enmo_stats_out, "w")
+    COSOUT.write("motif_id\trbp_id\tc_in_fg\tc_not_in_fg\tc_in_bg\tc_not_in_bg\tfisher_pval\tfisher_pval_corr\n")
+
+    for idx, motif_id in enumerate(motif_ids_list):
+
+        rbp_id = id2name_dic[motif_id]
+        con_table = motif2con_table_dic[motif_id]
+        p_value_corr = p_val_list[idx]
+        c_in_fg = con_table[0][0]
+        c_not_in_fg = con_table[0][1]
+        c_in_bg = con_table[1][0]
+        c_not_in_bg = con_table[1][1]
+        
+        p_value_corr = benchlib.round_to_n_significant_digits_v2(p_value_corr, 4)
+
+        motif_enrich_stats_dic[motif_id].fisher_pval_corr = p_value_corr
+        p_value = motif_enrich_stats_dic[motif_id].fisher_pval
+        p_value = benchlib.round_to_n_significant_digits_v2(p_value, 4)
+        motif_enrich_stats_dic[motif_id].fisher_pval = p_value
+
+        if p_value_corr <= enmo_pval_thr:
+            c_sig_fisher_pval += 1
+        c_all_fisher_pval += 1
+
+        COSOUT.write("%s\t%s\t%i\t%i\t%i\t%i\t%s\t%s\n" %(motif_id, rbp_id, c_in_fg, c_not_in_fg, c_in_bg, c_not_in_bg, str(p_value), str(p_value_corr)))
+
+    COSOUT.close()
+
+
+
+
+
+    """
+    AALAMO:
+    make html report.
+    Check additional options?
+    
+    
+class MotifEnrich:
+
+    def __init__(self,
+                 motif_id: str,
+                 rbp_id: str,
+                 c_pos_hit_regions = 0,
+                 c_neg_hit_regions = 0,
+                 c_pos_regions = 0,
+                 c_neg_regions = 0,
+                 c_pos_hits = 0,
+                 c_neg_hits = 0,
+                 cont_table = "-",
+                 fisher_pval = 1.0,
+                 fisher_pval_corr = 1.0,
+                 fisher_corr_mode = 1,  # 1: BH, 2: Bonferroni, 3: no correction
+                 fisher_alt_hyp_mode = 1,  # Alternative hypothesis mode, 1: greater, 2: two-sided, 3: less
+                 motif_type="meme_xml",
+                 logo_png_file = False) -> None:
+
+    
+            rbp_stats = RBPStats(internal_id, cols[0], cols[1], cols[2], cols[3])
+            rbp_stats.rbp_id = cols[4]
+            rbp_stats.c_regions = int(cols[5])
+            rbp_stats.mean_reg_len = float(cols[6])
+
+
+            for other_motif_id, pair_c in sorted(pc_dic.items(), key=lambda item: item[1], reverse=True):
+
+                if pair_c >= motif_min_pair_count:
+
+                    # Plot motif (if sequence motif).
+                    plot_str = "-"
+                    if other_motif_id in seq_motif_blocks_dic:
+
+                        other_rbp_id = id2name_dic[other_motif_id]
+                        motif_plot = "%s.%s.png" %(other_rbp_id, other_motif_id)
+                        motif_plot_out = plots_out_folder + "/" + motif_plot
+                        plot_path = plots_folder + "/" + motif_plot
+
+                        # Check if motif in motif database folder.
+                        if motif_db_str:
+                            db_motif_path = benchlib_path + "/content/%s_motif_plots/%s" %(motif_db_str, motif_plot)
+                            if os.path.exists(db_motif_path):
+                                shutil.copy(db_motif_path, motif_plot_out)
+
+                        if not os.path.exists(motif_plot_out):
+                            create_motif_plot(other_motif_id, seq_motif_blocks_dic,
+                                              motif_plot_out)
+
+                        plot_str = '<image src = "' + plot_path + '" width="300px"></image>'
+
+                    # else:
+                    #     print("Motif ID %s not in seq_motif_blocks_dic ... " %(other_motif_id))
+
+                    # mdtext += "| %s | %s | %s | %i | %i | %i |\n" %(motif_id, other_motif_id, plot_str, pair_c, in_dic[other_motif_id], out_dic[other_motif_id])
+
+                    mdtext += '<tr>' + "\n"
+                    mdtext += "<td>" + motif_id + "</td>\n"
+                    mdtext += "<td>" + other_motif_id + "</td>\n"
+                    mdtext += "<td>" + plot_str + "</td>\n"
+                    mdtext += "<td>" + str(pair_c) + "</td>\n"
+                    mdtext += "<td>" + str(in_dic[other_motif_id]) + "</td>\n"
+                    mdtext += "<td>" + str(out_dic[other_motif_id]) + "</td>\n"
+                    mdtext += '</tr>' + "\n"
+
+
     Store for each RBP the regions with motif hits (and hit counts), using
     dictionary of dictionaries regions_with_motifs_dic.
     This tells us, how many input regions have motif hits, separated by RBP.
@@ -13822,139 +14208,18 @@ def main_enmo(args):
 
     """
 
-    regions_with_motifs_dic = {}
-    unique_motifs_dic = {}
 
-    # Store regions with sequence motifs.
-    for fh in fimo_hits_list:
 
-        rbp_id = id2name_dic[fh.motif_id]
 
-        if rbp_id in regions_with_motifs_dic:
-            # fh.seq_name : FASTA header (== --in genomic sequence region).
-            if fh.seq_name in regions_with_motifs_dic[rbp_id]:
-                regions_with_motifs_dic[rbp_id][fh.seq_name] += 1
-            else:
-                regions_with_motifs_dic[rbp_id][fh.seq_name] = 1
-        else:
-            regions_with_motifs_dic[rbp_id] = {}
-            regions_with_motifs_dic[rbp_id][fh.seq_name] = 1
 
-        fh_str = repr(fh) # genomic motif region string.
 
-        # Unique motif regions for each RBP.
-        if rbp_id in unique_motifs_dic:
-            if fh_str in unique_motifs_dic[rbp_id]:
-                unique_motifs_dic[rbp_id][fh_str] += 1
-            else:
-                unique_motifs_dic[rbp_id][fh_str] = 1
-        else:
-            unique_motifs_dic[rbp_id] = {}
-            unique_motifs_dic[rbp_id][fh_str] = 1
 
-    # Store regions with structure motifs.
-    for cmsh in cmsearch_hits_list:
 
-        rbp_id = id2name_dic[cmsh.motif_id]
 
-        if rbp_id in regions_with_motifs_dic:
-            # cmsh.seq_name : FASTA header (== --in genomic sequence region).
-            if cmsh.seq_name in regions_with_motifs_dic[rbp_id]:
-                regions_with_motifs_dic[rbp_id][cmsh.seq_name] += 1
-            else:
-                regions_with_motifs_dic[rbp_id][cmsh.seq_name] = 1
-        else:
-            regions_with_motifs_dic[rbp_id] = {}
-            regions_with_motifs_dic[rbp_id][cmsh.seq_name] = 1
 
-        cmsh_str = repr(cmsh) # genomic motif region string.
 
-        # Unique motif regions for each RBP.
-        if rbp_id in unique_motifs_dic:
-            if cmsh_str in unique_motifs_dic[rbp_id]:
-                unique_motifs_dic[rbp_id][cmsh_str] += 1
-            else:
-                unique_motifs_dic[rbp_id][cmsh_str] = 1
-        else:
-            unique_motifs_dic[rbp_id] = {}
-            unique_motifs_dic[rbp_id][cmsh_str] = 1
 
-    """
-    Store infos for each RBP in RBP class.
 
-    search_rbps_dic[rbp_id] = rbp_class
-    RBP class arguments:
-            name: str,
-            seq_motif_ids = None,
-            str_motif_ids = None,
-            c_hit_reg = 0, # # regions with motif hits.
-            perc_hit_reg = 0.0, # % hit regions over all regions (i.e. how many input regions contain >= 1 RBP motif).
-            c_motif_hits = 0, # # motif hits.
-            c_uniq_motif_hits = 0, # # unique motif hits.
-            c_uniq_motif_nts = 0, # # unique motif nucleotides.
-            perc_uniq_motif_nts_eff_reg = 0.0, # % unique motif nts over effective region length.
-            perc_uniq_motif_nts_cal_reg = 0.0, # % unique motif nts over called region length.
-            uniq_motif_hits_eff_1000nt = 0.0, # unique motif hits per effective 1000 nt.
-            uniq_motif_hits_cal_1000nt = 0.0, # unique motif hits per called 1000 nt.
-            ks_pval = 1.0, # Kolmogorov-Smirnov (KS) statistic p-value (are higher scoring sites enriched with motifs).
-            ks_stat = 0.0,
-            organism: Optional[str] = None
-
-    Number of sequences for FIMO / cmsearch:
-    c_regions
-
-    """
-    # Set number of no-hit regions.
-    for rbp_id in search_rbps_dic:
-        search_rbps_dic[rbp_id].c_no_hit_reg = c_regions
-
-    for rbp_id in regions_with_motifs_dic:
-        # Number of --in regions with RBP motif hits.
-        c_hit_reg = len(regions_with_motifs_dic[rbp_id])
-        # Count hit regions if --unstranded and not --unstranded-ct.
-        if args.unstranded and not args.unstranded_ct:
-            c_hit_reg = 0
-            seen_ids_dic = {}
-            for seq_id in regions_with_motifs_dic[rbp_id]:
-                core_id = benchlib.reg_get_core_id(seq_id)
-                if core_id not in seen_ids_dic:
-                    c_hit_reg += 1
-                    seen_ids_dic[core_id] = 1
-
-        # Number of motif hits on --in regions in total.
-        c_motif_hits = 0
-        for reg_id in regions_with_motifs_dic[rbp_id]:
-            c_motif_hits += regions_with_motifs_dic[rbp_id][reg_id]
-        search_rbps_dic[rbp_id].c_hit_reg = c_hit_reg
-        search_rbps_dic[rbp_id].c_no_hit_reg = c_regions - c_hit_reg
-        search_rbps_dic[rbp_id].c_motif_hits = c_motif_hits
-
-        # % hit regions over all regions (i.e. how many input regions contain >= 1 RBP motif).
-        search_rbps_dic[rbp_id].perc_hit_reg = (search_rbps_dic[rbp_id].c_hit_reg / c_regions) * 100
-
-    """
-    Get unique motif hits.
-
-    unique_motifs_dic:
-        Dictionary of dictionaries, format:
-        {rbp_id1 -> {'motif_region1': c_motif_region1, 'motif_region2': c_motif_region2}, rbp_id2 -> .. }
-    """
-
-    for rbp_id in unique_motifs_dic:
-        c_uniq_motif_hits = len(unique_motifs_dic[rbp_id])
-        search_rbps_dic[rbp_id].c_uniq_motif_hits = c_uniq_motif_hits
-        # Store individual motif unique hits.
-        for motif_str_repr in unique_motifs_dic[rbp_id]:
-            motif_id = benchlib.get_motif_id_from_str_repr(motif_str_repr)
-            idx = motif_id2idx_dic[motif_id]
-            if id2type_dic[motif_id] == "meme_xml":
-                search_rbps_dic[rbp_id].seq_motif_hits[idx] += 1
-            elif id2type_dic[motif_id] == "regex":
-                search_rbps_dic[rbp_id].seq_motif_hits[idx] += 1
-            elif id2type_dic[motif_id] == "cm":
-                search_rbps_dic[rbp_id].str_motif_hits[idx] += 1
-            else:
-                assert False, "unknown motif type (\"%s\") set for motif_id %s" %(id2type_dic[motif_id], motif_id)
 
 
 
