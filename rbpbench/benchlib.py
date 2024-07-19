@@ -445,7 +445,7 @@ def run_go_analysis(target_genes_dic, background_genes_dic,
 
 ################################################################################
 
-def round_to_n_significant_digits_v2(num, n, zero_check_val=1e-300):
+def round_to_n_significant_digits_v2(num, n, zero_check_val=1e-304):
     """
     Round float / scientific notation number to n significant digits.
     This function only works for positive numbers.
@@ -4115,6 +4115,8 @@ def bed_filter_extend_bed(in_bed, out_bed,
                           remove_dupl=True,
                           reg2sc_dic=None,
                           score_col=5,
+                          score_thr=None,
+                          score_rev_filter=False,
                           chr_ids_dic=None,
                           bed_chr_ids_dic=None,
                           use_region_ids=False,
@@ -4150,6 +4152,8 @@ def bed_filter_extend_bed(in_bed, out_bed,
     c_out = 0
     c_chr_filter = 0
     c_dupl_filter = 0
+    c_sc_thr = 0
+
     reg_len_sum = 0
     if reg2sc_dic is None:
         reg2sc_dic = {}
@@ -4167,7 +4171,7 @@ def bed_filter_extend_bed(in_bed, out_bed,
             # If input regions are transcript sites, we just need first three columns.
             if transcript_sites:
                 reg_id = "%s:%i-%i" %(chr_id, reg_s, reg_e)
-                reg_sc = 0
+                reg_sc = float(cols[score_col-1])
                 reg_pol = "+"
             else:
                 # If not transcript sites (usual case, e.g. with rbpbench search).
@@ -4184,6 +4188,17 @@ def bed_filter_extend_bed(in_bed, out_bed,
                 if chr_id not in chr_ids_dic:
                     c_chr_filter += 1
                     continue
+
+            # Filter by site score.
+            if score_thr is not None:
+                if score_rev_filter:
+                    if reg_sc > score_thr:
+                        c_sc_thr += 1
+                        continue
+                else:
+                    if reg_sc < score_thr:
+                        c_sc_thr += 1
+                        continue
 
             # Record present IDs.
             if bed_chr_ids_dic is not None:
@@ -4289,7 +4304,8 @@ def bed_filter_extend_bed(in_bed, out_bed,
     stats_dic["c_out"] = c_out
     stats_dic["c_chr_filter"] = c_chr_filter
     stats_dic["c_dupl_filter"] = c_dupl_filter
-    stats_dic["reg_len_sum"] = reg_len_sum 
+    stats_dic["reg_len_sum"] = reg_len_sum
+    stats_dic["c_sc_thr"] = c_sc_thr
 
     return stats_dic
 
@@ -10774,3 +10790,68 @@ def print_some_banner():
     return(a)
 
 ################################################################################
+
+
+"""
+
+
+   "We could not understand because we were too far and could not remember
+    because we were travelling in the night of first ages, of those ages
+    that are gone, leaving hardly a sign - and no memories." J.C.
+
+
+
+                 ^OMQQOO6|^OQQM6MOMMMOQQQQMMMMOMIQMQMQOOO6QO6O6QQMQQQMO6QMMOOQMMQQMQQOI66IOOQQMMM|QQO66
+                 OOQQM!I|6OMOQMOQOQQQOMQQOMMMMQMQQMQOQOOQI^QOMOQMQMMQMMOOQOQQOQMQMQMMOOOOQQMOMQMQOQQQOO!
+             .   .MOQQQM6OOQMMMMMMMOMQQQ66IQMMMMMQQOOMOIOO^6|QQMMQMQMOMQOOQOQQOOMQQMM6IOOQQMMQMMQMQQOQ6I
+             .|. I6Q6MQQMQOMMMMMMMMMMMMOO|6MMQQMMQ!O6MO|IQ6O6MMMMQMMI6I6QMQOQMOO6MMQQQMI6QOQQQMMMMQQOQOO
+                6|IQQOMMMMMMMMMMMMMQMQMO6O6MM6MQO|IOMOO6IMQQQMMMMQOOOQ6MQQMQMMMMQMMMMQMMQQQQMMQQQMMQOQOO
+             ..Q^OIIOMMMQQMQMMMMMMMMMMMQ6OOQOOQQQQ|MQQOQMMQMMMQMQO6|6OOMMQMMMMMMMMMMMMQMMMQOMMMQMMQQQQMQ|
+            |! QOMO6MMMQQ6QMQMMMMMQMMMQQMMQQQMMOQO||OQOQOMMMMMMOMQ6OQQMMMMMQMMMMQMMMMMMMQQMOQQQMMMMQMMQQ!^
+            OQMQQMMMMMMMQOQMMMQMMMMMQMOQOM6OQQMQ!!I66OOO66QMMMOQ|QOOMMMMMMMMMMMMMMMMMMMMMMMMQMMMMMMQMQOQOO      ..
+       .   !6 6MMMMMMMMMMMMQMMQQMQMQMMMMMQQQQOMO^I|IQOO^!|6QMMQOOO6OQMMMMMMMMQMMMMMMMMMMMMMMMMMMQMMQMOMQII^  Q^
+       .| . .Q6MMMMMMIQMMMQQMMMOQMQMMMMQMQMOQQ6I6!6QO|..^|6OQOOI6OMMQMQMMMMMMMMMQQ6I6OMQMMMQMMMMMQMMQQQMQQO6
+         M.OI666MMMMQOQMMQ6OMQOQQMMQQQMQMMQQQO!.OQQ|O..^!IOIIIOOQMMOQMQMMMMMMMQMMMMMMMMQQMQMMMMMMMMMQQ6OQMQ
+           QM6MMMMQMQQMMMMOMOQQMQMMMMMM6OQMO6|OI66O|^^!||II!^^!!6O6O6QMMMQMMMMMQQMQMMMMMMMMQI6QMMMMOQMIM.QQQ
+            |MMMOMQQ6MMMMQQMMMQQMMMMMMQOQ6|^!|6OI6O|!!|6I|!!^^^^!|I6OOOMQMQMMOQMMMMMMMMQMMQMQMQMMMMMQMQ|!6QII
+           O .M66MOQMMMMMMMMOMQMMMMQMOQO6I6|^I6I||666III|!^^.^^.^!|I6OOQMQMMMQQQMMMMMMOOOMMQMQMMMMMMMQMQQ  QM
+           I.6Q6OOOQQMMMMMMMQMMMMMMMMOQ6II6O66QQOOQOQOOI!^^^^.^^!I6OMQQMQQQMQQMMQMMMMMMQOMMMQMMMMMMMMQMMMQMOI
+           66MQQQOQQ6MMMMMOMMMMMMQMMQ6OO6OOMMQMMMMQMMOO6|^^.^^^!6QQMMMMMMMQMMMQQQMMMMMMQMQQQMMMMMMMMMMMMMMQQOI
+      |O^   QMQOQQOQ66QMQOOMQMQMQMMM6QO6666OO6OQMMO6OMQQI^.^.!|6QMMMMMMMMMOQMMQMMMMQQQQMMQQMMMMMMMMMMMMMMQMMOQ
+           |MQMQOMOOOO6QMQMMMMMMMMMQQM|^^.!6^^..I|^I6OOII....!6MMMMMQI!66II6OQMQOOQOQQM6OMQMMMMMMMMMMMMMMMQMQO^
+         66QQMMQQOQQMMMOQMMMMMMQMMQQMO!.. ..!!^!|||I!^^!^. .^!6OO66II|I6|66OO6666O6OQMQMMQMMMMMMMMMMQMMMMMMMQQ.
+      ^    OMMMQOQ6QOMOQMMMMMQMMMMQQM|^. . ...........^^..  .!66!|!^^^.^^!|!!|!||6OOQMMMMMMMMMMMMMMMMMMMMMMQMQ.
+           QQMMMMOQMQQOOMQ6MQOOQOQMMM|^..  ..  .. .. .^.... ^!I|!^!^..^^.^^^^^!|I66OQMQQMMMMMMMMQMMMMMMMMMMQMOO
+           OOOMMMQMMMMQMQQQMMMMMMMQMQ!........ .  . ...^..  .!I|I!^^.^^^^^^!^^!!|6OQQMMMMOOMMQMQMMMMMMMMMMMQM QO .
+           6|I6MMQMMQMOQQQMMMQMMMMMM6!^^^....... . ..^.^.^ ..^II!|!^^^^^^^!^!^!|6OOOQMQMMMMMMMMMMMMMMMMMQQMIMQ M^
+           I .66QQQMMMMQOOO6QQMMMMMMO|!^^...^.... ...^^^.^..^!I6|I|^^^^^^^!!^!|I6OOOQOQQMMMMMMMMQMMMMMOMMMQM OQ.6
+           .6  .6OOMMMMMQMMMMQMMMMMQQ|!^^^.^..^......^.^.^. ^!II|I6^^^^^!^!!!|IIOOOQOMMMMMMMMMMMMMMMMMMMMMOM| !M Q
+            O|Q. .MMMMQMMMMMMMMMMMMQQ|!^.^..^^..^...^.^^..^.^!||||I^.^!^^!||!II6OQQQQMOMMMMMMMMMMMMMMMMMMMMQO  |I|6
+          . .Q| ^^OMMMMMMMMMMMMMMMMMM|!^!^^^..^^...^.6QMI!^^!6OOQOO|^.^^^!!||6O6OQOMMMMMMMQMMMMMMMMMMMQMMMMQO   Q.Q
+         !  6.QOQMQQMMMMMMMMMMMMMMQMQ!!!^^^^^..^.....!6||OIOOQMMMMM6^^^^!^!!|6OOOQQMMMMMMMMMMMMMMQQMMMQMOMQOI   Q|!.
+              IOM. OMMMMMMMMMMMMQMQMM!!!!!^.^^... ...^^!^^IQMMMMQO6|^^^!!||I66OQOQQQMMMMMMMMMMMMMMMMMOQ6I|OMI QQQ
+             I^|6O.QMMMMMMMMMMMMMMMMM!^!||^^^... ...^^^^..!III|6I|^^^^^^!|I|66QQQOQQMMMMMMMMMMMMMMM|QOOI6Q6| |M Q
+         !.. I ^QMMMMMMMMMMMMMMMMMMMQ!^^||!!.^.^.^^...^..^^^..^!!^!^.^!!||6OOQOQOOQMMMMMMMMMMQMMQQOQMQQII|.|6Q.O^
+        .^^|IO6QOQMMMMQMMMMMMMMMMMMMQM|!!!!|!^^^.^^^..^.!^....|||^!!^!!|IIO6OQMQQOQMMMMMMMMMQQMQMQMMMQQMOI6QOM^
+         ^  66OQQQQMMMMMQOQMMMMMMMMMMMM|!!!||^!!!6QMQQQ66QOMMMMMMMQQQQQO6OOQQQQOOQQMMMMMMMMQQOQQMQQOOQMQQOO!O
+          !  O6Q6QMMQMMOMOMMMMMMMMMMMMMM|!!|I|!I!!^^.^^^. .....^|!|||III6OQOQQQOQQMMMMMMMMMMMQQMQMMQMMMQQMM|
+             OQQOQQQQO66QMMMMMMMQMMMMMMMM6|!|II!!^!^!^^!.^.^^^^|||6OO66OQOOQMQOQQMMMMMMQMMMQMQMMMQMQMMQMQ.M
+              QOM..^IQQMMQMMM!QMMMMMMMMMMMQI!||II|||6OOQQOOQOQQQQMQQQQOOOQQQQMQMMMMMMMMMMMQQQMOMQMO^OO QM.
+                6MQQOQQMMMMMIOMMMMMMMMMMMMMQO||!!||||!|I6OQQMQQMMQO6O6OOQQQMQQMMMMMMMMMMMMMMMQOMMMMM6QM
+                    .   QQQM6QMMMMMMMOQQMMMOOQ6||!^!^^....^^!^I|I!||I|OOOQQQMMMMMMMMMMMMMQMMMMMMQIIQOM6                     .^^!^!^^^!
+                        |OQMOQMMMMMQMM6QMMMIOOQQ|!!!!^^^^^^!!^^!!!|6I6OOQOMMMMMMMMMMMMMMMMMMMMMMMMMQM6!          .|I|!!!^^^^^^^^^.^.^^
+                         MMMMIMQMMMQMQ6QMMM6666OOI||!!!!!^||!|!|I|6IIOQQMMMMMMMMMMMMMMMMMMMMMMMQMOQMM6.       QO6|!^^^.^^.^..^...^^...
+                         QQMQQMMQMQIOOOQMMMOI6II6OO6I|IIIIII6II6II6OOQQMMMMMMMMMMMMMMMMMMMMMMMMMMMMM.      IQO6!^^^.^..^..^...^...^^.^
+                          MQOQMQMMMQQOMMMMMQ|I||I6OOQQOOQQOOOOQQQQQQMMMMMMMMMMMMMMQMMMMMMMMQMMMMMMMMI    6O66|!^.^^..^...........^...^
+.^^^^                   |I!MMMMQMMMQ6MOMMMMMIII|||I6OOQMMMQMMMQMMMMMMMMMMMMMMMMQQQQQMMMMMMMMMMMMMMMMQMO6QO6I|..^.........^......^.^..^
+^^^.^^^^^^^^               !QMMMMQOMMQQQMQMMO||!!!|IOOOQMQMQMMMMMMQMMMMMMMMMMMQQOOOOQQMQQMMMMMMMMMMMMQQQO6I!^.^...............^.....^^
+. .^...^^..^^^^^             .^|Q6MOMMMMQQMQI!!|!^!|II66OQQQQMQMQMQMMMMMMMMMQQOOOOOOOOOQ6OQMQQQMMMMQMMQ6||!^.......... ........!..^^.^
+  .........^.^.^!^^|I!           ^OMMQMMMMOQ!!!!!^!^|!|66OQQQQQMQMMMMMMMMMMQOQO6O6O66OOOQ6O66QQOOQQ6I|!!^....... ....  .......^..^.^^!
+.. . ....  ....^.^^^!|III6|          6QQQOQ6!!!!^^!!^!|I66OQQQMQQMMMMMMMMQQOOOOO6O66666^QI66I66I|!^^^...^^.^.^^^...... . ......^^.^!^!
+  ..  . ... ......^^^^!!||II6|.   !QMMMMOQOI|^^^!^!^!!!!I666QOQQOQMQMQMQQOOO66O6666I6III6|IIIII||!^!^^^!!!^.^.......... .....^..^.^!^!
+ . . .  ..  .....^.^^^^!^!||||6O6OMQMMQMOQ6I!!!^!^^^^^^!^|I66O6OOOOQOOOO6666I6I6IIII|I 6I|I||I|I||!!!!!!^^^^..^................^.^^^^!
+. . .  ..   . ......^^^!!!!^!!!|IOOQQQ6Q6|||!!^!!^^^^^^!^!||II666O6666666I666II|I!|||IO|!|I|!||!!!^!^^^^^^....... this is the end
+                                                                                                                  beautiful friend ...
+
+
+"""

@@ -182,6 +182,9 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
+
+
+
     p_s.add_argument("--fimo-ntf-file",
                    dest="fimo_user_ntf_file",
                    type=str,
@@ -195,8 +198,6 @@ def setup_argument_parser():
                    choices=[1, 2],
                    help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) (default: 1)")
 
-
-
     p_s.add_argument("--fimo-pval",
                    dest="fimo_pval",
                    type=float,
@@ -209,6 +210,22 @@ def setup_argument_parser():
                    metavar='int',
                    default=5,
                    help="--in BED score column used for p-value calculations. BED score can be e.g. log2 fold change or -log10 p-value of the region (default: 5)")
+
+
+    p_s.add_argument("--bed-sc-thr",
+                   dest="bed_sc_thr",
+                   type = float,
+                   metavar='float',
+                   default = None,
+                   help = "Minimum site score (by default: --in BED column 5, or set via --bed-score-col) for filtering (assuming higher score == better site) (default: None)")
+    p_s.add_argument("--bed-sc-thr-rev",
+                   dest="bed_sc_thr_rev_filter",
+                   default = False,
+                   action = "store_true",
+                   help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. for p-values) (default: False)")
+
+
+
     p_s.add_argument("--wrs-mode",
                    dest="wrs_mode",
                    type=int,
@@ -603,6 +620,17 @@ def setup_argument_parser():
                    metavar='int',
                    default=5,
                    help="--in BED score column used for p-value calculations. BED score can be e.g. log2 fold change or -log10 p-value of the region (default: 5)")
+    p_b.add_argument("--bed-sc-thr",
+                   dest="bed_sc_thr",
+                   type = float,
+                   metavar='float',
+                   default = None,
+                   help = "Minimum site score (by default: --in BED column 5, or set via --bed-score-col) for filtering (assuming higher score == better site) (default: None)")
+    p_b.add_argument("--bed-sc-thr-rev",
+                   dest="bed_sc_thr_rev_filter",
+                   default = False,
+                   action = "store_true",
+                   help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. for p-values) (default: False)")
     p_b.add_argument("--wrs-mode",
                    dest="wrs_mode",
                    type=int,
@@ -1353,6 +1381,23 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
+    p_scr.add_argument("--bed-score-col",
+                   dest="bed_score_col",
+                   type=int,
+                   metavar='int',
+                   default=5,
+                   help="--in BED score column used for p-value calculations. BED score can be e.g. log2 fold change or -log10 p-value of the region (default: 5)")
+    p_scr.add_argument("--bed-sc-thr",
+                   dest="bed_sc_thr",
+                   type = float,
+                   metavar='float',
+                   default = None,
+                   help = "Minimum site score (by default: --in BED column 5, or set via --bed-score-col) for filtering (assuming higher score == better site) (default: None)")
+    p_scr.add_argument("--bed-sc-thr-rev",
+                   dest="bed_sc_thr_rev_filter",
+                   default = False,
+                   action = "store_true",
+                   help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. for p-values) (default: False)")
     p_scr.add_argument("--fimo-ntf-file",
                    dest="fimo_user_ntf_file",
                    type=str,
@@ -1925,6 +1970,23 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
+    p_em.add_argument("--bed-score-col",
+                   dest="bed_score_col",
+                   type=int,
+                   metavar='int',
+                   default=5,
+                   help="--in BED score column used for p-value calculations. BED score can be e.g. log2 fold change or -log10 p-value of the region (default: 5)")
+    p_em.add_argument("--bed-sc-thr",
+                   dest="bed_sc_thr",
+                   type = float,
+                   metavar='float',
+                   default = None,
+                   help = "Minimum site score (by default: --in BED column 5, or set via --bed-score-col) for filtering (assuming higher score == better site) (default: None)")
+    p_em.add_argument("--bed-sc-thr-rev",
+                   dest="bed_sc_thr_rev_filter",
+                   default = False,
+                   action = "store_true",
+                   help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. for p-values) (default: False)")
     p_em.add_argument("--bg-mode",
                    dest="bg_mode",
                    type=int,
@@ -2208,6 +2270,19 @@ def setup_argument_parser():
                    metavar='int',
                    default=5,
                    help="--in BED score column used for p-value calculations and finding optimal extension. BED score can be e.g. log2 fold change or -log10 p-value of the region (default: 5)")
+    p_oe.add_argument("--bed-sc-thr",
+                   dest="bed_sc_thr",
+                   type = float,
+                   metavar='float',
+                   default = None,
+                   help = "Minimum site score (by default: --in BED column 5, or set via --bed-score-col) for filtering (assuming higher score == better site) (default: None)")
+    p_oe.add_argument("--bed-sc-thr-rf",
+                   dest="bed_sc_thr_rev_filter",
+                   default = False,
+                   action = "store_true",
+                   help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. for p-values) (default: False)")
+
+
     p_oe.add_argument("--ext-pval",
                    dest="ext_pval",
                    type=float,
@@ -2896,6 +2971,8 @@ def main_search(args):
                                           remove_dupl=True,
                                           reg2sc_dic=reg2sc_dic,
                                           score_col=args.bed_score_col,
+                                          score_thr=args.bed_sc_thr,
+                                          score_rev_filter=args.bed_sc_thr_rev_filter,
                                           chr_ids_dic=chr_ids_dic,
                                           bed_chr_ids_dic=bed_chr_ids_dic,
                                           use_region_ids=True,
@@ -2905,8 +2982,9 @@ def main_search(args):
     print("# --in regions post-filtering: ", reg_stats_dic["c_out"])
     print("# regions with invalid chr_id: ", reg_stats_dic["c_chr_filter"])
     print("# duplicated regions removed:  ", reg_stats_dic["c_dupl_filter"])
+    print("# regions filtered by score:   ", reg_stats_dic["c_sc_thr"])
 
-    assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID filtering. If caused by invalid chr_id filtering, make sure chromosome IDs in --genome FASTA and --in BED files are compatible (i.e., \"chr1\" vs. \"1\" notation). If --in regions are on transcripts, use rbpbench searchrna"
+    assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID (or optionally score) filtering. If caused by invalid chr_id filtering, make sure chromosome IDs in --genome FASTA and --in BED files are compatible (i.e., \"chr1\" vs. \"1\" notation). If --in regions are on transcripts, use rbpbench searchrna"
 
     """
     Guess chromosome ID style.
@@ -5360,6 +5438,8 @@ def main_batch(args):
                                             remove_dupl=True,
                                             reg2sc_dic=reg2sc_dic,
                                             score_col=args.bed_score_col,
+                                            score_thr=args.bed_sc_thr,
+                                            score_rev_filter=args.bed_sc_thr_rev_filter,
                                             chr_ids_dic=chr_ids_dic,
                                             use_region_ids=True,
                                             unstranded=args.unstranded)
@@ -5368,7 +5448,9 @@ def main_batch(args):
         print("# --in regions post-filtering: ", reg_stats_dic["c_out"])
         print("# regions with invalid chr_id: ", reg_stats_dic["c_chr_filter"])
         print("# duplicated regions removed:  ", reg_stats_dic["c_dupl_filter"])
-        assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID filtering"
+        print("# regions filtered by score:   ", reg_stats_dic["c_sc_thr"])
+
+        assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID (or optionally score) filtering"
 
         """
         Calculate effective size of genomic regions.
@@ -9889,7 +9971,9 @@ def main_searchrna(args):
                                           ext_down=ext_down,
                                           remove_dupl=True,  # Yes also for transcript sites, remove same sites.
                                           reg2sc_dic=None,  # Don't need scores.
-                                          score_col=5,
+                                          score_col=args.bed_score_col,
+                                          score_thr=args.bed_sc_thr,
+                                          score_rev_filter=args.bed_sc_thr_rev_filter,
                                           chr_ids_dic=None,  # We don't want to filter by chromosome IDs in chr_ids_dic.
                                           bed_chr_ids_dic=bed_tr_ids_dic,
                                           use_region_ids=False,
@@ -9901,6 +9985,7 @@ def main_searchrna(args):
     print("# --in regions post-filtering: ", reg_stats_dic["c_out"])
     print("# regions with invalid chr_id: ", reg_stats_dic["c_chr_filter"])
     print("# duplicated regions removed:  ", reg_stats_dic["c_dupl_filter"])
+    print("# regions filtered by score:   ", reg_stats_dic["c_sc_thr"])
 
     assert reg_stats_dic["c_out"], "no --in BED sites after filtering. Make sure to provide a valid BED file with transcript sites"
 
@@ -13370,6 +13455,9 @@ def main_enmo(args):
                                                    ext_up=ext_up,
                                                    ext_down=ext_down,
                                                    remove_dupl=True,
+                                                   score_col=args.bed_score_col,
+                                                   score_thr=args.bed_sc_thr,
+                                                   score_rev_filter=args.bed_sc_thr_rev_filter,
                                                    chr_len_dic=chr_len_dic,
                                                    use_region_ids=True)
 
@@ -13377,8 +13465,9 @@ def main_enmo(args):
     print("# --in regions post-filtering: ", reg_stats_dic["c_out"])
     print("# regions with invalid chr_id: ", reg_stats_dic["c_chr_filter"])
     print("# duplicated regions removed:  ", reg_stats_dic["c_dupl_filter"])
+    print("# regions filtered by score:   ", reg_stats_dic["c_sc_thr"])
 
-    assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID filtering. If caused by invalid chr_id filtering, make sure chromosome IDs in --genome FASTA and --in BED files are compatible (i.e., \"chr1\" vs. \"1\" notation). If --in regions are on transcripts, use rbpbench searchrna"
+    assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID (or optionally score) filtering. If caused by invalid chr_id filtering, make sure chromosome IDs in --genome FASTA and --in BED files are compatible (i.e., \"chr1\" vs. \"1\" notation). If --in regions are on transcripts, use rbpbench searchrna"
 
 
     fasta_index_file = tr_seqs_fa + ".fai"
@@ -13770,6 +13859,11 @@ def main_enmo(args):
     pos_fimo_hits_list = []
     neg_fimo_hits_list = []
 
+    # For shuffled negatives, IDs do not contain coordinates (e.g. shuff_52).
+    seq_based = False
+    if args.bg_mode == 2:
+        seq_based = True
+
     if seq_rbps_dic:
 
 
@@ -13799,7 +13893,8 @@ def main_enmo(args):
 
         assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
 
-        neg_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv)
+        neg_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv, 
+                                                           seq_based=seq_based)
 
         c_neg_fimo_hits = len(neg_fimo_hits_list)
         print("# of FIMO motif hits in background regions:", c_neg_fimo_hits)
@@ -13827,6 +13922,7 @@ def main_enmo(args):
 
             neg_regex_hits_list = benchlib.get_regex_hits(regex, regex_id, neg_seqs_dic,
                                                       step_size_one=step_size_one,
+                                                      seq_based=seq_based,
                                                       use_motif_regex_id=args.motif_regex_id)
 
             c_neg_regex_hits = len(neg_regex_hits_list)
@@ -13865,7 +13961,8 @@ def main_enmo(args):
                         params="-g --tformat fasta --toponly --incT 1 -T 1 --default")
 
         neg_cmsearch_hits_list, c_neg_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt, 
-                                                                           check=True)
+                                                                            seq_based=seq_based,
+                                                                            check=True)
 
         print("# of cmsearch motif hits in background regions:", c_neg_cms_hits)
 
@@ -14722,9 +14819,11 @@ def main_optex(args):
                                             remove_dupl=True,
                                             reg2sc_dic=reg2sc_dic,
                                             score_col=args.bed_score_col,
+                                            score_thr=args.bed_sc_thr,
+                                            score_rev_filter=args.bed_sc_thr_rev_filter,
                                             chr_ids_dic=chr_ids_dic)
         
-        assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID filtering"
+        assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID (or optionally score) filtering"
 
         # Check if all scores same (e.g. 0).
         reg_scores_dic = {}
