@@ -16,6 +16,6 @@ setup(
     license='MIT',
     scripts=['bin/rbpbench', 'bin/batch_table_wrapper_rbpbench.py', 'bin/gtf_extract_gene_region_bed.py', 'bin/gtf_get_mpt_nt_freqs.py', 'bin/gtf_get_mpt_with_introns_nt_freqs.py', 'bin/gtf_get_gene_region_nt_freqs.py', 'bin/gtf_extract_exon_intron_region_bed.py'],
     packages=['rbpbench'],
-    package_data={'rbpbench': ['content/*', 'content/catrapid.omics.v2.1.human.6plus_motif_plots/*']},
+    package_data={'rbpbench': ['content/*', 'content/motif_plots/*']},
     zip_safe=False,
 )
