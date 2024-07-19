@@ -129,7 +129,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.1.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.1.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_s.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -183,8 +183,6 @@ def setup_argument_parser():
                    choices=[1, 2],
                    help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
 
-
-
     p_s.add_argument("--fimo-ntf-file",
                    dest="fimo_user_ntf_file",
                    type=str,
@@ -211,7 +209,6 @@ def setup_argument_parser():
                    default=5,
                    help="--in BED score column used for p-value calculations. BED score can be e.g. log2 fold change or -log10 p-value of the region (default: 5)")
 
-
     p_s.add_argument("--bed-sc-thr",
                    dest="bed_sc_thr",
                    type = float,
@@ -223,8 +220,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. for p-values) (default: False)")
-
-
 
     p_s.add_argument("--wrs-mode",
                    dest="wrs_mode",
@@ -548,7 +543,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.1.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.1.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_b.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -854,7 +849,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.1.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.1.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_ss.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -1081,7 +1076,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.1.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.1.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_sl.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -1328,7 +1323,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.1.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.1.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_scr.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -1654,7 +1649,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.1.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.1.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_smr.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -1917,7 +1912,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.1.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.1.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_em.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -2245,7 +2240,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.1.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.1.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_oe.add_argument("--fimo-ntf-file",
                    dest="fimo_user_ntf_file",
                    type=str,
@@ -2318,7 +2313,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs full (259 RBPs, 605 motifs, \"catrapid.omics.v2.1.human.6plus\"), 2: human RBP motifs full (low frequencies not rounded, \"catrapid.omics.v2.1.human.6plus.noround\"), 3: human RBP motifs eCLIP (107 RBPs, 316 motifs, \"s6_refined_ic010.human.rounded.encode_rbps\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_i.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -2424,27 +2419,28 @@ def specify_motif_db(motif_db_nr, db_path="./"):
     motif database string
 
     motif_db_nr: motif database string
-    1: catrapid.omics.v2.1.human.6plus
-    2: catrapid.omics.v2.1.human.6plus.noround
-    3: s6_refined_ic010.human.rounded.encode_rbps
-
-    catRAPID_omics_v2.0_6plus_motifs.meme
-    catRAPID_omics_v2.0_6plus_motifs.weak_rounded.meme
-    s6_refined_ic010_rounded_ENCODE_RBPs.meme
+    1: catrapid_omics_v2.1_human_6plus_ext
+    2: catrapid_omics_v2.1_human_6plus_ext_ucrbps
+    3: ray2013_human_rbps_rnacompete
+    File names:
+    1: catRAPID_omics_v2.1_6plus_motifs.weak_rounded.ext.meme
+    2: catRAPID_omics_v2.1_6plus_motifs.weak_rounded.ext.ucrbps.meme
+    3: Ray2013_rbp_Homo_sapiens.dna_encoded.meme
 
     """
 
-    seq_motifs_db_file = db_path + "/catRAPID_omics_v2.1_6plus_motifs.weak_rounded.meme"
+    seq_motifs_db_file = db_path + "/catRAPID_omics_v2.1_6plus_motifs.weak_rounded.ext.meme"
     str_motifs_db_file = db_path + "/str_motifs.cm"
-    rbp2ids_file = db_path + "/rbp_motif2name_ids.full.txt"
-    motif_db_str = "catrapid.omics.v2.1.human.6plus"
+    rbp2ids_file = db_path + "/rbp_motif2name_ids.1.txt"
+    motif_db_str = "catrapid_omics_v2.1_human_6plus_ext"
     if motif_db_nr == 2:
-        seq_motifs_db_file = db_path + "/catRAPID_omics_v2.1_6plus_motifs.meme"
-        motif_db_str = "catrapid.omics.v2.1.human.6plus.noround"
+        seq_motifs_db_file = db_path + "/catRAPID_omics_v2.1_6plus_motifs.weak_rounded.ext.ucrbps.meme"
+        rbp2ids_file = db_path + "/rbp_motif2name_ids.2.txt"
+        motif_db_str = "catrapid_omics_v2.1_human_6plus_ext_ucrbps"
     if motif_db_nr == 3:
-        seq_motifs_db_file = db_path + "/s6_refined_ic010_rounded_ENCODE_RBPs.meme"
-        rbp2ids_file = db_path + "/rbp_motif2name_ids.txt"
-        motif_db_str = "s6_refined_ic010.human.rounded.encode_rbps"
+        seq_motifs_db_file = db_path + "/Ray2013_rbp_Homo_sapiens.dna_encoded.meme"
+        rbp2ids_file = db_path + "/rbp_motif2name_ids.3.txt"
+        motif_db_str = "ray2013_human_rbps_rnacompete"
     return seq_motifs_db_file, str_motifs_db_file, rbp2ids_file, motif_db_str
 
 
@@ -13394,40 +13390,28 @@ def main_enmo(args):
 
     assert tid2tio_dic, "no transcript infos read in from --gtf. Please contact developers"
 
+    # Calculate intron lengths.
+    total_tr_intron_len = 0
+    total_tr_exon_len = 0
+
+    for tid in tid2tio_dic:
+        total_tr_intron_len += tid2tio_dic[tid].total_intron_len
+        total_tr_exon_len += tid2tio_dic[tid].tr_length
+
     # Get transcript lengths.
     tr_len_dic = {}
     for tr_id in tid2tio_dic:
         tr_len_dic[tr_id] = tid2tio_dic[tr_id].tr_length
 
-    """
-    Write regions to BED from where to sample background sites (incl_bed).
+    total_tr_intron_ratio = 0
+    if total_tr_exon_len:
+        total_tr_intron_ratio = total_tr_intron_len / total_tr_exon_len
+        total_tr_intron_ratio = round(total_tr_intron_ratio, 4)
 
-    """
+    print("Total transcript intron length: ", total_tr_intron_len)
+    print("Total transcript exon length: ", total_tr_exon_len)
+    print("Total transcript intron ratio: ", total_tr_intron_ratio)
 
-    OUTBED = open(bg_incl_bed, "w")
-    print("Output regions to sample background sites from ... ")
-
-    if genomic_sites_input:
-        # Output genomic transcript regions with introns.
-        for tr_id in tid2tio_dic:
-            chr_id = tid2tio_dic[tr_id].chr_id
-            tr_s = tid2tio_dic[tr_id].tr_s - 1
-            tr_e = tid2tio_dic[tr_id].tr_e
-            tr_pol = tid2tio_dic[tr_id].tr_pol
-            OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" %(chr_id, tr_s, tr_e, tr_id, tr_pol))
-
-    else:
-        # Output transcript regions (chromosome id = transcript ID).
-        for tr_id in tr_len_dic:
-            tr_len = tr_len_dic[tr_id]
-            OUTBED.write("%s\t0\t%i\t%s\t0\t+\n" %(tr_id, tr_len, tr_id))
-
-        # Overwrite chromosome lengths dictionary with transcript lengths.
-        chr_len_dic = tr_len_dic
-        # Overwrite chromsome lengths file with transcript lengths.
-        benchlib.output_chromosome_lengths_file(tr_len_dic, chr_len_file)
-
-    OUTBED.close()
 
     """
     Filter / extend --in regions BED file.
@@ -13570,6 +13554,146 @@ def main_enmo(args):
 
 
 
+
+    """
+    Get input / positive genomic region annotations.
+
+    """
+
+    pos_reg_ids_list = []
+    pos_reg_ids_dic = {}
+    for seq_id, seq in sorted(pos_seqs_dic.items()):
+        pos_reg_ids_list.append(seq_id)
+        pos_reg_ids_dic[seq_id] = 1
+
+    intron_exon_out_bed = args.out_folder + "/intron_exon_regions.tmp.bed"
+    overlap_annotations_bed = args.out_folder + "/overlap_region_annotations.tmp.bed"
+
+    pos_reg2annot_dic = {}
+    tid2regl_dic = {}
+
+    if args.bg_mode == 1 and genomic_sites_input:
+
+        """
+        reg2annot_dic[reg_id][0] = annot_string
+        reg2annot_dic[reg_id][1] = tr_id
+
+        """
+
+        print("Get genomic region annotations ... ")
+        # Extract exon + intron regions of selected transcripts from transcript infos.
+        print("Output intron annotations to BED ... ")
+        benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
+                                            output_mode=3,  # only introns.
+                                            report_counts=True,
+                                            add_tr_id=True,
+                                            empty_check=False)
+    
+        # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.
+        print("Output exon annotations to BED ... ")
+        benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
+                                         append=True)
+
+        # Overlap with input regions.
+        print("Overlap annotations with input regions ... ")
+        params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
+
+        benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_out_bed, 
+                                     overlap_annotations_bed,
+                                     params=params)
+        pos_reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
+                                                            reg_ids_dic=pos_reg_ids_dic)
+
+    elif args.bg_mode == 1 and not genomic_sites_input:
+
+        for reg_id in pos_reg_ids_dic:
+            # Get tr_id from reg_id format: ENST00000663363:36-136(+)
+            tr_id = reg_id.split(":")[0]
+            pos_reg2annot_dic[reg_id] = ["ncRNA", tr_id]
+
+        # Get mRNA region lengths.
+        tid2regl_dic = benchlib.get_mrna_region_lengths(tid2tio_dic)
+
+        if tid2regl_dic:
+            print("Get mRNA region annotations ... ")
+
+            print("# mRNA transcripts (containing CDS):", len(tid2regl_dic))
+
+            benchlib.output_mrna_regions_to_bed(tid2regl_dic, mrna_regions_bed)
+
+            # Overlap with input regions.
+            print("Overlap mRNA annotations with input regions ... ")
+            params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
+            benchlib.bed_intersect_files(filtered_sites_bed, mrna_regions_bed, 
+                                         overlap_annotations_bed,
+                                         params=params)
+            pos_reg2annot_dic = benchlib.get_mrna_region_annotations_v2(overlap_annotations_bed,
+                                                                        reg_ids_dic=pos_reg_ids_dic)
+
+    # Approx. intron / non-intron lengths in positive set.
+    pos_intron_len = 0
+    pos_non_intron_len = 0
+
+    for reg_id in pos_reg2annot_dic:
+        seq_len = len(pos_seqs_dic[reg_id])
+        if pos_reg2annot_dic[reg_id][0] == "intron" or pos_reg2annot_dic[reg_id][0] == "intergenic":
+            pos_intron_len += seq_len
+        else:
+            pos_non_intron_len += seq_len
+
+    # Intron ratio.
+    pos_intron_ratio = 0
+    if pos_non_intron_len:
+        pos_intron_ratio = pos_intron_len / pos_non_intron_len
+        pos_intron_ratio = round(pos_intron_ratio, 4)
+
+
+    print("Positive set intron length: ", pos_intron_len)
+    print("Positive set non-intron length: ", pos_non_intron_len)
+    print("Positive set intron ratio: ", pos_intron_ratio)
+
+    """
+    
+    """
+
+
+
+
+
+    """
+    Write regions to BED from where to sample background sites (incl_bed).
+
+    """
+
+    OUTBED = open(bg_incl_bed, "w")
+    print("Output regions to sample background sites from ... ")
+
+    if genomic_sites_input:
+        # Output genomic transcript regions with introns.
+        for tr_id in tid2tio_dic:
+            chr_id = tid2tio_dic[tr_id].chr_id
+            tr_s = tid2tio_dic[tr_id].tr_s - 1
+            tr_e = tid2tio_dic[tr_id].tr_e
+            tr_pol = tid2tio_dic[tr_id].tr_pol
+            OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" %(chr_id, tr_s, tr_e, tr_id, tr_pol))
+
+    else:
+        # Output transcript regions (chromosome id = transcript ID).
+        for tr_id in tr_len_dic:
+            tr_len = tr_len_dic[tr_id]
+            OUTBED.write("%s\t0\t%i\t%s\t0\t+\n" %(tr_id, tr_len, tr_id))
+
+        # Overwrite chromosome lengths dictionary with transcript lengths.
+        chr_len_dic = tr_len_dic
+        # Overwrite chromsome lengths file with transcript lengths.
+        benchlib.output_chromosome_lengths_file(tr_len_dic, chr_len_file)
+
+    OUTBED.close()
+
+
+
+
+
     """
     Create random negatives / background / control set.
 
@@ -13688,66 +13812,30 @@ def main_enmo(args):
 
     len_dist_plot_out = args.out_folder + "/sequence_lengths_distribution.png"
     benchlib.plot_seq_len_distr(pos_len_list, neg_len_list, len_dist_plot_out,
-                                label1='Positive sequences',
+                                label1='Input sequences',
                                 label2='Background sequences',
                                 density=True)
 
 
-    """
-
-    
-    Get region annotations for genomic regions.
 
     """
+    Get genomic / transcript region annotations for background regions.
 
-    pos_reg_ids_list = []
-    pos_reg_ids_dic = {}
-    for seq_id, seq in sorted(pos_seqs_dic.items()):
-        pos_reg_ids_list.append(seq_id)
-        pos_reg_ids_dic[seq_id] = 1
+    """
+
     neg_reg_ids_list = []
     neg_reg_ids_dic = {}
     for seq_id, seq in sorted(neg_seqs_dic.items()):
         neg_reg_ids_list.append(seq_id)
         neg_reg_ids_dic[seq_id] = 1
 
-    pos_reg2annot_dic = {}
     neg_reg2annot_dic = {}
 
     if args.bg_mode == 1 and genomic_sites_input:
 
-        """
-        reg2annot_dic[reg_id][0] = annot_string
-        reg2annot_dic[reg_id][1] = tr_id
-
-        """
-
-        print("Get genomic region annotations ... ")
-        # Extract exon + intron regions of selected transcripts from transcript infos.
-        print("Output intron annotations to BED ... ")
-        intron_exon_out_bed = args.out_folder + "/intron_exon_regions.tmp.bed"
-        benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
-                                            output_mode=3,  # only introns.
-                                            report_counts=True,
-                                            add_tr_id=True,
-                                            empty_check=False)
-    
-        # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.
-        print("Output exon annotations to BED ... ")
-        benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
-                                         append=True)
-
-        # Overlap with input regions.
-        print("Overlap annotations with input regions ... ")
-        params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
-        overlap_annotations_bed = args.out_folder + "/overlap_region_annotations.tmp.bed"
-        benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_out_bed, 
-                                     overlap_annotations_bed,
-                                     params=params)
-        pos_reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
-                                                            reg_ids_dic=pos_reg_ids_dic)
-
         print("Overlap annotations with background regions ... ")
+        params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
+
         benchlib.bed_intersect_files(neg_seqs_bed, intron_exon_out_bed, 
                                      overlap_annotations_bed,
                                      params=params)
@@ -13757,34 +13845,15 @@ def main_enmo(args):
 
     elif args.bg_mode == 1 and not genomic_sites_input:
 
-        for reg_id in pos_reg_ids_dic:
-            # Get tr_id from reg_id format: ENST00000663363:36-136(+)
-            tr_id = reg_id.split(":")[0]
-            pos_reg2annot_dic[reg_id] = ["ncRNA", tr_id]
-
         for reg_id in neg_reg_ids_dic:
             tr_id = reg_id.split(":")[0]
             neg_reg2annot_dic[reg_id] = ["ncRNA", tr_id]
 
-        # Get mRNA region lengths.
-        tid2regl_dic = benchlib.get_mrna_region_lengths(tid2tio_dic)
         if tid2regl_dic:
-            print("Get mRNA region annotations ... ")
-            print("# mRNA transcripts (containing CDS):", len(tid2regl_dic))
-
-            benchlib.output_mrna_regions_to_bed(tid2regl_dic, mrna_regions_bed)
-
-            # Overlap with input regions.
-            print("Overlap mRNA annotations with input regions ... ")
-            params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
-            overlap_annotations_bed = args.out_folder + "/overlap_region_annotations.tmp.bed"
-            benchlib.bed_intersect_files(filtered_sites_bed, mrna_regions_bed, 
-                                         overlap_annotations_bed,
-                                         params=params)
-            pos_reg2annot_dic = benchlib.get_mrna_region_annotations_v2(overlap_annotations_bed,
-                                                                        reg_ids_dic=pos_reg_ids_dic)
 
             print("Overlap mRNA annotations with background regions ... ")
+            params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
+
             benchlib.bed_intersect_files(neg_seqs_bed, mrna_regions_bed, 
                                          overlap_annotations_bed,
                                          params=params)
@@ -13792,11 +13861,15 @@ def main_enmo(args):
                                                                         reg_ids_dic=neg_reg_ids_dic)
 
 
+
+
+
+
     annot2color_dic = {}
 
     if args.bg_mode == 1:
 
-        print("Output positive region annotations ... ")
+        print("Output input region annotations ... ")
         
         reg_annot_table_file = args.out_folder + "/" + "pos_region_annotations.tsv"
 
@@ -13823,8 +13896,8 @@ def main_enmo(args):
         Get annotation to color dictionary, which is needed for region annotation plots in HTML reports.
 
         """
-        assert pos_reg2annot_dic, "--bg-mode 1 set, but no positive region annotations found. Please contact developers"
-        assert neg_reg2annot_dic, "--bg-mode 1 set, but no negative region annotations found. Please contact developers"
+        assert pos_reg2annot_dic, "--bg-mode 1 set, but no input region annotations found. Please contact developers"
+        assert neg_reg2annot_dic, "--bg-mode 1 set, but no background region annotations found. Please contact developers"
 
         annot_dic = {}
 
@@ -13870,7 +13943,7 @@ def main_enmo(args):
         out_str, c_added_motifs = benchlib.blocks_to_xml_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
         benchlib.output_string_to_file(out_str, seq_motifs_xml)
 
-        print("Run FIMO on positive regions ... ")
+        print("Run FIMO on input regions ... ")
         benchlib.run_fast_fimo(filtered_sites_fa, seq_motifs_xml, fimo_res_tsv,
                                pval_thr=args.fimo_pval,
                                nt_freqs_file=fimo_freqs_file,
@@ -13882,7 +13955,7 @@ def main_enmo(args):
         pos_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv)
 
         c_pos_fimo_hits = len(pos_fimo_hits_list)
-        print("# of FIMO motif hits in positive regions:", c_pos_fimo_hits)
+        print("# of FIMO motif hits in input regions:", c_pos_fimo_hits)
 
         print("Run FIMO on background regions ... ")
         benchlib.run_fast_fimo(neg_seqs_fa, seq_motifs_xml, fimo_res_tsv,
@@ -13915,7 +13988,7 @@ def main_enmo(args):
                                                       use_motif_regex_id=args.motif_regex_id)
 
             c_pos_regex_hits = len(pos_regex_hits_list)
-            print("# of regex hits in positive regions:", c_pos_regex_hits)
+            print("# of regex hits in input regions:", c_pos_regex_hits)
 
             # Add regex hits to fimo_hits_list.
             pos_fimo_hits_list += pos_regex_hits_list
@@ -13945,7 +14018,7 @@ def main_enmo(args):
         print("Output covariance models to .cm ... ")
         benchlib.output_cm_blocks_to_file(str_motif_blocks_dic, loaded_motif_ids_dic, str_motifs_cm)
 
-        print("Run cmsearch on positive regions ... ")
+        print("Run cmsearch on input regions ... ")
         benchlib.run_cmsearch(filtered_sites_fa, str_motifs_cm, cmsearch_res_txt,
                         error_check=False,
                         params="-g --tformat fasta --toponly --incT 1 -T 1 --default")
@@ -13953,7 +14026,7 @@ def main_enmo(args):
         pos_cmsearch_hits_list, c_pos_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt, 
                                                                            check=True)
 
-        print("# of cmsearch motif hits in positive regions:", c_pos_cms_hits)
+        print("# of cmsearch motif hits in input regions:", c_pos_cms_hits)
 
         print("Run cmsearch on background regions ... ")
         benchlib.run_cmsearch(neg_seqs_fa, str_motifs_cm, cmsearch_res_txt,
@@ -13971,7 +14044,7 @@ def main_enmo(args):
     Get motif to region hit counts.
 
     pos_hits_dic / neg_hits_dic format: 
-    motif_id -> region_id -> # of hits in positive regions
+    motif_id -> region_id -> # of hits in input regions
 
     """
     pos_hits_dic = {}
@@ -14123,7 +14196,7 @@ def main_enmo(args):
         motif_enrich_stats.c_pos_hit_regions = c_pos_hit_regions
         motif_enrich_stats.c_neg_hit_regions = c_neg_hit_regions
 
-        print("Motif %s (%s) %i positive hit regions (%i hits) and %i negative hit regions (%i hits) ... " %(motif_id, rbp_id, c_pos_hit_regions, c_pos_hits, c_neg_hit_regions, c_neg_hits))
+        print("Motif %s (%s) %i input hit regions (%i hits) and %i negative hit regions (%i hits) ... " %(motif_id, rbp_id, c_pos_hit_regions, c_pos_hits, c_neg_hit_regions, c_neg_hits))
 
         """
         DREME style test for motif enrichment:

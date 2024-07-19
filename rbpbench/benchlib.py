@@ -2053,6 +2053,35 @@ def gtf_read_in_transcript_infos(in_gtf,
     if empty_check:
         assert tid2tio_dic, "no transcript infos read in from GTF file \"%s\"" %(in_gtf)
 
+    """
+    Add intron coordinates and total intron length to TranscriptInfo objects.
+
+    """
+
+    if tid2tio_dic:
+        for tid in tid2tio_dic:        
+            tr_pol = tid2tio_dic[tid].tr_pol
+            exon_coords = tid2tio_dic[tid].exon_coords
+            assert exon_coords is not None, "exon coordinates list not set for transcript ID %s" %(tr_id)
+            # Get intron coordinates.
+            intron_coords = []
+            if tr_pol == "+":
+                for i in range(len(exon_coords) - 1):
+                    intron_coords.append([exon_coords[i][1]+1, exon_coords[i+1][0]-1])
+            elif tr_pol == "-":
+                for i in range(len(exon_coords) - 1):
+                    intron_coords.append([exon_coords[i+1][1]+1,exon_coords[i][0]-1])
+            else:
+                assert False, "invalid strand given (%s) for transcript ID %s" %(tr_pol, tr_id)
+
+            total_intron_len = 0
+            for intron in intron_coords:
+                intron_len = intron[1] - intron[0] + 1
+                total_intron_len += intron_len
+                tid2tio_dic[tid].intron_coords.append(intron)
+
+            tid2tio_dic[tid].total_intron_len = total_intron_len
+
     return tid2tio_dic
 
 
@@ -2177,10 +2206,12 @@ class TranscriptInfo:
                  tr_e: int,  # 1-based index.
                  tr_pol: str,
                  gene_id: str,
-                 tr_length: Optional[int] = None,
+                 total_intron_len = 0,
+                 tr_length: Optional[int] = None,  # spliced transcript length.
                  exon_c: Optional[int] = None,
                  cds_s: Optional[int] = None,
                  cds_e: Optional[int] = None,
+                 intron_coords=None,  # intron_coords + exon_coords with 1-based starts and ends.
                  exon_coords=None) -> None:
 
         self.tr_id = tr_id
@@ -2194,6 +2225,10 @@ class TranscriptInfo:
         self.exon_c = exon_c
         self.cds_s = cds_s
         self.cds_e = cds_e
+        if intron_coords is None:
+            self.intron_coords = []
+        else:
+            self.intron_coords = intron_coords
         if exon_coords is None:
             self.exon_coords = []
         else:
@@ -2854,8 +2889,6 @@ def get_mrna_region_annotations_v2(overlap_annotations_bed,
     with 5'UTR CDS 3'UTR regions.
 
     This function (v2) is designed for rbpbench enmo.
-
-    AALAMO
 
     """
     assert os.path.exists(overlap_annotations_bed), "file %s does not exist" %(overlap_annotations_bed)
@@ -6029,8 +6062,6 @@ by RBPBench (rbpbench goa):
     mdtext += "\n"
     mdtext += "\n&nbsp;\n"
 
-
-    # AALAMO
     mdtext += """
 ## GO enrichment analysis results ### {#goa-results}
 
@@ -8464,7 +8495,7 @@ Each RBP with a pair count (definition see table above) of >= %i is shown, and t
 
                 # Check if motif in motif database folder.
                 if motif_db_str:
-                    db_motif_path = benchlib_path + "/content/%s_motif_plots/%s" %(motif_db_str, motif_plot)
+                    db_motif_path = benchlib_path + "/content/motif_plots/%s" %(motif_plot)
                     if os.path.exists(db_motif_path):
                         shutil.copy(db_motif_path, motif_plot_out)
 
@@ -8524,7 +8555,7 @@ In case of an empty table, try to lower --motif-min-pair-count (current value: %
 
                         # Check if motif in motif database folder.
                         if motif_db_str:
-                            db_motif_path = benchlib_path + "/content/%s_motif_plots/%s" %(motif_db_str, motif_plot)
+                            db_motif_path = benchlib_path + "/content/motif_plots/%s" %(motif_plot)
                             if os.path.exists(db_motif_path):
                                 shutil.copy(db_motif_path, motif_plot_out)
 
@@ -8684,8 +8715,6 @@ Only motifs with a pair count of >= %i appear in the plot.
                 if goa_min_depth is not None:
                     if go_depth < goa_min_depth:
                         continue
-
-                # AALAMO
 
                 mdtext += '<tr>' + "\n"
                 mdtext += "<td>" + go_id + "</td>\n"
@@ -10168,7 +10197,7 @@ Genomic annotations are shown for all motifs of RBP "%s" combined, as well as fo
 
             # Check if motif in motif database folder.
             if motif_db_str:
-                db_motif_path = benchlib_path + "/content/%s_motif_plots/%s" %(motif_db_str, motif_plot)
+                db_motif_path = benchlib_path + "/content/motif_plots/%s" %(motif_plot)
                 if os.path.exists(db_motif_path):
                     shutil.copy(db_motif_path, motif_plot_out)
 
