@@ -164,6 +164,7 @@ def setup_argument_parser():
                    dest="regex",
                    type=str,
                    metavar='str',
+                   default = False,
                    help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', ..")
     p_s.add_argument("--regex-id",
                    dest="regex_id",
@@ -578,6 +579,7 @@ def setup_argument_parser():
                    dest="regex",
                    type=str,
                    metavar='str',
+                   default = False,
                    help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', ..")
     p_b.add_argument("--regex-search-mode",
                    dest="regex_search_mode",
@@ -1111,6 +1113,7 @@ def setup_argument_parser():
                    dest="regex",
                    type=str,
                    metavar='str',
+                   default = False,
                    help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', ..")
     p_sl.add_argument("--regex-id",
                    dest="regex_id",
@@ -1358,6 +1361,7 @@ def setup_argument_parser():
                    dest="regex",
                    type=str,
                    metavar='str',
+                   default = False,
                    help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', ..")
     p_scr.add_argument("--regex-id",
                    dest="regex_id",
@@ -1684,6 +1688,7 @@ def setup_argument_parser():
                    dest="regex",
                    type=str,
                    metavar='str',
+                   default = False,
                    help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', ..")
     p_smr.add_argument("--regex-id",
                    dest="regex_id",
@@ -1947,6 +1952,7 @@ def setup_argument_parser():
                    dest="regex",
                    type=str,
                    metavar='str',
+                   default = False,
                    help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', ..")
     p_em.add_argument("--regex-id",
                    dest="regex_id",
@@ -2004,6 +2010,12 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help="Add ENCODE blacklist regions (hg38) to excluded regions set, i.e. do not sample from these blacklisted regions (default: False)")
+    p_em.add_argument("--bg-ada-sampling",
+                   dest="bg_adaptive_sampling",
+                   default = False,
+                   action = "store_true",
+                   help="If --bg-mode 1 and input sites genomic, instead of random background sampling, sample adjusted to intron ratio of input sites (default: False)")
+
     p_em.add_argument("--bg-shuff-factor",
                    dest="bg_shuff_factor",
                    type=int,
@@ -2016,6 +2028,12 @@ def setup_argument_parser():
                    metavar='int',
                    default=2,
                    help="Define k for k-nt shuffling --in set to create background set (default: 2)")
+    p_em.add_argument("--random-seed",
+                   dest="random_seed",
+                   type=int,
+                   metavar='int',
+                   default=None,
+                   help="Set a fixed random seed number (e.g. --random-seed 1) to obtain reproducible sampling results (default: None)")
     p_em.add_argument("--tr-list",
                    dest="tr_list",
                    type=str,
@@ -2057,8 +2075,8 @@ def setup_argument_parser():
                    dest="enmo_pval_thr",
                    type=float,
                    metavar='float',
-                   default=0.05,
-                   help="P-value threshold for reporting significantly enriched motifs. NOTE that if --enmo-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.05)")
+                   default=0.001,
+                   help="P-value threshold for reporting significantly enriched motifs. NOTE that if --enmo-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.001)")
     p_em.add_argument("--enmo-pval-mode",
                    dest="enmo_pval_mode",
                    type=int,
@@ -2089,6 +2107,12 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
+    p_em.add_argument("--plotly-js-mode",
+                   dest="plotly_js_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3, 4, 5, 6, 7],
+                   help = "Define how to provide plotly .js file. 1: use online version via \"cdn\" (requires internet connection). 2: link to packaged plotly .js file. 3: copy plotly .js file to plots output folder. 4: include plotly .js code in plotly HTML. 5: put web version link and plotly plot codes into main HTML. 6: put local version link and plotly plot codes in main HTML. 7: put plotly js and plotly plot codes into main HTML! (default: 1)")
     p_em.add_argument("--sort-js-mode",
                    dest="sort_js_mode",
                    type=int,
@@ -2838,10 +2862,14 @@ def main_search(args):
         
         assert regex, "empty string after removing special chars ( [ :;\(\)] ) from --regex. Please provide a valid regex with DNA letters"
 
+        args.regex = regex
+
         regex_id = benchlib.remove_special_chars_from_str(args.regex_id)
 
         assert regex_id, "empty string after removing special chars from --regex-id. Please provide alphanumeric string for regex ID (- or _ are okay as well)"
         assert regex_id not in name2ids_dic, "--regex set but a different RBP ID with name \"%s\" was found. Please provide a different RBP ID or --regex-id" %(regex_id)
+
+        args.regex_id = regex_id
 
         if args.motif_regex_id:
             assert regex_id not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or --regex-id" %(regex_id)
@@ -8268,13 +8296,17 @@ def main_searchlong(args):
         # Remove , ; from given regex, to avoid motif_id format conflicts.
         regex = benchlib.remove_special_chars_from_str(args.regex,
                                                        reg_ex="[ :;\(\)]")
-        
+                
         assert regex, "empty string after removing special chars ( [ :;\(\)] ) from --regex. Please provide a valid regex with DNA letters"
+
+        args.regex = regex
 
         regex_id = benchlib.remove_special_chars_from_str(args.regex_id)
 
         assert regex_id, "empty string after removing special chars from --regex-id. Please provide alphanumeric string for regex ID (- or _ are okay as well)"
         assert regex_id not in name2ids_dic, "--regex set but a different RBP ID with name \"%s\" was found. Please provide a different RBP ID or --regex-id" %(regex_id)
+
+        args.regex_id = regex_id
 
         if args.motif_regex_id:
             assert regex_id not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or --regex-id" %(regex_id)
@@ -9630,10 +9662,14 @@ def main_searchrna(args):
         
         assert regex, "empty string after removing special chars ( [ :;\(\)] ) from --regex. Please provide a valid regex with DNA letters"
 
+        args.regex = regex
+
         regex_id = benchlib.remove_special_chars_from_str(args.regex_id)
 
         assert regex_id, "empty string after removing special chars from --regex-id. Please provide alphanumeric string for regex ID (- or _ are okay as well)"
         assert regex_id not in name2ids_dic, "--regex set but a different RBP ID with name \"%s\" was found. Please provide a different RBP ID or --regex-id" %(regex_id)
+
+        args.regex_id = regex_id
 
         if args.motif_regex_id:
             assert regex_id not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or --regex-id" %(regex_id)
@@ -11566,10 +11602,14 @@ def main_searchlongrna(args):
         
         assert regex, "empty string after removing special chars ( [ :;\(\)] ) from --regex. Please provide a valid regex with DNA letters"
 
+        args.regex = regex
+
         regex_id = benchlib.remove_special_chars_from_str(args.regex_id)
 
         assert regex_id, "empty string after removing special chars from --regex-id. Please provide alphanumeric string for regex ID (- or _ are okay as well)"
         assert regex_id not in name2ids_dic, "--regex set but a different RBP ID with name \"%s\" was found. Please provide a different RBP ID or --regex-id" %(regex_id)
+
+        args.regex_id = regex_id
 
         if args.motif_regex_id:
             assert regex_id not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or --regex-id" %(regex_id)
@@ -12887,6 +12927,11 @@ def main_enmo(args):
     if args.regex:
         assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
 
+    # Fixed seed number?
+    import random
+    if args.random_seed is not None:
+        random.seed(args.random_seed)
+
     # Limit inputs.
     assert benchlib.boundary_check(args.bg_shuff_factor, 1, 20), "set --bg-shuff-factor expected to be >= 1 and <= 20"
     assert benchlib.boundary_check(args.bg_shuff_k, 1, 5), "set --bg-shuff-k expected to be >= 1 and <= 5"
@@ -13013,7 +13058,7 @@ def main_enmo(args):
     rbp_stats_out = args.out_folder + "/rbp_hit_stats.tsv"
     motif_stats_out = args.out_folder + "/motif_hit_stats.tsv"
     # con_res_out_tsv = args.out_folder + "/contingency_table_results.tsv"
-    settings_file = args.out_folder + "/settings.rbpbench_search.out"
+    settings_file = args.out_folder + "/settings.rbpbench_enmo.out"
     rbp_reg_occ_table_out = args.out_folder + "/rbp_region_occupancies.tsv"
 
     # Output unique motif hits.
@@ -13190,10 +13235,14 @@ def main_enmo(args):
         
         assert regex, "empty string after removing special chars ( [ :;\(\)] ) from --regex. Please provide a valid regex with DNA letters"
 
+        args.regex = regex
+
         regex_id = benchlib.remove_special_chars_from_str(args.regex_id)
 
         assert regex_id, "empty string after removing special chars from --regex-id. Please provide alphanumeric string for regex ID (- or _ are okay as well)"
         assert regex_id not in name2ids_dic, "--regex set but a different RBP ID with name \"%s\" was found. Please provide a different RBP ID or --regex-id" %(regex_id)
+
+        args.regex_id = regex_id
 
         if args.motif_regex_id:
             assert regex_id not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or --regex-id" %(regex_id)
@@ -13320,6 +13369,8 @@ def main_enmo(args):
             genomic_sites_input = True
         break
 
+    args.genomic_sites_input = genomic_sites_input
+
     if genomic_sites_input:
         print("--in site seem to be genomic sites. Checking ... ")
         for chr_id in chr_ids_in_dic:
@@ -13382,7 +13433,7 @@ def main_enmo(args):
 
     # Get transcript infos.
     print("Read in transcript infos from --gtf ... ")
-    tid2tio_dic = benchlib.gtf_read_in_transcript_infos(args.in_gtf, 
+    tid2tio_dic = benchlib.gtf_read_in_transcript_infos(args.in_gtf,
                                                         tr_ids_dic=tr_ids_dic,
                                                         correct_min_ex_order=correct_min_ex_order,
                                                         chr_style=chr_style,
@@ -13394,22 +13445,21 @@ def main_enmo(args):
     total_tr_intron_len = 0
     total_tr_exon_len = 0
 
+    # Get transcript lengths.
+    tr_len_dic = {}
+
     for tid in tid2tio_dic:
+        tr_len_dic[tid] = tid2tio_dic[tid].tr_length
         total_tr_intron_len += tid2tio_dic[tid].total_intron_len
         total_tr_exon_len += tid2tio_dic[tid].tr_length
 
-    # Get transcript lengths.
-    tr_len_dic = {}
-    for tr_id in tid2tio_dic:
-        tr_len_dic[tr_id] = tid2tio_dic[tr_id].tr_length
+    total_tr_len = total_tr_intron_len + total_tr_exon_len
 
-    total_tr_intron_ratio = 0
-    if total_tr_exon_len:
-        total_tr_intron_ratio = total_tr_intron_len / total_tr_exon_len
-        total_tr_intron_ratio = round(total_tr_intron_ratio, 4)
+    total_tr_intron_ratio = round(total_tr_intron_len / total_tr_len, 6)
+    total_tr_exon_ratio = round(total_tr_exon_len / total_tr_len, 6)
 
-    print("Total transcript intron length: ", total_tr_intron_len)
-    print("Total transcript exon length: ", total_tr_exon_len)
+    print("Total transcript intron length:", total_tr_intron_len)
+    print("Total transcript exon length:  ", total_tr_exon_len)
     print("Total transcript intron ratio: ", total_tr_intron_ratio)
 
 
@@ -13539,13 +13589,19 @@ def main_enmo(args):
     shuffle_list = []
     c_pos = len(pos_seqs_dic)
     c_pos_total = 0
-    if c_pos >= args.bg_min_size:
+    if args.bg_mode == 1:
+        if c_pos >= args.bg_min_size:
+            shuffle_list.append(filtered_sites_bed)
+            c_pos_total = c_pos
+        else:
+            while c_pos_total < args.bg_min_size:
+                shuffle_list.append(filtered_sites_bed)
+                c_pos_total += c_pos
+    elif args.bg_mode == 2:
         shuffle_list.append(filtered_sites_bed)
         c_pos_total = c_pos
     else:
-        while c_pos_total < args.bg_min_size:
-            shuffle_list.append(filtered_sites_bed)
-            c_pos_total += c_pos
+        assert False, "invalid --bg-mode set"
 
     benchlib.merge_files(shuffle_list, bg_shuffle_in_bed)
 
@@ -13572,126 +13628,187 @@ def main_enmo(args):
     pos_reg2annot_dic = {}
     tid2regl_dic = {}
 
-    if args.bg_mode == 1 and genomic_sites_input:
+    if args.bg_mode == 1:
 
-        """
-        reg2annot_dic[reg_id][0] = annot_string
-        reg2annot_dic[reg_id][1] = tr_id
+        if genomic_sites_input:
 
-        """
+            """
+            reg2annot_dic[reg_id][0] = annot_string
+            reg2annot_dic[reg_id][1] = tr_id
 
-        print("Get genomic region annotations ... ")
-        # Extract exon + intron regions of selected transcripts from transcript infos.
-        print("Output intron annotations to BED ... ")
-        benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
-                                            output_mode=3,  # only introns.
-                                            report_counts=True,
-                                            add_tr_id=True,
-                                            empty_check=False)
-    
-        # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.
-        print("Output exon annotations to BED ... ")
-        benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
-                                         append=True)
+            """
 
-        # Overlap with input regions.
-        print("Overlap annotations with input regions ... ")
-        params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
-
-        benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_out_bed, 
-                                     overlap_annotations_bed,
-                                     params=params)
-        pos_reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
-                                                            reg_ids_dic=pos_reg_ids_dic)
-
-    elif args.bg_mode == 1 and not genomic_sites_input:
-
-        for reg_id in pos_reg_ids_dic:
-            # Get tr_id from reg_id format: ENST00000663363:36-136(+)
-            tr_id = reg_id.split(":")[0]
-            pos_reg2annot_dic[reg_id] = ["ncRNA", tr_id]
-
-        # Get mRNA region lengths.
-        tid2regl_dic = benchlib.get_mrna_region_lengths(tid2tio_dic)
-
-        if tid2regl_dic:
-            print("Get mRNA region annotations ... ")
-
-            print("# mRNA transcripts (containing CDS):", len(tid2regl_dic))
-
-            benchlib.output_mrna_regions_to_bed(tid2regl_dic, mrna_regions_bed)
+            print("Get genomic region annotations ... ")
+            # Extract exon + intron regions of selected transcripts from transcript infos.
+            print("Output intron annotations to BED ... ")
+            benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
+                                                output_mode=3,  # only introns.
+                                                report_counts=True,
+                                                add_tr_id=True,
+                                                empty_check=False)
+        
+            # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.
+            print("Output exon annotations to BED ... ")
+            benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
+                                            append=True)
 
             # Overlap with input regions.
-            print("Overlap mRNA annotations with input regions ... ")
+            print("Overlap annotations with input regions ... ")
             params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
-            benchlib.bed_intersect_files(filtered_sites_bed, mrna_regions_bed, 
-                                         overlap_annotations_bed,
-                                         params=params)
-            pos_reg2annot_dic = benchlib.get_mrna_region_annotations_v2(overlap_annotations_bed,
-                                                                        reg_ids_dic=pos_reg_ids_dic)
 
-    # Approx. intron / non-intron lengths in positive set.
-    pos_intron_len = 0
-    pos_non_intron_len = 0
+            benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_out_bed, 
+                                        overlap_annotations_bed,
+                                        params=params)
+            pos_reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
+                                                                reg_ids_dic=pos_reg_ids_dic)
 
-    for reg_id in pos_reg2annot_dic:
-        seq_len = len(pos_seqs_dic[reg_id])
-        if pos_reg2annot_dic[reg_id][0] == "intron" or pos_reg2annot_dic[reg_id][0] == "intergenic":
-            pos_intron_len += seq_len
         else:
-            pos_non_intron_len += seq_len
 
-    # Intron ratio.
-    pos_intron_ratio = 0
-    if pos_non_intron_len:
-        pos_intron_ratio = pos_intron_len / pos_non_intron_len
-        pos_intron_ratio = round(pos_intron_ratio, 4)
+            for reg_id in pos_reg_ids_dic:
+                # Get tr_id from reg_id format: ENST00000663363:36-136(+)
+                tr_id = reg_id.split(":")[0]
+                pos_reg2annot_dic[reg_id] = ["ncRNA", tr_id]
 
+            # Get mRNA region lengths.
+            tid2regl_dic = benchlib.get_mrna_region_lengths(tid2tio_dic)
 
-    print("Positive set intron length: ", pos_intron_len)
-    print("Positive set non-intron length: ", pos_non_intron_len)
-    print("Positive set intron ratio: ", pos_intron_ratio)
+            if tid2regl_dic:
+                print("Get mRNA region annotations ... ")
 
-    """
-    
-    """
+                print("# mRNA transcripts (containing CDS):", len(tid2regl_dic))
 
+                benchlib.output_mrna_regions_to_bed(tid2regl_dic, mrna_regions_bed)
 
+                # Overlap with input regions.
+                print("Overlap mRNA annotations with input regions ... ")
+                params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
+                benchlib.bed_intersect_files(filtered_sites_bed, mrna_regions_bed, 
+                                            overlap_annotations_bed,
+                                            params=params)
+                pos_reg2annot_dic = benchlib.get_mrna_region_annotations_v2(overlap_annotations_bed,
+                                                                            reg_ids_dic=pos_reg_ids_dic)
 
+        # Approx. intron / non-intron lengths in positive set.
+        pos_intron_sites_c = 0
+        pos_non_intron_sites_c = 0
 
+        for reg_id in pos_reg2annot_dic:
+            # seq_len = len(pos_seqs_dic[reg_id])
+            if pos_reg2annot_dic[reg_id][0] == "intron" or pos_reg2annot_dic[reg_id][0] == "intergenic":
+                pos_intron_sites_c += 1
+            else:
+                pos_non_intron_sites_c += 1
 
-    """
-    Write regions to BED from where to sample background sites (incl_bed).
+        pos_sites_c = len(pos_reg2annot_dic)
 
-    """
+        # Intron ratio.
+        pos_intron_ratio = round(pos_intron_sites_c / pos_sites_c, 6)
+        pos_exon_ratio = round(pos_non_intron_sites_c / pos_sites_c, 6)
 
-    OUTBED = open(bg_incl_bed, "w")
-    print("Output regions to sample background sites from ... ")
+        print("# input sites with intron (+intergenic) annotations:", pos_intron_sites_c)
+        print("# input sites with non-intron annotations:          ", pos_non_intron_sites_c)
+        print("Input set intron ratio:                             ", pos_intron_ratio)
 
-    if genomic_sites_input:
-        # Output genomic transcript regions with introns.
-        for tr_id in tid2tio_dic:
-            chr_id = tid2tio_dic[tr_id].chr_id
-            tr_s = tid2tio_dic[tr_id].tr_s - 1
-            tr_e = tid2tio_dic[tr_id].tr_e
-            tr_pol = tid2tio_dic[tr_id].tr_pol
-            OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" %(chr_id, tr_s, tr_e, tr_id, tr_pol))
+        # Do we need more intronic regions for adaptive sampling?
+        more_introns = False
+        if pos_intron_ratio > total_tr_intron_ratio:
+            more_introns = True
 
-    else:
-        # Output transcript regions (chromosome id = transcript ID).
-        for tr_id in tr_len_dic:
-            tr_len = tr_len_dic[tr_id]
-            OUTBED.write("%s\t0\t%i\t%s\t0\t+\n" %(tr_id, tr_len, tr_id))
+        """
+        Write regions to BED from where to sample background sites (incl_bed).
 
-        # Overwrite chromosome lengths dictionary with transcript lengths.
-        chr_len_dic = tr_len_dic
-        # Overwrite chromsome lengths file with transcript lengths.
-        benchlib.output_chromosome_lengths_file(tr_len_dic, chr_len_file)
+        """
 
-    OUTBED.close()
+        min_intron_len = 100
+        min_exon_len = 100
+        max_exon_ratio = 0.5  # exon ratio to aim for.
 
+        OUTBED = open(bg_incl_bed, "w")
+        print("Output regions to sample background sites from ... ")
 
+        if genomic_sites_input:
+            # Output genomic transcript regions with introns.
+            for tr_id in tid2tio_dic:
+                chr_id = tid2tio_dic[tr_id].chr_id
+                tr_s = tid2tio_dic[tr_id].tr_s - 1
+                tr_e = tid2tio_dic[tr_id].tr_e
+                tr_pol = tid2tio_dic[tr_id].tr_pol
+                OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" %(chr_id, tr_s, tr_e, tr_id, tr_pol))
 
+            if args.bg_adaptive_sampling:
+
+                print("Adaptive sampling enabled ... ")
+
+                tr_ids_list = list(tid2tio_dic.keys())
+                random.shuffle(tr_ids_list)
+
+                if more_introns:
+                    target_intron_len = int(total_tr_len * pos_intron_ratio)
+                    current_intron_len = total_tr_intron_len
+
+                    for tr_id in tr_ids_list:
+                        tio = tid2tio_dic[tr_id]
+
+                        # Loop over intron regions.
+                        for intron in tio.intron_coords:
+                            intron_s = intron[0] - 1
+                            intron_e = intron[1]
+                            intron_len = intron_e - intron_s
+                            if intron_len < min_intron_len:
+                                continue
+                            if current_intron_len < target_intron_len:
+                                chr_id = tio.chr_id
+                                OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" %(chr_id, intron_s, intron_e, tr_id, tio.tr_pol))
+                                current_intron_len += intron_len
+                            else:
+                                break
+
+                    total_tr_intron_len = current_intron_len
+
+                else:
+                    target_exon_len = int(total_tr_len * pos_exon_ratio)
+                    if pos_exon_ratio > max_exon_ratio:  # max exon ratio to be aimed for in --bg-ada-sampling.
+                        target_exon_len = int(total_tr_len * max_exon_ratio)
+                    current_exon_len = total_tr_exon_len
+
+                    for tr_id in tr_ids_list:
+                        tio = tid2tio_dic[tr_id]
+
+                        # Loop over exon regions.
+                        for exon in tio.exon_coords:
+                            exon_s = exon[0] - 1
+                            exon_e = exon[1]
+                            exon_len = exon_e - exon_s
+                            if exon_len < min_exon_len:
+                                continue
+                            if current_exon_len < target_exon_len:
+                                chr_id = tio.chr_id
+                                OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" %(chr_id, exon_s, exon_e, tr_id, tio.tr_pol))
+                                current_exon_len += exon_len
+                            else:
+                                break
+
+                    total_tr_exon_len = current_exon_len
+
+                new_total_tr_len = total_tr_intron_len + total_tr_exon_len
+                new_total_tr_intron_ratio = round(total_tr_intron_len / new_total_tr_len, 6)
+                
+                print("New total background intron length:", total_tr_intron_len)
+                print("New total background exon length:  ", total_tr_exon_len)
+                print("New total background intron ratio: ", new_total_tr_intron_ratio)
+
+        else:
+            # Output transcript regions (chromosome id = transcript ID).
+            for tr_id in tr_len_dic:
+                tr_len = tr_len_dic[tr_id]
+                OUTBED.write("%s\t0\t%i\t%s\t0\t+\n" %(tr_id, tr_len, tr_id))
+
+            # Overwrite chromosome lengths dictionary with transcript lengths.
+            chr_len_dic = tr_len_dic
+            # Overwrite chromsome lengths file with transcript lengths.
+            benchlib.output_chromosome_lengths_file(tr_len_dic, chr_len_file)
+
+        OUTBED.close()
 
 
     """
@@ -13802,9 +13919,6 @@ def main_enmo(args):
         print("# of shuffled background sequences: ", len(neg_seqs_dic))
 
 
-    print("neg_seqs_fa here:", neg_seqs_fa)
-
-
     print("Plot sequence lengths distributions ... ")
 
     pos_len_list = [len(seq) for seq in pos_seqs_dic.values()]
@@ -13817,6 +13931,8 @@ def main_enmo(args):
                                 density=True)
 
 
+    args.c_input_sites = len(pos_seqs_dic)
+    args.c_bg_sites = len(neg_seqs_dic)
 
     """
     Get genomic / transcript region annotations for background regions.
@@ -13862,16 +13978,14 @@ def main_enmo(args):
 
 
 
-
-
-
+    reg_annot_table_file = False
     annot2color_dic = {}
 
     if args.bg_mode == 1:
 
         print("Output input region annotations ... ")
         
-        reg_annot_table_file = args.out_folder + "/" + "pos_region_annotations.tsv"
+        reg_annot_table_file = args.out_folder + "/" + "input_region_annotations.tsv"
 
         OUTRAN = open(reg_annot_table_file, "w")
         OUTRAN.write("region_id\tgene_id\tgene_name\ttranscript_id\tregion_annotation\ttranscript_biotype\n")
@@ -13929,6 +14043,7 @@ def main_enmo(args):
 
     """
 
+    call_dic = {}
     pos_fimo_hits_list = []
     neg_fimo_hits_list = []
 
@@ -13947,6 +14062,7 @@ def main_enmo(args):
         benchlib.run_fast_fimo(filtered_sites_fa, seq_motifs_xml, fimo_res_tsv,
                                pval_thr=args.fimo_pval,
                                nt_freqs_file=fimo_freqs_file,
+                               call_dic=call_dic,
                                params=fimo_params,
                                error_check=False)
 
@@ -14021,6 +14137,7 @@ def main_enmo(args):
         print("Run cmsearch on input regions ... ")
         benchlib.run_cmsearch(filtered_sites_fa, str_motifs_cm, cmsearch_res_txt,
                         error_check=False,
+                        call_dic=call_dic,
                         params="-g --tformat fasta --toponly --incT 1 -T 1 --default")
 
         pos_cmsearch_hits_list, c_pos_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt, 
@@ -14135,7 +14252,6 @@ def main_enmo(args):
     """
     Get motif enrichment stats.
 
-    AALAMO
     """
 
     fisher_alt_hypo = "greater"
@@ -14200,8 +14316,8 @@ def main_enmo(args):
 
         """
         DREME style test for motif enrichment:
-        A: The number of foreground sequences that contain the motif.
-        B: The number of foreground sequences that do not contain the motif.
+        A: The number of input sequences that contain the motif.
+        B: The number of input sequences that do not contain the motif.
         C: The number of background sequences that contain the motif.
         D: The number of background sequences that do not contain the motif.
         """
@@ -14253,6 +14369,8 @@ def main_enmo(args):
     else:
         assert False, "Invalid motif enrichment p-value mode (--enmo-pval-mode) set: %i" %(args.enmo_pval_mode)
 
+    args.enmo_pval_thr_corr = enmo_pval_thr
+
 
     # Update + filter p-values.
 
@@ -14292,7 +14410,6 @@ def main_enmo(args):
 
 
     """
-    AALAMO:
     make html report.
     Check additional options?
     
@@ -14382,29 +14499,110 @@ class MotifEnrich:
 
 
 
+    html_report_out = args.out_folder + "/" + "report.rbpbench_enmo.html"
+    if args.plot_abs_paths:
+        html_report_out = os.path.abspath(args.out_folder) + "/" + "report.rbpbench_enmo.html"
+    # If HTML file already exists, remove it.
+    if os.path.exists(html_report_out):
+        os.remove(html_report_out)
+
+    # AALAMO
+    plots_subfolder = "html_report_plots"
+
+    print("Create report ... ")
+    benchlib.enmo_generate_html_report(args, motif_enrich_stats_dic, 
+                                       seq_motif_blocks_dic,
+                                       benchlib_path,
+                                       pos_seqs_dic=pos_seqs_dic,
+                                       neg_seqs_dic=neg_seqs_dic,
+                                       pos_reg2annot_dic=pos_reg2annot_dic,
+                                       neg_reg2annot_dic=neg_reg2annot_dic,
+                                       annot2color_dic=annot2color_dic,
+                                       rbpbench_mode="enmo",
+                                       html_report_out=html_report_out,
+                                       plots_subfolder=plots_subfolder)
+
+
+
+    # AALAMO
+
+
+    """
+                                        motif_db_str=motif_db_str,
+                                        regex_id=regex_id,
+                                        seq_motif_blocks_dic=seq_motif_blocks_dic,
+                                        max_motif_dist=args.max_motif_dist,
+                                        min_motif_dist=args.min_motif_dist,
+                                        motif_distance_plot_range=args.motif_distance_plot_range,
+                                        motif_min_pair_count=args.motif_min_pair_count,
+                                        rbp_min_pair_count=args.rbp_min_pair_count,
+                                        reg2annot_dic=reg2annot_dic,
+                                        annot2color_dic=annot2color_dic,
+                                        upset_plot_min_degree=args.upset_plot_min_degree,
+                                        upset_plot_max_degree=args.upset_plot_max_degree,
+                                        upset_plot_min_subset_size=args.upset_plot_min_subset_size,
+                                        upset_plot_max_subset_rank=args.upset_plot_max_subset_rank,
+                                        upset_plot_min_rbp_count=args.upset_plot_min_rbp_count,
+                                        upset_plot_max_rbp_rank=args.upset_plot_max_rbp_rank,
+                                        add_all_reg_bar=args.add_all_reg_bar,
+                                        run_goa=args.run_goa,
+                                        goa_results_df=goa_results_df,
+                                        goa_stats_dic=goa_stats_dic,
+                                        goa_min_depth=args.goa_min_depth,
+                                        goa_max_child=args.goa_max_child,
+                                        goa_filter_purified=args.goa_filter_purified,
+                                        goa_only_cooc=args.goa_only_cooc,
+
+                                        plot_abs_paths=args.plot_abs_paths,
+                                        sort_js_mode=args.sort_js_mode,
+                                        plotly_js_mode=args.plotly_js_mode,
+                                        cooc_pval_thr=cooc_pval_thr,
+                                        c_all_fisher_pval=c_all_fisher_pval,
+                                        c_sig_fisher_pval=c_sig_fisher_pval,
+                                        perc_sig_fisher_pval=perc_sig_fisher_pval,
+                                        cooc_pval_mode=args.cooc_pval_mode,
+                                        fimo_pval=args.fimo_pval,
+                                        reg_seq_str="regions",
+                                        report_header=args.report_header,
+                                        plots_subfolder=plots_subfolder)
+    """
 
 
 
 
+    """
+    Output parameter settings.
 
+    """
+    # Output mode settings.
+    print("Output parameter settings ... ")
+    SETOUT = open(settings_file, "w")
+    for arg in vars(args):
+        SETOUT.write("%s\t%s\n" %(arg, str(getattr(args, arg))))
+    for call in call_dic:
+        SETOUT.write("%s\t%s\n" %(call, call_dic[call]))
+    SETOUT.close()
 
+    """
+    Inform about outputs.
 
+    """
+    print("")
+    print("OUTPUT FILES")
+    print("============")
+    print("")
+    print("Run parameter settings:\n%s" %(settings_file))
+    print("Motif enrichment stats .tsv:\n%s" %(enmo_stats_out))
 
+    print("Filtered input regions .bed:\n%s" %(filtered_sites_bed))
+    print("Filtered input regions .fa:\n%s" %(filtered_sites_fa))
+    print("Background regions .bed:\n%s" %(neg_seqs_bed))
+    print("Background regions .fa:\n%s" %(neg_seqs_fa))
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    if reg_annot_table_file:
+        print("Input region annotations .tsv:\n%s" %(reg_annot_table_file))
+    print("Motif enrichment report .html:\n%s" %(html_report_out))
+    print("")
 
 
 
