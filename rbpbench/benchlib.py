@@ -867,11 +867,11 @@ def closest_dist_motif_pos_lists(l1, l2):
 ################################################################################
 
 def run_k_nt_shuffling(seqs_fa, out_fa,
-                        kmer_size=2,
-                        params="-dna",
-                        error_check=True,
-                        tag="_shuf",
-                        seed=None):
+                       kmer_size=2,
+                       params="-dna",
+                       error_check=True,
+                       tag="_shuf",
+                       seed=None):
     """
     
     Do k-nucleotide (kmer_size-nt) shuffling of FASTA sequences in seqs_fa. 
@@ -1562,6 +1562,9 @@ def extract_motif_blocks(raw_text):
             motif_id = new_motif_id
         else:
             if motif_id and l:
+                if re.search("^URL", l):  # Skip URL rows e.g. from Ray2013 meme file. format: URL http:// ...
+                    continue
+                # AALAMO: also remove <tab> characters from lines ...
                 if motif_id in motif_blocks_dic:
                     motif_blocks_dic[motif_id].append(l)
                 else:
@@ -2603,7 +2606,8 @@ def get_mrna_region_lengths(tid2tio_dic):
 
 ################################################################################
 
-def bed_filter_by_seqs_dic(seqs_dic, in_bed, out_bed):
+def bed_filter_by_seqs_dic(seqs_dic, in_bed, out_bed,
+                           use_col4_id=False):
     """
     Keep only in_bed entries with column 4 ID present in seqs_dic.
 
@@ -2626,6 +2630,8 @@ def bed_filter_by_seqs_dic(seqs_dic, in_bed, out_bed):
             strand = cols[5]
 
             exp_reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + strand + ")"
+            if use_col4_id:
+                exp_reg_id = reg_id
 
             if exp_reg_id in seqs_dic:
                 OUTBED.write("%s\t%s\t%s\t%s\t0\t%s\n" % (chr_id, reg_s, reg_e, exp_reg_id, strand))
@@ -4142,6 +4148,42 @@ def genome_fasta_get_chr_sizes(in_genome_fa,
 
 ################################################################################
 
+def merge_pos_bed_files(shuffle_list, bg_shuffle_in_bed,
+                        core_neg_id="neg"):
+    """
+    Merge BED files in shuffle list and output to bg_shuffle_in_bed.
+    Use core_neg_id to add to column 4 of negative regions.
+    So new col4 ID format: pos1;neg1 pos1;neg2 ...
+
+    """
+    assert shuffle_list, "no BED files in shuffle_list"
+    
+    OUTBED = open(bg_shuffle_in_bed, "w")
+
+    idx = 0
+    for out_bed in shuffle_list:
+        idx += 1
+        with open(out_bed) as f:
+            for line in f:
+                cols = line.strip().split("\t")
+                chr_id = cols[0]
+                reg_s = cols[1]
+                reg_e = cols[2]
+                reg_id = cols[3]
+                reg_sc = cols[4]
+                reg_pol = cols[5]
+
+                new_reg_id = reg_id + ";" + core_neg_id + str(idx)
+
+                OUTBED.write("%s\t%s\t%s\t%s\t%s\t%s\n" % (chr_id, reg_s, reg_e, new_reg_id, reg_sc, reg_pol))
+
+        f.closed
+    
+    OUTBED.close()
+
+
+################################################################################
+
 def bed_filter_extend_bed(in_bed, out_bed,
                           ext_up=0,
                           ext_down=0,
@@ -4154,6 +4196,9 @@ def bed_filter_extend_bed(in_bed, out_bed,
                           bed_chr_ids_dic=None,
                           use_region_ids=False,
                           chr_len_dic=False,
+                          new_reg_ids=False,
+                          core_reg_id="pos",
+                          core_reg_dic=None,
                           transcript_sites=False,
                           unstranded=False):
     """
@@ -4174,7 +4219,9 @@ def bed_filter_extend_bed(in_bed, out_bed,
         If transcript sites, just use first three columns.
     chr_len_dic:
         Provide transcript lengths for each chromosome, to extend not beyond ends.
-
+    core_reg_dic:
+        Store core region infos for each region ID (if core_reg_dic not None).
+        
     """
 
     OUTBED = open(out_bed, "w")
@@ -4197,24 +4244,25 @@ def bed_filter_extend_bed(in_bed, out_bed,
             chr_id = cols[0]
             reg_s = int(cols[1])
             reg_e = int(cols[2])
-            reg_id = "-"
-            reg_sc = 0
-            reg_pol = "+"
+            reg_id = cols[3]
+            reg_sc = float(cols[score_col-1])
+            reg_pol = cols[5]
+
+            assert len(cols) >= score_col, "given score column for --in BED file out of range (# columns = %i, set score column = %i)" %(len(cols), score_col)
 
             # If input regions are transcript sites, we just need first three columns.
             if transcript_sites:
                 reg_id = "%s:%i-%i" %(chr_id, reg_s, reg_e)
                 reg_sc = float(cols[score_col-1])
                 reg_pol = "+"
-            else:
-                # If not transcript sites (usual case, e.g. with rbpbench search).
-                reg_id = cols[3]
-                reg_sc = float(cols[score_col-1])
-                reg_pol = cols[5]
-
-                assert len(cols) >= score_col, "given score column for --in BED file out of range (# columns = %i, set score column = %i)" %(len(cols), score_col)
 
             c_in += 1
+
+            if new_reg_ids:
+                reg_id = core_reg_id + str(c_in)
+
+            if core_reg_dic is not None:
+                core_reg_dic[reg_id] = [chr_id, reg_s, reg_e, reg_pol]
 
             # Check chr_id.
             if chr_ids_dic is not None:
@@ -4953,6 +5001,7 @@ def get_regex_hits(regex, regex_id, seqs_dic,
 
 def read_in_fimo_results(fimo_tsv,
                          seq_based=False,
+                         reg_dic=None,
                          fast_fimo=True):
     """
     Read in FIMO motif finding results (TSV file).
@@ -5001,7 +5050,11 @@ def read_in_fimo_results(fimo_tsv,
         If true, input to FIMO search was sequences, so use coordinates as they are (not genomic + relative).
         Also seq_name is the sequence ID, and does not have to have format like "chr6:35575787-35575923(-)"
         Note that if prediction is on subsequences of transcripts, seq_based should be False too.
-        
+    reg_dic:
+        If provided, use this dictionary (mapping reg_id -> "chr1:100-200(+)", take value string) 
+        to get genomic coordinates from get_genomic_coords_from_seq_name, instead of seq_name.
+        This can be applied in cases where seq_name is some ID that does not contain region info, but
+        motif hit coordinates are still relative to the region.
     """
 
     fimo_hits_list = []
@@ -5043,15 +5096,22 @@ def read_in_fimo_results(fimo_tsv,
                 
             else:
 
-                gen_motif_coords = get_genomic_coords_from_seq_name(seq_name, motif_s, motif_e,
+                # AALAMO
+
+                region_info_seq_name = seq_name
+
+                if reg_dic:
+                    region_info_seq_name = reg_dic[seq_name]
+
+                gen_motif_coords = get_genomic_coords_from_seq_name(region_info_seq_name, motif_s, motif_e,
                                                                     one_based_start=True)
-                
+            
                 fimo_hit = FimoHit(chr_id=gen_motif_coords[0], 
                                 start=gen_motif_coords[1], 
                                 end=gen_motif_coords[2],
                                 strand=gen_motif_coords[3], 
                                 score=score, 
-                                motif_id=motif_id, 
+                                motif_id=motif_id,
                                 seq_name=seq_name,
                                 pval=pval, 
                                 qval=qval,
@@ -5466,6 +5526,8 @@ def create_color_scale(min_value, max_value, colors):
 def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
                             max_motif_dist=50,
                             min_motif_dist=0,
+                            id1="RBP1",
+                            id2="RBP2",
                             include_plotlyjs="cdn",
                             full_html=False):
     """
@@ -5520,7 +5582,7 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
     """
 
     plot.update(data=[{'customdata': pval_cont_lll,
-                      'hovertemplate': '1) RBP1: %{x}<br>2) RBP2: %{y}<br>3) p-value: %{customdata[0]}<br>4) p-value after filtering: %{customdata[1]}<br>%{customdata[7]}5) RBPs: %{customdata[2]}<br>6) Counts: %{customdata[3]}<br>7) Mean minimum motif distance (nt): %{customdata[4]}<br>8) Motif pairs within ' + str(max_motif_dist) + ' nt (%): %{customdata[5]}<br>9) Correlation: %{customdata[6]}<br>10) -log10(p-value after filtering): %{z}<extra></extra>'}])
+                      'hovertemplate': '1) ' + id1 + ': %{x}<br>2) ' + id2 + ': %{y}<br>3) p-value: %{customdata[0]}<br>4) p-value after filtering: %{customdata[1]}<br>%{customdata[7]}5) RBPs: %{customdata[2]}<br>6) Counts: %{customdata[3]}<br>7) Mean minimum motif distance (nt): %{customdata[4]}<br>8) Motif pairs within ' + str(max_motif_dist) + ' nt (%): %{customdata[5]}<br>9) Correlation: %{customdata[6]}<br>10) -log10(p-value after filtering): %{z}<extra></extra>'}])
     plot.update_layout(plot_bgcolor='white')
     plot.write_html(plot_out,
                     full_html=full_html,
@@ -6000,9 +6062,9 @@ def goa_generate_html_report(goa_results_df, goa_stats_dic,
     if html_report_out:
         html_out = html_report_out
 
-    report_header_info = ""
+    report_header_info = "GO enrichment analysis (GOA) report"
     if report_header:
-        report_header_info = "RBPBench "
+        report_header_info = "RBPBench GO enrichment analysis (GOA) report"
 
     """
     Setup sorttable.js to make tables in HTML sortable.
@@ -6053,7 +6115,7 @@ def goa_generate_html_report(goa_results_df, goa_stats_dic,
     # Markdown part.
     mdtext = """
 
-# %sGO enrichment analysis (GOA) report
+# %s
 
 List of available statistics and plots generated
 by RBPBench (rbpbench goa):
@@ -6204,44 +6266,26 @@ No significant GO terms found due to no GO IDs associated with target genes. # o
 
 ################################################################################
 
-def batch_generate_html_report(dataset_ids_list, 
+def batch_generate_html_report(args,
+                               dataset_ids_list, 
                                kmer_list,
                                kmer_freqs_ll,
                                id2infos_dic, 
                                id2reg_annot_dic,
                                id2hit_reg_annot_dic,
-                               out_folder,
                                benchlib_path,
                                seq_len_stats_ll,
                                html_report_out="report.rbpbench_batch.html",
                                id2motif_enrich_stats_dic=False,
-                               unstranded=False,
-                               unstranded_ct=False,
                                id2regex_stats_dic=None,
-                               regex="",
-                               wrs_mode=1,
-                               fisher_mode=1,
-                               max_motif_dist=50,
                                id2occ_list_dic=False,
                                gene_occ_cooc_plot=False,
-                               plot_abs_paths=False,
-                               plotly_js_mode=1,
-                               sort_js_mode=1,
                                plotly_full_html=False,
-                               kmer_size=5,
                                plotly_embed_style=1,
                                add_motif_db_info=False,
-                               fimo_pval=0.001,
-                               motif_db_str="custom",
                                heatmap_cluster_olo=False,
-                               run_goa=False,
                                goa_results_df=False,
                                goa_stats_dic=False,
-                               goa_max_child=None,
-                               goa_min_depth=None,
-                               goa_filter_purified=False,
-                               goa_only_cooc=False,
-                               report_header=False,
                                plots_subfolder="html_report_plots"):
     """
     Create plots for RBPBench batch run results.
@@ -6253,12 +6297,12 @@ def batch_generate_html_report(dataset_ids_list,
     assert kmer_freqs_ll, "no k-mer frequencies found for report creation"
 
     # Use absolute paths?
-    if plot_abs_paths:
+    if args.plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
 
     plots_folder = plots_subfolder
     plots_out_folder = out_folder + "/" + plots_folder
-    if plot_abs_paths:
+    if args.plot_abs_paths:
         plots_folder = plots_out_folder
 
     # Delete folder if already present.
@@ -6271,9 +6315,9 @@ def batch_generate_html_report(dataset_ids_list,
     if html_report_out:
         html_out = html_report_out
 
-    report_header_info = ""
-    if report_header:
-        report_header_info = "RBPBench "
+    report_header_info = "Batch search report"
+    if args.report_header:
+        report_header_info = "RBPBench batch search report"
 
     """
     Setup sorttable.js to make tables in HTML sortable.
@@ -6282,11 +6326,11 @@ def batch_generate_html_report(dataset_ids_list,
     sorttable_js_path = benchlib_path + "/content/sorttable.js"
     assert os.path.exists(sorttable_js_path), "sorttable.js not at %s" %(sorttable_js_path)
     sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
-    if sort_js_mode == 2:
+    if args.sort_js_mode == 2:
         shutil.copy(sorttable_js_path, plots_out_folder)
         sorttable_js_path = plots_folder + "/sorttable.js"
         sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
-    elif sort_js_mode == 3:
+    elif args.sort_js_mode == 3:
         js_code = read_file_content_into_str_var(sorttable_js_path)
         sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
 
@@ -6304,25 +6348,25 @@ def batch_generate_html_report(dataset_ids_list,
     plotly_js_html = ""
     plotly_js_path = benchlib_path + "/content/plotly-2.20.0.min.js"
     assert os.path.exists(plotly_js_path), "plotly .js %s not found" %(plotly_js_path)
-    if plotly_js_mode == 2:
+    if args.plotly_js_mode == 2:
         include_plotlyjs = plotly_js_path
-    elif plotly_js_mode == 3:
+    elif args.plotly_js_mode == 3:
         shutil.copy(plotly_js_path, plots_out_folder)
         include_plotlyjs = "plotly-2.20.0.min.js" # Or plots_folder + "/plotly-2.20.0.min.js" ?
-    elif plotly_js_mode == 4:
+    elif args.plotly_js_mode == 4:
         include_plotlyjs = True
         # plotly_full_html = False # Don't really need full html (head body ..) in plotly html.
-    elif plotly_js_mode == 5:
+    elif args.plotly_js_mode == 5:
         plotly_js_web = "https://cdn.plot.ly/plotly-2.25.2.min.js"
         plotly_js_html = '<script src="' + plotly_js_web + '"></script>' + "\n"
         include_plotlyjs = False
         # plotly_full_html = True
-    elif plotly_js_mode == 6:
+    elif args.plotly_js_mode == 6:
         shutil.copy(plotly_js_path, plots_out_folder)
         plotly_js = plots_folder + "/plotly-2.20.0.min.js"
         plotly_js_html = '<script src="' + plotly_js + '"></script>' + "\n"
         include_plotlyjs = False
-    elif plotly_js_mode == 7:
+    elif args.plotly_js_mode == 7:
         js_code = read_file_content_into_str_var(plotly_js_path)
         plotly_js_html = "<script>\n" + js_code + "\n</script>\n"
         include_plotlyjs = False
@@ -6390,7 +6434,7 @@ def batch_generate_html_report(dataset_ids_list,
     # Markdown part.
     mdtext = """
 
-# %sBatch report
+# %s
 
 List of available statistics and plots generated
 by RBPBench (rbpbench batch --report):
@@ -6430,10 +6474,15 @@ by RBPBench (rbpbench batch --report):
             data_idx += 1
         # mdtext += "\n&nbsp;\n"
 
-    if run_goa:
+    if args.run_goa:
         mdtext += "- [GO enrichment analysis results](#goa-results)\n"
 
-    mdtext += "\nUsed motif database = %s. FIMO p-value threshold (--fimo-pval) = %s.\n" %(motif_db_str, str(fimo_pval))
+    add_head_info = ""
+    if args.bed_sc_thr is not None:
+        add_head_info += " BED score threshold (--bed-sc-thr) = %s." %(str(args.bed_sc_thr))
+
+
+    mdtext += "\nUsed motif database = %s. FIMO p-value threshold (--fimo-pval) = %s.\n" %(args.motif_db_str, str(args.fimo_pval))
     mdtext += "\n&nbsp;\n"
 
     """
@@ -6446,9 +6495,9 @@ by RBPBench (rbpbench batch --report):
         dataset_id_format = "rbp_id,motif_database_id,method_id,data_id"
 
     seq_stats_info = ""
-    if unstranded and not unstranded_ct:
+    if args.unstranded and not args.unstranded_ct:
         seq_stats_info = "--unstranded option selected, i.e., both strands of a region are included in the length statistics, but the two strands are counted as one region."
-    elif unstranded and unstranded_ct:
+    elif args.unstranded and args.unstranded_ct:
         seq_stats_info = "--unstranded and --unstranded-ct options selected, i.e., both strands of a region are included in the length statistics, and each strand counts as separate region."
 
     mdtext += """
@@ -6528,7 +6577,7 @@ Input dataset ID format: %s. %s
     # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
     wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low p-values mean hit-containing regions have significantly higher scores."
     wrs_mode_info2 = "higher"
-    if wrs_mode == 2:
+    if args.wrs_mode == 2:
         wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low p-values mean hit-containing regions have significantly lower scores."
         wrs_mode_info2 = "lower"
 
@@ -6621,7 +6670,7 @@ NOTE that if scores associated to input genomic regions are all the same, p-valu
 (i.e., they result in p-values of 1.0).
 By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
 
-""" %(regex, wrs_mode_info1, wrs_mode_info2)
+""" %(args.regex, wrs_mode_info1, wrs_mode_info2)
 
         # mdtext += '| Dataset ID  | # regions | # hit regions | % hit regions | # regex hits | p-value |' + " \n"
         # mdtext += '| :-: | :-: | :-: | :-: | :-: | :-: |' + " \n"
@@ -6691,9 +6740,9 @@ By default, BED genomic regions input file column 5 is used as the score column 
 
         # Inform about set alterntive hypothesis for Fisher exact test on regex RBP motif co-occurrences.
         fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., low p-values mean that regex and RBP motifs have significantly high co-occurrence."
-        if fisher_mode == 2:
+        if args.fisher_mode == 2:
             fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'two-sided', i.e., low p-values mean that regex and RBP motifs have significantly high or low co-occurrence."
-        elif fisher_mode == 3:
+        elif args.fisher_mode == 3:
             fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., low p-values mean that regex and RBP motifs have significantly low co-occurrence."
 
         mdtext += """
@@ -6706,7 +6755,7 @@ counts (i.e., number of genomic regions with/without shared motif hits)
 between regex and RBP motif(s) for each dataset.
 %s
 
-""" %(regex, fisher_mode_info)
+""" %(args.regex, fisher_mode_info)
 
         # mdtext += '| Dataset ID  | contingency table | avg min distance | perc close hits |  p-value |' + " \n"
         # mdtext += '| :-: | :-: | :-: | :-: | :-: |' + " \n"
@@ -6771,7 +6820,7 @@ D: NOT regex AND NOT RBP.
 
 &nbsp;
 
-""" %(dataset_id_format, perc_sign, max_motif_dist)
+""" %(dataset_id_format, perc_sign, args.max_motif_dist)
 
 
 
@@ -6797,7 +6846,7 @@ D: NOT regex AND NOT RBP.
 
         plot_path = plots_folder + "/" + kmer_comp_plot_plotly
 
-        if plotly_js_mode in [5, 6, 7]:
+        if args.plotly_js_mode in [5, 6, 7]:
             # Read in plotly code.
             # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
             js_code = read_file_content_into_str_var(kmer_comp_plot_plotly_out)
@@ -6821,7 +6870,7 @@ Input dataset IDs (show via hovering over data points) have following format: %s
 
 &nbsp;
 
-""" %(kmer_size, dataset_id_format)
+""" %(args.kmer_size, dataset_id_format)
 
     else:
         mdtext += """
@@ -6866,7 +6915,7 @@ No plot generated since < 4 datasets were provided.
 
             plot_path = plots_folder + "/" + occ_comp_plot_plotly
 
-            if plotly_js_mode in [5, 6, 7]:
+            if args.plotly_js_mode in [5, 6, 7]:
                 # Read in plotly code.
                 # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
                 js_code = read_file_content_into_str_var(occ_comp_plot_plotly_out)
@@ -6931,7 +6980,7 @@ No plot generated since < 4 datasets were provided.
 
         plot_path = plots_folder + "/" + cooc_plot_plotly
 
-        if plotly_js_mode in [5, 6, 7]:
+        if args.plotly_js_mode in [5, 6, 7]:
             # Read in plotly code.
             # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
             js_code = read_file_content_into_str_var(cooc_plot_plotly_out)
@@ -6972,13 +7021,6 @@ resulting in a vector of 1s and 0s for each RBP, which is then used to construct
 &nbsp;
 
 """ 
-
-
-
-
-
-
-
 
 
 
@@ -7050,7 +7092,7 @@ resulting in a vector of 1s and 0s for each RBP, which is then used to construct
 
             plot_path = plots_folder + "/" + annot_comp_plot_plotly
 
-            if plotly_js_mode in [5, 6, 7]:
+            if args.plotly_js_mode in [5, 6, 7]:
                 # Read in plotly code.
                 # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
                 js_code = read_file_content_into_str_var(annot_comp_plot_plotly_out)
@@ -7166,7 +7208,7 @@ is assigned to each input region. "intergenic" feature means none of the used GT
 
     """
 
-    if run_goa:
+    if args.run_goa:
 
         mdtext += """
 ## GO enrichment analysis results ### {#goa-results}
@@ -7178,19 +7220,19 @@ is assigned to each input region. "intergenic" feature means none of the used GT
 
         filter_purified_info = " GO terms with significantly higher and lower concentration ([e,p]) in study group are shown."
         filter_purified_info2 = "significant"
-        if goa_filter_purified:
+        if args.goa_filter_purified:
             filter_purified_info = " Only GO terms with significantly higher concentration in study group are shown."
             filter_purified_info2 = "significantly enriched"
             c_goa_results = len(goa_results_df[goa_results_df["enrichment"] == "e"])
         filter_further_info = ""
-        if goa_max_child is not None: 
-            filter_further_info += " Only GO terms with <= %i children are shown." %(goa_max_child)
-        if goa_min_depth is not None:
-            filter_further_info += " Only GO terms with >= %i depth are shown." %(goa_min_depth)
+        if args.goa_max_child is not None: 
+            filter_further_info += " Only GO terms with <= %i children are shown." %(args.goa_max_child)
+        if args.goa_min_depth is not None:
+            filter_further_info += " Only GO terms with >= %i depth are shown." %(args.goa_min_depth)
         if filter_further_info:
             filter_further_info += " Note that additional filters (children + depth) can result in an empty table. For all significant GO terms (i.e., unfiltered results) check *goa_results.tsv* output table."
         filter_only_cooc_info = "Only target genes are considered which are covered by regions from all input datasets."
-        if goa_only_cooc:
+        if args.goa_only_cooc:
             filter_only_cooc_info = " Only target genes are considered which are covered by regions with motif hits from all input datasets (--goa-only-cooc enabled)."
 
         if c_goa_results > 0:
@@ -7232,15 +7274,15 @@ is assigned to each input region. "intergenic" feature means none of the used GT
                 go_perc_genes = row['perc_genes']
                 go_n_children = row['n_children']
 
-                if goa_filter_purified:
+                if args.goa_filter_purified:
                     if go_enrichment == "p":
                         continue
 
-                if goa_max_child is not None:
-                    if go_n_children > goa_max_child:
+                if args.goa_max_child is not None:
+                    if go_n_children > args.goa_max_child:
                         continue
-                if goa_min_depth is not None:
-                    if go_depth < goa_min_depth:
+                if args.goa_min_depth is not None:
+                    if go_depth < args.goa_min_depth:
                         continue
 
                 mdtext += '<tr>' + "\n"
@@ -7668,11 +7710,15 @@ def enmo_generate_html_report(args,
                               motif_enrich_stats_dic,
                               seq_motif_blocks_dic,
                               benchlib_path,
+                              df_pval=False, 
+                              pval_cont_lll=False,
                               pos_seqs_dic=False,
                               neg_seqs_dic=False,
                               pos_reg2annot_dic=False,
                               neg_reg2annot_dic=False,
                               annot2color_dic=False,
+                              plotly_full_html=False,
+                              plotly_embed_style=1,
                               rbpbench_mode="search --report",
                               html_report_out="report.rbpbench_enmo.html",
                               plots_subfolder="html_report_plots"):
@@ -7717,9 +7763,9 @@ def enmo_generate_html_report(args,
     if args.regex:
         regex_motif_info = "Used regex motif: '%s'." %(args.regex)
 
-    report_header_info = ""
+    report_header_info = "Motif enrichment report"
     if args.report_header:
-        report_header_info = "RBPBench "
+        report_header_info = "RBPBench motif enrichment report"
 
     """
     Setup plotly .js to support plotly plots.
@@ -7805,12 +7851,13 @@ def enmo_generate_html_report(args,
     # Markdown part.
     mdtext = """
 
-# %sSearch report
+# %s
 
 List of available statistics and plots generated
 by RBPBench (rbpbench %s):
 
-- [Motif enrichment statistics](#enmo-stats)""" %(report_header_info, rbpbench_mode)
+- [Motif enrichment statistics](#enmo-stats)
+- [Motif co-occurrences heat map](#cooc-heat-map)""" %(report_header_info, rbpbench_mode)
 
     mdtext += "\n"
 
@@ -7819,8 +7866,13 @@ by RBPBench (rbpbench %s):
     if pos_seqs_dic and neg_seqs_dic:
         mdtext += "- [k-mer distributions](#kmer-plotly)\n"
 
-    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s. # of input regions = %i.\n" %(str(args.fimo_pval), c_input_sites)
+    add_head_info = ""
+    if args.bed_sc_thr is not None:
+        add_head_info += " BED score threshold (--bed-sc-thr) = %s." %(str(args.bed_sc_thr))
+
+    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s.%s # of considered input regions = %i.\n" %(str(args.fimo_pval), add_head_info, c_input_sites)
     mdtext += "\n&nbsp;\n"
+
 
 
     """
@@ -7946,6 +7998,124 @@ For full motif results list regardless of significance, see *motif_enrichment_st
     mdtext += '**# not bg** -> number of background sites without motif hits, '
     mdtext += '**p-value** -> Fisher exact test p-value (corrected).' + "\n"
     mdtext += "\n&nbsp;\n"
+
+
+
+    """
+    Motif co-occurrences heat map.
+
+    """
+
+    mdtext += """
+## Motif co-occurrences heat map ### {#cooc-heat-map}
+
+"""
+
+    if pval_cont_lll:
+
+        cooc_plot_plotly =  "co-occurrence_plot.plotly.html"
+        cooc_plot_plotly_out = plots_out_folder + "/" + cooc_plot_plotly
+
+        create_cooc_plot_plotly(df_pval, pval_cont_lll, cooc_plot_plotly_out,
+                                max_motif_dist=args.max_motif_dist,
+                                min_motif_dist=args.min_motif_dist,
+                                id1="Motif1",
+                                id2="Motif2",
+                                include_plotlyjs=include_plotlyjs,
+                                full_html=plotly_full_html)
+
+        plot_path = plots_folder + "/" + cooc_plot_plotly
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            # Read in plotly code.
+            # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+            js_code = read_file_content_into_str_var(cooc_plot_plotly_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:1200px; width:1200px;")
+            mdtext += js_code + "\n"
+            # mdtext += '</div>'
+        else:
+            if plotly_embed_style == 1:
+                # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                mdtext += "<div>\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1200" height="1200"></iframe>' + "\n"
+                mdtext += '</div>'
+            elif plotly_embed_style == 2:
+                mdtext += '<object data="' + plot_path + '" width="1200" height="1200"> </object>' + "\n"
+
+        p_val_info = "P-values below %s are considered significant." %(str(args.cooc_pval_thr))
+
+        min_motif_dist_info = ""
+        if args.min_motif_dist > 0:
+            min_motif_dist_info = " + a mean minimum motif distance >= %i nt " %(args.min_motif_dist)
+
+        if args.cooc_pval_mode == 1:
+            p_val_info = "Motif co-occurrences with Benjamini-Hochberg multiple testing corrected p-values below %s %sare considered significant." %(str(args.cooc_pval_thr), min_motif_dist_info)
+        elif args.cooc_pval_mode == 2:
+            p_val_info = "Motif co-occurrences with p-values below %s (p-value threshold Bonferroni multiple testing corrected) %sare considered significant." %(str(args.cooc_pval_thr), min_motif_dist_info)
+        elif args.cooc_pval_mode == 3:
+            p_val_info = "Motif co-occurrences with p-values below %s %sare considered significant." %(str(args.cooc_pval_thr), min_motif_dist_info)
+        else:
+            assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(args.cooc_pval_mode)
+        
+        p_val_info += " # of motif co-occurrence comparisons: %i. # of significant co-occurrences: %i (%.2f%%)." %(args.c_all_fisher_pval, args.c_sig_fisher_pval, args.perc_sig_fisher_pval)
+
+
+        # Inform about set alterntive hypothesis for Fisher exact test on significant motif co-occurrences.
+        motif_add_info = "enriched"
+        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., significantly overrepresented motif co-occurrences are reported."
+        if args.fisher_mode == 2:
+            fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'two-sided', i.e., significantly over- and underrepresented motif co-occurrences are reported."
+            motif_add_info = "enriched and depleted"
+        elif args.fisher_mode == 3:
+            fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., significantly underrepresented motif co-occurrences are reported."
+            motif_add_info = "depleted"
+
+        # AALAMO
+
+        mdtext += """
+
+**Figure:** Heat map of co-occurrences (Fisher's exact test p-values) between motifs. 
+Only significantly %s motifs (listed in upper table) are used in checking for siginificant co-occurrences.
+Motif hit co-occurrences that are not significant are colored gray, while
+significant co-occurrences are colored according to their -log10 p-value (used as legend color, i.e., the higher the more significant).
+%s
+%s
+Hover box: 
+**1)** Motif1 in pair.
+**2)** Motif2 in pair.
+**3)** p-value: Fisher's exact test p-value (calculated based on contingency table (6) between Motif1 and Motif2). 
+**4)** p-value after filtering: p-value after filtering, i.e., p-value is kept if significant (< %s), otherwise it is set to 1.0.
+**5)** Motifs compaired.
+**6)** Counts[]: contingency table of co-occurrence counts (i.e., number of %s regions with/without shared motif hits) between compaired motifs, 
+with format [[A, B], [C, D]], where 
+A: Motif1 AND Motif2, 
+B: NOT Motif1 AND Motif2,
+C: Motif1 AND NOT Motif2,
+D: NOT Motif1 AND NOT Motif2.
+**7)** Mean minimum distance of Motif1 and Motif2 hits (mean over all regions containing Motif1 + Motif2 motif hits). Distances measured from motif center positions.
+**8)** Over all regions containing Motif1 and Motif2 pairs, percentage of regions where Motif1 + Motif2 motifs are within %i nt distance (set via --max-motif-dist).
+**9)** Correlation: Pearson correlation coefficient between Motif1 and Motif2.
+%s regions are labelled 1 or 0 (motif present or not), resulting in a vector of 1s and 0s for each motif.
+Correlations are then calculated by comparing vectors for every pair of motifs.
+**10)** -log10 of p-value after filtering, used for legend coloring. Using p-value after filtering, all non-significant p-values become 0 
+for easier distinction between significant and non-significant co-occurrences.
+%s
+
+&nbsp;
+
+""" %(motif_add_info, p_val_info, fisher_mode_info, str(args.cooc_pval_thr), site_type, args.max_motif_dist, site_type_uc, regex_motif_info)
+
+
+    else:
+
+        mdtext += """
+
+No co-occurrences calculated as there are no significant motifs (see upper table).
+        
+&nbsp;
+
+"""
+
 
 
     """
@@ -8311,59 +8481,27 @@ def calc_r2_corr_measure(scores1, scores2,
 
 ################################################################################
 
-def search_generate_html_report(df_pval, pval_cont_lll,
+def search_generate_html_report(args,
+                                df_pval, pval_cont_lll,
                                 search_rbps_dic,
                                 id2name_dic, name2ids_dic,
                                 region_rbp_motif_pos_dic,
                                 reg2pol_dic,
-                                out_folder, 
                                 benchlib_path,
                                 rbp2regidx_dic,
                                 reg_ids_list,
-                                fisher_mode=1,
-                                wrs_mode=1,
                                 seq_len_df=None,
-                                set_rbp_id=None,
-                                motif_db_str=False,
-                                regex_id=False,
                                 seq_motif_blocks_dic=None,
-                                max_motif_dist=50,
-                                min_motif_dist=0,
-                                motif_distance_plot_range=50,
-                                motif_min_pair_count=10,
-                                rbp_min_pair_count=10,
                                 reg2annot_dic=False,
                                 annot2color_dic=False,
-                                upset_plot_min_degree=2,
-                                upset_plot_max_degree=None,
-                                upset_plot_min_subset_size=10,
-                                upset_plot_max_subset_rank=20,
-                                upset_plot_min_rbp_count=0,
-                                upset_plot_max_rbp_rank=None,
                                 html_report_out="report.rbpbench_search.html",
-                                add_all_reg_bar=False,
-                                run_goa=False,
                                 goa_results_df=False,
                                 goa_stats_dic=False,
-                                goa_max_child=None,
-                                goa_min_depth=None,
-                                goa_filter_purified=False,
-                                goa_only_cooc=False,
-                                plot_abs_paths=False,
-                                sort_js_mode=1,
-                                plotly_js_mode=1,
                                 plotly_embed_style=1,
                                 plotly_full_html=False,
-                                cooc_pval_thr=0.05,
-                                cooc_pval_mode=1,
-                                c_all_fisher_pval=0,
-                                c_sig_fisher_pval=0,
-                                perc_sig_fisher_pval=0.0,
                                 rbpbench_mode="search --report",
                                 disable_motif_enrich_table=False,
-                                fimo_pval=0.001,
                                 reg_seq_str="regions",
-                                report_header=False,
                                 plots_subfolder="html_report_plots"):
     """
     Create additional hit statistics for selected RBPs, 
@@ -8372,12 +8510,13 @@ def search_generate_html_report(df_pval, pval_cont_lll,
     """
 
     # Use absolute paths?
-    if plot_abs_paths:
+    out_folder = args.out_folder
+    if args.plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
     
     plots_folder = plots_subfolder
     plots_out_folder = out_folder + "/" + plots_folder
-    if plot_abs_paths:
+    if args.plot_abs_paths:
         plots_folder = plots_out_folder
 
     # Delete folder if already present.
@@ -8407,12 +8546,12 @@ def search_generate_html_report(df_pval, pval_cont_lll,
         site_type = "transcript"
 
     regex_motif_info = ""
-    if regex_id:
-        regex_motif_info = "Used regex motif: '%s'." %(name2ids_dic[regex_id][0])
+    if args.regex_id:
+        regex_motif_info = "Used regex motif: '%s'." %(name2ids_dic[args.regex_id][0])
 
-    report_header_info = ""
-    if report_header:
-        report_header_info = "RBPBench "
+    report_header_info = "Search report"
+    if args.report_header:
+        report_header_info = "RBPBench search report"
 
     # Number of input regions.
     c_in_regions = 0
@@ -8428,11 +8567,11 @@ def search_generate_html_report(df_pval, pval_cont_lll,
     sorttable_js_path = benchlib_path + "/content/sorttable.js"
     assert os.path.exists(sorttable_js_path), "sorttable.js not at %s" %(sorttable_js_path)
     sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
-    if sort_js_mode == 2:
+    if args.sort_js_mode == 2:
         shutil.copy(sorttable_js_path, plots_out_folder)
         sorttable_js_path = plots_folder + "/sorttable.js"
         sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
-    elif sort_js_mode == 3:
+    elif args.sort_js_mode == 3:
         js_code = read_file_content_into_str_var(sorttable_js_path)
         sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
 
@@ -8450,25 +8589,25 @@ def search_generate_html_report(df_pval, pval_cont_lll,
     plotly_js_html = ""
     plotly_js_path = benchlib_path + "/content/plotly-2.20.0.min.js"
     assert os.path.exists(plotly_js_path), "plotly .js %s not found" %(plotly_js_path)
-    if plotly_js_mode == 2:
+    if args.plotly_js_mode == 2:
         include_plotlyjs = plotly_js_path
-    elif plotly_js_mode == 3:
+    elif args.plotly_js_mode == 3:
         shutil.copy(plotly_js_path, plots_out_folder)
         include_plotlyjs = "plotly-2.20.0.min.js" # Or plots_folder + "/plotly-2.20.0.min.js" ?
-    elif plotly_js_mode == 4:
+    elif args.plotly_js_mode == 4:
         include_plotlyjs = True
         # plotly_full_html = False # Don't really need full html (head body ..) in plotly html.
-    elif plotly_js_mode == 5:
+    elif args.plotly_js_mode == 5:
         plotly_js_web = "https://cdn.plot.ly/plotly-2.25.2.min.js"
         plotly_js_html = '<script src="' + plotly_js_web + '"></script>' + "\n"
         include_plotlyjs = False
         # plotly_full_html = True
-    elif plotly_js_mode == 6:
+    elif args.plotly_js_mode == 6:
         shutil.copy(plotly_js_path, plots_out_folder)
         plotly_js = plots_folder + "/plotly-2.20.0.min.js"
         plotly_js_html = '<script src="' + plotly_js + '"></script>' + "\n"
         include_plotlyjs = False
-    elif plotly_js_mode == 7:
+    elif args.plotly_js_mode == 7:
         js_code = read_file_content_into_str_var(plotly_js_path)
         plotly_js_html = "<script>\n" + js_code + "\n</script>\n"
         include_plotlyjs = False
@@ -8513,7 +8652,7 @@ def search_generate_html_report(df_pval, pval_cont_lll,
     # Markdown part.
     mdtext = """
 
-# %sSearch report
+# %s
 
 List of available statistics and plots generated
 by RBPBench (rbpbench %s):
@@ -8536,19 +8675,19 @@ by RBPBench (rbpbench %s):
     mdtext += "- [RBP combinations upset plot](#rbp-comb-upset-plot)\n"
 
     # If --set-rbp-id given.
-    if set_rbp_id is not None:
+    if args.set_rbp_id is not None:
         # if reg2annot_dic is None:
         #     mdtext += "\n"
-        mdtext += "- [Set RBP %s motifs distance statistics](#rbp-motif-dist-stats)\n" %(set_rbp_id)
+        mdtext += "- [Set RBP %s motifs distance statistics](#rbp-motif-dist-stats)\n" %(args.set_rbp_id)
         # mdtext += "- [Set RBP %s motif distance plot](#rbp-motif-dist-plot)\n" %(set_rbp_id)
-        for idx, motif_id in enumerate(name2ids_dic[set_rbp_id]):
+        for idx, motif_id in enumerate(name2ids_dic[args.set_rbp_id]):
             mdtext += "    - [Motif %s distance statistics](#single-motif-%i-dist-stats)\n" %(motif_id, idx)
             # mdtext += "    - [Single motif %s distance plot](#single-motif-%i-dist-plot)\n" %(motif_id, idx)
 
-    if run_goa:
+    if args.run_goa:
         mdtext += "- [GO enrichment analysis results](#goa-results)\n"
 
-    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s. # of input %s = %i.\n" %(str(fimo_pval), reg_seq_str, c_in_regions)
+    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s. # of considered input %s = %i.\n" %(str(args.fimo_pval), reg_seq_str, c_in_regions)
     mdtext += "\n&nbsp;\n"
 
 
@@ -8562,7 +8701,7 @@ by RBPBench (rbpbench %s):
         # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
         wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low p-values mean motif-containing regions have significantly higher scores."
         wrs_mode_info2 = "higher"
-        if wrs_mode == 2:
+        if args.wrs_mode == 2:
             wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low p-values mean motif-containing regions have significantly lower scores."
             wrs_mode_info2 = "lower"
 
@@ -8662,8 +8801,8 @@ By default, BED genomic regions input file column 5 is used as the score column 
     cooc_plot_plotly_out = plots_out_folder + "/" + cooc_plot_plotly
 
     create_cooc_plot_plotly(df_pval, pval_cont_lll, cooc_plot_plotly_out,
-                            max_motif_dist=max_motif_dist,
-                            min_motif_dist=min_motif_dist,
+                            max_motif_dist=args.max_motif_dist,
+                            min_motif_dist=args.min_motif_dist,
                             include_plotlyjs=include_plotlyjs,
                             full_html=plotly_full_html)
 
@@ -8673,7 +8812,7 @@ By default, BED genomic regions input file column 5 is used as the score column 
 ## RBP co-occurrences heat map ### {#cooc-heat-map}
 
 """
-    if plotly_js_mode in [5, 6, 7]:
+    if args.plotly_js_mode in [5, 6, 7]:
         # Read in plotly code.
         # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
         js_code = read_file_content_into_str_var(cooc_plot_plotly_out)
@@ -8689,28 +8828,28 @@ By default, BED genomic regions input file column 5 is used as the score column 
         elif plotly_embed_style == 2:
             mdtext += '<object data="' + plot_path + '" width="1200" height="1200"> </object>' + "\n"
 
-    p_val_info = "P-values below %s are considered significant." %(str(cooc_pval_thr))
+    p_val_info = "P-values below %s are considered significant." %(str(args.cooc_pval_thr))
 
     min_motif_dist_info = ""
-    if min_motif_dist > 0:
-        min_motif_dist_info = " + a mean minimum motif distance >= %i nt " %(min_motif_dist)
+    if args.min_motif_dist > 0:
+        min_motif_dist_info = " + a mean minimum motif distance >= %i nt " %(args.min_motif_dist)
 
-    if cooc_pval_mode == 1:
-        p_val_info = "RBP co-occurrences with Benjamini-Hochberg multiple testing corrected p-values below %s %sare considered significant." %(str(cooc_pval_thr), min_motif_dist_info)
-    elif cooc_pval_mode == 2:
-        p_val_info = "RBP co-occurrences with p-values below %s (p-value threshold Bonferroni multiple testing corrected) %sare considered significant." %(str(cooc_pval_thr), min_motif_dist_info)
-    elif cooc_pval_mode == 3:
-        p_val_info = "RBP co-occurrences with p-values below %s %sare considered significant." %(str(cooc_pval_thr), min_motif_dist_info)
+    if args.cooc_pval_mode == 1:
+        p_val_info = "RBP co-occurrences with Benjamini-Hochberg multiple testing corrected p-values below %s %sare considered significant." %(str(args.cooc_pval_thr), min_motif_dist_info)
+    elif args.cooc_pval_mode == 2:
+        p_val_info = "RBP co-occurrences with p-values below %s (p-value threshold Bonferroni multiple testing corrected) %sare considered significant." %(str(args.cooc_pval_thr), min_motif_dist_info)
+    elif args.cooc_pval_mode == 3:
+        p_val_info = "RBP co-occurrences with p-values below %s %sare considered significant." %(str(args.cooc_pval_thr), min_motif_dist_info)
     else:
-        assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(cooc_pval_mode)
+        assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(args.cooc_pval_mode)
     
-    p_val_info += " # of RBP co-occurrence comparisons: %i. # of significant co-occurrences: %i (%.2f%%)." %(c_all_fisher_pval, c_sig_fisher_pval, perc_sig_fisher_pval)
+    p_val_info += " # of RBP co-occurrence comparisons: %i. # of significant co-occurrences: %i (%.2f%%)." %(args.c_all_fisher_pval, args.c_sig_fisher_pval, args.perc_sig_fisher_pval)
 
     # Inform about set alterntive hypothesis for Fisher exact test on RBP motif co-occurrences.
     fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., significantly overrepresented co-occurrences are reported."
-    if fisher_mode == 2:
+    if args.fisher_mode == 2:
         fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'two-sided', i.e., significantly over- and underrepresented co-occurrences are reported."
-    elif fisher_mode == 3:
+    elif args.fisher_mode == 3:
         fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., significantly underrepresented co-occurrences are reported."
 
     mdtext += """
@@ -8743,7 +8882,7 @@ for easier distinction between significant and non-significant co-occurrences.
 
 &nbsp;
 
-""" %(p_val_info, fisher_mode_info, str(cooc_pval_thr), site_type, max_motif_dist, site_type_uc, regex_motif_info)
+""" %(p_val_info, fisher_mode_info, str(args.cooc_pval_thr), site_type, args.max_motif_dist, site_type_uc, regex_motif_info)
 
 
     """
@@ -8769,7 +8908,7 @@ for easier distinction between significant and non-significant co-occurrences.
 
         plot_path = plots_folder + "/" + seq_len_plot_plotly
 
-        if plotly_js_mode in [5, 6, 7]:
+        if args.plotly_js_mode in [5, 6, 7]:
             # Read in plotly code.
             # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
             js_code = read_file_content_into_str_var(seq_len_plot_plotly_out)
@@ -8827,12 +8966,12 @@ No plot generated since no motif hits found in input regions.
             create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
                                                        plot_out=annot_stacked_bars_plot_out,
                                                        annot2color_dic=annot2color_dic,
-                                                       add_all_reg_bar=add_all_reg_bar)
+                                                       add_all_reg_bar=args.add_all_reg_bar)
 
             plot_path = plots_folder + "/" + annot_stacked_bars_plot
 
             more_infos = ""
-            if add_all_reg_bar:
+            if args.add_all_reg_bar:
                 more_infos = "**All**: annotations for all input regions (with and without motif hits)."
 
             mdtext += '<img src="' + plot_path + '" alt="Annotation stacked bars plot"' + "\n"
@@ -8859,18 +8998,18 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
     rbp_reg_occ_upset_plot_out = plots_out_folder + "/" + rbp_reg_occ_upset_plot
 
     upset_plot_nr_included_rbps = len(rbp2regidx_dic)
-    if upset_plot_max_rbp_rank is not None:
-        if upset_plot_max_rbp_rank < upset_plot_nr_included_rbps:
-            upset_plot_nr_included_rbps = upset_plot_max_rbp_rank
+    if args.upset_plot_max_rbp_rank is not None:
+        if args.upset_plot_max_rbp_rank < upset_plot_nr_included_rbps:
+            upset_plot_nr_included_rbps = args.upset_plot_max_rbp_rank
 
     plotted, reason, count = create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list, 
                                   reg2annot_dic=reg2annot_dic,
-                                  min_degree=upset_plot_min_degree,
-                                  max_degree=upset_plot_max_degree,
-                                  min_subset_size=upset_plot_min_subset_size,
-                                  max_subset_rank=upset_plot_max_subset_rank,
-                                  min_rbp_count=upset_plot_min_rbp_count,
-                                  max_rbp_rank=upset_plot_max_rbp_rank,
+                                  min_degree=args.upset_plot_min_degree,
+                                  max_degree=args.upset_plot_max_degree,
+                                  min_subset_size=args.upset_plot_min_subset_size,
+                                  max_subset_rank=args.upset_plot_max_subset_rank,
+                                  min_rbp_count=args.upset_plot_min_rbp_count,
+                                  max_rbp_rank=args.upset_plot_max_rbp_rank,
                                   plot_out=rbp_reg_occ_upset_plot_out)
 
 
@@ -8904,7 +9043,7 @@ This is why the more RBPs are selected, the smaller intersection sizes typically
 
 &nbsp;
 
-""" %(site_type, c_regions, upset_plot_min_subset_size, upset_plot_min_degree, upset_plot_max_subset_rank, upset_plot_nr_included_rbps, upset_plot_min_rbp_count, site_type)
+""" %(site_type, c_regions, args.upset_plot_min_subset_size, args.upset_plot_min_degree, args.upset_plot_max_subset_rank, upset_plot_nr_included_rbps, args.upset_plot_min_rbp_count, site_type)
 
     else:
 
@@ -8936,7 +9075,7 @@ This is why the more RBPs are selected, the smaller intersection sizes typically
 
 &nbsp;
 
-""" %(upset_plot_min_subset_size, count)
+""" %(args.upset_plot_min_subset_size, count)
 
         elif reason == "len(rbp_id_list) == 1":
 
@@ -9003,8 +9142,8 @@ No motif distance statistics and plots generated since no motif hits found in in
             html_out=rbp_motif_dist_plot_plotly_out,
             include_plotlyjs=include_plotlyjs,
             full_html=plotly_full_html,
-            line_plot_range=motif_distance_plot_range,
-            min_pair_count=rbp_min_pair_count)
+            line_plot_range=args.motif_distance_plot_range,
+            min_pair_count=args.rbp_min_pair_count)
 
         mdtext += """
 ## Set RBP %s motifs distance statistics ### {#rbp-motif-dist-stats}
@@ -9016,7 +9155,7 @@ If a regex is included in the analysis (--regex), the first regex hit in each re
 (as all regex hits have same score).
 In case of an empty table, try to lower --rbp-min-pair-count (current value: %i).
 
-""" %(set_rbp_id, set_rbp_id, rbp_min_pair_count)
+""" %(set_rbp_id, set_rbp_id, args.rbp_min_pair_count)
 
         # mdtext += '| Set RBP ID | Other RBP ID | Pair count | # near motifs | # distant motifs |' + " \n"
         # mdtext += "| :-: | :-: | :-: | :-: | :-: |\n"
@@ -9035,7 +9174,7 @@ In case of an empty table, try to lower --rbp-min-pair-count (current value: %i)
 
         top_c = 0
         for rbp_id, pair_c in sorted(pc_dic.items(), key=lambda item: item[1], reverse=True):
-            if pair_c >= rbp_min_pair_count:
+            if pair_c >= args.rbp_min_pair_count:
                 top_c += 1
                 # mdtext += "| %s | %s | %i | %i | %i |\n" %(set_rbp_id, rbp_id, pair_c, in_dic[rbp_id], out_dic[rbp_id])
                 mdtext += '<tr>' + "\n"
@@ -9066,7 +9205,7 @@ In case of an empty table, try to lower --rbp-min-pair-count (current value: %i)
 
         if plotted:
 
-            if plotly_js_mode in [5, 6, 7]:
+            if args.plotly_js_mode in [5, 6, 7]:
                 js_code = read_file_content_into_str_var(rbp_motif_dist_plot_plotly_out)
                 js_code = js_code.replace("height:100%; width:100%;", "height:700px; width:1200px;")
                 mdtext += js_code + "\n"
@@ -9091,7 +9230,7 @@ Each RBP with a pair count (definition see table above) of >= %i is shown, and t
 
 &nbsp;
 
-""" %(set_rbp_id, set_rbp_id, set_rbp_id, set_rbp_id, rbp_min_pair_count)
+""" %(set_rbp_id, set_rbp_id, set_rbp_id, set_rbp_id, args.rbp_min_pair_count)
 
         else:
 
@@ -9101,7 +9240,7 @@ Each RBP with a pair count (definition see table above) of >= %i is shown, and t
 
 &nbsp;
 
-""" %(set_rbp_id, rbp_min_pair_count)
+""" %(set_rbp_id, args.rbp_min_pair_count)
 
         """
         Set RBP single motif distance stats + plots.
@@ -9111,8 +9250,8 @@ Each RBP with a pair count (definition see table above) of >= %i is shown, and t
         for idx, motif_id in enumerate(name2ids_dic[set_rbp_id]):
 
             motif_id_plot_str = motif_id
-            if set_rbp_id == regex_id:
-                motif_id_plot_str = regex_id
+            if set_rbp_id == args.regex_id:
+                motif_id_plot_str = args.regex_id
 
             single_motif_dist_plot_plotly =  "%s.motif_level_dist.plotly.html" %(motif_id_plot_str)
             single_motif_dist_plot_plotly_out = plots_out_folder + "/" + single_motif_dist_plot_plotly
@@ -9124,8 +9263,8 @@ Each RBP with a pair count (definition see table above) of >= %i is shown, and t
                 html_out=single_motif_dist_plot_plotly_out,
                 include_plotlyjs=include_plotlyjs,
                 full_html=plotly_full_html,
-                line_plot_range=motif_distance_plot_range,
-                min_pair_count=motif_min_pair_count)
+                line_plot_range=args.motif_distance_plot_range,
+                min_pair_count=args.motif_min_pair_count)
 
 
             mdtext += """
@@ -9141,7 +9280,7 @@ Each RBP with a pair count (definition see table above) of >= %i is shown, and t
                 plot_path = plots_folder + "/" + motif_plot
 
                 # Check if motif in motif database folder.
-                if motif_db_str:
+                if args.motif_db_str:
                     db_motif_path = benchlib_path + "/content/motif_plots/%s" %(motif_plot)
                     if os.path.exists(db_motif_path):
                         shutil.copy(db_motif_path, motif_plot_out)
@@ -9169,7 +9308,7 @@ If a regex is included in the analysis (--regex), the first regex hit in each re
 (as all regex hits have same score).
 In case of an empty table, try to lower --motif-min-pair-count (current value: %i).
 
-""" %(motif_id, set_rbp_id, motif_id, motif_min_pair_count)
+""" %(motif_id, set_rbp_id, motif_id, args.motif_min_pair_count)
 
             # mdtext += '| Motif ID | Other motif ID | &nbsp; Other motif ID plot &nbsp; | Pair count | # near motifs | # distant motifs |' + " \n"
             # mdtext += "| :-: | :-: | :-: | :-: | :-: | :-: |\n"
@@ -9189,7 +9328,7 @@ In case of an empty table, try to lower --motif-min-pair-count (current value: %
 
             for other_motif_id, pair_c in sorted(pc_dic.items(), key=lambda item: item[1], reverse=True):
 
-                if pair_c >= motif_min_pair_count:
+                if pair_c >= args.motif_min_pair_count:
 
                     # Plot motif (if sequence motif).
                     plot_str = "-"
@@ -9201,7 +9340,7 @@ In case of an empty table, try to lower --motif-min-pair-count (current value: %
                         plot_path = plots_folder + "/" + motif_plot
 
                         # Check if motif in motif database folder.
-                        if motif_db_str:
+                        if args.motif_db_str:
                             db_motif_path = benchlib_path + "/content/motif_plots/%s" %(motif_plot)
                             if os.path.exists(db_motif_path):
                                 shutil.copy(db_motif_path, motif_plot_out)
@@ -9242,7 +9381,7 @@ In case of an empty table, try to lower --motif-min-pair-count (current value: %
 
             if plotted:
 
-                if plotly_js_mode in [5, 6, 7]:
+                if args.plotly_js_mode in [5, 6, 7]:
                     js_code = read_file_content_into_str_var(single_motif_dist_plot_plotly_out)
                     js_code = js_code.replace("height:100%; width:100%;", "height:700px; width:1200px;")
                     mdtext += js_code + "\n"
@@ -9266,7 +9405,7 @@ Only motifs with a pair count of >= %i appear in the plot.
 
 &nbsp;
 
-""" %(motif_id, motif_id, motif_id, motif_id, motif_min_pair_count)
+""" %(motif_id, motif_id, motif_id, motif_id, args.motif_min_pair_count)
 
 
             else:
@@ -9277,7 +9416,7 @@ Only motifs with a pair count of >= %i appear in the plot.
 
 &nbsp;
 
-""" %(motif_id, motif_min_pair_count)
+""" %(motif_id, args.motif_min_pair_count)
 
 
 
@@ -9286,7 +9425,7 @@ Only motifs with a pair count of >= %i appear in the plot.
 
     """
 
-    if run_goa:
+    if args.run_goa:
 
         mdtext += """
 ## GO enrichment analysis results ### {#goa-results}
@@ -9298,19 +9437,19 @@ Only motifs with a pair count of >= %i appear in the plot.
 
         filter_purified_info = " GO terms with significantly higher and lower concentration ([e,p]) in study group are shown."
         filter_purified_info2 = "significant"
-        if goa_filter_purified:
+        if args.goa_filter_purified:
             filter_purified_info = " Only GO terms with significantly higher concentration in study group are shown."
             filter_purified_info2 = "significantly enriched"
             c_goa_results = len(goa_results_df[goa_results_df["enrichment"] == "e"])
         filter_further_info = ""
-        if goa_max_child is not None: 
-            filter_further_info += " Only GO terms with <= %i children are shown." %(goa_max_child)
-        if goa_min_depth is not None:
-            filter_further_info += " Only GO terms with >= %i depth are shown." %(goa_min_depth)
+        if args.goa_max_child is not None: 
+            filter_further_info += " Only GO terms with <= %i children are shown." %(args.goa_max_child)
+        if args.goa_min_depth is not None:
+            filter_further_info += " Only GO terms with >= %i depth are shown." %(args.goa_min_depth)
         if filter_further_info:
             filter_further_info += " Note that additional filters (children + depth) can result in an empty table. For all significant GO terms (i.e., unfiltered results) check *goa_results.tsv* output table."
         filter_only_cooc_info = ""
-        if goa_only_cooc:
+        if args.goa_only_cooc:
             filter_only_cooc_info = " Only target genes are considered which contain regions with motif hits from all specified RBPs (including regex)."
 
         if c_goa_results > 0:
@@ -9352,15 +9491,15 @@ Only motifs with a pair count of >= %i appear in the plot.
                 go_perc_genes = row['perc_genes']
                 go_n_children = row['n_children']
 
-                if goa_filter_purified:
+                if args.goa_filter_purified:
                     if go_enrichment == "p":
                         continue
 
-                if goa_max_child is not None:
-                    if go_n_children > goa_max_child:
+                if args.goa_max_child is not None:
+                    if go_n_children > args.goa_max_child:
                         continue
-                if goa_min_depth is not None:
-                    if go_depth < goa_min_depth:
+                if args.goa_min_depth is not None:
+                    if go_depth < args.goa_min_depth:
                         continue
 
                 mdtext += '<tr>' + "\n"
@@ -10443,43 +10582,32 @@ def plot_nt_distribution_zero_pos(ppm, ext_lr,
 
 ################################################################################
 
-def search_generate_html_motif_plots(search_rbps_dic, 
+def search_generate_html_motif_plots(args, search_rbps_dic, 
                                      seq_motif_blocks_dic, str_motif_blocks_dic,
-                                     out_folder, benchlib_path, motif2db_dic,
-                                     motif_db_str=False,
+                                     benchlib_path, motif2db_dic,
                                      rbp2motif2annot2c_dic=False,
                                      annot2color_dic=False,
                                      mrna_reg_occ_dic=False,
                                      norm_mrna_reg_dic=False,
-                                     regex_id="regex",
                                      html_report_out="motif_plots.rbpbench_search.html",
-                                     plot_abs_paths=False,
-                                     sort_js_mode=1,
                                      rbpbench_mode="search --plot-motifs",
-                                     report_header=False,
-                                     fimo_pval=0.001,
-                                     c_in_regions=0,
                                      reg_seq_str="regions",
-                                     run_goa=False,
                                      goa_results_df=False,
                                      goa_stats_dic=False,
-                                     goa_min_depth=None,
-                                     goa_max_child=None,
-                                     goa_filter_purified=False,
-                                     goa_rna_region=1,
-                                     goa_only_cooc=False,
                                      plots_subfolder="html_motif_plots"):
     """
     Create motif plots for selected RBPs.
 
     """
+
+    out_folder = args.out_folder
     # Use absolute paths?
-    if plot_abs_paths:
+    if args.plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
     
     plots_folder = plots_subfolder
     plots_out_folder = out_folder + "/" + plots_folder
-    if plot_abs_paths:
+    if args.plot_abs_paths:
         plots_folder = plots_out_folder
 
     # Delete plots if already present.
@@ -10503,9 +10631,9 @@ def search_generate_html_motif_plots(search_rbps_dic,
         site_type_uc = "Sequence"
         site_type = "sequence"
 
-    report_header_info = ""
-    if report_header:
-        report_header_info = "RBPBench "
+    report_header_info = "Motif Plots and Hit Statistics"
+    if args.report_header:
+        report_header_info = "RBPBench Motif Plots and Hit Statistics"
 
     """
     Setup sorttable.js to make tables in HTML sortable.
@@ -10514,11 +10642,11 @@ def search_generate_html_motif_plots(search_rbps_dic,
     sorttable_js_path = benchlib_path + "/content/sorttable.js"
     assert os.path.exists(sorttable_js_path), "sorttable.js not at %s" %(sorttable_js_path)
     sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
-    if sort_js_mode == 2:
+    if args.sort_js_mode == 2:
         shutil.copy(sorttable_js_path, plots_out_folder)
         sorttable_js_path = plots_folder + "/sorttable.js"
         sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
-    elif sort_js_mode == 3:
+    elif args.sort_js_mode == 3:
         js_code = read_file_content_into_str_var(sorttable_js_path)
         sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
 
@@ -10557,7 +10685,7 @@ def search_generate_html_motif_plots(search_rbps_dic,
     # Markdown part.
     mdtext = """
 
-# %sMotif Plots and Hit Statistics
+# %s
 
 List of available motif hit statistics and motif plots generated
 by RBPBench (rbpbench %s):
@@ -10565,7 +10693,7 @@ by RBPBench (rbpbench %s):
 - [Motif hit statistics](#motif-hit-stats)
 """ %(report_header_info, rbpbench_mode)
 
-    if run_goa:
+    if args.run_goa:
         mdtext += "- [Motif hit GO enrichment analysis results](#goa-results)\n"
 
     motif_plot_ids_dic = {}
@@ -10577,7 +10705,7 @@ by RBPBench (rbpbench %s):
         mdtext += "- [%s motifs](#%s)\n" %(rbp_id, tab_id)
 
 
-    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s. # input %s = %i.\n" %(str(fimo_pval), reg_seq_str, c_in_regions)
+    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s. # considered input %s = %i.\n" %(str(args.fimo_pval), reg_seq_str, args.c_regions)
     mdtext += "\n&nbsp;\n"
 
 
@@ -10658,31 +10786,31 @@ and respective number of motif hits found in supplied %s regions.
 
         filter_purified_info = "GO terms with significantly higher and lower concentration ([e,p]) in study group are shown."
         filter_purified_info2 = "significant"
-        if goa_filter_purified:
+        if args.goa_filter_purified:
             filter_purified_info = "Only GO terms with significantly higher concentration in study group are shown."
             filter_purified_info2 = "significantly enriched"
             c_goa_results = len(goa_results_df[goa_results_df["enrichment"] == "e"])
 
         filter_further_info = ""
-        if goa_max_child is not None: 
-            filter_further_info += " Only GO terms with <= %i children are shown." %(goa_max_child)
-        if goa_min_depth is not None:
-            filter_further_info += " Only GO terms with >= %i depth are shown." %(goa_min_depth)
+        if args.goa_max_child is not None: 
+            filter_further_info += " Only GO terms with <= %i children are shown." %(args.goa_max_child)
+        if args.goa_min_depth is not None:
+            filter_further_info += " Only GO terms with >= %i depth are shown." %(args.goa_min_depth)
         if filter_further_info:
             filter_further_info += " Note that additional filters (children + depth) can result in an empty table. For all significant GO terms (i.e., unfiltered results) check *goa_results.tsv* output table."
 
         goa_rna_region_info = "transcripts"
-        if goa_rna_region == 1:
+        if args.goa_rna_region == 1:
             goa_rna_region_info = "transcripts"
-        elif goa_rna_region == 2:
+        elif args.goa_rna_region == 2:
             goa_rna_region_info = "3'UTR regions"
-        elif goa_rna_region == 3:
+        elif args.goa_rna_region == 3:
             goa_rna_region_info = "CDS regions"
-        elif goa_rna_region == 4:
+        elif args.goa_rna_region == 4:
             goa_rna_region_info = "5'UTR regions"
 
         goa_only_cooc_info = ""
-        if goa_only_cooc:
+        if args.goa_only_cooc:
             goa_only_cooc_info = " Only target genes with motif hits from all specified RBPs (including regex) are considered." 
 
         if c_goa_results > 0:
@@ -10724,14 +10852,14 @@ and respective number of motif hits found in supplied %s regions.
                 go_perc_genes = row['perc_genes']
                 go_n_children = row['n_children']
 
-                if goa_filter_purified:
+                if args.goa_filter_purified:
                     if go_enrichment == "p":
                         continue
-                if goa_max_child is not None:
-                    if go_n_children > goa_max_child:
+                if args.goa_max_child is not None:
+                    if go_n_children > args.goa_max_child:
                         continue
-                if goa_min_depth is not None:
-                    if go_depth < goa_min_depth:
+                if args.goa_min_depth is not None:
+                    if go_depth < args.goa_min_depth:
                         continue
 
                 mdtext += '<tr>' + "\n"
@@ -10814,7 +10942,7 @@ No significant GO terms found due to no GO IDs associated with target genes. # o
             seq_motif_info = "RBP \"%s\" sequence motif plots and mRNA region annotations for motif hits." %(rbp_id)
 
         # RBP has sequence motifs?
-        if rbp.seq_motif_ids and rbp_id != regex_id:
+        if rbp.seq_motif_ids and rbp_id != args.regex_id:
             mdtext += """
 ## %s motifs ### {#%s}
 
@@ -10822,7 +10950,7 @@ No significant GO terms found due to no GO IDs associated with target genes. # o
 
 """ %(rbp_id, tab_id, seq_motif_info)
 
-        elif rbp.seq_motif_ids and rbp_id == regex_id:
+        elif rbp.seq_motif_ids and rbp_id == args.regex_id:
 
             motif_id = rbp.seq_motif_ids[0]
             c_motif_hits = rbp.seq_motif_hits[0]
@@ -10895,7 +11023,7 @@ Genomic annotations are shown for all motifs of RBP "%s" combined, as well as fo
 
 """ %(rbp_id, site_type_uc, rbp_id)
 
-        if rbp_id == regex_id:
+        if rbp_id == args.regex_id:
             continue
 
         for idx, motif_id in enumerate(rbp.seq_motif_ids):
@@ -10906,7 +11034,7 @@ Genomic annotations are shown for all motifs of RBP "%s" combined, as well as fo
             plot_path = plots_folder + "/" + motif_plot
 
             # Check if motif in motif database folder.
-            if motif_db_str:
+            if args.motif_db_str:
                 db_motif_path = benchlib_path + "/content/motif_plots/%s" %(motif_plot)
                 if os.path.exists(db_motif_path):
                     shutil.copy(db_motif_path, motif_plot_out)
@@ -11032,9 +11160,9 @@ def compare_generate_html_report(compare_methods_dic, compare_datasets_dic,
     if html_report_out:
         html_out = html_report_out
 
-    report_header_info = ""
+    report_header_info = "Comparison report"
     if report_header:
-        report_header_info = "RBPBench "
+        report_header_info = "RBPBench comparison report"
 
     """
     Setup sorttable.js to make tables in HTML sortable.
@@ -11085,7 +11213,7 @@ def compare_generate_html_report(compare_methods_dic, compare_datasets_dic,
     # Markdown part.
     mdtext = """
 
-# %sComparison Report
+# %s
 
 List of available comparison statistics generated
 by RBPBench (rbpbench compare):
