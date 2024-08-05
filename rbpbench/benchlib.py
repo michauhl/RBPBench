@@ -1302,6 +1302,12 @@ def bed_extract_sequences_from_fasta(in_bed, in_fa, out_fa,
         Instead of raising an error when output is encountered,
         print output (i.e. bedtools getfasta warnings)
 
+    Q: what happens if BED file contains regions not fully included in FASTA?
+    This should in region sequence not being extracted at all (even if partially overlapping 
+    with FASTA), plus throwing error:
+    Feature (t1:19-25) beyond the length of t1 size (20 bp).  Skipping.
+
+        
     # Example call.
     bedtools getfasta -fi hg38.fa -bed PUM1_K562_IDR_peaks.uniq_ids.bed -s -fo test_out.fa
 
@@ -4897,6 +4903,7 @@ class FimoHit(GenomicRegion):
                  matched_seq: Optional[str] = None,
                  seq_s: Optional[int] = None,
                  seq_e: Optional[int] = None,
+                 center_dist: Optional[int] = None,  # Distance of motif center position to region center (rbpbench nemo).
                  genome: Optional[str] = None) -> None:
         super().__init__(chr_id, start, end, strand, score, genome)
         self.motif_id = motif_id
@@ -4926,6 +4933,7 @@ class FimoHit(GenomicRegion):
 def get_regex_hits(regex, regex_id, seqs_dic,
                    step_size_one=False,
                    seq_based=False,
+                   reg_dic=None,
                    use_motif_regex_id=False):
     """
     Given a regular expression (regex), get all hits in sequence dictionary.
@@ -4937,6 +4945,11 @@ def get_regex_hits(regex, regex_id, seqs_dic,
     seq_based:
         If true, input to regex search was sequences, so use coordinates as they are (not genomic + relative).
         Also seq_name is the sequence ID, and does not have to have format like "chr6:35575787-35575923(-)"
+    reg_dic:
+        If provided, use this dictionary (mapping reg_id -> "chr1:100-200(+)", take value string) 
+        to get genomic coordinates from get_genomic_coords_from_seq_name, instead of seq_name.
+        This can be applied in cases where seq_name is some ID that does not contain region info, but
+        motif hit coordinates are still relative to the region.
 
     """
 
@@ -4976,7 +4989,12 @@ def get_regex_hits(regex, regex_id, seqs_dic,
 
             else:
 
-                gen_motif_coords = get_genomic_coords_from_seq_name(seq_name, start, end,
+                region_info_seq_name = seq_name
+
+                if reg_dic is not None:
+                    region_info_seq_name = reg_dic[seq_name]
+
+                gen_motif_coords = get_genomic_coords_from_seq_name(region_info_seq_name, start, end,
                                                                     one_based_start=True)
 
                 regex_hit = FimoHit(chr_id=gen_motif_coords[0], 
@@ -4995,6 +5013,168 @@ def get_regex_hits(regex, regex_id, seqs_dic,
             regex_hits_list.append(regex_hit)
 
     return regex_hits_list
+
+
+################################################################################
+
+def bed_get_core_rel_reg_dic(core_reg_dic, in_bed):
+    """
+    Based on core region dictionary, containing chromosome coordinates, 
+    get relative region dictionary (i.e. relative to sequence not to chromosome start).
+
+    """
+    core_rel_reg_dic = {}
+
+    with open(in_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            reg_chr = cols[0]
+            reg_s = int(cols[1])  # 0-based.
+            reg_e = int(cols[2])  # 1-based.
+            reg_id = cols[3]
+            reg_pol = cols[5]
+            core_chr = cols[0]
+            core_s = core_reg_dic[reg_id][1] # 0-based.
+            core_e = core_reg_dic[reg_id][2] # 1-based.
+            core_pol = core_reg_dic[reg_id][3]
+            assert reg_chr == core_chr, "chromosome mismatch between core and region for ID %s in BED file %s" %(reg_id, in_bed)
+            assert reg_pol == core_pol, "polarity mismatch between core and region for ID %s in BED file %s" %(reg_id, in_bed)
+
+            core_len = core_e - core_s
+
+            # + strand.
+            rel_s = core_s - reg_s
+            rel_e = rel_s + core_len
+            if core_pol == "-":
+                rel_s = reg_e - core_e
+                rel_e = rel_s + core_len
+
+            core_rel_reg_dic[reg_id] = [reg_chr, rel_s, rel_e, reg_pol]
+
+    f.closed
+
+    return core_rel_reg_dic
+
+
+################################################################################
+
+def bed_get_region_str_len_dic(in_bed):
+    """
+    Read in BED file and store region ID -> region string in dictionary.
+    Also return region ID -> region length mappings.
+    Format of region string:
+    chr1:100-200(+)
+    
+    """
+    reg_dic = {}
+    len_dic = {}
+
+    with open(in_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            reg_id = cols[3]
+            reg_len = int(cols[2]) - int(cols[1])
+            reg_str = "%s:%s-%s(%s)" %(cols[0], cols[1], cols[2], cols[5])
+            reg_dic[reg_id] = reg_str
+            len_dic[reg_id] = reg_len
+    f.closed
+
+    return reg_dic, len_dic
+
+
+################################################################################
+
+def filter_out_center_motif_hits(hits_list, core_rel_reg_dic):
+    """
+    Filter positive regions hits list (FIMO, CMSEARCH), based on given core region
+    (via core_rel_reg_dic) with which the hit should not overlap.
+    core_rel_reg_dic: core region dictionary with:
+    region_ID -> [chr, seq_s, seq_e, pol] (seq_s 0-based, seq_e 1-based).
+    seq_s : start on sequence snippet (0-based).
+    seq_e : end on sequence snippet (1-based).
+    If hit overlaps with core region, filter it out, otherwise keep it and 
+    store in flt_hits_list.
+
+    AALAMO
+    
+    """
+
+    flt_hits_list = []
+
+    for hit in hits_list:
+
+        # motif_id = hit.motif_id
+        seq_name = hit.seq_name
+        hit_seq_s = hit.seq_s  # hit start on sequence snippet, already 1-based.
+        hit_seq_e = hit.seq_e
+        core_seq_s = core_rel_reg_dic[seq_name][1] + 1  # make 1-based.
+        core_seq_e = core_rel_reg_dic[seq_name][2]
+
+        # If hit_seq_s inside core region or hit_seq_e inside core region, filter out.
+        if hit_seq_s >= core_seq_s and hit_seq_s <= core_seq_e:
+            continue
+        if hit_seq_e >= core_seq_s and hit_seq_e <= core_seq_e:
+            continue
+
+        hit_center_pos = get_center_position(hit_seq_s-1, hit_seq_e)
+        core_center_pos = get_center_position(core_seq_s-1, core_seq_e)
+
+        # Can be positive if hit upstream of center, or negative if hit downstream.
+        hit.center_dist = core_center_pos - hit_center_pos
+
+        flt_hits_list.append(hit)
+
+    return flt_hits_list
+
+
+################################################################################
+
+def filter_out_neg_center_motif_hits(neg_hits_list, core_rel_reg_dic):
+    """
+    Filter negative regions hits list (FIMO, CMSEARCH), based on given positive 
+    core region (via core_rel_reg_dic) with which the hit should not overlap.
+    core_rel_reg_dic: core region dictionary with:
+    region_ID -> [chr, seq_s, seq_e, pol] (seq_s 0-based, seq_e 1-based).
+    seq_s : start on sequence snippet (0-based).
+    seq_e : end on sequence snippet (1-based).
+    If hit overlaps with core region, filter it out, otherwise keep it and 
+    store in flt_hits_list.
+    negative seq_name format: pos1;neg1 pos1;neg2 etc.
+    So first part (pos1) identifies which core region to use (here pos1) for
+    filtering.
+
+    AALAMO to do:
+    extract positive ID, get respective core region, and filter out negative hits
+    
+    
+    """
+
+    flt_hits_list = []
+
+    for hit in neg_hits_list:
+
+        # motif_id = hit.motif_id
+        seq_name = hit.seq_name
+        hit_seq_s = hit.seq_s  # hit start on sequence snippet, already 1-based.
+        hit_seq_e = hit.seq_e
+        core_seq_s = core_rel_reg_dic[seq_name][1] + 1  # make 1-based.
+        core_seq_e = core_rel_reg_dic[seq_name][2]
+
+        # If hit_seq_s inside core region or hit_seq_e inside core region, filter out.
+        if hit_seq_s >= core_seq_s and hit_seq_s <= core_seq_e:
+            continue
+        if hit_seq_e >= core_seq_s and hit_seq_e <= core_seq_e:
+            continue
+
+        hit_center_pos = get_center_position(hit_seq_s-1, hit_seq_e)
+        core_center_pos = get_center_position(core_seq_s-1, core_seq_e)
+
+        # Can be positive if hit upstream of center, or negative if hit downstream.
+        hit.center_dist = core_center_pos - hit_center_pos
+
+        flt_hits_list.append(hit)
+
+    return flt_hits_list
 
 
 ################################################################################
@@ -5055,6 +5235,7 @@ def read_in_fimo_results(fimo_tsv,
         to get genomic coordinates from get_genomic_coords_from_seq_name, instead of seq_name.
         This can be applied in cases where seq_name is some ID that does not contain region info, but
         motif hit coordinates are still relative to the region.
+
     """
 
     fimo_hits_list = []
@@ -5096,11 +5277,9 @@ def read_in_fimo_results(fimo_tsv,
                 
             else:
 
-                # AALAMO
-
                 region_info_seq_name = seq_name
 
-                if reg_dic:
+                if reg_dic is not None:
                     region_info_seq_name = reg_dic[seq_name]
 
                 gen_motif_coords = get_genomic_coords_from_seq_name(region_info_seq_name, motif_s, motif_e,
@@ -5243,6 +5422,7 @@ def batch_output_motif_hits_to_bed(unique_motifs_dic, out_bed,
 def read_in_cmsearch_results(in_tab,
                              check=True,
                              seq_based=False,
+                             reg_dic=None,
                              hits_list=None):
     """
     Read in cmsearch motif finding results file.
@@ -5266,6 +5446,13 @@ def read_in_cmsearch_results(in_tab,
     16 E-value
     17 inc
     18 description of target
+
+    
+    reg_dic:
+        If provided, use this dictionary (mapping reg_id -> "chr1:100-200(+)", take value string) 
+        to get genomic coordinates from get_genomic_coords_from_seq_name, instead of seq_name.
+        This can be applied in cases where seq_name is some ID that does not contain region info, but
+        motif hit coordinates are still relative to the region.
 
     """
 
@@ -5323,11 +5510,13 @@ def read_in_cmsearch_results(in_tab,
 
             else:
 
-                gen_motif_coords = get_genomic_coords_from_seq_name(seq_name, seq_s, seq_e,
-                                                                    one_based_start=True)
+                region_info_seq_name = seq_name
 
-                # print("cols:", cols)
-                # print("e_value:", e_value)
+                if reg_dic is not None:
+                    region_info_seq_name = reg_dic[seq_name]
+
+                gen_motif_coords = get_genomic_coords_from_seq_name(region_info_seq_name, seq_s, seq_e,
+                                                                    one_based_start=True)
 
                 cmsearch_hit = CmsearchHit(chr_id=gen_motif_coords[0], 
                                     start=gen_motif_coords[1], 
@@ -5368,6 +5557,7 @@ class CmsearchHit(GenomicRegion):
                  model_e: Optional[int] = None,
                  seq_s: Optional[int] = None,
                  seq_e: Optional[int] = None,
+                 center_dist: Optional[int] = None,  # Distance of motif center position to region center (rbpbench nemo).
                  genome: Optional[str] = None) -> None:
         super().__init__(chr_id, start, end, strand, score, genome)
         self.motif_id = motif_id

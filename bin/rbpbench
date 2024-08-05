@@ -15781,9 +15781,6 @@ def main_nemo(args):
     else:
         assert False, "invalid --ext argument provided (correct format: --ext 10 OR --ext 20,10)"
 
-    # Store positive region ID -> region string (format: chr1:100-200(+)) mapping.
-    pos_reg_dic = {}  # AALAMO
-
     # Filter / extend --in BED.
     print("Preprocess --in sites ... ")
 
@@ -15811,14 +15808,13 @@ def main_nemo(args):
 
     assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID (or optionally score) filtering. If caused by invalid chr_id filtering, make sure chromosome IDs in --genome FASTA and --in BED files are compatible (i.e., \"chr1\" vs. \"1\" notation). If --in regions are on transcripts, use rbpbench searchrna"
 
-
-
     fasta_index_file = tr_seqs_fa + ".fai"
     if os.path.exists(fasta_index_file):
         os.remove(fasta_index_file)
 
     pos_seqs_dic = {}
     tr_seqs_dic = {}
+
     if genomic_sites_input:
 
         print("Extract --in sequences from --genome ... ")
@@ -15876,10 +15872,25 @@ def main_nemo(args):
         # for tr_id in tr_seqs_dic:
         #     tr_seq_len_dic[tr_id] = len(tr_seqs_dic[tr_id])
 
+    """
+    Store positive region ID -> region string (format: chr1:100-200(+)) mapping.
+    
+    Note that region lengths should be identical to extracted sequence lengths, because:
+    bed_filter_extend_bed gets chr_len_dic argument, so specified regions to extract sequences 
+    for cannot extend over provided FASTA sequences in --genome.
 
+    """
 
-    # AALAMO
+    pos_reg_dic, pos_len_dic = benchlib.bed_get_region_str_len_dic(filtered_sites_bed)
+    assert pos_reg_dic, "no positive region ID -> region string mappings read in from filtered sites BED file. Please contact developers"
+    for reg_id in pos_reg_dic:
+        assert reg_id in pos_seqs_dic, "region ID %s not found in pos_seqs_dic. Please contact developers" %(reg_id)
+        assert pos_len_dic[reg_id] == len(pos_seqs_dic[reg_id]), "region ID %s sequence length mismatch between BED and FASTA. Please contact developers" %(reg_id)
+    for reg_id in pos_seqs_dic:
+        assert reg_id in pos_reg_dic, "region ID %s not found in pos_reg_dic. Please contact developers" %(reg_id)
 
+    # Get relative coordinates of core motif site region.
+    core_rel_reg_dic = benchlib.bed_get_core_rel_reg_dic(core_reg_dic, filtered_sites_bed)
 
     """
     Define regions to exclude (i.e. no background sites sampled from these regions).
@@ -16149,6 +16160,7 @@ def main_nemo(args):
     neg_seqs_tmp_bed = args.out_folder + "/background_sequences.tmp.bed"
     neg_seqs_bed = args.out_folder + "/background_sequences.bed"
     neg_seqs_fa = args.out_folder + "/background_sequences.fa"
+    neg_reg_dic = {}  # only needed for --bg-mode 1.
 
 
     if args.bg_mode == 1:
@@ -16160,6 +16172,10 @@ def main_nemo(args):
                                                        incl_bed=bg_incl_bed,
                                                        excl_bed=bg_excl_bed,
                                                        seed=args.random_seed)
+
+        if not check:
+            print("Need to sample with more regions ... ")
+            sys.exit()
 
         seqs_fa = args.in_genome
         if not genomic_sites_input:
@@ -16205,9 +16221,13 @@ def main_nemo(args):
         benchlib.bed_filter_by_seqs_dic(neg_seqs_dic, neg_seqs_tmp_bed, neg_seqs_bed,
                                         use_col4_id=True)
 
-        if not check:
-            print("Need to sample with more regions ... ")
-            sys.exit()
+        neg_reg_dic, neg_len_dic = benchlib.bed_get_region_str_len_dic(neg_seqs_bed)
+        assert neg_reg_dic, "no negative region ID -> region string mappings read in from filtered sites BED file. Please contact developers"
+        for reg_id in neg_reg_dic:
+            assert reg_id in neg_seqs_dic, "region ID %s not found in neg_seqs_dic. Please contact developers" %(reg_id)
+            assert neg_len_dic[reg_id] == len(neg_seqs_dic[reg_id]), "region ID %s sequence length mismatch between BED and FASTA. Please contact developers" %(reg_id)
+        for reg_id in neg_seqs_dic:
+            assert reg_id in neg_reg_dic, "region ID %s not found in neg_reg_dic. Please contact developers" %(reg_id)
 
     elif args.bg_mode == 2:
 
@@ -16370,7 +16390,6 @@ def main_nemo(args):
             annot2color_dic[annot] = hex_colors[idx]
             idx += 1
 
-
     """
     Get FIMO + REGEX hits.
 
@@ -16400,7 +16419,8 @@ def main_nemo(args):
 
         assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
 
-        pos_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv)
+        pos_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
+                                                           reg_dic=pos_reg_dic)
 
         c_pos_fimo_hits = len(pos_fimo_hits_list)
         print("# of FIMO motif hits in input regions:", c_pos_fimo_hits)
@@ -16414,7 +16434,8 @@ def main_nemo(args):
 
         assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
 
-        neg_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv, 
+        neg_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
+                                                           reg_dic=neg_reg_dic,  # only applies if seq_based False.
                                                            seq_based=seq_based)
 
         c_neg_fimo_hits = len(neg_fimo_hits_list)
@@ -16433,6 +16454,7 @@ def main_nemo(args):
             print("Run search for --regex \"%s\" ... " %(regex))
             pos_regex_hits_list = benchlib.get_regex_hits(regex, regex_id, pos_seqs_dic,
                                                       step_size_one=step_size_one,
+                                                      reg_dic=pos_reg_dic,
                                                       use_motif_regex_id=args.motif_regex_id)
 
             c_pos_regex_hits = len(pos_regex_hits_list)
@@ -16443,6 +16465,7 @@ def main_nemo(args):
 
             neg_regex_hits_list = benchlib.get_regex_hits(regex, regex_id, neg_seqs_dic,
                                                       step_size_one=step_size_one,
+                                                      reg_dic=neg_reg_dic,
                                                       seq_based=seq_based,
                                                       use_motif_regex_id=args.motif_regex_id)
 
@@ -16452,6 +16475,12 @@ def main_nemo(args):
             # Add regex hits to fimo_hits_list.
             neg_fimo_hits_list += neg_regex_hits_list
 
+
+    # Filter out hits overlapping with center motif sites (ie --in sites provided).
+    print("Remove hits overlapping with center motif sites ... ")
+    flt_pos_fimo_hits_list = benchlib.filter_out_center_motif_hits(pos_fimo_hits_list, core_rel_reg_dic)
+    # AALAMO
+    flt_neg_fimo_hits_list = benchlib.filter_out_neg_center_motif_hits(neg_fimo_hits_list, core_rel_reg_dic)
 
     """
     Get CMSEARCH hits.
@@ -16472,8 +16501,9 @@ def main_nemo(args):
                         call_dic=call_dic,
                         params="-g --tformat fasta --toponly --incT 1 -T 1 --default")
 
-        pos_cmsearch_hits_list, c_pos_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt, 
-                                                                           check=True)
+        pos_cmsearch_hits_list, c_pos_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt,
+                                                                            reg_dic=pos_reg_dic,
+                                                                            check=True)
 
         print("# of cmsearch motif hits in input regions:", c_pos_cms_hits)
 
@@ -16482,12 +16512,16 @@ def main_nemo(args):
                         error_check=False,
                         params="-g --tformat fasta --toponly --incT 1 -T 1 --default")
 
-        neg_cmsearch_hits_list, c_neg_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt, 
+        neg_cmsearch_hits_list, c_neg_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt,
+                                                                            reg_dic=neg_reg_dic,
                                                                             seq_based=seq_based,
                                                                             check=True)
 
         print("# of cmsearch motif hits in background regions:", c_neg_cms_hits)
 
+
+        # AALAMO FILTER:
+        
 
 
     """
