@@ -4076,6 +4076,7 @@ def genome_fasta_get_chr_sizes_file(in_genome_fa, out_chr_sizes_file,
     >>> out_chr_len_file = "test_data/test.fa.chr_len.tmp.txt"
     >>> genome_fasta_get_chr_sizes_file(test_fa, out_chr_len_file)
     >>> diff_two_files_identical(out_chr_len_file, exp_chr_len_file)
+    True
 
     """
 
@@ -4514,6 +4515,8 @@ class MotifEnrich:
                  fisher_corr_mode = 1,  # 1: BH, 2: Bonferroni, 3: no correction
                  fisher_alt_hyp_mode = 1,  # Alternative hypothesis mode, 1: greater, 2: two-sided, 3: less
                  motif_type="meme_xml",
+                 pos_set_avg_center_dist=0,
+                 neg_set_avg_center_dist=0,
                  logo_png_file = False) -> None:
         self.motif_id = motif_id
         self.rbp_id = rbp_id
@@ -5094,9 +5097,18 @@ def filter_out_center_motif_hits(hits_list, core_rel_reg_dic):
     seq_e : end on sequence snippet (1-based).
     If hit overlaps with core region, filter it out, otherwise keep it and 
     store in flt_hits_list.
-
     AALAMO
     
+    >>> fh1 = FimoHit("chr1", 140, 150, "+", 0.0, "motif1", "pos1", 0.0, seq_s=40, seq_e=50)
+    >>> fh2 = FimoHit("chr1", 120, 130, "+", 0.0, "motif1", "pos1", 0.0, seq_s=20, seq_e=30)
+    >>> hits_list = [fh1, fh2]
+    >>> core_rel_reg_dic = {"pos1": ["chr1", 45, 55, "+"]}
+    >>> flt_hits_list = filter_out_center_motif_hits(hits_list, core_rel_reg_dic)
+    >>> print(flt_hits_list[0])
+    chr1:120-130(+)motif1
+    >>> print(flt_hits_list[0].center_dist)
+    26
+
     """
 
     flt_hits_list = []
@@ -5143,13 +5155,20 @@ def filter_out_neg_center_motif_hits(neg_hits_list, core_rel_reg_dic):
     So first part (pos1) identifies which core region to use (here pos1) for
     filtering.
 
-    AALAMO to do:
-    extract positive ID, get respective core region, and filter out negative hits
-    
+    Currently just assume both positive and negative regions have same lengths, 
+    thus mask same relative core region.
+
+    >>> fh1 = FimoHit("chr1", 140, 150, "+", 0.0, "motif1", "pos1;neg1", 0.0, seq_s=40, seq_e=50)
+    >>> fh2 = FimoHit("chr1", 120, 130, "+", 0.0, "motif1", "pos1;neg1", 0.0, seq_s=20, seq_e=30)
+    >>> hits_list = [fh1, fh2]
+    >>> core_rel_reg_dic = {"pos1": ["chr1", 45, 55, "+"]}
+    >>> flt_hits_list = filter_out_neg_center_motif_hits(hits_list, core_rel_reg_dic)
+    >>> print(flt_hits_list[0])
+    chr1:120-130(+)motif1
     
     """
 
-    flt_hits_list = []
+    flt_neg_hits_list = []
 
     for hit in neg_hits_list:
 
@@ -5157,8 +5176,11 @@ def filter_out_neg_center_motif_hits(neg_hits_list, core_rel_reg_dic):
         seq_name = hit.seq_name
         hit_seq_s = hit.seq_s  # hit start on sequence snippet, already 1-based.
         hit_seq_e = hit.seq_e
-        core_seq_s = core_rel_reg_dic[seq_name][1] + 1  # make 1-based.
-        core_seq_e = core_rel_reg_dic[seq_name][2]
+
+        pos_seq_name = seq_name.split(";")[0]
+
+        core_seq_s = core_rel_reg_dic[pos_seq_name][1] + 1  # make 1-based.
+        core_seq_e = core_rel_reg_dic[pos_seq_name][2]
 
         # If hit_seq_s inside core region or hit_seq_e inside core region, filter out.
         if hit_seq_s >= core_seq_s and hit_seq_s <= core_seq_e:
@@ -5172,9 +5194,9 @@ def filter_out_neg_center_motif_hits(neg_hits_list, core_rel_reg_dic):
         # Can be positive if hit upstream of center, or negative if hit downstream.
         hit.center_dist = core_center_pos - hit_center_pos
 
-        flt_hits_list.append(hit)
+        flt_neg_hits_list.append(hit)
 
-    return flt_hits_list
+    return flt_neg_hits_list
 
 
 ################################################################################
@@ -8536,6 +8558,674 @@ percentage = 0.09765625. R2 = %.6f.
 
 
 ################################################################################
+
+def nemo_generate_html_report(args,
+                              motif_enrich_stats_dic,
+                              seq_motif_blocks_dic,
+                              benchlib_path,
+                              df_pval=False, 
+                              pval_cont_lll=False,
+                              pos_seqs_dic=False,
+                              neg_seqs_dic=False,
+                              pos_reg2annot_dic=False,
+                              neg_reg2annot_dic=False,
+                              annot2color_dic=False,
+                              plotly_full_html=False,
+                              plotly_embed_style=1,
+                              rbpbench_mode="nemo",
+                              html_report_out="report.rbpbench_nemo.html",
+                              plots_subfolder="html_report_plots"):
+
+    """
+    Create neighboring motif enrichment statistics / plots (nemo mode).
+
+    AALAMO
+    """
+
+    # Use absolute paths?
+    out_folder = args.out_folder
+    if args.plot_abs_paths:
+        out_folder = os.path.abspath(out_folder)
+    
+    plots_folder = plots_subfolder
+    plots_out_folder = out_folder + "/" + plots_folder
+    if args.plot_abs_paths:
+        plots_folder = plots_out_folder
+
+    # Delete folder if already present.
+    if os.path.exists(plots_out_folder):
+        shutil.rmtree(plots_out_folder)
+    os.makedirs(plots_out_folder)
+
+    html_out = out_folder + "/" + "report.rbpbench_nemo.html"
+    md_out = out_folder + "/" + "report.rbpbench_nemo.md"
+    if html_report_out:
+        html_out = html_report_out
+
+    # Number of input + background regions/sites.
+    c_input_sites = args.c_input_sites
+    c_bg_sites = args.c_bg_sites
+    
+    site_type_uc = "Genomic"
+    site_type = "genomic"
+    if not args.genomic_sites_input:
+        site_type_uc = "Transcript"
+        site_type = "transcript"
+
+    regex_motif_info = ""
+    if args.regex:
+        regex_motif_info = "Used regex motif: '%s'." %(args.regex)
+
+    report_header_info = "Neighboring motif enrichment report"
+    if args.report_header:
+        report_header_info = "RBPBench neighboring motif enrichment report"
+
+    """
+    Setup plotly .js to support plotly plots.
+
+    """
+
+    include_plotlyjs = "cdn"
+    # plotly_full_html = False
+    plotly_js_html = ""
+    plotly_js_path = benchlib_path + "/content/plotly-2.20.0.min.js"
+    assert os.path.exists(plotly_js_path), "plotly .js %s not found" %(plotly_js_path)
+    if args.plotly_js_mode == 2:
+        include_plotlyjs = plotly_js_path
+    elif args.plotly_js_mode == 3:
+        shutil.copy(plotly_js_path, plots_out_folder)
+        include_plotlyjs = "plotly-2.20.0.min.js" # Or plots_folder + "/plotly-2.20.0.min.js" ?
+    elif args.plotly_js_mode == 4:
+        include_plotlyjs = True
+        # plotly_full_html = False # Don't really need full html (head body ..) in plotly html.
+    elif args.plotly_js_mode == 5:
+        plotly_js_web = "https://cdn.plot.ly/plotly-2.25.2.min.js"
+        plotly_js_html = '<script src="' + plotly_js_web + '"></script>' + "\n"
+        include_plotlyjs = False
+        # plotly_full_html = True
+    elif args.plotly_js_mode == 6:
+        shutil.copy(plotly_js_path, plots_out_folder)
+        plotly_js = plots_folder + "/plotly-2.20.0.min.js"
+        plotly_js_html = '<script src="' + plotly_js + '"></script>' + "\n"
+        include_plotlyjs = False
+    elif args.plotly_js_mode == 7:
+        js_code = read_file_content_into_str_var(plotly_js_path)
+        plotly_js_html = "<script>\n" + js_code + "\n</script>\n"
+        include_plotlyjs = False
+        # plotly_full_html = True
+
+    """
+    Setup sorttable.js to make tables in HTML sortable.
+
+    """
+    sorttable_js_path = benchlib_path + "/content/sorttable.js"
+    assert os.path.exists(sorttable_js_path), "sorttable.js not at %s" %(sorttable_js_path)
+    sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    if args.sort_js_mode == 2:
+        shutil.copy(sorttable_js_path, plots_out_folder)
+        sorttable_js_path = plots_folder + "/sorttable.js"
+        sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    elif args.sort_js_mode == 3:
+        js_code = read_file_content_into_str_var(sorttable_js_path)
+        sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
+
+    # HTML head section.
+    html_head = """<!DOCTYPE html>
+<html>
+<head>
+<title>RBPBench - Neighboring Motif Enrichment Report</title>
+%s
+
+<style>
+    th, td {
+        border: 1px solid black;
+        padding: 8px;
+        text-align: center;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+    .page {
+        page-break-after: always;
+    }
+</style>
+
+</head>
+<body>
+""" %(plotly_js_html)
+
+    # HTML tail section.
+    html_tail = """
+%s
+</body>
+</html>
+""" %(sorttable_js_html)
+
+    # Markdown part.
+    mdtext = """
+
+# %s
+
+List of available statistics and plots generated
+by RBPBench (rbpbench %s):
+
+- [Neighboring motif enrichment statistics](#nemo-stats)
+- [Motif co-occurrences heat map](#cooc-heat-map)""" %(report_header_info, rbpbench_mode)
+
+    mdtext += "\n"
+
+    if pos_reg2annot_dic or neg_reg2annot_dic:
+        mdtext += "- [Genomic region annotations](#reg-annot)\n"
+    if pos_seqs_dic and neg_seqs_dic:
+        mdtext += "- [k-mer distributions](#kmer-plotly)\n"
+
+    add_head_info = ""
+    if args.bed_sc_thr is not None:
+        add_head_info += " BED score threshold (--bed-sc-thr) = %s." %(str(args.bed_sc_thr))
+
+    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s.%s # of considered input regions = %i.\n" %(str(args.fimo_pval), add_head_info, c_input_sites)
+    mdtext += "\n&nbsp;\n"
+
+
+
+    """
+    Motif enrichment statistics.
+
+    """
+
+    motif_add_info = "Enriched"
+    fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., significantly overrepresented motifs are reported."
+    if args.fisher_mode == 2:
+        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'two-sided', i.e., significantly over- and underrepresented motifs are reported."
+        motif_add_info = "Enriched and depleted"
+    elif args.fisher_mode == 3:
+        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., significantly underrepresented motifs are reported."
+        motif_add_info = "Depleted"
+
+    p_val_info = "P-values below %s are considered significant." %(str(args.nemo_pval_thr))
+    if args.nemo_pval_mode == 1:
+        p_val_info = "%s motifs with Benjamini-Hochberg multiple testing corrected p-values below %s are considered significant." %(motif_add_info, str(args.nemo_pval_thr))
+    elif args.nemo_pval_mode == 2:
+        p_val_info = "%s motifs with p-values below %s (p-value threshold Bonferroni multiple testing corrected) are considered significant." %(motif_add_info, str(args.nemo_pval_thr))
+    elif args.nemo_pval_mode == 3:
+        p_val_info = "%s motifs with p-values below %s are considered significant." %(motif_add_info, str(args.nemo_pval_thr))
+    else:
+        assert False, "Invalid motif enrichment p-value mode (--nemo-pval-mode) set: %i" %(args.nemo_pval_mode)
+    
+
+    mdtext += """
+## Neighboring motif enrichment statistics ### {#nemo-stats}
+
+**Table:** Neighboring RBP binding motif enrichment statistics. Enrichment is calculated by comparing motif occurrences in the context regions 
+surrounding given input sites (up- and downstream context size specified via --ext), effectively comparing the input with the background context regions.
+Motif hits that overlap with the actual input sites are not counted.
+Based on the numbers of input and background context regions with and without motif hits, 
+Fisher's exact test is used to assess the significance of motif enrichment.
+%s
+%s
+For full motif results list regardless of significance, see *motif_enrichment_stats.tsv* output table.
+
+""" %(p_val_info, fisher_mode_info)
+
+    pval_dic = {}
+    for motif_id in motif_enrich_stats_dic:
+        pval = motif_enrich_stats_dic[motif_id].fisher_pval_corr
+        pval_dic[motif_id] = pval
+
+    mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+    mdtext += "<thead>\n"
+    mdtext += "<tr>\n"
+    mdtext += "<th>RBP ID</th>\n"
+    mdtext += "<th>Motif ID</th>\n"
+    mdtext += "<th>Motif plot</th>\n"
+    mdtext += "<th># in hits</th>\n"
+    mdtext += "<th># bg hits</th>\n"
+    mdtext += "<th># in</th>\n"
+    mdtext += "<th># not in</th>\n"
+    mdtext += "<th># bg</th>\n"
+    mdtext += "<th># not bg</th>\n"
+    mdtext += "<th>avg in dist</th>\n"
+    mdtext += "<th>avg bg dist</th>\n"
+    mdtext += "<th>p-value</th>\n"
+    mdtext += "</tr>\n"
+    mdtext += "</thead>\n"
+    mdtext += "<tbody>\n"
+
+    for motif_id, fisher_pval in sorted(pval_dic.items(), key=lambda item: item[1], reverse=False):
+
+        if fisher_pval > args.nemo_pval_thr:
+            break
+
+        rbp_id = motif_enrich_stats_dic[motif_id].rbp_id
+        c_pos_hits = motif_enrich_stats_dic[motif_id].c_pos_hits
+        c_neg_hits = motif_enrich_stats_dic[motif_id].c_neg_hits
+        c_pos_hit_regions = motif_enrich_stats_dic[motif_id].c_pos_hit_regions
+        c_neg_hit_regions = motif_enrich_stats_dic[motif_id].c_neg_hit_regions
+        c_pos_regions = motif_enrich_stats_dic[motif_id].c_pos_regions
+        c_neg_regions = motif_enrich_stats_dic[motif_id].c_neg_regions
+        pos_avg_center_dist = round(motif_enrich_stats_dic[motif_id].pos_set_avg_center_dist, 1)
+        neg_avg_center_dist = round(motif_enrich_stats_dic[motif_id].neg_set_avg_center_dist, 1)
+        a_con = c_pos_hit_regions
+        b_con = c_pos_regions - c_pos_hit_regions
+        c_con = c_neg_hit_regions
+        d_con = c_neg_regions - c_neg_hit_regions
+
+        plot_str = "-"
+
+        if motif_id in seq_motif_blocks_dic:
+
+            motif_plot = "%s.%s.png" %(rbp_id, motif_id)
+            motif_plot_out = plots_out_folder + "/" + motif_plot
+            plot_path = plots_folder + "/" + motif_plot
+
+            # Check if motif in motif plots folder.
+            motif_path = benchlib_path + "/content/motif_plots/%s" %(motif_plot)
+            if os.path.exists(motif_path):
+                shutil.copy(motif_path, motif_plot_out)
+            if not os.path.exists(motif_plot_out):
+                create_motif_plot(motif_id, seq_motif_blocks_dic,
+                                    motif_plot_out)
+
+            plot_str = '<image src = "' + plot_path + '" width="300px"></image>'
+
+        mdtext += '<tr>' + "\n"
+        mdtext += "<td>" + rbp_id + "</td>\n"
+        mdtext += "<td>" + motif_id + "</td>\n"
+        mdtext += "<td>" + plot_str + "</td>\n"
+        mdtext += "<td>" + str(c_pos_hits) + "</td>\n"
+        mdtext += "<td>" + str(c_neg_hits) + "</td>\n"
+        mdtext += "<td>" + str(a_con) + "</td>\n"
+        mdtext += "<td>" + str(b_con) + "</td>\n"
+        mdtext += "<td>" + str(c_con) + "</td>\n"
+        mdtext += "<td>" + str(d_con) + "</td>\n"
+        mdtext += "<td>" + str(pos_avg_center_dist) + "</td>\n"
+        mdtext += "<td>" + str(neg_avg_center_dist) + "</td>\n"
+        mdtext += "<td>" + str(fisher_pval) + "</td>\n"
+        mdtext += '</tr>' + "\n"
+
+    mdtext += '</tbody>' + "\n"
+    mdtext += '</table>' + "\n"
+
+    mdtext += "\n&nbsp;\n&nbsp;\n"
+    mdtext += "\nColumn IDs have the following meanings: "
+    mdtext += "**RBP ID** -> RBP ID belonging to motif ID, "
+    mdtext += "**Motif ID** -> motif ID, "
+    mdtext += "**Motif plot** -> visualization of motif (sequence logo for sequence motifs, otherwise -), "
+    mdtext += '**# in hits** -> number of motif hits in input sites, '
+    mdtext += '**# bg hits** -> number of motif hits in background sites, '
+    mdtext += '**# in** -> number of input sites with motif hits, '
+    mdtext += '**# not in** -> number of input sites without motif hits, '
+    mdtext += '**# bg** -> number of background sites with motif hits, '
+    mdtext += '**# not bg** -> number of background sites without motif hits, '
+    mdtext += '**avg in dist** -> average distance of motif hits to center of input sites (positive value indicates motifs tend to be located upstream of input sites, whereas negative value indicates downstream), '
+    mdtext += '**avg bg dist** -> average distance of motif hits to center of background sites (positive value indicates motifs tend to be located upstream of input sites, whereas negative value indicates downstream), '
+    mdtext += '**p-value** -> Fisher exact test p-value (corrected).' + "\n"
+    mdtext += "\n&nbsp;\n"
+
+
+
+    """
+    Motif co-occurrences heat map.
+
+    """
+
+    mdtext += """
+## Motif co-occurrences heat map ### {#cooc-heat-map}
+
+"""
+
+    if pval_cont_lll:
+
+        cooc_plot_plotly =  "co-occurrence_plot.plotly.html"
+        cooc_plot_plotly_out = plots_out_folder + "/" + cooc_plot_plotly
+
+        create_cooc_plot_plotly(df_pval, pval_cont_lll, cooc_plot_plotly_out,
+                                max_motif_dist=args.max_motif_dist,
+                                min_motif_dist=args.min_motif_dist,
+                                id1="Motif1",
+                                id2="Motif2",
+                                include_plotlyjs=include_plotlyjs,
+                                full_html=plotly_full_html)
+
+        plot_path = plots_folder + "/" + cooc_plot_plotly
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            # Read in plotly code.
+            # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+            js_code = read_file_content_into_str_var(cooc_plot_plotly_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:1200px; width:1200px;")
+            mdtext += js_code + "\n"
+            # mdtext += '</div>'
+        else:
+            if plotly_embed_style == 1:
+                # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                mdtext += "<div>\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1200" height="1200"></iframe>' + "\n"
+                mdtext += '</div>'
+            elif plotly_embed_style == 2:
+                mdtext += '<object data="' + plot_path + '" width="1200" height="1200"> </object>' + "\n"
+
+        p_val_info = "P-values below %s are considered significant." %(str(args.cooc_pval_thr))
+
+        min_motif_dist_info = ""
+        if args.min_motif_dist > 0:
+            min_motif_dist_info = " + a mean minimum motif distance >= %i nt " %(args.min_motif_dist)
+
+        if args.cooc_pval_mode == 1:
+            p_val_info = "Motif co-occurrences with Benjamini-Hochberg multiple testing corrected p-values below %s %sare considered significant." %(str(args.cooc_pval_thr), min_motif_dist_info)
+        elif args.cooc_pval_mode == 2:
+            p_val_info = "Motif co-occurrences with p-values below %s (p-value threshold Bonferroni multiple testing corrected) %sare considered significant." %(str(args.cooc_pval_thr), min_motif_dist_info)
+        elif args.cooc_pval_mode == 3:
+            p_val_info = "Motif co-occurrences with p-values below %s %sare considered significant." %(str(args.cooc_pval_thr), min_motif_dist_info)
+        else:
+            assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(args.cooc_pval_mode)
+        
+        p_val_info += " # of motif co-occurrence comparisons: %i. # of significant co-occurrences: %i (%.2f%%)." %(args.c_all_fisher_pval, args.c_sig_fisher_pval, args.perc_sig_fisher_pval)
+
+
+        # Inform about set alterntive hypothesis for Fisher exact test on significant motif co-occurrences.
+        motif_add_info = "enriched"
+        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., significantly overrepresented motif co-occurrences are reported."
+        if args.fisher_mode == 2:
+            fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'two-sided', i.e., significantly over- and underrepresented motif co-occurrences are reported."
+            motif_add_info = "enriched and depleted"
+        elif args.fisher_mode == 3:
+            fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., significantly underrepresented motif co-occurrences are reported."
+            motif_add_info = "depleted"
+
+        # AALAMO
+
+        mdtext += """
+
+**Figure:** Heat map of co-occurrences (Fisher's exact test p-values) between motifs. 
+Only significantly %s context region motifs (listed in upper table) are used in checking for siginificant co-occurrences.
+Motif hit co-occurrences that are not significant are colored gray, while
+significant co-occurrences are colored according to their -log10 p-value (used as legend color, i.e., the higher the more significant).
+%s
+%s
+Hover box: 
+**1)** Motif1 in pair.
+**2)** Motif2 in pair.
+**3)** p-value: Fisher's exact test p-value (calculated based on contingency table (6) between Motif1 and Motif2). 
+**4)** p-value after filtering: p-value after filtering, i.e., p-value is kept if significant (< %s), otherwise it is set to 1.0.
+**5)** Motifs compaired.
+**6)** Counts[]: contingency table of co-occurrence counts (i.e., number of %s regions with/without shared motif hits) between compaired motifs, 
+with format [[A, B], [C, D]], where 
+A: Motif1 AND Motif2, 
+B: NOT Motif1 AND Motif2,
+C: Motif1 AND NOT Motif2,
+D: NOT Motif1 AND NOT Motif2.
+**7)** Mean minimum distance of Motif1 and Motif2 hits (mean over all regions containing Motif1 + Motif2 motif hits). Distances measured from motif center positions.
+**8)** Over all regions containing Motif1 and Motif2 pairs, percentage of regions where Motif1 + Motif2 motifs are within %i nt distance (set via --max-motif-dist).
+**9)** Correlation: Pearson correlation coefficient between Motif1 and Motif2.
+%s regions are labelled 1 or 0 (motif present or not), resulting in a vector of 1s and 0s for each motif.
+Correlations are then calculated by comparing vectors for every pair of motifs.
+**10)** -log10 of p-value after filtering, used for legend coloring. Using p-value after filtering, all non-significant p-values become 0 
+for easier distinction between significant and non-significant co-occurrences.
+%s
+
+&nbsp;
+
+""" %(motif_add_info, p_val_info, fisher_mode_info, str(args.cooc_pval_thr), site_type, args.max_motif_dist, site_type_uc, regex_motif_info)
+
+
+    else:
+
+        mdtext += """
+
+No co-occurrences calculated as no significant context region motifs were found (see upper table).
+        
+&nbsp;
+
+"""
+
+
+
+    """
+    Genomic region annotations.
+
+    """
+
+    if pos_reg2annot_dic or neg_reg2annot_dic:
+
+        mdtext += """
+## Genomic region annotations ### {#reg-annot}
+
+"""
+
+    if pos_reg2annot_dic:
+
+        annot_bar_plot =  "gene_region_annotation_bar_plot.input.png"
+        annot_bar_plot_out = plots_out_folder + "/" + annot_bar_plot
+
+        create_enmo_annotation_bar_plot(pos_reg2annot_dic, 
+                                        annot2color_dic=annot2color_dic,
+                                        data_id="",
+                                        plot_out=annot_bar_plot_out)
+
+        plot_path = plots_folder + "/" + annot_bar_plot
+
+        mdtext += '<img src="' + plot_path + '" alt="Annotation bar plot input"' + "\n"
+        mdtext += 'title="Annotation bar plot input" />' + "\n"
+        mdtext += """
+**Figure:** Gene region annotations for input sites (# sites = %i).
+
+&nbsp;
+
+""" %(c_input_sites)
+
+    if neg_reg2annot_dic:
+
+        annot_bar_plot =  "gene_region_annotation_bar_plot.background.png"
+        annot_bar_plot_out = plots_out_folder + "/" + annot_bar_plot
+
+        create_enmo_annotation_bar_plot(neg_reg2annot_dic,
+                                        annot2color_dic=annot2color_dic,
+                                        data_id="",
+                                        plot_out=annot_bar_plot_out)
+
+        plot_path = plots_folder + "/" + annot_bar_plot
+
+        mdtext += '<img src="' + plot_path + '" alt="Annotation bar plot background"' + "\n"
+        mdtext += 'title="Annotation bar plot background" />' + "\n"
+        mdtext += """
+**Figure:** Gene region annotations for background sites (# sites = %i).
+
+&nbsp;
+
+""" %(c_bg_sites)
+
+
+
+
+    """
+    k-mer distributions.
+    
+    """
+
+    if pos_seqs_dic and neg_seqs_dic:
+
+
+        # Get 3-mer percentages.
+        pos_3mer_dic = seqs_dic_count_kmer_freqs(pos_seqs_dic, 3, rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=True,
+                                                 convert_to_uc=True)
+        neg_3mer_dic = seqs_dic_count_kmer_freqs(neg_seqs_dic, 3, rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=True,
+                                                 convert_to_uc=True)
+        # Get 4-mer percentages.
+        pos_4mer_dic = seqs_dic_count_kmer_freqs(pos_seqs_dic, 4, rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=True,
+                                                 convert_to_uc=True)
+        neg_4mer_dic = seqs_dic_count_kmer_freqs(neg_seqs_dic, 4, rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=True,
+                                                 convert_to_uc=True)
+        # Get 5-mer percentages.
+        pos_5mer_dic = seqs_dic_count_kmer_freqs(pos_seqs_dic, 5, rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=True,
+                                                 convert_to_uc=True)
+        neg_5mer_dic = seqs_dic_count_kmer_freqs(neg_seqs_dic, 5, rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=True,
+                                                 convert_to_uc=True)
+
+        mdtext += """
+## k-mer distributions ### {#kmer-plotly}
+
+Frequency distributions of k-mers (in percent) for the input and background dataset.
+
+"""
+
+        plotly_3mer_plot = "plotly_scatter_3mer.html"
+        plotly_4mer_plot = "plotly_scatter_4mer.html"
+        plotly_5mer_plot = "plotly_scatter_5mer.html"
+        plotly_3mer_plot_out = plots_out_folder + "/" + plotly_3mer_plot
+        plotly_4mer_plot_out = plots_out_folder + "/" + plotly_4mer_plot
+        plotly_5mer_plot_out = plots_out_folder + "/" + plotly_5mer_plot
+
+        # Create 3-mer plotly scatter plot.
+        create_kmer_sc_plotly_scatter_plot(pos_3mer_dic, neg_3mer_dic, 3,
+                                        plotly_3mer_plot_out,
+                                        plotly_js_path,
+                                        theme=1)
+        # Create 4-mer plotly scatter plot.
+        create_kmer_sc_plotly_scatter_plot(pos_4mer_dic, neg_4mer_dic, 4,
+                                        plotly_4mer_plot_out,
+                                        plotly_js_path,
+                                        theme=1)
+        # Create 5-mer plotly scatter plot.
+        create_kmer_sc_plotly_scatter_plot(pos_5mer_dic, neg_5mer_dic, 5,
+                                        plotly_5mer_plot_out,
+                                        plotly_js_path,
+                                        theme=1)
+        # Plot paths inside html report.
+        plotly_3mer_plot_path = plots_folder + "/" + plotly_3mer_plot
+        plotly_4mer_plot_path = plots_folder + "/" + plotly_4mer_plot
+        plotly_5mer_plot_path = plots_folder + "/" + plotly_5mer_plot
+
+        # R2 scores.
+        r2_3mer = calc_r2_corr_measure(pos_3mer_dic, neg_3mer_dic,
+                                    is_dic=True)
+        r2_4mer = calc_r2_corr_measure(pos_4mer_dic, neg_4mer_dic,
+                                    is_dic=True)
+        r2_5mer = calc_r2_corr_measure(pos_5mer_dic, neg_5mer_dic,
+                                    is_dic=True)
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            js_code = read_file_content_into_str_var(plotly_3mer_plot_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:800px; width:800px;")
+            mdtext += js_code + "\n"
+        else:
+            mdtext += "<div>\n"
+            mdtext += '<iframe src="' + plotly_3mer_plot_path + '" width="800" height="800"></iframe>' + "\n"
+            mdtext += '</div>'
+
+        # Old rplib style.
+        # mdtext += '<div class=class="container-fluid" style="margin-top:40px">' + "\n"
+        # mdtext += '<iframe src="' + plotly_3mer_plot_path + '" width="500" height="500"></iframe>' + "\n"
+        # mdtext += '</div>'
+
+        mdtext += """
+
+**Figure:** 3-mer percentages in the input and background dataset. In case of
+a uniform distribution with all 3-mers present, each 3-mer would have a
+percentage = 1.5625. R2 = %.6f.
+
+&nbsp;
+
+""" %(r2_3mer)
+    
+        if args.plotly_js_mode in [5, 6, 7]:
+            js_code = read_file_content_into_str_var(plotly_4mer_plot_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:800px; width:800px;")
+            mdtext += js_code + "\n"
+        else:
+            mdtext += "<div>\n"
+            mdtext += '<iframe src="' + plotly_4mer_plot_path + '" width="800" height="800"></iframe>' + "\n"
+            mdtext += '</div>'
+
+        # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+        # mdtext += '<iframe src="' + plotly_4mer_plot_path + '" width="600" height="600"></iframe>' + "\n"
+        # mdtext += '</div>'
+
+        mdtext += """
+
+**Figure:** 4-mer percentages in the input and background dataset. In case of
+a uniform distribution with all 4-mers present, each 4-mer would have a
+percentage = 0.390625. R2 = %.6f.
+
+&nbsp;
+
+""" %(r2_4mer)
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            js_code = read_file_content_into_str_var(plotly_5mer_plot_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:800px; width:800px;")
+            mdtext += js_code + "\n"
+        else:
+            mdtext += "<div>\n"
+            mdtext += '<iframe src="' + plotly_5mer_plot_path + '" width="800" height="800"></iframe>' + "\n"
+            mdtext += '</div>'
+
+        # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+        # mdtext += '<iframe src="' + plotly_5mer_plot_path + '" width="700" height="700"></iframe>' + "\n"
+        # mdtext += '</div>'
+
+        mdtext += """
+
+**Figure:** 5-mer percentages in the input and background dataset. In case of
+a uniform distribution with all 5-mers present, each 5-mer would have a
+percentage = 0.09765625. R2 = %.6f.
+
+&nbsp;
+
+""" %(r2_5mer)
+
+    # Convert mdtext to html.
+    md2html = markdown(mdtext, extensions=['attr_list', 'tables'])
+
+    # OUTMD = open(md_out,"w")
+    # OUTMD.write("%s\n" %(mdtext))
+    # OUTMD.close()
+
+    html_content = html_head + md2html + html_tail
+
+    OUTHTML = open(html_out,"w")
+    OUTHTML.write("%s\n" %(html_content))
+    OUTHTML.close()
+
+
+################################################################################
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 def create_kmer_sc_plotly_scatter_plot(pos_mer_dic, neg_mer_dic, k,
                                        out_html, plotly_js,

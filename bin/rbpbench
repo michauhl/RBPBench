@@ -2376,18 +2376,43 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3],
                    help="Defines Fisher exact test alternative hypothesis for testing motif enrichment in --in sites compared to generated background / control sites. 1: greater, 2: two-sided, 3: less. Setting is used both for motif enrichment and co-occurrence Fisher test (default: 1)")
-    p_nm.add_argument("--enmo-pval-thr",
-                   dest="enmo_pval_thr",
+    p_nm.add_argument("--nemo-pval-thr",
+                   dest="nemo_pval_thr",
                    type=float,
                    metavar='float',
                    default=0.001,
-                   help="P-value threshold for reporting significantly enriched motifs. NOTE that if --enmo-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.001)")
-    p_nm.add_argument("--enmo-pval-mode",
-                   dest="enmo_pval_mode",
+                   help="P-value threshold for reporting significantly enriched motifs. NOTE that if --nemo-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.001)")
+    p_nm.add_argument("--nemo-pval-mode",
+                   dest="nemo_pval_mode",
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
                    help="Defines multiple testing correction mode for motif enrichment p-values. 1: Benjamini-Hochberg (BH), 2: Bonferroni, 3: no correction (default: 1)")
+    # Motif co-occurrence stats.
+    p_nm.add_argument("--cooc-pval-thr",
+                   dest="cooc_pval_thr",
+                   type=float,
+                   metavar='float',
+                   default=0.05,
+                   help="Motif co-occurrence p-value threshold for reporting significant motif co-occurrences. NOTE that if --cooc-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.05)")
+    p_nm.add_argument("--cooc-pval-mode",
+                   dest="cooc_pval_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Defines multiple testing correction mode for co-occurrence p-values. 1: Benjamini-Hochberg (BH), 2: Bonferroni, 3: no correction (default: 1)")
+    p_nm.add_argument("--min-motif-dist",
+                   dest="min_motif_dist",
+                   type=int,
+                   metavar='int',
+                   default=0,
+                   help="Set minimum mean motif distance for motif pair to be reported significant in motif co-occurrence heatmap plot. By default (value 0), all motif pairs <= set p-value are reported significant. So setting --min-motif-dist >= 0 acts as a second filter to show only motif pairs with signficiant p-values as significant if there is the specified minimum average distance between their motif hits (default: 0)")
+    p_nm.add_argument("--max-motif-dist",
+                   dest="max_motif_dist",
+                   type=int,
+                   metavar='int',
+                   default=20,
+                   help="Set maximum motif distance for motif co-occurrence plot statistic inside hover boxes (default: 20)")
 
     p_nm.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
@@ -2409,14 +2434,18 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
+    p_nm.add_argument("--plotly-js-mode",
+                   dest="plotly_js_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3, 4, 5, 6, 7],
+                   help = "Define how to provide plotly .js file. 1: use online version via \"cdn\" (requires internet connection). 2: link to packaged plotly .js file. 3: copy plotly .js file to plots output folder. 4: include plotly .js code in plotly HTML. 5: put web version link and plotly plot codes into main HTML. 6: put local version link and plotly plot codes in main HTML. 7: put plotly js and plotly plot codes into main HTML! (default: 1)")
     p_nm.add_argument("--sort-js-mode",
                    dest="sort_js_mode",
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
                    help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to plots output folder. 3: include .js code in HTML (default: 1)")
-
-
 
     """
     Run STREME on input sites for motif discovery.
@@ -15370,7 +15399,9 @@ def main_nemo(args):
     settings_file = args.out_folder + "/settings.rbpbench_nemo.out"
 
     # Motif enrichment stats table.
-    enmo_stats_out = args.out_folder + "/motif_enrichment_stats.tsv"
+    nemo_stats_out = args.out_folder + "/motif_enrichment_stats.tsv"
+    # Motif co-ooccurrence stats table.
+    cooc_stats_out = args.out_folder + "/motif_cooc_stats.tsv"
 
     cmstat_tmp_out = args.out_folder + "/cmstat_out.tmp.txt"
 
@@ -15781,6 +15812,8 @@ def main_nemo(args):
     else:
         assert False, "invalid --ext argument provided (correct format: --ext 10 OR --ext 20,10)"
 
+    print("--in extension upstream == %i, downstream == %i ... " %(ext_up, ext_down))
+
     # Filter / extend --in BED.
     print("Preprocess --in sites ... ")
 
@@ -15872,6 +15905,16 @@ def main_nemo(args):
         # for tr_id in tr_seqs_dic:
         #     tr_seq_len_dic[tr_id] = len(tr_seqs_dic[tr_id])
 
+
+    """
+    Overwrite filtered_sites_fa, since it still contains header IDs with format:
+    pos1::chr22:49824553-49824749(-)
+
+    """
+
+    benchlib.fasta_output_dic(pos_seqs_dic, filtered_sites_fa,
+                              split=True)
+
     """
     Store positive region ID -> region string (format: chr1:100-200(+)) mapping.
     
@@ -15937,9 +15980,6 @@ def main_nemo(args):
     # benchlib.merge_files(shuffle_list, bg_shuffle_in_bed)
 
     print("# random negative regions to sample: ", c_pos_total)
-
-
-
 
     """
     Get input / positive genomic region annotations.
@@ -16153,7 +16193,6 @@ def main_nemo(args):
     bg_incl_bed:
         Background included regions BED
 
-
     """
     
     neg_seqs_dic = {}
@@ -16229,6 +16268,7 @@ def main_nemo(args):
         for reg_id in neg_seqs_dic:
             assert reg_id in neg_reg_dic, "region ID %s not found in neg_reg_dic. Please contact developers" %(reg_id)
 
+
     elif args.bg_mode == 2:
 
         print("Prepare sequences to shuffle (factor = %i) ... " %(args.bg_shuff_factor))
@@ -16266,6 +16306,15 @@ def main_nemo(args):
 
         print("# of shuffled background sequences: ", len(neg_seqs_dic))
 
+    """
+    Overwrite neg_seqs_fa, since it still contains header IDs with format:
+    pos1;neg1::chr22:28163785-28163981(-)
+
+    """
+
+    benchlib.fasta_output_dic(neg_seqs_dic, neg_seqs_fa,
+                              split=True)
+
 
     print("Plot sequence lengths distributions ... ")
 
@@ -16282,8 +16331,27 @@ def main_nemo(args):
     args.c_input_sites = len(pos_seqs_dic)
     args.c_bg_sites = len(neg_seqs_dic)
 
+    """
+    Compare sequence lengths of positives with its sampled negatives.
 
+    If these counts are very different (should not be), maybe the the 
+    filter_out_neg_center_motif_hits() filtering has to be adapted.
+    
+    """
+    c_same_len = 0
+    c_diff_len = 0
 
+    for seq_id in neg_seqs_dic:
+
+        pos_seq_id = seq_id.split(";")[0]
+
+        if len(pos_seqs_dic[pos_seq_id]) == len(neg_seqs_dic[seq_id]):
+            c_same_len += 1
+        else:
+            c_diff_len += 1
+
+    print("# of negatives with length == positives length:", c_same_len)
+    print("# of negatives with length != positives length:", c_diff_len)
 
 
 
@@ -16477,10 +16545,14 @@ def main_nemo(args):
 
 
     # Filter out hits overlapping with center motif sites (ie --in sites provided).
-    print("Remove hits overlapping with center motif sites ... ")
+    print("Remove FIMO/REGEX hits overlapping with center motif sites ... ")
     flt_pos_fimo_hits_list = benchlib.filter_out_center_motif_hits(pos_fimo_hits_list, core_rel_reg_dic)
-    # AALAMO
     flt_neg_fimo_hits_list = benchlib.filter_out_neg_center_motif_hits(neg_fimo_hits_list, core_rel_reg_dic)
+
+    print("# positive FIMO/REGEX hits before filtering:", len(pos_fimo_hits_list))
+    print("# positive FIMO/REGEX hits after filtering: ", len(flt_pos_fimo_hits_list))
+    print("# negative FIMO/REGEX hits before filtering:", len(neg_fimo_hits_list))
+    print("# negative FIMO/REGEX hits after filtering: ", len(flt_neg_fimo_hits_list))
 
     """
     Get CMSEARCH hits.
@@ -16520,9 +16592,15 @@ def main_nemo(args):
         print("# of cmsearch motif hits in background regions:", c_neg_cms_hits)
 
 
-        # AALAMO FILTER:
-        
+    # Filter out hits overlapping with center motif sites (ie --in sites provided).
+    print("Remove CMSEARCH hits overlapping with center motif sites ... ")
+    flt_pos_cmsearch_hits_list = benchlib.filter_out_center_motif_hits(pos_cmsearch_hits_list, core_rel_reg_dic)
+    flt_neg_cmsearch_hits_list = benchlib.filter_out_neg_center_motif_hits(neg_cmsearch_hits_list, core_rel_reg_dic)
 
+    print("# positive CMSEARCH hits before filtering:", len(pos_cmsearch_hits_list))
+    print("# positive CMSEARCH hits after filtering: ", len(flt_pos_cmsearch_hits_list))
+    print("# negative CMSEARCH hits before filtering:", len(neg_cmsearch_hits_list))
+    print("# negative CMSEARCH hits after filtering: ", len(flt_neg_cmsearch_hits_list))
 
     """
     Store for each motif ID the positive / input regions with motif hits (and hit counts), 
@@ -16536,7 +16614,7 @@ def main_nemo(args):
 
     regions_with_motifs_dic = {}
 
-    for fh in pos_fimo_hits_list:
+    for fh in flt_pos_fimo_hits_list:
 
         motif_id = fh.motif_id
         rbp_id = id2name_dic[motif_id]
@@ -16552,7 +16630,7 @@ def main_nemo(args):
             regions_with_motifs_dic[motif_id][fh.seq_name] = 1
 
     # Store regions with structure motifs.
-    for cmsh in pos_cmsearch_hits_list:
+    for cmsh in flt_pos_cmsearch_hits_list:
 
         motif_id = cmsh.motif_id
         rbp_id = id2name_dic[motif_id]
@@ -16579,13 +16657,20 @@ def main_nemo(args):
     pos_hits_dic = {}
     neg_hits_dic = {}
     found_motif_ids_dic = {}
+    pos_avg_center_dist_dic = {}
+    neg_avg_center_dist_dic = {}
 
-    for fh in pos_fimo_hits_list:
+    for fh in flt_pos_fimo_hits_list:
 
         motif_id = fh.motif_id
         rbp_id = id2name_dic[motif_id]
         # fh.seq_name : FASTA header (== --in genomic sequence region).
         reg_id = fh.seq_name
+
+        if motif_id in pos_avg_center_dist_dic:
+            pos_avg_center_dist_dic[motif_id] += fh.center_dist
+        else:
+            pos_avg_center_dist_dic[motif_id] = fh.center_dist
 
         if motif_id in pos_hits_dic:
             if reg_id in pos_hits_dic[motif_id]:
@@ -16601,11 +16686,16 @@ def main_nemo(args):
         else:
             found_motif_ids_dic[motif_id] = 1
 
-    for fh in neg_fimo_hits_list:
+    for fh in flt_neg_fimo_hits_list:
             
         motif_id = fh.motif_id
         rbp_id = id2name_dic[motif_id]
         reg_id = fh.seq_name
+
+        if motif_id in neg_avg_center_dist_dic:
+            neg_avg_center_dist_dic[motif_id] += fh.center_dist
+        else:
+            neg_avg_center_dist_dic[motif_id] = fh.center_dist
 
         if motif_id in neg_hits_dic:
             if reg_id in neg_hits_dic[motif_id]:
@@ -16621,11 +16711,16 @@ def main_nemo(args):
         else:
             found_motif_ids_dic[motif_id] = 1
 
-    for cmsh in pos_cmsearch_hits_list:
+    for cmsh in flt_pos_cmsearch_hits_list:
             
         motif_id = cmsh.motif_id
         rbp_id = id2name_dic[motif_id]
         reg_id = cmsh.seq_name
+
+        if motif_id in pos_avg_center_dist_dic:
+            pos_avg_center_dist_dic[motif_id] += cmsh.center_dist
+        else:
+            pos_avg_center_dist_dic[motif_id] = cmsh.center_dist
 
         if motif_id in pos_hits_dic:
             if reg_id in pos_hits_dic[motif_id]:
@@ -16641,11 +16736,16 @@ def main_nemo(args):
         else:
             found_motif_ids_dic[motif_id] = 1
 
-    for cmsh in neg_cmsearch_hits_list:
+    for cmsh in flt_neg_cmsearch_hits_list:
             
         motif_id = cmsh.motif_id
         rbp_id = id2name_dic[motif_id]
         reg_id = cmsh.seq_name
+
+        if motif_id in neg_avg_center_dist_dic:
+            neg_avg_center_dist_dic[motif_id] += cmsh.center_dist
+        else:
+            neg_avg_center_dist_dic[motif_id] = cmsh.center_dist
 
         if motif_id in neg_hits_dic:
             if reg_id in neg_hits_dic[motif_id]:
@@ -16711,6 +16811,8 @@ def main_nemo(args):
                 c_pos_hits += pos_hits_dic[motif_id][reg_id]
                 c_pos_hit_regions += 1
 
+        motif_enrich_stats.pos_set_avg_center_dist = pos_avg_center_dist_dic[motif_id] / c_pos_hits
+
         c_neg_hits = 0
         c_neg_hit_regions = 0
 
@@ -16718,6 +16820,8 @@ def main_nemo(args):
             for reg_id in neg_hits_dic[motif_id]:
                 c_neg_hits += neg_hits_dic[motif_id][reg_id]
                 c_neg_hit_regions += 1
+
+        motif_enrich_stats.neg_set_avg_center_dist = neg_avg_center_dist_dic[motif_id] / c_neg_hits
 
         motif_enrich_stats.c_pos_hits = c_pos_hits
         motif_enrich_stats.c_neg_hits = c_neg_hits
@@ -16745,7 +16849,7 @@ def main_nemo(args):
 
         motif_enrich_stats.con_table = table_str
         motif_enrich_stats.fisher_pval = p_value
-        motif_enrich_stats.fisher_corr_mode = args.enmo_pval_mode
+        motif_enrich_stats.fisher_corr_mode = args.nemo_pval_mode
         motif_enrich_stats.fisher_alt_hyp_mode = args.fisher_mode
 
         motif_enrich_stats_dic[motif_id] = motif_enrich_stats
@@ -16755,33 +16859,33 @@ def main_nemo(args):
 
     """
 
-    enmo_pval_thr = args.enmo_pval_thr
+    nemo_pval_thr = args.nemo_pval_thr
 
-    if args.enmo_pval_mode == 1:  # BH correction.
+    if args.nemo_pval_mode == 1:  # BH correction.
 
         pvals_corrected = false_discovery_control(p_val_list, method='bh')
 
         for i in range(len(p_val_list)):
             p_val_list[i] = pvals_corrected[i]
 
-    elif args.enmo_pval_mode == 2:  # Bonferroni correction.
+    elif args.nemo_pval_mode == 2:  # Bonferroni correction.
 
         # Multiple testing correction factor.
         mult_test_corr_factor = 1
         if len_motif_ids > 1:
             mult_test_corr_factor = len_motif_ids
 
-        enmo_pval_thr = args.enmo_pval_thr / mult_test_corr_factor
-        enmo_pval_thr = benchlib.round_to_n_significant_digits_v2(enmo_pval_thr, 4)
+        nemo_pval_thr = args.nemo_pval_thr / mult_test_corr_factor
+        nemo_pval_thr = benchlib.round_to_n_significant_digits_v2(nemo_pval_thr, 4)
 
-    elif args.enmo_pval_mode == 3:  # No correction.
+    elif args.nemo_pval_mode == 3:  # No correction.
 
-        enmo_pval_thr = args.enmo_pval_thr
+        nemo_pval_thr = args.nemo_pval_thr
 
     else:
-        assert False, "Invalid motif enrichment p-value mode (--enmo-pval-mode) set: %i" %(args.enmo_pval_mode)
+        assert False, "Invalid motif enrichment p-value mode (--nemo-pval-mode) set: %i" %(args.nemo_pval_mode)
 
-    args.enmo_pval_thr_corr = enmo_pval_thr
+    args.nemo_pval_thr_corr = nemo_pval_thr
 
 
     # Update + filter p-values.
@@ -16790,8 +16894,8 @@ def main_nemo(args):
     c_sig_fisher_pval = 0
     sig_motif_ids_list = []  # significant motif IDs list.
 
-    COSOUT = open(enmo_stats_out, "w")
-    COSOUT.write("motif_id\trbp_id\tc_in_fg\tc_not_in_fg\tc_in_bg\tc_not_in_bg\tfisher_pval\tfisher_pval_corr\n")
+    COSOUT = open(nemo_stats_out, "w")
+    COSOUT.write("motif_id\trbp_id\tc_in_fg\tc_not_in_fg\tc_in_bg\tc_not_in_bg\tpos_avg_dist\tneg_avg_dist\tfisher_pval\tfisher_pval_corr\n")
 
     for idx, motif_id in enumerate(motif_ids_list):
 
@@ -16810,12 +16914,15 @@ def main_nemo(args):
         p_value = benchlib.round_to_n_significant_digits_v2(p_value, 4)
         motif_enrich_stats_dic[motif_id].fisher_pval = p_value
 
-        if p_value_corr <= enmo_pval_thr:
+        pos_set_avg_center_dist = motif_enrich_stats_dic[motif_id].pos_set_avg_center_dist
+        neg_set_avg_center_dist = motif_enrich_stats_dic[motif_id].neg_set_avg_center_dist
+
+        if p_value_corr <= nemo_pval_thr:
             c_sig_fisher_pval += 1
             sig_motif_ids_list.append(motif_id)
         c_all_fisher_pval += 1
 
-        COSOUT.write("%s\t%s\t%i\t%i\t%i\t%i\t%s\t%s\n" %(motif_id, rbp_id, c_in_fg, c_not_in_fg, c_in_bg, c_not_in_bg, str(p_value), str(p_value_corr)))
+        COSOUT.write("%s\t%s\t%i\t%i\t%i\t%i\t%i\t%i\t%s\t%s\n" %(motif_id, rbp_id, c_in_fg, c_not_in_fg, c_in_bg, c_not_in_bg, pos_set_avg_center_dist, neg_set_avg_center_dist, str(p_value), str(p_value_corr)))
 
     COSOUT.close()
 
@@ -16879,7 +16986,7 @@ def main_nemo(args):
 
         # Loop over positive hits.
 
-        for fh in pos_fimo_hits_list:
+        for fh in flt_pos_fimo_hits_list:
 
             motif_id = fh.motif_id
 
@@ -16917,7 +17024,7 @@ def main_nemo(args):
                 rid2mtfidx2hcp_dic[region_id][mtf_idx].append(center_pos)
 
 
-        for cmsh in pos_cmsearch_hits_list:
+        for cmsh in flt_pos_cmsearch_hits_list:
 
             motif_id = cmsh.motif_id
 
@@ -17042,9 +17149,6 @@ def main_nemo(args):
             assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(args.cooc_pval_mode)
 
         args.cooc_pval_thr = cooc_pval_thr
-
-
-        # AALAMO
 
         # Update + filter p-values.
         COSOUT = open(cooc_stats_out, "w")
@@ -17207,7 +17311,6 @@ def main_nemo(args):
         benchlib.log_tf_df(df_pval, convert_zero_pv=True, rbp_list=sig_motif_ids_list)
 
 
-
     """
     make html report.
     Check additional options?
@@ -17298,9 +17401,9 @@ class MotifEnrich:
 
 
 
-    html_report_out = args.out_folder + "/" + "report.rbpbench_enmo.html"
+    html_report_out = args.out_folder + "/" + "report.rbpbench_nemo.html"
     if args.plot_abs_paths:
-        html_report_out = os.path.abspath(args.out_folder) + "/" + "report.rbpbench_enmo.html"
+        html_report_out = os.path.abspath(args.out_folder) + "/" + "report.rbpbench_nemo.html"
     # If HTML file already exists, remove it.
     if os.path.exists(html_report_out):
         os.remove(html_report_out)
@@ -17309,7 +17412,7 @@ class MotifEnrich:
     plots_subfolder = "html_report_plots"
 
     print("Create report ... ")
-    benchlib.enmo_generate_html_report(args, motif_enrich_stats_dic, 
+    benchlib.nemo_generate_html_report(args, motif_enrich_stats_dic, 
                                        seq_motif_blocks_dic,
                                        benchlib_path,
                                        df_pval=df_pval,
@@ -17319,55 +17422,9 @@ class MotifEnrich:
                                        pos_reg2annot_dic=pos_reg2annot_dic,
                                        neg_reg2annot_dic=neg_reg2annot_dic,
                                        annot2color_dic=annot2color_dic,
-                                       rbpbench_mode="enmo",
+                                       rbpbench_mode="nemo",
                                        html_report_out=html_report_out,
                                        plots_subfolder=plots_subfolder)
-
-
-
-    # AALAMO
-
-
-    """
-                                        motif_db_str=motif_db_str,
-                                        regex_id=regex_id,
-                                        seq_motif_blocks_dic=seq_motif_blocks_dic,
-                                        max_motif_dist=args.max_motif_dist,
-                                        min_motif_dist=args.min_motif_dist,
-                                        motif_distance_plot_range=args.motif_distance_plot_range,
-                                        motif_min_pair_count=args.motif_min_pair_count,
-                                        rbp_min_pair_count=args.rbp_min_pair_count,
-                                        reg2annot_dic=reg2annot_dic,
-                                        annot2color_dic=annot2color_dic,
-                                        upset_plot_min_degree=args.upset_plot_min_degree,
-                                        upset_plot_max_degree=args.upset_plot_max_degree,
-                                        upset_plot_min_subset_size=args.upset_plot_min_subset_size,
-                                        upset_plot_max_subset_rank=args.upset_plot_max_subset_rank,
-                                        upset_plot_min_rbp_count=args.upset_plot_min_rbp_count,
-                                        upset_plot_max_rbp_rank=args.upset_plot_max_rbp_rank,
-                                        add_all_reg_bar=args.add_all_reg_bar,
-                                        run_goa=args.run_goa,
-                                        goa_results_df=goa_results_df,
-                                        goa_stats_dic=goa_stats_dic,
-                                        goa_min_depth=args.goa_min_depth,
-                                        goa_max_child=args.goa_max_child,
-                                        goa_filter_purified=args.goa_filter_purified,
-                                        goa_only_cooc=args.goa_only_cooc,
-
-                                        plot_abs_paths=args.plot_abs_paths,
-                                        sort_js_mode=args.sort_js_mode,
-                                        plotly_js_mode=args.plotly_js_mode,
-                                        cooc_pval_thr=cooc_pval_thr,
-                                        c_all_fisher_pval=c_all_fisher_pval,
-                                        c_sig_fisher_pval=c_sig_fisher_pval,
-                                        perc_sig_fisher_pval=perc_sig_fisher_pval,
-                                        cooc_pval_mode=args.cooc_pval_mode,
-                                        fimo_pval=args.fimo_pval,
-                                        reg_seq_str="regions",
-                                        report_header=args.report_header,
-                                        plots_subfolder=plots_subfolder)
-    """
-
 
 
 
@@ -17393,7 +17450,7 @@ class MotifEnrich:
     print("============")
     print("")
     print("Run parameter settings:\n%s" %(settings_file))
-    print("Motif enrichment stats .tsv:\n%s" %(enmo_stats_out))
+    print("Motif enrichment stats .tsv:\n%s" %(nemo_stats_out))
     print("Motif co-occurrence stats .tsv:\n%s" %(cooc_stats_out))
 
     print("Filtered input regions .bed:\n%s" %(filtered_sites_bed))
