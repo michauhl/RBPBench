@@ -2009,6 +2009,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help="Add ENCODE blacklist regions (hg38) to excluded regions set, i.e. do not sample from these blacklisted regions (default: False)")
+    p_em.add_argument("--bg-incl-bed",
+                   dest="bg_user_incl_bed",
+                   type=str,
+                   metavar='str',
+                   help = "Supply BED regions file (6-column format) to define from which regions to extract background sites. Make sure that regions are compatible with --in sites (genomic or transcript). By default, representative transcript regions for all genes from --gtf are used for this. Note that if extraction of needed number of background sites from --bg-incl-bed fails, all transcripts will be used in second try (or define which to use with --tr-list). Also note that --ada-sampling only applies to interally generated list of regions")
     p_em.add_argument("--bg-ada-sampling",
                    dest="bg_adaptive_sampling",
                    default = False,
@@ -2038,7 +2043,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Supply file with transcript IDs (one ID per row) to define which transcripts to use from --gtf to extract control regions")
+                   help = "Supply file with transcript IDs (one ID per row) to define which transcripts to use from --gtf to extract background sites")
     p_em.add_argument("--gtf-feat-min-overlap",
                    dest="gtf_feat_min_overlap",
                    type=float,
@@ -2062,8 +2067,8 @@ def setup_argument_parser():
                    dest="fimo_pval",
                    type=float,
                    metavar='float',
-                   default=0.001,
-                   help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
+                   default=0.0005,
+                   help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.0005)")
     p_em.add_argument("--fisher-mode",
                    dest="fisher_mode",
                    type=int,
@@ -2315,6 +2320,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help="Add ENCODE blacklist regions (hg38) to excluded regions set, i.e. do not sample from these blacklisted regions (default: False)")
+    p_nm.add_argument("--bg-incl-bed",
+                   dest="bg_user_incl_bed",
+                   type=str,
+                   metavar='str',
+                   help = "Supply BED regions file (6-column format) to define from which regions to extract background sites. Make sure that regions are compatible with --in sites (genomic or transcript). By default, representative transcript regions for all genes from --gtf are used for this. Note that if extraction of needed number of background sites from --bg-incl-bed fails, all transcripts will be used in second try (or define which to use with --tr-list). Also note that --ada-sampling only applies to interally generated list of regions")
     p_nm.add_argument("--bg-ada-sampling",
                    dest="bg_adaptive_sampling",
                    default = False,
@@ -2368,8 +2378,8 @@ def setup_argument_parser():
                    dest="fimo_pval",
                    type=float,
                    metavar='float',
-                   default=0.001,
-                   help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
+                   default=0.0005,
+                   help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.0005)")
     p_nm.add_argument("--fisher-mode",
                    dest="fisher_mode",
                    type=int,
@@ -2865,7 +2875,7 @@ def main_search(args):
 
     # Check --in BED format.
     if not args.unstranded:
-        benchlib.bed_check_format(args.in_sites)
+        benchlib.bed_check_format(args.in_sites, param_str="--in")
     # More checks.
     if args.upset_plot_max_degree is not None:
         assert args.upset_plot_max_degree >= args.upset_plot_min_degree, "set --upset-plot-max-degree needs to be >= --upset-plot-min-degree"
@@ -13155,7 +13165,13 @@ def main_enmo(args):
     assert os.path.exists(args.in_gtf), "--gtf file \"%s\" not found" % (args.in_gtf)
 
     # Check --in BED format.
-    benchlib.bed_check_format(args.in_sites)
+    benchlib.bed_check_format(args.in_sites, param_str="--in")
+    if args.bg_user_incl_bed:
+        assert os.path.exists(args.bg_user_incl_bed), "--bg-incl-bed \"%s\" not found" % (args.bg_user_incl_bed)
+        benchlib.bed_check_format(args.bg_user_incl_bed, param_str="--bg-incl-bed")
+    if args.bg_mask_bed:
+        assert os.path.exists(args.bg_mask_bed), "--bg-mask-bed \"%s\" not found" % (args.bg_mask_bed)
+        benchlib.bed_check_format(args.bg_mask_bed, param_str="--bg-mask-bed")
 
     # Is MEME >= v5 installed?
     if not args.meme_disable_check:
@@ -13691,6 +13707,8 @@ def main_enmo(args):
     # Get transcript lengths.
     tr_len_dic = {}
 
+    # AALAMO
+
     for tid in tid2tio_dic:
         tr_len_dic[tid] = tid2tio_dic[tid].tr_length
         total_tr_intron_len += tid2tio_dic[tid].total_intron_len
@@ -13753,6 +13771,7 @@ def main_enmo(args):
 
     pos_seqs_dic = {}
     tr_seqs_dic = {}
+
     if genomic_sites_input:
 
         print("Extract --in sequences from --genome ... ")
@@ -14063,7 +14082,6 @@ def main_enmo(args):
     bg_incl_bed:
         Background included regions BED
 
-
     """
     
     neg_seqs_dic = {}
@@ -14071,16 +14089,37 @@ def main_enmo(args):
     neg_seqs_bed = args.out_folder + "/background_sequences.bed"
     neg_seqs_fa = args.out_folder + "/background_sequences.fa"
 
-
     if args.bg_mode == 1:
 
         print("Background mode 1 ... ")
 
         print("Extract random background regions ... ")
-        check = benchlib.bed_generate_random_negatives(bg_shuffle_in_bed, chr_len_file, neg_seqs_tmp_bed,
-                                                       incl_bed=bg_incl_bed,
-                                                       excl_bed=bg_excl_bed,
-                                                       seed=args.random_seed)
+
+        check = False
+
+        if args.bg_user_incl_bed:
+            print("Use regions provided via --bg-incl-bed ... ")
+            check = benchlib.bed_generate_random_negatives(bg_shuffle_in_bed, chr_len_file, neg_seqs_tmp_bed,
+                                                        incl_bed=args.bg_user_incl_bed,
+                                                        excl_bed=bg_excl_bed,
+                                                        seed=args.random_seed)
+            if not check:
+                print("--bg-incl-bed regions not sufficient to sample required number of background sites. Try with more regions ... ")
+
+                check = benchlib.bed_generate_random_negatives(bg_shuffle_in_bed, chr_len_file, neg_seqs_tmp_bed,
+                                                            incl_bed=bg_incl_bed,
+                                                            excl_bed=bg_excl_bed,
+                                                            seed=args.random_seed)
+
+        else:
+            check = benchlib.bed_generate_random_negatives(bg_shuffle_in_bed, chr_len_file, neg_seqs_tmp_bed,
+                                                        incl_bed=bg_incl_bed,
+                                                        excl_bed=bg_excl_bed,
+                                                        seed=args.random_seed)
+
+        if not check:
+            print("Less than requested # of background sites sampled. Possible solutions: use lower --bg-min-size, use more transcripts (if --tr-list is set), or use less strict masking (if --bg-mask-bed is set)")
+            sys.exit()  
 
         seqs_fa = args.in_genome
         if not genomic_sites_input:
@@ -14122,10 +14161,6 @@ def main_enmo(args):
 
         # Filter BED file to discard regions for which no sequence was extracted.
         benchlib.bed_filter_by_seqs_dic(neg_seqs_dic, neg_seqs_tmp_bed, neg_seqs_bed)
-
-        if not check:
-            print("Need to sample with more regions ... ")
-            sys.exit()
 
     elif args.bg_mode == 2:
 
@@ -14563,7 +14598,7 @@ def main_enmo(args):
     motif_ids_list = []
     motif2con_table_dic = {}
     len_motif_ids = len(found_motif_ids_dic)
-    motif_enrich_stats_dic = {}  # Store MotifEnrich stats objects.
+    motif_enrich_stats_dic = {}  # Store EnmoStats stats objects.
 
     if not found_motif_ids_dic:
         print("No motifs found in any regions (input or background). Exiting ... ")
@@ -14576,7 +14611,7 @@ def main_enmo(args):
         rbp_id = id2name_dic[motif_id]
         motif_type = id2type_dic[motif_id]
 
-        motif_enrich_stats = benchlib.MotifEnrich(motif_id, rbp_id)
+        motif_enrich_stats = benchlib.EnmoStats(motif_id, rbp_id)
         motif_enrich_stats.motif_type = motif_type
         motif_enrich_stats.c_pos_regions = c_pos_regions
         motif_enrich_stats.c_neg_regions = c_neg_regions
@@ -15088,7 +15123,7 @@ def main_enmo(args):
     Check additional options?
     
     
-class MotifEnrich:
+class EnmoStats:
 
     def __init__(self,
                  motif_id: str,
@@ -15247,7 +15282,13 @@ def main_nemo(args):
     assert os.path.exists(args.in_gtf), "--gtf file \"%s\" not found" % (args.in_gtf)
 
     # Check --in BED format.
-    benchlib.bed_check_format(args.in_sites)
+    benchlib.bed_check_format(args.in_sites, param_str="--in")
+    if args.bg_user_incl_bed:
+        assert os.path.exists(args.bg_user_incl_bed), "--bg-incl-bed \"%s\" not found" % (args.bg_user_incl_bed)
+        benchlib.bed_check_format(args.bg_user_incl_bed, param_str="--bg-incl-bed")
+    if args.bg_mask_bed:
+        assert os.path.exists(args.bg_mask_bed), "--bg-mask-bed \"%s\" not found" % (args.bg_mask_bed)
+        benchlib.bed_check_format(args.bg_mask_bed, param_str="--bg-mask-bed")
 
     # Is MEME >= v5 installed?
     if not args.meme_disable_check:
@@ -15812,6 +15853,9 @@ def main_nemo(args):
     else:
         assert False, "invalid --ext argument provided (correct format: --ext 10 OR --ext 20,10)"
 
+    max_ext = max(ext_up, ext_down)
+    assert max_ext > 0, "--ext <= 0. Please provide a positive value to define context size to check for neighboring motifs"  
+
     print("--in extension upstream == %i, downstream == %i ... " %(ext_up, ext_down))
 
     # Filter / extend --in BED.
@@ -15840,6 +15884,24 @@ def main_nemo(args):
     print("# regions filtered by score:   ", reg_stats_dic["c_sc_thr"])
 
     assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID (or optionally score) filtering. If caused by invalid chr_id filtering, make sure chromosome IDs in --genome FASTA and --in BED files are compatible (i.e., \"chr1\" vs. \"1\" notation). If --in regions are on transcripts, use rbpbench searchrna"
+
+    # Check if all core regions have same length.
+    core_reg_len_list = []
+    for reg_id in core_reg_dic:
+        core_reg_len_list.append(core_reg_dic[reg_id][2] - core_reg_dic[reg_id][1])
+    core_reg_len_set = set(core_reg_len_list)
+    if len(core_reg_len_set) != 1:
+        print("WARNING: --in sites differ in length. For optimal results provide same length sites (e.g. motif hit sites or single positions)")
+    max_core_len = max(core_reg_len_set)
+
+    # AALAMO
+    from math import ceil
+    max_dist_plot_range = max_ext + ceil(max_core_len/2)
+    dist_plot_range = range(-max_dist_plot_range, max_dist_plot_range+1)
+
+    print("Maximum --in site length: ", max_core_len)
+    print("Motif distance plot range:", max_dist_plot_range)
+
 
     fasta_index_file = tr_seqs_fa + ".fai"
     if os.path.exists(fasta_index_file):
@@ -16207,14 +16269,32 @@ def main_nemo(args):
         print("Background mode 1 ... ")
 
         print("Extract random background regions ... ")
-        check = benchlib.bed_generate_random_negatives(bg_shuffle_in_bed, chr_len_file, neg_seqs_tmp_bed,
-                                                       incl_bed=bg_incl_bed,
-                                                       excl_bed=bg_excl_bed,
-                                                       seed=args.random_seed)
+
+        check = False
+
+        if args.bg_user_incl_bed:
+            print("Use regions provided via --bg-incl-bed to sample background sites from ... ")
+            check = benchlib.bed_generate_random_negatives(bg_shuffle_in_bed, chr_len_file, neg_seqs_tmp_bed,
+                                                        incl_bed=args.bg_user_incl_bed,
+                                                        excl_bed=bg_excl_bed,
+                                                        seed=args.random_seed)
+            if not check:
+                print("--bg-incl-bed regions not sufficient to sample required number of background sites. Try with more regions ... ")
+
+                check = benchlib.bed_generate_random_negatives(bg_shuffle_in_bed, chr_len_file, neg_seqs_tmp_bed,
+                                                            incl_bed=bg_incl_bed,
+                                                            excl_bed=bg_excl_bed,
+                                                            seed=args.random_seed)
+
+        else:
+            check = benchlib.bed_generate_random_negatives(bg_shuffle_in_bed, chr_len_file, neg_seqs_tmp_bed,
+                                                        incl_bed=bg_incl_bed,
+                                                        excl_bed=bg_excl_bed,
+                                                        seed=args.random_seed)
 
         if not check:
-            print("Need to sample with more regions ... ")
-            sys.exit()
+            print("Less than requested # of background sites sampled. Possible solutions: use lower --bg-min-size, use more transcripts (if --tr-list is set), or use less strict masking (if --bg-mask-bed is set)")
+            sys.exit()  
 
         seqs_fa = args.in_genome
         if not genomic_sites_input:
@@ -16659,6 +16739,8 @@ def main_nemo(args):
     found_motif_ids_dic = {}
     pos_avg_center_dist_dic = {}
     neg_avg_center_dist_dic = {}
+    pos_dist_c_dic = {}  # For each encountered center distance, count number of occurrences.
+    neg_dist_c_dic = {}
 
     for fh in flt_pos_fimo_hits_list:
 
@@ -16667,10 +16749,18 @@ def main_nemo(args):
         # fh.seq_name : FASTA header (== --in genomic sequence region).
         reg_id = fh.seq_name
 
+        cedi = fh.center_dist
+
         if motif_id in pos_avg_center_dist_dic:
-            pos_avg_center_dist_dic[motif_id] += fh.center_dist
+            pos_avg_center_dist_dic[motif_id] += cedi
+            if cedi in pos_dist_c_dic[motif_id]:
+                pos_dist_c_dic[motif_id][cedi] += 1
+            else:
+                pos_dist_c_dic[motif_id][cedi] = 1
         else:
-            pos_avg_center_dist_dic[motif_id] = fh.center_dist
+            pos_avg_center_dist_dic[motif_id] = cedi
+            pos_dist_c_dic[motif_id] = {}
+            pos_dist_c_dic[motif_id][cedi] = 1
 
         if motif_id in pos_hits_dic:
             if reg_id in pos_hits_dic[motif_id]:
@@ -16692,10 +16782,18 @@ def main_nemo(args):
         rbp_id = id2name_dic[motif_id]
         reg_id = fh.seq_name
 
+        cedi = fh.center_dist
+
         if motif_id in neg_avg_center_dist_dic:
-            neg_avg_center_dist_dic[motif_id] += fh.center_dist
+            neg_avg_center_dist_dic[motif_id] += cedi
+            if cedi in neg_dist_c_dic[motif_id]:
+                neg_dist_c_dic[motif_id][cedi] += 1
+            else:
+                neg_dist_c_dic[motif_id][cedi] = 1
         else:
-            neg_avg_center_dist_dic[motif_id] = fh.center_dist
+            neg_avg_center_dist_dic[motif_id] = cedi
+            neg_dist_c_dic[motif_id] = {}
+            neg_dist_c_dic[motif_id][cedi] = 1
 
         if motif_id in neg_hits_dic:
             if reg_id in neg_hits_dic[motif_id]:
@@ -16717,10 +16815,18 @@ def main_nemo(args):
         rbp_id = id2name_dic[motif_id]
         reg_id = cmsh.seq_name
 
+        cedi = cmsh.center_dist
+
         if motif_id in pos_avg_center_dist_dic:
-            pos_avg_center_dist_dic[motif_id] += cmsh.center_dist
+            pos_avg_center_dist_dic[motif_id] += cedi
+            if cedi in pos_dist_c_dic[motif_id]:
+                pos_dist_c_dic[motif_id][cedi] += 1
+            else:
+                pos_dist_c_dic[motif_id][cedi] = 1
         else:
-            pos_avg_center_dist_dic[motif_id] = cmsh.center_dist
+            pos_avg_center_dist_dic[motif_id] = cedi
+            pos_dist_c_dic[motif_id] = {}
+            pos_dist_c_dic[motif_id][cedi] = 1
 
         if motif_id in pos_hits_dic:
             if reg_id in pos_hits_dic[motif_id]:
@@ -16742,10 +16848,18 @@ def main_nemo(args):
         rbp_id = id2name_dic[motif_id]
         reg_id = cmsh.seq_name
 
+        cedi = cmsh.center_dist
+
         if motif_id in neg_avg_center_dist_dic:
-            neg_avg_center_dist_dic[motif_id] += cmsh.center_dist
+            neg_avg_center_dist_dic[motif_id] += cedi
+            if cedi in neg_dist_c_dic[motif_id]:
+                neg_dist_c_dic[motif_id][cedi] += 1
+            else:
+                neg_dist_c_dic[motif_id][cedi] = 1
         else:
-            neg_avg_center_dist_dic[motif_id] = cmsh.center_dist
+            neg_avg_center_dist_dic[motif_id] = cedi
+            neg_dist_c_dic[motif_id] = {}
+            neg_dist_c_dic[motif_id][cedi] = 1
 
         if motif_id in neg_hits_dic:
             if reg_id in neg_hits_dic[motif_id]:
@@ -16784,8 +16898,9 @@ def main_nemo(args):
     p_val_list = []
     motif_ids_list = []
     motif2con_table_dic = {}
+    # motif2dist_plot_pos_dic = {}  # positional motif hit counts over input sites for each motif ID. 
     len_motif_ids = len(found_motif_ids_dic)
-    motif_enrich_stats_dic = {}  # Store MotifEnrich stats objects.
+    motif_enrich_stats_dic = {}  # Store NemoStats stats objects.
 
     if not found_motif_ids_dic:
         print("No motifs found in any regions (input or background). Exiting ... ")
@@ -16798,7 +16913,7 @@ def main_nemo(args):
         rbp_id = id2name_dic[motif_id]
         motif_type = id2type_dic[motif_id]
 
-        motif_enrich_stats = benchlib.MotifEnrich(motif_id, rbp_id)
+        motif_enrich_stats = benchlib.NemoStats(motif_id, rbp_id)
         motif_enrich_stats.motif_type = motif_type
         motif_enrich_stats.c_pos_regions = c_pos_regions
         motif_enrich_stats.c_neg_regions = c_neg_regions
@@ -16813,6 +16928,44 @@ def main_nemo(args):
 
         motif_enrich_stats.pos_set_avg_center_dist = pos_avg_center_dist_dic[motif_id] / c_pos_hits
 
+        # Get center distance position with maximum count from pos_dist_c_dic[motif_id], where key is position and value is count.
+        pos_set_max_center_dist = max(pos_dist_c_dic[motif_id], key=pos_dist_c_dic[motif_id].get)
+        motif_enrich_stats.pos_set_max_center_dist = pos_set_max_center_dist
+        motif_enrich_stats.pos_set_max_center_dist_c = pos_dist_c_dic[motif_id][pos_set_max_center_dist]
+    
+        # Make positional motif hit counts dictionary (input sites only) for every motif ID.
+        dist_plot_counts_dic = {dist: 0 for dist in dist_plot_range}
+        for dist in pos_dist_c_dic[motif_id]:
+            if dist in dist_plot_counts_dic:
+                dist_plot_counts_dic[dist] = pos_dist_c_dic[motif_id][dist]
+        # motif2dist_plot_pos_dic[motif_id] = dist_plot_counts_dic
+
+        # AALAMO
+
+        # if motif_id == "RBFOX1_3":
+        #     print(motif_id)
+        #     print(dist_plot_counts_dic)
+
+        upstream_counts = []
+        downstream_counts = []
+        for dist in dist_plot_counts_dic:
+            if dist > 0:
+                upstream_counts.append(dist_plot_counts_dic[dist])
+            elif dist < 0:
+                downstream_counts.append(dist_plot_counts_dic[dist])
+
+        motif_enrich_stats.dist_plot_counts_dic = dist_plot_counts_dic
+
+        # Wilcoxon rank-sum test.
+        wrs_alt_hypo = "two-sided"
+        wrs_test_stat, wrs_pval = mannwhitneyu(upstream_counts, downstream_counts, alternative=wrs_alt_hypo)
+        # Round p-values to 4 significant digits.
+        wrs_pval = benchlib.round_to_n_significant_digits_v2(wrs_pval, 4)
+
+        motif_enrich_stats.wrs_pval = wrs_pval
+        motif_enrich_stats.wrs_test_stat = wrs_test_stat
+        motif_enrich_stats.wrs_alt_hypo = wrs_alt_hypo
+
         c_neg_hits = 0
         c_neg_hit_regions = 0
 
@@ -16822,6 +16975,10 @@ def main_nemo(args):
                 c_neg_hit_regions += 1
 
         motif_enrich_stats.neg_set_avg_center_dist = neg_avg_center_dist_dic[motif_id] / c_neg_hits
+
+        neg_set_max_center_dist = max(neg_dist_c_dic[motif_id], key=neg_dist_c_dic[motif_id].get)
+        motif_enrich_stats.neg_set_max_center_dist = neg_set_max_center_dist
+        motif_enrich_stats.neg_set_max_center_dist_c = neg_dist_c_dic[motif_id][neg_set_max_center_dist]
 
         motif_enrich_stats.c_pos_hits = c_pos_hits
         motif_enrich_stats.c_neg_hits = c_neg_hits
@@ -16895,7 +17052,7 @@ def main_nemo(args):
     sig_motif_ids_list = []  # significant motif IDs list.
 
     COSOUT = open(nemo_stats_out, "w")
-    COSOUT.write("motif_id\trbp_id\tc_in_fg\tc_not_in_fg\tc_in_bg\tc_not_in_bg\tpos_avg_dist\tneg_avg_dist\tfisher_pval\tfisher_pval_corr\n")
+    COSOUT.write("motif_id\trbp_id\tc_in_fg\tc_not_in_fg\tc_in_bg\tc_not_in_bg\tpos_avg_dist\tpos_max_dist\tpos_max_dist_c\tneg_avg_dist\tneg_max_dist\tneg_max_dist_c\tfisher_pval\tfisher_pval_corr\n")
 
     for idx, motif_id in enumerate(motif_ids_list):
 
@@ -16914,15 +17071,19 @@ def main_nemo(args):
         p_value = benchlib.round_to_n_significant_digits_v2(p_value, 4)
         motif_enrich_stats_dic[motif_id].fisher_pval = p_value
 
-        pos_set_avg_center_dist = motif_enrich_stats_dic[motif_id].pos_set_avg_center_dist
-        neg_set_avg_center_dist = motif_enrich_stats_dic[motif_id].neg_set_avg_center_dist
+        pos_set_avg_center_dist = round(motif_enrich_stats_dic[motif_id].pos_set_avg_center_dist, 1)
+        neg_set_avg_center_dist = round(motif_enrich_stats_dic[motif_id].neg_set_avg_center_dist, 1)
+        pos_set_max_center_dist = motif_enrich_stats_dic[motif_id].pos_set_max_center_dist
+        neg_set_max_center_dist = motif_enrich_stats_dic[motif_id].neg_set_max_center_dist
+        pos_set_max_center_dist_c = motif_enrich_stats_dic[motif_id].pos_set_max_center_dist_c
+        neg_set_max_center_dist_c = motif_enrich_stats_dic[motif_id].neg_set_max_center_dist_c
 
         if p_value_corr <= nemo_pval_thr:
             c_sig_fisher_pval += 1
             sig_motif_ids_list.append(motif_id)
         c_all_fisher_pval += 1
 
-        COSOUT.write("%s\t%s\t%i\t%i\t%i\t%i\t%i\t%i\t%s\t%s\n" %(motif_id, rbp_id, c_in_fg, c_not_in_fg, c_in_bg, c_not_in_bg, pos_set_avg_center_dist, neg_set_avg_center_dist, str(p_value), str(p_value_corr)))
+        COSOUT.write("%s\t%s\t%i\t%i\t%i\t%i\t%s\t%i\t%i\t%s\t%i\t%i\t%s\t%s\n" %(motif_id, rbp_id, c_in_fg, c_not_in_fg, c_in_bg, c_not_in_bg, str(pos_set_avg_center_dist), pos_set_max_center_dist, pos_set_max_center_dist_c, str(neg_set_avg_center_dist), neg_set_max_center_dist, neg_set_max_center_dist_c, str(p_value), str(p_value_corr)))
 
     COSOUT.close()
 
@@ -17316,7 +17477,7 @@ def main_nemo(args):
     Check additional options?
     
     
-class MotifEnrich:
+class NemoStats:
 
     def __init__(self,
                  motif_id: str,
@@ -17768,7 +17929,7 @@ def main_optex(args):
 
     assert os.path.exists(args.in_sites), "--in file \"%s\" not found" % (args.in_sites)
     # Check --in BED format.
-    benchlib.bed_check_format(args.in_sites)
+    benchlib.bed_check_format(args.in_sites, param_str="--in")
 
     # Reformat user_rbp_id. 
     rbp_id = benchlib.remove_special_chars_from_str(args.rbp_id)
@@ -18415,7 +18576,7 @@ def main_dist(args):
     assert args.ext_up_down >= 0 and args.ext_up_down <= 100, "please use reasonable --ext (>= 0 AND <= 100)"
 
     # Check --in BED format.
-    benchlib.bed_check_format(args.in_sites)
+    benchlib.bed_check_format(args.in_sites, param_str="--in")
 
     """
     Output folders + files.

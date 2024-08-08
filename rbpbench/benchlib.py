@@ -3482,7 +3482,8 @@ def is_tool(name):
 
 ################################################################################
 
-def bed_check_format(bed_file, asserts=True):
+def bed_check_format(bed_file, asserts=True,
+                     param_str=False):
     """
     Check whether given BED file is not empty + has >= 6 columns.
 
@@ -3491,6 +3492,7 @@ def bed_check_format(bed_file, asserts=True):
     True
     
     """
+
     pols = ["+", "-"]
     okay = False
     with open(bed_file) as f:
@@ -3510,7 +3512,10 @@ def bed_check_format(bed_file, asserts=True):
                         break
     f.closed
     if asserts:
-        assert okay, "invalid --in BED format (file empty?)"
+        false_msg = "provided file \"%s\" not in BED format (file empty or not in 6-column format?)" %(bed_file)
+        if param_str:
+            false_msg = "provided file \"%s\" (via %s) not in BED format (file empty or not in 6-column format?)" %(bed_file, param_str)
+        assert okay, false_msg
     return okay
 
 
@@ -4494,7 +4499,48 @@ def get_length_from_seq_name(seq_name):
 
 ################################################################################
 
-class MotifEnrich:
+class EnmoStats:
+    """
+    Store motif enrichment stats for each motif.
+    
+    """
+
+    def __init__(self,
+                 motif_id: str,
+                 rbp_id: str,
+                 c_pos_hit_regions = 0,
+                 c_neg_hit_regions = 0,
+                 c_pos_regions = 0,
+                 c_neg_regions = 0,
+                 c_pos_hits = 0,
+                 c_neg_hits = 0,
+                 con_table = False,  # Continency table.
+                 fisher_pval = 1.0,
+                 fisher_pval_corr = 1.0,
+                 fisher_corr_mode = 1,  # 1: BH, 2: Bonferroni, 3: no correction
+                 fisher_alt_hyp_mode = 1,  # Alternative hypothesis mode, 1: greater, 2: two-sided, 3: less
+                 motif_type="meme_xml",
+                 logo_png_file = False) -> None:
+        self.motif_id = motif_id
+        self.rbp_id = rbp_id
+        self.c_pos_hit_regions = c_pos_hit_regions
+        self.c_neg_hit_regions = c_neg_hit_regions
+        self.c_pos_regions = c_pos_regions
+        self.c_neg_regions = c_neg_regions
+        self.c_pos_hits = c_pos_hits
+        self.c_neg_hits = c_neg_hits
+        self.con_table = con_table
+        self.fisher_pval = fisher_pval
+        self.fisher_pval_corr = fisher_pval_corr
+        self.fisher_corr_mode = fisher_corr_mode
+        self.fisher_alt_hyp_mode = fisher_alt_hyp_mode
+        self.motif_type = motif_type
+        self.logo_png_file = logo_png_file
+
+
+################################################################################
+
+class NemoStats:
     """
     Store motif enrichment stats for each motif.
     
@@ -4517,7 +4563,15 @@ class MotifEnrich:
                  motif_type="meme_xml",
                  pos_set_avg_center_dist=0,
                  neg_set_avg_center_dist=0,
-                 logo_png_file = False) -> None:
+                 pos_set_max_center_dist=0,
+                 pos_set_max_center_dist_c=0,
+                 neg_set_max_center_dist=0,
+                 neg_set_max_center_dist_c=0,
+                 logo_png_file = False,
+                 wrs_pval=False,
+                 wrs_test_stat=False,
+                 wrs_alt_hypo="two-sided",
+                 dist_plot_counts_dic={}) -> None:
         self.motif_id = motif_id
         self.rbp_id = rbp_id
         self.c_pos_hit_regions = c_pos_hit_regions
@@ -4532,7 +4586,14 @@ class MotifEnrich:
         self.fisher_corr_mode = fisher_corr_mode
         self.fisher_alt_hyp_mode = fisher_alt_hyp_mode
         self.motif_type = motif_type
+        self.pos_set_avg_center_dist = pos_set_avg_center_dist
+        self.neg_set_avg_center_dist = neg_set_avg_center_dist
+        self.pos_set_max_center_dist = pos_set_max_center_dist
+        self.pos_set_max_center_dist_c = pos_set_max_center_dist_c
+        self.neg_set_max_center_dist = neg_set_max_center_dist
+        self.neg_set_max_center_dist_c = neg_set_max_center_dist_c
         self.logo_png_file = logo_png_file
+        self.dist_plot_counts_dic = dist_plot_counts_dic
 
 
 ################################################################################
@@ -8772,7 +8833,7 @@ For full motif results list regardless of significance, see *motif_enrichment_st
         pval = motif_enrich_stats_dic[motif_id].fisher_pval_corr
         pval_dic[motif_id] = pval
 
-    mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+    mdtext += '<table style="max-width: 1400px; width: 100%; border-collapse: collapse; line-height: 0.9;">' + "\n"
     mdtext += "<thead>\n"
     mdtext += "<tr>\n"
     mdtext += "<th>RBP ID</th>\n"
@@ -8785,7 +8846,13 @@ For full motif results list regardless of significance, see *motif_enrichment_st
     mdtext += "<th># bg</th>\n"
     mdtext += "<th># not bg</th>\n"
     mdtext += "<th>avg in dist</th>\n"
+    # mdtext += "<th>max in dist</th>\n"
+    # mdtext += "<th># max in dist</th>\n"
     mdtext += "<th>avg bg dist</th>\n"
+    # mdtext += "<th>max bg dist</th>\n"
+    # mdtext += "<th># max bg dist</th>\n"
+    mdtext += "<th>WRS p-value</th>\n"
+    mdtext += "<th>Motif distance plot</th>\n"
     mdtext += "<th>p-value</th>\n"
     mdtext += "</tr>\n"
     mdtext += "</thead>\n"
@@ -8805,12 +8872,24 @@ For full motif results list regardless of significance, see *motif_enrichment_st
         c_neg_regions = motif_enrich_stats_dic[motif_id].c_neg_regions
         pos_avg_center_dist = round(motif_enrich_stats_dic[motif_id].pos_set_avg_center_dist, 1)
         neg_avg_center_dist = round(motif_enrich_stats_dic[motif_id].neg_set_avg_center_dist, 1)
+        pos_max_center_dist = motif_enrich_stats_dic[motif_id].pos_set_max_center_dist
+        pos_max_center_dist_c = motif_enrich_stats_dic[motif_id].pos_set_max_center_dist_c
+        neg_max_center_dist = motif_enrich_stats_dic[motif_id].neg_set_max_center_dist
+        neg_max_center_dist_c = motif_enrich_stats_dic[motif_id].neg_set_max_center_dist_c
+
+
+        # dist_plot_counts_dic format: {pos: count, ...}, e.g. from -5 to 5: {5: 1, 4: 2, 3: 5, 2: 4, 1: 3, 0: 0, -1: 3, -2: 4, -3: 5, -4: 2, -5: 1}
+        dist_plot_counts_dic = motif_enrich_stats_dic[motif_id].dist_plot_counts_dic
+        wrs_pval = motif_enrich_stats_dic[motif_id].wrs_pval
+        wrs_test_stat = motif_enrich_stats_dic[motif_id].wrs_test_stat
+        wrs_alt_hypo = motif_enrich_stats_dic[motif_id].wrs_alt_hypo
+
         a_con = c_pos_hit_regions
         b_con = c_pos_regions - c_pos_hit_regions
         c_con = c_neg_hit_regions
         d_con = c_neg_regions - c_neg_hit_regions
 
-        plot_str = "-"
+        motif_plot_str = "-"
 
         if motif_id in seq_motif_blocks_dic:
 
@@ -8826,12 +8905,42 @@ For full motif results list regardless of significance, see *motif_enrichment_st
                 create_motif_plot(motif_id, seq_motif_blocks_dic,
                                     motif_plot_out)
 
-            plot_str = '<image src = "' + plot_path + '" width="300px"></image>'
+            motif_plot_str = '<image src = "' + plot_path + '" width="300px"></image>'
+
+
+        # Plot motif distances to center as positions on x-axis and counts on y-axis.
+        # positions = list(dist_plot_counts_dic.keys())
+        # counts = list(dist_plot_counts_dic.values())
+        positions = sorted(dist_plot_counts_dic.keys(), reverse=True)
+        counts = [dist_plot_counts_dic[pos] for pos in positions]
+
+        plt.figure(figsize=(16, 2))
+        plt.plot(positions, counts, marker='o', linestyle='-', color='b', markersize=3)
+        plt.xlabel('Position')
+        plt.ylabel('Count')
+
+        plt.xlim(min(positions) - 1, max(positions) + 1)
+
+        plt.grid(False)
+        plt.gca().spines['top'].set_visible(False)
+        plt.gca().spines['right'].set_visible(False)
+        plt.axvline(x=0, color='r', linestyle='--')
+
+        plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.25)
+
+        dist_plot = "%s.%s.motif_hit_dist_center.png" %(rbp_id, motif_id)
+        dist_plot_out = plots_out_folder + "/" + dist_plot
+        plot_path = plots_folder + "/" + dist_plot
+
+        plt.savefig(dist_plot_out)
+        dist_plot_str = '<image src = "' + plot_path + '" width="300px"></image>'
+
+
 
         mdtext += '<tr>' + "\n"
         mdtext += "<td>" + rbp_id + "</td>\n"
         mdtext += "<td>" + motif_id + "</td>\n"
-        mdtext += "<td>" + plot_str + "</td>\n"
+        mdtext += "<td>" + motif_plot_str + "</td>\n"
         mdtext += "<td>" + str(c_pos_hits) + "</td>\n"
         mdtext += "<td>" + str(c_neg_hits) + "</td>\n"
         mdtext += "<td>" + str(a_con) + "</td>\n"
@@ -8839,7 +8948,13 @@ For full motif results list regardless of significance, see *motif_enrichment_st
         mdtext += "<td>" + str(c_con) + "</td>\n"
         mdtext += "<td>" + str(d_con) + "</td>\n"
         mdtext += "<td>" + str(pos_avg_center_dist) + "</td>\n"
+        # mdtext += "<td>" + str(pos_max_center_dist) + "</td>\n"
+        # mdtext += "<td>" + str(pos_max_center_dist_c) + "</td>\n"
         mdtext += "<td>" + str(neg_avg_center_dist) + "</td>\n"
+        # mdtext += "<td>" + str(neg_max_center_dist) + "</td>\n"
+        # mdtext += "<td>" + str(neg_max_center_dist_c) + "</td>\n"
+        mdtext += "<td>" + str(wrs_pval) + "</td>\n"
+        mdtext += "<td>" + dist_plot_str + "</td>\n"
         mdtext += "<td>" + str(fisher_pval) + "</td>\n"
         mdtext += '</tr>' + "\n"
 
@@ -8858,10 +8973,15 @@ For full motif results list regardless of significance, see *motif_enrichment_st
     mdtext += '**# bg** -> number of background sites with motif hits, '
     mdtext += '**# not bg** -> number of background sites without motif hits, '
     mdtext += '**avg in dist** -> average distance of motif hits to center of input sites (positive value indicates motifs tend to be located upstream of input sites, whereas negative value indicates downstream), '
+    # mdtext += '**max in dist** -> distance position with maximum count (i.e., where most motif hit centers lie relative to input site centers), '
+    # mdtext += '**# max in dist** -> number of motif hits at distance position with maximum count for input sites, '
     mdtext += '**avg bg dist** -> average distance of motif hits to center of background sites (positive value indicates motifs tend to be located upstream of input sites, whereas negative value indicates downstream), '
+    # mdtext += '**max bg dist** -> distance position with maximum count (i.e., where most motif hit centers lie relative to background site centers), '
+    # mdtext += '**# max bg dist** -> number of motif hits at distance position with maximum count for background sites, '
+    mdtext += '**WRS p-value** -> Wilcoxon rank sum test p-value to test for significantly different counts in up- and downstream context regions.' + "\n"
+    mdtext += "**Motif distance plot** -> visualization of motif distance plot (counting motif hit center occurrences relative to input site centers), "
     mdtext += '**p-value** -> Fisher exact test p-value (corrected).' + "\n"
     mdtext += "\n&nbsp;\n"
-
 
 
     """
