@@ -18,8 +18,8 @@ import numpy as np
 from upsetplot import UpSet
 from packaging import version
 from sklearn.decomposition import PCA
-from sklearn.decomposition import SparsePCA
-from itertools import combinations
+# from sklearn.decomposition import SparsePCA
+from itertools import product
 from scipy.stats import fisher_exact
 from scipy.stats import false_discovery_control  # Benjamini-Hochberg correction.
 from goatools.obo_parser import GODag
@@ -118,6 +118,185 @@ def is_valid_regex(regex):
         return True
     except re.error:
         return False
+
+
+################################################################################
+
+def get_seqs_from_regex(regex):
+    """
+    Given a regex, e.g., A[CG]T[AG], return all possible sequences 
+    that match the regex.
+
+    >>> get_seqs_from_regex("A[CG]T[AG]")
+    ['ACTA', 'ACTG', 'AGTA', 'AGTG']
+    
+    """
+
+    assert regex, "given regex empty"
+    assert is_valid_regex(regex), "Regex \"%s\" is not a valid regex" %(regex)
+
+    # Extract fixed parts and variable parts.
+    fixed_parts = re.split(r'\[.*?\]', regex)
+    variable_parts = re.findall(r'\[(.*?)\]', regex)
+
+    # Generate all combinations of the variable parts.
+    combinations = list(product(*variable_parts))
+
+    # Assemble all sequences matched by the regex.
+    seqs_list = []
+    for combo in combinations:
+        seq = ''.join([fixed_part + combo_part for fixed_part, combo_part in zip(fixed_parts, combo + ('',))])
+        seqs_list.append(seq)
+
+    assert seqs_list, "no matching sequences extracted from regex \"%s\"" %(regex)
+
+    return seqs_list
+
+
+################################################################################
+
+def get_seq_parts_from_regex(regex):
+    """
+    Split a regex into single sequence parts, e.g.
+    'A[CG]AT[AG][CT]C' -> ['A', 'CG', 'AT', 'AG', 'CT', 'C']
+
+    >>> get_seq_parts_from_regex('A[CG]AT[AG]AA')
+    ['A', 'CG', 'A', 'T', 'AG', 'A', 'A']
+    >>> get_seq_parts_from_regex('ACGT')
+    ['A', 'C', 'G', 'T']
+    >>> get_seq_parts_from_regex('[ACGT]')
+    ['ACGT']
+    
+    """
+    assert regex, "given regex empty"
+    assert is_valid_regex(regex), "Regex \"%s\" is not a valid regex" %(regex)
+
+    search_regex = r'[A-Z]+|\[[A-Z]+\]'
+
+    parts = re.findall(search_regex, regex)
+
+    split_parts = []
+    for part in parts:
+        if part.startswith('[') and part.endswith(']'):
+            split_parts.append(part)
+        else:
+            split_parts.extend(list(part))
+
+    # Remove brackets from variable parts.
+    final_parts = [part.strip('[]') for part in split_parts]
+
+    assert final_parts, "no sequence parts extracted from regex \"%s\"" %(regex)
+
+    return final_parts
+
+
+################################################################################
+
+def seq_check_alphabet(seq, 
+                       alphabet=["A", "C", "G", "T"]):
+    """
+    Check if sequence uses only characters from given alphabet.
+
+    >>> seq_check_alphabet("ACGT", alphabet=["A", "C", "G", "T"])
+    True
+    >>> seq_check_alphabet("ACGT", alphabet=["A", "C", "G"])
+    False
+
+    """
+
+    assert seq, "given seq empty"
+
+    for nt in seq:
+        if nt not in alphabet:
+            return False
+    
+    return True
+
+
+################################################################################
+
+def seq_parts_to_motif_block(seq_parts_list,
+                             alphabet=["A", "C", "G", "T"]):
+    """
+    Convert sequence parts lists with format:
+    ['A', 'CG', 'A', 'T', 'AG', 'A', 'A']
+    to motif block format.
+
+    >>> seq_parts_to_motif_block(["A"], alphabet=["A", "C", "G", "T"])
+    ['letter-probability matrix: alength= 4 w= 1 nsites= 20 E= 0', '1.00000  0.00000  0.00000  0.00000']
+    >>> seq_parts_to_motif_block(["ACG"], alphabet=["A", "C", "G", "T"])
+    ['letter-probability matrix: alength= 4 w= 1 nsites= 20 E= 0', '0.33333  0.33333  0.33333  0.00000']
+    
+    """
+
+    assert seq_parts_list, "given seq_parts_list empty"
+
+    l_ab = len(alphabet)
+    matrix_head = "letter-probability matrix: alength= %i w= %i nsites= 20 E= 0" %(l_ab, len(seq_parts_list))
+    seq_motif_block = [matrix_head]
+    for part in seq_parts_list:
+        # part can be single nt or multiple nts string.
+        nts = set(list(part))
+        single_prob = 1.0 / len(nts)
+        line = ""
+        for i in range(l_ab):
+            if alphabet[i] in nts:
+                # Make single_prob 5 decimal places format, so always print 5 decimal places.
+                line += f"{single_prob:.5f}" + "  "
+            else:
+                line += "0.00000  "
+
+        seq_motif_block.append(line.strip())
+
+    return seq_motif_block
+
+
+################################################################################
+
+def seq_to_motif_block(seq,
+                       alphabet=["A", "C", "G", "T"]):
+    """
+    Convert sequence to motif block format.
+    
+    >>> seq_to_motif_block("A", alphabet=["A", "C", "G", "T"])
+    ['letter-probability matrix: alength= 4 w= 1 nsites= 20 E= 0', '1.00000  0.00000  0.00000  0.00000']
+
+    """
+
+    assert seq, "given seq empty"
+
+    l_seq = len(seq)
+    l_ab = len(alphabet)
+    matrix_head = "letter-probability matrix: alength= %i w= %i nsites= 20 E= 0" %(l_ab, l_seq)
+    seq_motif_block = [matrix_head]
+    for nt in seq:
+        line = ""
+        for i in range(l_ab):
+            if alphabet[i] == nt:
+                line += "1.00000  "
+            else:
+                line += "0.00000  "
+
+        seq_motif_block.append(line.strip())
+
+    return seq_motif_block
+
+    """
+    seq_motif_block:
+    ['letter-probability matrix: alength= 4 w= 6 nsites= 20 E= 0', ' 0.054545  0.636364  0.145455  0.163636 ', ' 0.814815  0.055555  0.000000  0.129630 ', ' 0.168381  0.000000  0.831619  0.000000 ', ' 0.163636  0.072727  0.181818  0.581819 ', ' 0.200000  0.127273  0.636363  0.036364 ', ' 0.290909  0.400000  0.090909  0.218182 ']
+
+    MOTIF XRN2_1 
+    letter-probability matrix: alength= 4 w= 9 nsites= 20 E= 0
+    0.034700  0.046200  0.855500  0.063600 
+    0.041100  0.057800  0.862900  0.038200 
+    0.051200  0.048900  0.822700  0.077200 
+    0.069107  0.053105  0.827683  0.050105 
+    0.026900  0.130200  0.812900  0.030000 
+    0.025900  0.527700  0.350300  0.096100 
+    0.033500  0.823800  0.099300  0.043400 
+    0.083192  0.575342  0.241976  0.099490 
+    0.058200  0.577800  0.297300  0.066700 
+    """
 
 
 ################################################################################
@@ -281,8 +460,10 @@ def run_go_analysis(target_genes_dic, background_genes_dic,
 
     # Check if gene IDs have version numbers.
     id_has_version = False
+    version_pattern = re.compile(r"\.\d+$")
     for gene_id in target_genes_dic:
-        if re.search("\.\d+$", gene_id):
+        # if re.search("\.\d+$", gene_id):
+        if version_pattern.search(gene_id):
             id_has_version = True
         break
 
@@ -544,6 +725,14 @@ def search_regex_in_seqs_dic(regex, seqs_dic,
     hits_dic = {}
     seq_c = 0
 
+    # Pre-compile the regular expression.
+    flags = 0
+    if not case_sensitive:
+        flags |= re.IGNORECASE
+    if all(ord(char) < 128 for char in regex):
+        flags |= re.ASCII
+    compiled_regex = re.compile(regex, flags)
+
     if step_size_one:
 
         for seq_name, seq in seqs_dic.items():
@@ -553,7 +742,7 @@ def search_regex_in_seqs_dic(regex, seqs_dic,
             
             seq_length = len(seq)
             for i in range(seq_length):
-                for match in re.finditer(regex, seq[i:], re.IGNORECASE if not case_sensitive else 0):
+                for match in compiled_regex.finditer(seq[i:]):
                     if match.start() != 0:
                         break
                     if seq_name not in hits_dic:
@@ -568,7 +757,7 @@ def search_regex_in_seqs_dic(regex, seqs_dic,
             if seq_c % 1000 == 0:
                 print(f"{seq_c} sequences scanned ... ")
             
-            for match in re.finditer(regex, seq, re.IGNORECASE if not case_sensitive else 0):
+            for match in compiled_regex.finditer(seq):
                 if seq_name not in hits_dic:
                     hits_dic[seq_name] = [[match.start(), match.end(), match.group()]]
                 else:
@@ -1011,7 +1200,7 @@ def read_in_cm_blocks(cm_file,
                 blocks_list.append(line)
                 idx += 1
             elif re.search("^ACC\s+\w+", line):
-                m = re.search("ACC\s+(\w+)", line)
+                m = re.search("^ACC\s+(\w+)", line)
                 acc_id = m.group(1)
                 # Remove special characters from motif/accession ID.
                 new_acc_id = remove_special_chars_from_str(acc_id)
@@ -1080,7 +1269,8 @@ def check_cm_file(cm_file, cmstat_out,
     acc_ids_dic = {}
     with open(cmstat_out) as f:
         for line in f:
-            if re.search("^#", line):
+            # if re.search("^#", line):
+            if line.startswith("#"):
                 continue
             cols_pre = line.strip().split(" ")
             # Remove empty column values.
@@ -1120,7 +1310,7 @@ def read_cm_acc(in_cm):
     with open(in_cm) as f:
         for line in f:
             if re.search("^ACC\s+\w+", line):
-                m = re.search("ACC\s+(\w+)", line)
+                m = re.search("^ACC\s+(\w+)", line)
                 acc_id = m.group(1)
                 if acc_id in acc_dic:
                     acc_dic[acc_id] += 1
@@ -1157,11 +1347,11 @@ def get_fasta_headers(in_fa,
     for line in output.split('\n'):
         if re.search("^>", line):
             if full_header:
-                m = re.search(">(.+)", line)
+                m = re.search("^>(.+)", line)
                 seq_id = m.group(1)
                 seq_ids_dic[seq_id] = 1
             else:
-                m = re.search(">(\S+)", line)
+                m = re.search("^>(\S+)", line)
                 seq_id = m.group(1)
                 seq_ids_dic[seq_id] = 1
 
@@ -1290,6 +1480,119 @@ def run_fimo(in_fa, in_meme_xml, out_folder,
 
 ################################################################################
 
+def run_streme(in_fa, out_folder,
+               neg_fa=False,
+               streme_bfile=False,
+               streme_evalue=False,
+               streme_thresh=0.05,
+               streme_minw=6,
+               streme_maxw=15,
+               streme_seed=0,
+               streme_order=2,
+               params="--dna",
+               call_dic=None,
+               print_output=True,
+               error_check=False):
+    """
+    Run STREME on input FASTA file in_fa.
+    
+    """
+    assert is_tool("streme"), "streme not in PATH"
+    assert os.path.exists(in_fa), "in_fa \"%s\" does not exist" %(in_fa)
+
+    if neg_fa:
+        params += " --n " + neg_fa
+    if streme_bfile:
+        params += " --bfile " + streme_bfile
+    if streme_evalue:
+        params += " --evalue"
+    params += " --thresh " + str(streme_thresh)
+    params += " --minw " + str(streme_minw)
+    params += " --maxw " + str(streme_maxw)
+    params += " --seed " + str(streme_seed)
+    params += " --order " + str(streme_order)
+    params += " --oc " + out_folder
+
+    check_cmd = "streme " + params + " -p " + in_fa
+
+    output = subprocess.getoutput(check_cmd)
+
+    if call_dic is not None:
+        call_dic["streme_call"] = check_cmd
+
+    if error_check:
+        error = False
+        if output:
+            error = True
+        assert error == False, "streme is complaining:\n%s\n%s" %(check_cmd, output)
+    if print_output:
+        if output:
+            print("")
+            print("STREME COMMAND:\n%s" %(check_cmd))
+            print("STREME OUTPUT:\n%s" %(output))
+            print("")
+
+
+################################################################################
+
+def run_tomtom(query_meme, db_meme, out_folder,
+               tomtom_bfile=False,
+               tomtom_thresh=0.5,
+               tomtom_evalue=False,
+               tomtom_m=False,
+               tomtom_min_overlap=1,
+               params="-norc",
+               call_dic=None,
+               print_output=True,
+               error_check=False):
+
+    """
+    Run TOMTOM using query motifs file query_meme and database motifs file db_meme.
+
+    Output folder content:
+    tomtom.tsv
+    tomtom.xml
+    tomtom.html
+
+    -dist ed (default) not compatible with a set -bfile. Using 'allr' instead.
+
+    """
+    assert is_tool("tomtom"), "tomtom not in PATH"
+    assert os.path.exists(query_meme), "query_meme \"%s\" does not exist" %(query_meme)
+    assert os.path.exists(db_meme), "db_meme \"%s\" does not exist" %(db_meme)
+    
+    if tomtom_bfile:
+        params += " -bfile %s" %(tomtom_bfile)
+        params += " -dist allr"
+    params += " -thresh %s" %(str(tomtom_thresh))
+    if tomtom_evalue:
+        params += " -evalue"
+    if tomtom_m:
+        params += " -m"
+    params += " -min-overlap %s" %(str(tomtom_min_overlap))
+    params += " -oc %s" %(out_folder)
+
+    check_cmd = "tomtom " + params + " " + query_meme + " " + db_meme
+    output = subprocess.getoutput(check_cmd)
+
+    if call_dic is not None:
+        call_dic["tomtom_call"] = check_cmd
+
+    if error_check:
+        error = False
+        if output:
+            error = True
+        assert error == False, "tomtom is complaining:\n%s\n%s" %(check_cmd, output)
+    if print_output:
+        if output:
+            print("")
+            print("TOMTOM COMMAND:\n%s" %(check_cmd))
+            print("TOMTOM OUTPUT:\n%s" %(output))
+            print("")
+
+
+################################################################################
+
 def bed_extract_sequences_from_fasta(in_bed, in_fa, out_fa,
                                      add_param="",
                                      print_warnings=False,
@@ -1403,26 +1706,30 @@ def read_fasta_into_dic(fasta_file,
     seq_id = ""
     header_idx = 0
 
+    # Compile regex patterns.
+    header_pattern = re.compile(r">(.+)" if full_header else r">(\S+)")
+    bed_pattern = re.compile(r"^(.+)::")
+    seq_pattern = re.compile(r"[ACGTUN]+", re.I)
+    n_pattern = re.compile(r"N", re.I)
+
     # Open FASTA either as .gz or as text file.
     if re.search(".+\.gz$", fasta_file):
         f = gzip.open(fasta_file, 'rt')
     else:
         f = open(fasta_file, "r")
+    
     for line in f:
-        if re.search(">.+", line):
-            m = False
-            if full_header:
-                m = re.search(">(.+)", line)
-            else:
-                m = re.search(">(\S+)", line)
+        # line = line.strip()
+        if line.startswith(">"):
 
-            assert m, "header ID extraction failed for FASTA header line \"%s\"" %(line)
+            m = header_pattern.search(line)
+            assert m, f'header ID extraction failed for FASTA header line "{line}"'
             seq_id = m.group(1)
 
             # If name_bed, get first part of ID (before "::").
             if name_bed:
-                m = re.search("^(.+)::", seq_id)
-                assert m, "BED column 4 ID extraction failed for FASTA header \"%s\"" %(seq_id)
+                m = bed_pattern.search(seq_id)
+                assert m, f'BED column 4 ID extraction failed for FASTA header "{seq_id}"'
                 seq_id = m.group(1)
 
             if id_check:
@@ -1437,9 +1744,13 @@ def read_fasta_into_dic(fasta_file,
                     seqs_dic[seq_id] = ""
             else:
                 seqs_dic[seq_id] = ""
-        elif re.search("[ACGTUN]+", line, re.I):
-            m = re.search("([ACGTUN]+)", line, re.I)
-            seq = m.group(1)
+            # elif re.search("[ACGTUN]+", line, re.I):
+            #     m = re.search("([ACGTUN]+)", line, re.I)
+            #     seq = m.group(1)
+
+        elif seq_pattern.search(line):
+            m = seq_pattern.search(line)
+            seq = m.group(0)
             if seq_id in seqs_dic:
                 if dna:
                     # Convert to DNA, concatenate sequence.
@@ -1461,7 +1772,8 @@ def read_fasta_into_dic(fasta_file,
         del_ids = []
         for seq_id in seqs_dic:
             seq = seqs_dic[seq_id]
-            if re.search("N", seq, re.I):
+            # if re.search("N", seq, re.I):
+            if n_pattern.search(seq):
                 if report == 1:
                     print ("WARNING: sequence with seq_id \"%s\" in file \"%s\" contains N nucleotides. Discarding sequence ... " % (seq_id, fasta_file))
                 c_skipped_n_ids += 1
@@ -1560,7 +1872,7 @@ def extract_motif_blocks(raw_text):
     motif_id = ""
     lines = raw_text.strip().split('\n')
     for l in lines:
-        if re.search("MOTIF\s\w+", l):
+        if re.search("^MOTIF\s\w+", l):
             m = re.search("MOTIF (\w+)", l)
             motif_id = m.group(1)
             new_motif_id = remove_special_chars_from_str(motif_id)
@@ -1570,7 +1882,8 @@ def extract_motif_blocks(raw_text):
             if motif_id and l:
                 if re.search("^URL", l):  # Skip URL rows e.g. from Ray2013 meme file. format: URL http:// ...
                     continue
-                # AALAMO: also remove <tab> characters from lines ...
+                # Also remove <tab> characters from lines.
+                l = l.replace("\t", "")
                 if motif_id in motif_blocks_dic:
                     motif_blocks_dic[motif_id].append(l)
                 else:
@@ -1790,7 +2103,8 @@ def gtf_read_in_gene_infos(in_gtf,
         f = open(in_gtf, "r")
     for line in f:
         # Skip header.
-        if re.search("^#", line):
+        # if re.search("^#", line):
+        if line.startswith("#"):
             continue
 
         cols = line.strip().split("\t")
@@ -1954,7 +2268,8 @@ def gtf_read_in_transcript_infos(in_gtf,
         f = open(in_gtf, "r")
     for line in f:
         # Skip header.
-        if re.search("^#", line):
+        # if re.search("^#", line):
+        if line.startswith("#"):
             continue
 
         cols = line.strip().split("\t")
@@ -2854,6 +3169,8 @@ def get_motif_hit_region_annotations(overlap_annotations_bed):
     annot_col = 13
     c_ol_nt_col = 16
 
+    motif_id_pattern = re.compile(r"^.+?:(.+?);")
+
     with open(overlap_annotations_bed) as f:
         for line in f:
             cols = line.strip().split("\t")
@@ -2864,8 +3181,15 @@ def get_motif_hit_region_annotations(overlap_annotations_bed):
             reg_id = cols[3]
             reg_strand = cols[5]
 
-            # col[3] has format: "rbp_id,motif_id;1;method_id,data_id". Extract motif_id from this string.
-            motif_id = reg_id.split(":")[1].split(";")[0]
+            # col[3] has format: "rbp_id:motif_id;1;method_id:data_id". Extract motif_id from this string.
+            # m = re.search("^.+?:(.+?);", reg_id)
+            # assert m is not None, "Motif ID extraction failed for region ID \"%s\"" %(reg_id)
+            # motif_id = m.group(1)
+            m = motif_id_pattern.search(reg_id)
+            assert m is not None, "Motif ID extraction failed for region ID \"%s\"" %(reg_id)
+            motif_id = m.group(1)
+
+            # motif_id = reg_id.split(":")[1].split(";")[0]
             reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + reg_strand + ")" + motif_id
 
             annot_id = "intergenic"
@@ -2969,6 +3293,8 @@ def get_region_annotations(overlap_annotations_bed,
     annot_col = 9
     c_ol_nt_col = 12
 
+    motif_id_pattern = re.compile(r"^.+?:(.+?);")
+
     with open(overlap_annotations_bed) as f:
         for line in f:
             cols = line.strip().split("\t")
@@ -2980,8 +3306,15 @@ def get_region_annotations(overlap_annotations_bed,
                 reg_s = str(int(cols[1]) + 1)
                 reg_e = cols[2]
                 reg_strand = cols[5]
-                # col[3] has format: "rbp_id,motif_id;1;method_id,data_id". Extract motif_id from this string.
-                motif_id = reg_id.split(":")[1].split(";")[0]
+                # col[3] has format: "rbp_id:motif_id;1;method_id:data_id". Extract motif_id from this string.
+                # m = re.search("^.+?:(.+?);", reg_id)
+                # assert m is not None, "Motif ID extraction failed for region ID \"%s\"" %(reg_id)
+                # motif_id = m.group(1)
+                m = motif_id_pattern.search(reg_id)
+                assert m is not None, "Motif ID extraction failed for region ID \"%s\"" %(reg_id)
+                motif_id = m.group(1)
+
+                # motif_id = reg_id.split(":")[1].split(";")[0]
                 reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + reg_strand + ")" + motif_id
                 annot_col = 13  # These shift since motif hits BED contains additional (4) p-value and score columns.
                 c_ol_nt_col = 16
@@ -3044,6 +3377,8 @@ def get_mrna_region_annotations(overlap_annotations_bed,
     annot_col = 9
     c_ol_nt_col = 12
 
+    motif_id_pattern = re.compile(r"^.+?:(.+?);")
+
     with open(overlap_annotations_bed) as f:
         for line in f:
             cols = line.strip().split("\t")
@@ -3056,8 +3391,16 @@ def get_mrna_region_annotations(overlap_annotations_bed,
             mrna_reg_id = cols[13]
             c_overlap_nts = cols[16]
 
-            # motif_hit_id has format: "rbp_id,motif_id;1;method_id,data_id". Extract motif_id from this string.
-            motif_id = motif_hit_id.split(",")[1].split(";")[0]
+            # col[3] has format: "rbp_id:motif_id;1;method_id:data_id". Extract motif_id from this string.
+            # m = re.search("^.+?:(.+?);", reg_id)
+            # assert m is not None, "Motif ID extraction failed for region ID \"%s\"" %(motif_hit_id)
+            # motif_id = m.group(1)
+            m = motif_id_pattern.search(reg_id)
+            assert m is not None, "Motif ID extraction failed for region ID \"%s\"" %(reg_id)
+            motif_id = m.group(1)
+
+            # motif_id = reg_id.split(":")[1].split(";")[0]
+            # motif_id = motif_hit_id.split(",")[1].split(";")[0]
             # mrna_reg_id has format: ENST00000434296;3utr. Extract region type from this string.
             mrna_reg_type = mrna_reg_id.split(";")[1]  # can be: 5'UTR, CDS, 3'UTR
 
@@ -3184,7 +3527,8 @@ def gtf_check_exon_order(in_gtf):
         f = open(in_gtf, "r")
     for line in f:
         # Skip header.
-        if re.search("^#", line):
+        if line.startswith("#"):
+        # if re.search("^#", line):
             continue
         cols = line.strip().split("\t")
         chr_id = cols[0]
@@ -3613,8 +3957,8 @@ def get_hit_id_elements(hit_id):
     
     """
 
-    if re.search("\w+:\d+-\d+\([+|-]\)\w+", hit_id):
-        m = re.search("(\w+):(\d+)-(\d+)\(([+|-])\)(.+)", hit_id)
+    if re.search("^\w+?:\d+-\d+\([+|-]\)\w+", hit_id):
+        m = re.search("^(\w+?):(\d+)-(\d+)\(([+|-])\)(.+)", hit_id)
         id_elements = [m.group(1), m.group(2), m.group(3), m.group(4), m.group(5)]
         return id_elements
     else:
@@ -4091,27 +4435,28 @@ def genome_fasta_get_chr_sizes_file(in_genome_fa, out_chr_sizes_file,
 
     OUTCHRLEN = open(out_chr_sizes_file, "w")
 
+    header_pattern = re.compile(r"^>(.+)")
+
     with open(in_genome_fa) as f:
         for line in f:
-            if re.search(">.+", line):
-                m = re.search(">(.+)", line)
+            if line.startswith(">"):
+                m = header_pattern.match(line)
                 new_id = m.group(1)
                 if check_ids:
-                    assert new_id not in seen_ids_dic, "non-unique sequence ID \"%s\" found in --in genome FASTA file. Please provide unique sequence IDs" %(new_id)
+                    assert new_id not in seen_ids_dic, f'non-unique sequence ID "{new_id}" found in --in genome FASTA file. Please provide unique sequence IDs'
                 seen_ids_dic[new_id] = 1
                 if seq_len:
-                    OUTCHRLEN.write("%s\t%i\n" %(seq_id, seq_len))
+                    OUTCHRLEN.write(f"{seq_id}\t{seq_len}\n")
                     if seq_len_dic is not None:
                         seq_len_dic[seq_id] = seq_len
                 seq_len = 0
                 seq_id = new_id
             else:
                 seq_len += len(line.strip())
-    f.closed
 
     # Print last sequence length.
     if seq_len:
-        OUTCHRLEN.write("%s\t%i\n" %(seq_id, seq_len))
+        OUTCHRLEN.write(f"{seq_id}\t{seq_len}\n")
         if seq_len_dic is not None:
             seq_len_dic[seq_id] = seq_len
 
@@ -4136,10 +4481,13 @@ def genome_fasta_get_chr_sizes(in_genome_fa,
     seq_id = "id"
     seq_len = 0
 
+    header_pattern = re.compile(r"^>(.+)")
+
     with open(in_genome_fa) as f:
         for line in f:
-            if re.search(">.+", line):
-                m = re.search(">(.+)", line)
+            if line.startswith(">"):
+                m = header_pattern.match(line)
+                new_id = m.group(1)
                 new_id = m.group(1)
                 if check_ids:
                     assert new_id not in seq_len_dic, "non-unique sequence ID \"%s\" found in --in genome FASTA file. Please provide unique sequence IDs" %(new_id)
@@ -4270,12 +4618,6 @@ def bed_filter_extend_bed(in_bed, out_bed,
 
             c_in += 1
 
-            if new_reg_ids:
-                reg_id = core_reg_id + str(c_in)
-
-            if core_reg_dic is not None:
-                core_reg_dic[reg_id] = [chr_id, reg_s, reg_e, reg_pol]
-
             # Check chr_id.
             if chr_ids_dic is not None:
                 if chr_id not in chr_ids_dic:
@@ -4292,6 +4634,12 @@ def bed_filter_extend_bed(in_bed, out_bed,
                     if reg_sc < score_thr:
                         c_sc_thr += 1
                         continue
+
+            if new_reg_ids:
+                reg_id = core_reg_id + str(c_in)
+
+            if core_reg_dic is not None:
+                core_reg_dic[reg_id] = [chr_id, reg_s, reg_e, reg_pol]
 
             # Record present IDs.
             if bed_chr_ids_dic is not None:
@@ -4561,12 +4909,12 @@ class NemoStats:
                  fisher_corr_mode = 1,  # 1: BH, 2: Bonferroni, 3: no correction
                  fisher_alt_hyp_mode = 1,  # Alternative hypothesis mode, 1: greater, 2: two-sided, 3: less
                  motif_type="meme_xml",
-                 pos_set_avg_center_dist=0,
-                 neg_set_avg_center_dist=0,
-                 pos_set_max_center_dist=0,
-                 pos_set_max_center_dist_c=0,
-                 neg_set_max_center_dist=0,
-                 neg_set_max_center_dist_c=0,
+                 pos_set_avg_center_dist="-",
+                 neg_set_avg_center_dist="-",
+                 pos_set_max_center_dist="-",
+                 pos_set_max_center_dist_c="-",
+                 neg_set_max_center_dist="-",
+                 neg_set_max_center_dist_c="-",
                  logo_png_file = False,
                  wrs_pval=False,
                  wrs_test_stat=False,
@@ -5158,8 +5506,7 @@ def filter_out_center_motif_hits(hits_list, core_rel_reg_dic):
     seq_e : end on sequence snippet (1-based).
     If hit overlaps with core region, filter it out, otherwise keep it and 
     store in flt_hits_list.
-    AALAMO
-    
+
     >>> fh1 = FimoHit("chr1", 140, 150, "+", 0.0, "motif1", "pos1", 0.0, seq_s=40, seq_e=50)
     >>> fh2 = FimoHit("chr1", 120, 130, "+", 0.0, "motif1", "pos1", 0.0, seq_s=20, seq_e=30)
     >>> hits_list = [fh1, fh2]
@@ -5325,7 +5672,8 @@ def read_in_fimo_results(fimo_tsv,
 
     with open(fimo_tsv) as f:
         for line in f:
-            if re.search("^#", line):
+            # if re.search("^#", line):
+            if line.startswith("#"):
                 continue
             cols = line.strip().split("\t")
             if cols[0] == "motif_id" or cols[0] == "":
@@ -5444,21 +5792,26 @@ def output_motif_hits_to_bed(rbp_id, unique_motifs_dic, out_bed,
 
     OUTMRBED = open(out_bed, "w")
 
+    # pattern_check = re.compile(r"\w+:\d+-\d+\([+|-]\).+")
+    pattern_extract = re.compile(r"^(\w+):(\d+)-(\d+)\(([+|-])\)(.+)")
+
     for fh_str in unique_motifs_dic[rbp_id]:
-        if re.search("\w+:\d+-\d+\([+|-]\).+", fh_str):
-            m = re.search("(\w+):(\d+)-(\d+)\(([+|-])\)(.+)", fh_str)
-            chr_id = m.group(1)
-            reg_s = int(m.group(2))
-            reg_e = int(m.group(3))
-            strand = m.group(4)
-            motif_id = m.group(5)
+        # if re.search("\w+:\d+-\d+\([+|-]\).+", fh_str):
+        #   m = re.search("(\w+):(\d+)-(\d+)\(([+|-])\)(.+)", fh_str)
 
-            if one_based_start:
-                reg_s -= 1
+        m = pattern_extract.search(fh_str)
+        assert m, "invalid fh_str format given (%s)" % (fh_str)
 
-            OUTMRBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, reg_s, reg_e, motif_id, strand))
-        else:
-            assert False, "invalid fh_str format given (%s)" %(fh_str)
+        chr_id = m.group(1)
+        reg_s = int(m.group(2))
+        reg_e = int(m.group(3))
+        strand = m.group(4)
+        motif_id = m.group(5)
+
+        if one_based_start:
+            reg_s -= 1
+
+        OUTMRBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, reg_s, reg_e, motif_id, strand))
 
     OUTMRBED.close()
 
@@ -5481,21 +5834,24 @@ def batch_output_motif_hits_to_bed(unique_motifs_dic, out_bed,
     
     OUTMRBED = open(out_bed, "w")
 
+    pattern_extract = re.compile(r"^(\w+?):(\d+)-(\d+)\(([+|-])\)(.+)")
+
     for fh_str in unique_motifs_dic:
-        if re.search("\w+:\d+-\d+\([+|-]\).+", fh_str):
-            m = re.search("(\w+):(\d+)-(\d+)\(([+|-])\)(.+)", fh_str)
-            chr_id = m.group(1)
-            reg_s = int(m.group(2))
-            reg_e = int(m.group(3))
-            strand = m.group(4)
-            motif_id = m.group(5)
+        # if re.search("^\w+?:\d+-\d+\([+|-]\).+", fh_str):
+        #     m = re.search("^(\w+?):(\d+)-(\d+)\(([+|-])\)(.+)", fh_str)
+        m = pattern_extract.search(fh_str)
+        assert m, "invalid fh_str format given (%s)" % (fh_str)
 
-            if one_based_start:
-                reg_s -= 1
+        chr_id = m.group(1)
+        reg_s = int(m.group(2))
+        reg_e = int(m.group(3))
+        strand = m.group(4)
+        motif_id = m.group(5)
 
-            OUTMRBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, reg_s, reg_e, motif_id, strand))
-        else:
-            assert False, "invalid fh_str format given (%s)" %(fh_str)
+        if one_based_start:
+            reg_s -= 1
+
+        OUTMRBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, reg_s, reg_e, motif_id, strand))
 
     OUTMRBED.close()
 
@@ -5549,7 +5905,8 @@ def read_in_cmsearch_results(in_tab,
 
     with open(in_tab) as f:
         for line in f:
-            if re.search("^#", line):
+            if line.startswith("#"):
+            # if re.search("^#", line):
                 continue
             cols_pre = line.strip().split(" ")
             # Remove empty column values.
@@ -5701,6 +6058,22 @@ def remove_special_chars_from_str(check_str,
     reg_ex:
         Regular expression defining what to keep.
 
+    Special regex characters:
+    . (dot)
+    ^ (caret)
+    $ (dollar sign)
+    * (asterisk)
+    + (plus sign)
+    ? (question mark)
+    {} (curly braces)
+    [] (square brackets)
+    () (parentheses)
+    | (pipe)
+    \ (backslash)
+
+    To remove these:
+    special_chars = r"[.^$*+?{}[\]()|\\]"
+
     >>> check_str = "{_}[-](_)\V/"
     >>> remove_special_chars_from_str(check_str)
     '_-_V'
@@ -5734,8 +6107,8 @@ def get_motif_id_from_str_repr(hit_str_repr):
 
     """
 
-    if re.search("\w+:\d+-\d+\([+|-]\).+", hit_str_repr):
-        m = re.search(".+?\)(.+)", hit_str_repr)
+    if re.search("^\w+?:\d+-\d+\([+|-]\).+", hit_str_repr):
+        m = re.search("^.+?\)(.+)", hit_str_repr)
         motif_id = m.group(1)
         return motif_id
     else:
@@ -5801,6 +6174,7 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
                             min_motif_dist=0,
                             id1="RBP1",
                             id2="RBP2",
+                            ids="RBPs",
                             include_plotlyjs="cdn",
                             full_html=False):
     """
@@ -5823,8 +6197,10 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
     # color_scale = [[0, 'grey'], [0.01, 'darkblue'], [1, 'yellow']]
 
     # color_scale = [[0, "midnightblue"], [0, 'darkblue'], [0.25, 'blue'], [0.5, 'purple'], [0.75, 'red'], [1, 'yellow']]
-
-    colors = ['darkblue', 'blue', 'purple', 'red', 'orange', 'yellow']
+    
+    # Light blue to dark blue gradient.
+    colors = ['#E0FFFF', '#B0E0E6', '#87CEEB', '#4682B4', '#0000FF', '#00008B', '#000080']  
+    # colors = ['darkblue', 'blue', 'purple', 'red', 'orange', 'yellow']
     # colors = ['green', 'red']
 
     min_val = 0.01
@@ -5832,7 +6208,7 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
 
     color_scale = create_color_scale(min_val, max_val, colors)
 
-    color_scale.insert(0, [0, "dimgray"])  # lightgray ?
+    color_scale.insert(0, [0, "white"])  # lightgray ? dimgray (old color)
 
     # Set the color scale range according to the data (minimum 0 .. 1).
     zmin = min(0, df.min().min())
@@ -5855,7 +6231,7 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
     """
 
     plot.update(data=[{'customdata': pval_cont_lll,
-                      'hovertemplate': '1) ' + id1 + ': %{x}<br>2) ' + id2 + ': %{y}<br>3) p-value: %{customdata[0]}<br>4) p-value after filtering: %{customdata[1]}<br>%{customdata[7]}5) RBPs: %{customdata[2]}<br>6) Counts: %{customdata[3]}<br>7) Mean minimum motif distance (nt): %{customdata[4]}<br>8) Motif pairs within ' + str(max_motif_dist) + ' nt (%): %{customdata[5]}<br>9) Correlation: %{customdata[6]}<br>10) -log10(p-value after filtering): %{z}<extra></extra>'}])
+                      'hovertemplate': '1) ' + id1 + ': %{x}<br>2) ' + id2 + ': %{y}<br>3) p-value: %{customdata[0]}<br>4) p-value after filtering: %{customdata[1]}<br>%{customdata[7]}5) ' + ids + ': %{customdata[2]}<br>6) Counts: %{customdata[3]}<br>7) Mean minimum motif distance (nt): %{customdata[4]}<br>8) Motif pairs within ' + str(max_motif_dist) + ' nt (%): %{customdata[5]}<br>9) Correlation: %{customdata[6]}<br>10) -log10(p-value after filtering): %{z}<extra></extra>'}])
     plot.update_layout(plot_bgcolor='white')
     plot.write_html(plot_out,
                     full_html=full_html,
@@ -6716,7 +7092,7 @@ by RBPBench (rbpbench batch --report):
     mdtext += "\n"
 
     if id2motif_enrich_stats_dic: # if not empty.
-        mdtext += "- [Input datasets motif enrichment statistics](#motif-enrich-stats)\n"
+        mdtext += "- [Input datasets RBP region score motif enrichment statistics](#motif-enrich-stats)\n"
 
     if id2regex_stats_dic:  # if not empty.
         mdtext += "- [Regular expression motif enrichment statistics](#regex-enrich-stats)\n"
@@ -6752,11 +7128,15 @@ by RBPBench (rbpbench batch --report):
 
     add_head_info = ""
     if args.bed_sc_thr is not None:
-        add_head_info += " BED score threshold (--bed-sc-thr) = %s." %(str(args.bed_sc_thr))
+        add_head_info = " BED score threshold (--bed-sc-thr) = %s" %(str(args.bed_sc_thr))
+        if args.bed_sc_thr_rev_filter:
+            add_head_info += " (reverse filtering applied, i.e., the lower the better)."
+        else:
+            add_head_info += "."
 
-
-    mdtext += "\nUsed motif database = %s. FIMO p-value threshold (--fimo-pval) = %s.\n" %(args.motif_db_str, str(args.fimo_pval))
+    mdtext += "\nUsed motif database = %s. FIMO p-value threshold (--fimo-pval) = %s.%s Region extension (upstream, downstream) = (%i, %i).\n" %(args.motif_db_str, str(args.fimo_pval), add_head_info, args.ext_up, args.ext_down)
     mdtext += "\n&nbsp;\n"
+
 
     """
     Input sequence stats table.
@@ -6839,7 +7219,7 @@ Input dataset ID format: %s. %s
 
 
     """
-    Input datasets motif enrichment statistics.
+    Input datasets RBP region score motif enrichment statistics.
 
     Format:
     id2motif_enrich_stats_dic[internal_id] = [c_reg_with_hits, perc_reg_with_hits, c_uniq_motif_hits, wc_pval]
@@ -6857,9 +7237,9 @@ Input dataset ID format: %s. %s
     if id2motif_enrich_stats_dic:
 
         mdtext += """
-## Input datasets motif enrichment statistics ### {#motif-enrich-stats}
+## Input datasets region score motif enrichment statistics ### {#motif-enrich-stats}
 
-**Table:** Input datasets motif enrichment statistics for all input datasets.
+**Table:** Input datasets region score motif enrichment statistics for all input datasets.
 For each input dataset, consisting of a set of genomic regions with associated scores (set BED score column via --bed-score-col),
 RBPbench checks whether regions with RBP motif hits have significantly different scores compared to regions without hits.
 %s
@@ -6931,9 +7311,9 @@ By default, BED genomic regions input file column 5 is used as the score column 
 
 
         mdtext += """
-## Regular expression motif enrichment statistics ### {#regex-enrich-stats}
+## Regular expression region score motif enrichment statistics ### {#regex-enrich-stats}
 
-**Table:** Regular expression (regex) '%s' motif enrichment statistics for all input datasets.
+**Table:** Regular expression (regex) '%s' region score motif enrichment statistics for all input datasets.
 For each input dataset, consisting of a set of genomic regions with associated scores (set BED score column via --bed-score-col),
 RBPbench checks whether regions containing regex hits have significantly different scores compared to regions without regex hits.
 %s
@@ -7999,7 +8379,6 @@ def enmo_generate_html_report(args,
     """
     Create motif enrichment statistics / plots (enmo mode).
 
-    AALAMO
     """
 
     # Use absolute paths?
@@ -8141,11 +8520,14 @@ by RBPBench (rbpbench %s):
 
     add_head_info = ""
     if args.bed_sc_thr is not None:
-        add_head_info += " BED score threshold (--bed-sc-thr) = %s." %(str(args.bed_sc_thr))
+        add_head_info = " BED score threshold (--bed-sc-thr) = %s" %(str(args.bed_sc_thr))
+        if args.bed_sc_thr_rev_filter:
+            add_head_info += " (reverse filtering applied, i.e., the lower the better)."
+        else:
+            add_head_info += "."
 
-    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s.%s # of considered input regions = %i.\n" %(str(args.fimo_pval), add_head_info, c_input_sites)
+    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s.%s # of considered input regions = %i. Region extension (upstream, downstream) = (%i, %i).\n" %(str(args.fimo_pval), add_head_info, c_input_sites, args.ext_up, args.ext_down)
     mdtext += "\n&nbsp;\n"
-
 
 
     """
@@ -8182,8 +8564,9 @@ Fisher's exact test is used to assess the significance of motif enrichment.
 %s
 %s
 For full motif results list regardless of significance, see *motif_enrichment_stats.tsv* output table.
+%s
 
-""" %(p_val_info, fisher_mode_info)
+""" %(p_val_info, fisher_mode_info, regex_motif_info)
 
     pval_dic = {}
     for motif_id in motif_enrich_stats_dic:
@@ -8294,6 +8677,7 @@ For full motif results list regardless of significance, see *motif_enrichment_st
                                 min_motif_dist=args.min_motif_dist,
                                 id1="Motif1",
                                 id2="Motif2",
+                                ids="Motifs",
                                 include_plotlyjs=include_plotlyjs,
                                 full_html=plotly_full_html)
 
@@ -8343,13 +8727,11 @@ For full motif results list regardless of significance, see *motif_enrichment_st
             fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., significantly underrepresented motif co-occurrences are reported."
             motif_add_info = "depleted"
 
-        # AALAMO
-
         mdtext += """
 
 **Figure:** Heat map of co-occurrences (Fisher's exact test p-values) between motifs. 
 Only significantly %s motifs (listed in upper table) are used in checking for siginificant co-occurrences.
-Motif hit co-occurrences that are not significant are colored gray, while
+Motif hit co-occurrences that are not significant are colored white, while
 significant co-occurrences are colored according to their -log10 p-value (used as legend color, i.e., the higher the more significant).
 %s
 %s
@@ -8444,10 +8826,6 @@ No co-occurrences calculated as there are no significant motifs (see upper table
 &nbsp;
 
 """ %(c_bg_sites)
-
-
-    # AALAMO
-
 
 
     """
@@ -8640,7 +9018,6 @@ def nemo_generate_html_report(args,
     """
     Create neighboring motif enrichment statistics / plots (nemo mode).
 
-    AALAMO
     """
 
     # Use absolute paths?
@@ -8782,11 +9159,14 @@ by RBPBench (rbpbench %s):
 
     add_head_info = ""
     if args.bed_sc_thr is not None:
-        add_head_info += " BED score threshold (--bed-sc-thr) = %s." %(str(args.bed_sc_thr))
+        add_head_info = " BED score threshold (--bed-sc-thr) = %s" %(str(args.bed_sc_thr))
+        if args.bed_sc_thr_rev_filter:
+            add_head_info += " (reverse filtering applied, i.e., the lower the better)."
+        else:
+            add_head_info += "."
 
-    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s.%s # of considered input regions = %i.\n" %(str(args.fimo_pval), add_head_info, c_input_sites)
+    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s.%s # of considered input regions = %i. Region extension (upstream, downstream) = (%i, %i).\n" %(str(args.fimo_pval), add_head_info, c_input_sites, args.ext_up, args.ext_down)
     mdtext += "\n&nbsp;\n"
-
 
 
     """
@@ -8803,30 +9183,44 @@ by RBPBench (rbpbench %s):
         fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., significantly underrepresented motifs are reported."
         motif_add_info = "Depleted"
 
-    p_val_info = "P-values below %s are considered significant." %(str(args.nemo_pval_thr))
+    p_val_info = "P-values (p-value column) below %s are considered significant." %(str(args.nemo_pval_thr))
     if args.nemo_pval_mode == 1:
-        p_val_info = "%s motifs with Benjamini-Hochberg multiple testing corrected p-values below %s are considered significant." %(motif_add_info, str(args.nemo_pval_thr))
+        p_val_info = "%s motifs with Benjamini-Hochberg multiple testing corrected p-values (p-value column) below %s are considered significant." %(motif_add_info, str(args.nemo_pval_thr))
     elif args.nemo_pval_mode == 2:
-        p_val_info = "%s motifs with p-values below %s (p-value threshold Bonferroni multiple testing corrected) are considered significant." %(motif_add_info, str(args.nemo_pval_thr))
+        p_val_info = "%s motifs with p-values (p-value column) below %s (p-value threshold Bonferroni multiple testing corrected) are considered significant." %(motif_add_info, str(args.nemo_pval_thr))
     elif args.nemo_pval_mode == 3:
-        p_val_info = "%s motifs with p-values below %s are considered significant." %(motif_add_info, str(args.nemo_pval_thr))
+        p_val_info = "%s motifs with p-values (p-value column) below %s are considered significant." %(motif_add_info, str(args.nemo_pval_thr))
     else:
         assert False, "Invalid motif enrichment p-value mode (--nemo-pval-mode) set: %i" %(args.nemo_pval_mode)
-    
+
+    # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
+    wrs_mode_info = ""
+    if args.wrs_mode == 1:
+        wrs_mode_info = "Wilcoxon rank sum test alternative hypothesis is set to 'two-sided', i.e., low WRS p-values (WRS p-value column) mean either up- or downstream context regions have significantly higher motif hit counts."
+    elif args.wrs_mode == 2:
+        wrs_mode_info = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low WRS p-values (WRS p-value column) mean upstream context regions have significantly higher motif hit counts."
+    elif args.wrs_mode == 3:
+        wrs_mode_info = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low WRS p-values (WRS p-value column) mean downstream context regions have significantly higher motif hit counts."
+    else:
+        assert False, "Invalid Wilcoxon rank sum test mode (--wrs-mode) set: %i" %(args.wrs_mode)
 
     mdtext += """
 ## Neighboring motif enrichment statistics ### {#nemo-stats}
 
 **Table:** Neighboring RBP binding motif enrichment statistics. Enrichment is calculated by comparing motif occurrences in the context regions 
-surrounding given input sites (up- and downstream context size specified via --ext), effectively comparing the input with the background context regions.
+surrounding given input sites (up- and downstream context region size specified via --ext), effectively comparing the input with the background context regions.
 Motif hits that overlap with the actual input sites are not counted.
 Based on the numbers of input and background context regions with and without motif hits, 
 Fisher's exact test is used to assess the significance of motif enrichment.
 %s
 %s
 For full motif results list regardless of significance, see *motif_enrichment_stats.tsv* output table.
+To test whether up- or downstream regions have significantly higher motif hit counts, 
+Wilcoxon rank sum (WRS) test is applied.
+%s
+%s
 
-""" %(p_val_info, fisher_mode_info)
+""" %(p_val_info, fisher_mode_info, wrs_mode_info, regex_motif_info)
 
     pval_dic = {}
     for motif_id in motif_enrich_stats_dic:
@@ -9004,6 +9398,7 @@ For full motif results list regardless of significance, see *motif_enrichment_st
                                 min_motif_dist=args.min_motif_dist,
                                 id1="Motif1",
                                 id2="Motif2",
+                                ids="Motifs",
                                 include_plotlyjs=include_plotlyjs,
                                 full_html=plotly_full_html)
 
@@ -9042,7 +9437,6 @@ For full motif results list regardless of significance, see *motif_enrichment_st
         
         p_val_info += " # of motif co-occurrence comparisons: %i. # of significant co-occurrences: %i (%.2f%%)." %(args.c_all_fisher_pval, args.c_sig_fisher_pval, args.perc_sig_fisher_pval)
 
-
         # Inform about set alterntive hypothesis for Fisher exact test on significant motif co-occurrences.
         motif_add_info = "enriched"
         fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., significantly overrepresented motif co-occurrences are reported."
@@ -9053,13 +9447,11 @@ For full motif results list regardless of significance, see *motif_enrichment_st
             fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., significantly underrepresented motif co-occurrences are reported."
             motif_add_info = "depleted"
 
-        # AALAMO
-
         mdtext += """
 
 **Figure:** Heat map of co-occurrences (Fisher's exact test p-values) between motifs. 
 Only significantly %s context region motifs (listed in upper table) are used in checking for siginificant co-occurrences.
-Motif hit co-occurrences that are not significant are colored gray, while
+Motif hit co-occurrences that are not significant are colored white, while
 significant co-occurrences are colored according to their -log10 p-value (used as legend color, i.e., the higher the more significant).
 %s
 %s
@@ -9687,7 +10079,15 @@ by RBPBench (rbpbench %s):
     if args.run_goa:
         mdtext += "- [GO enrichment analysis results](#goa-results)\n"
 
-    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s. # of considered input %s = %i.\n" %(str(args.fimo_pval), reg_seq_str, c_in_regions)
+    add_head_info = ""
+    if args.bed_sc_thr is not None:
+        add_head_info = " BED score threshold (--bed-sc-thr) = %s" %(str(args.bed_sc_thr))
+        if args.bed_sc_thr_rev_filter:
+            add_head_info += " (reverse filtering applied, i.e., the lower the better)."
+        else:
+            add_head_info += "."
+
+    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s.%s # of considered input %s = %i. Region extension (upstream, downstream) = (%i, %i).\n" %(str(args.fimo_pval), add_head_info, reg_seq_str, c_in_regions, args.ext_up, args.ext_down)
     mdtext += "\n&nbsp;\n"
 
 
@@ -9855,7 +10255,7 @@ By default, BED genomic regions input file column 5 is used as the score column 
     mdtext += """
 
 **Figure:** Heat map of co-occurrences (Fisher's exact test p-values) between RBPs. 
-RBP co-occurrences that are not significant are colored gray, while
+RBP co-occurrences that are not significant are colored white, while
 significant co-occurrences are colored according to their -log10 p-value (used as legend color, i.e., the higher the more significant).
 %s
 %s
@@ -11704,8 +12104,15 @@ by RBPBench (rbpbench %s):
         motif_plot_ids_dic[rbp_id] = tab_id
         mdtext += "- [%s motifs](#%s)\n" %(rbp_id, tab_id)
 
+    add_head_info = ""
+    if args.bed_sc_thr is not None:
+        add_head_info = " BED score threshold (--bed-sc-thr) = %s" %(str(args.bed_sc_thr))
+        if args.bed_sc_thr_rev_filter:
+            add_head_info += " (reverse filtering applied, i.e., the lower the better)."
+        else:
+            add_head_info += "."
 
-    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s. # considered input %s = %i.\n" %(str(args.fimo_pval), reg_seq_str, args.c_regions)
+    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s.%s # considered input %s = %i. Region extension (upstream, downstream) = (%i, %i).\n" %(str(args.fimo_pval), add_head_info, reg_seq_str, args.c_regions, args.ext_up, args.ext_down)
     mdtext += "\n&nbsp;\n"
 
 

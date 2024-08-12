@@ -4,6 +4,7 @@ import argparse
 import base64
 import os
 import re
+import shutil
 import statistics
 import sys
 from itertools import combinations
@@ -189,13 +190,13 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file, define which with --fimo-set-freqs)")
+                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bfile) file (default: use internal frequencies file, define which with --fimo-ntf-mode)")
     p_s.add_argument("--fimo-ntf-mode",
                    dest="fimo_ntf_mode",
                    type=int,
                    default=1,
-                   choices=[1, 2],
-                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) (default: 1)")
+                   choices=[1, 2, 3],
+                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) 3: use uniform frequencies (same for every nucleotide) (default: 1)")
 
     p_s.add_argument("--fimo-pval",
                    dest="fimo_pval",
@@ -598,13 +599,14 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file, define which with --fimo-set-freqs)")
+                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bfile) file (default: use internal frequencies file, define which with --fimo-ntf-mode)")
     p_b.add_argument("--fimo-ntf-mode",
                    dest="fimo_ntf_mode",
                    type=int,
                    default=1,
-                   choices=[1, 2],
-                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) (default: 1)")
+                   choices=[1, 2, 3],
+                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) 3: use uniform frequencies (same for every nucleotide) (default: 1)")
+
     p_b.add_argument("--fimo-pval",
                    dest="fimo_pval",
                    type=float,
@@ -787,6 +789,45 @@ def setup_argument_parser():
                    help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
 
     """
+    Compare mode.
+    """
+    p_c = subparsers.add_parser('compare',
+                                  help='Compare different search results')
+    p_c.set_defaults(which='compare')
+    # Add required arguments group.
+    p_cm = p_c.add_argument_group("required arguments")
+    # Required arguments.
+    p_cm.add_argument("--in",
+                   dest="data_in",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   required=True,
+                   help="Supply motif search results data, either as folders (--out folders of rbpbench search or batch), or as files (both RBP and motif hit stats files needed!). Order of files does NOT matter")
+    p_cm.add_argument("--out",
+                   dest="out_folder",
+                   type=str,
+                   metavar='str',
+                   required=True,
+                   help="Comparison results output folder")
+    p_c.add_argument("--plot-abs-paths",
+                   dest="plot_abs_paths",
+                   default = False,
+                   action = "store_true",
+                   help = "Store plot files with absolute paths in HTML files. Default is relative paths (default: False)")
+    p_c.add_argument("--report-header",
+                   dest="report_header",
+                   default = False,
+                   action = "store_true",
+                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
+    p_c.add_argument("--sort-js-mode",
+                   dest="sort_js_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to plots output folder. 3: include .js code in HTML (default: 1)")
+
+    """
     Search motifs in sequences mode.
 
     """
@@ -887,13 +928,13 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file, define which with --fimo-set-freqs)")
+                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bfile) file (default: use internal frequencies file, define which with --fimo-ntf-mode)")
     p_ss.add_argument("--fimo-ntf-mode",
                    dest="fimo_ntf_mode",
                    type=int,
                    default=1,
-                   choices=[1, 2],
-                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) (default: 1)")
+                   choices=[1, 2, 3],
+                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) 3: use uniform frequencies (same for every nucleotide) (default: 1)")
     p_ss.add_argument("--fimo-pval",
                    dest="fimo_pval",
                    type=float,
@@ -1137,13 +1178,13 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file, define which with --fimo-set-freqs)")
+                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bfile) file (default: use internal frequencies file, define which with --fimo-ntf-mode)")
     p_sl.add_argument("--fimo-ntf-mode",
                    dest="fimo_ntf_mode",
                    type=int,
                    default=1,
-                   choices=[1, 2],
-                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) (default: 1)")
+                   choices=[1, 2, 3],
+                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) 3: use uniform frequencies (same for every nucleotide) (default: 1)")
     p_sl.add_argument("--fimo-pval",
                    dest="fimo_pval",
                    type=float,
@@ -1402,13 +1443,13 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file, define which with --fimo-set-freqs)")
+                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bfile) file (default: use internal frequencies file, define which with --fimo-ntf-mode)")
     p_scr.add_argument("--fimo-ntf-mode",
                    dest="fimo_ntf_mode",
                    type=int,
                    default=1,
-                   choices=[1, 2],
-                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) (default: 1)")
+                   choices=[1, 2, 3],
+                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) 3: use uniform frequencies (same for every nucleotide) (default: 1)")
     p_scr.add_argument("--fimo-pval",
                    dest="fimo_pval",
                    type=float,
@@ -1712,13 +1753,13 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file, define which with --fimo-set-freqs)")
+                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bfile) file (default: use internal frequencies file, define which with --fimo-ntf-mode)")
     p_smr.add_argument("--fimo-ntf-mode",
                    dest="fimo_ntf_mode",
                    type=int,
                    default=1,
-                   choices=[1, 2],
-                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) (default: 1)")
+                   choices=[1, 2, 3],
+                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) 3: use uniform frequencies (same for every nucleotide) (default: 1)")
     p_smr.add_argument("--fimo-pval",
                    dest="fimo_pval",
                    type=float,
@@ -2050,19 +2091,18 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.1,
                    help="Minimum amount of overlap required for a region to be assigned to a GTF feature (default: 0.1)")
-
     p_em.add_argument("--fimo-ntf-file",
                    dest="fimo_user_ntf_file",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file, define which with --fimo-set-freqs)")
+                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bfile) file (default: use internal frequencies file, define which with --fimo-ntf-mode)")
     p_em.add_argument("--fimo-ntf-mode",
                    dest="fimo_ntf_mode",
                    type=int,
                    default=1,
-                   choices=[1, 2],
-                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) (default: 1)")
+                   choices=[1, 2, 3],
+                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) 3: use uniform frequencies (same for every nucleotide) (default: 1)")
     p_em.add_argument("--fimo-pval",
                    dest="fimo_pval",
                    type=float,
@@ -2149,13 +2189,9 @@ def setup_argument_parser():
 
 
 
-
-
     """
     Check for neighboring motifs mode.
 
-    AALAMO
-    
     """
     p_nm = subparsers.add_parser('nemo',
                                 help='Check for neighboring motifs in input sites')
@@ -2361,19 +2397,18 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.1,
                    help="Minimum amount of overlap required for a region to be assigned to a GTF feature (default: 0.1)")
-
     p_nm.add_argument("--fimo-ntf-file",
                    dest="fimo_user_ntf_file",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file, define which with --fimo-set-freqs)")
+                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bfile) file (default: use internal frequencies file, define which with --fimo-ntf-mode)")
     p_nm.add_argument("--fimo-ntf-mode",
                    dest="fimo_ntf_mode",
                    type=int,
                    default=1,
-                   choices=[1, 2],
-                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) (default: 1)")
+                   choices=[1, 2, 3],
+                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) 3: use uniform frequencies (same for every nucleotide) (default: 1)")
     p_nm.add_argument("--fimo-pval",
                    dest="fimo_pval",
                    type=float,
@@ -2398,6 +2433,13 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3],
                    help="Defines multiple testing correction mode for motif enrichment p-values. 1: Benjamini-Hochberg (BH), 2: Bonferroni, 3: no correction (default: 1)")
+    p_nm.add_argument("--wrs-mode",
+                   dest="wrs_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Defines Wilcoxon rank sum test alternative hypothesis for testing whether up- or downstream context regions have significantly higher motif hit counts (comparing the two regions, one test for each significant motif). 1: test for higher up- or downstream counts, 2: test for higher upstream counts, 3: test for higher downstream counts (default: 1)")
+
     # Motif co-occurrence stats.
     p_nm.add_argument("--cooc-pval-thr",
                    dest="cooc_pval_thr",
@@ -2467,11 +2509,77 @@ def setup_argument_parser():
     # Add required arguments group.
     p_stm = p_st.add_argument_group("required arguments")
     # Required arguments for streme.
+    p_stm.add_argument("--in",
+                   dest="in_fa",
+                   type=str,
+                   metavar='str',
+                   required=True,
+                   help="Provide primary (positive) sequences FASTA file (STREME option: --p)")
+    p_stm.add_argument("--out",
+                   dest="out_folder",
+                   type=str,
+                   metavar='str',
+                   required=True,
+                   help="Results output folder")
+    # STREME options.
+    p_st.add_argument("--neg-in",
+                   dest="in_neg_fa",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide control (negative) sequences FASTA file. By default, shuffled --in positive sequences are used as control sequences (STREME option: --n)")
+    p_st.add_argument("--streme-bfile",
+                   dest="streme_bfile",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide STREME nucleotide frequencies (STREME option: --bfile) file (default: use internal frequencies file, define which with --tomtom-ntf-mode)")
+    p_st.add_argument("--streme-ntf-mode",
+                   dest="streme_ntf_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Set which internal nucleotide frequencies to use for STREME. 1: use frequencies from human ENSEMBL transcripts (excluding introns, with A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) 3: use uniform frequencies (same for every nucleotide) (default: 1)")
+    p_st.add_argument("--streme-thresh",
+                   dest="streme_thresh",
+                   type=float,
+                   metavar='float',
+                   default=0.05,
+                   help="STREME significance threshold (p-value) for reporting enriched motifs (STREME option --thresh) (default: 0.05)")
+    p_st.add_argument("--streme-minw",
+                   dest="streme_minw",
+                   type=int,
+                   metavar='int',
+                   default=6,
+                   help="Minimum width for motifs (must be >= 3) (STREME option: --minw) (default: 6)")
+    p_st.add_argument("--streme-maxw",
+                   dest="streme_maxw",
+                   type=int,
+                   metavar='int',
+                   default=15,
+                   help="Maximum width for motifs (must be <= 30) (STREME option: --maxw) (default: 15)")
+    p_st.add_argument("--streme-seed",
+                   dest="streme_seed",
+                   type=int,
+                   metavar='int',
+                   default=0,
+                   help="Random seed for shuffling sequences (STREME option: --seed) (default: 0)")
+    p_st.add_argument("--streme-order",
+                   dest="streme_order",
+                   type=int,
+                   metavar='int',
+                   default=2,
+                   help="Estimates an m-order background model for scoring sites and uses an m-order shuffle if creating control sequences from primary sequences. Default for RNA/DNA: 2 (STREME option: --order) (default: 2)")
+    p_st.add_argument("--streme-evalue",
+                   dest="streme_evalue",
+                   default = False,
+                   action = "store_true",
+                   help = "Use E-value threshold instead of p-value (STREME option: --evalue) (default: False)")
 
 
     """
     Check if input motif is similar to database motifs using TOMTOM.
-    
+
     """
     p_to = subparsers.add_parser('tomtom',
                                 help='Compare motif(s) with database motifs using TOMOTM')
@@ -2479,15 +2587,81 @@ def setup_argument_parser():
     # Add required arguments group.
     p_tom = p_to.add_argument_group("required arguments")
     # Required arguments for tomtom.
+    p_tom.add_argument("--in",
+                   dest="motif_in",
+                   type=str,
+                   metavar='str',
+                   required=True,
+                   help="Provide MEME XML style file path or (regular expression) sequence to search for similar motifs in database. Currently only square bracket containing regexes are supported")
+    p_tom.add_argument("--out",
+                   dest="out_folder",
+                   type=str,
+                   metavar='str',
+                   required=True,
+                   help="Results output folder")
+    # Optional arguments.
+    p_to.add_argument("--motif-db",
+                   dest="motif_db",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Built-in motif database used so search for motifs similar to --in. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+    p_to.add_argument("--custom-db",
+                   dest="custom_db_meme_xml",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide custom motif database MEME/DREME XML file containing sequence motifs to search against. By default internal database is used, define which with --motif-db")
+    # p_to.add_argument("--custom-db-id",
+    #                dest="custom_db_id",
+    #                type=str,
+    #                metavar='str',
+    #                default = "custom",
+    #                help = "Set ID/name for provided custom motif database via --custom-db  (default: \"custom\")")
+    p_to.add_argument("--regex-mode",
+                   dest="regex_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help = "If --in is regex/sequence with format e.g. AC[AT]A, define whether to split regex into single motifs (ACAA, ACTA), or to make one motif out of it. 1: convert to one motif. 2: convert to multiple single motifs (default: 1)")
 
+    # TOMTOM options.
+    p_to.add_argument("--tomtom-bfile",
+                   dest="tomtom_bfile",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide TOMTOM nucleotide frequencies (TOMTOM option: -bfile) file (default: use internal frequencies file, define which with --tomtom-ntf-mode)")
+    p_to.add_argument("--tomtom-ntf-mode",
+                   dest="tomtom_ntf_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Set which internal nucleotide frequencies to use for TOMTOM. 1: use frequencies from human ENSEMBL transcripts (excluding introns, with A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) 3: use uniform frequencies (same for every nucleotide) (default: 1)")
+    p_to.add_argument("--tomtom-thresh",
+                   dest="tomtom_thresh",
+                   type=float,
+                   metavar='float',
+                   default=0.5,
+                   help="TOMTOM q-value threshold (TOMTOM option: -thresh) (default: 0.5)")
+    p_to.add_argument("--tomtom-evalue",
+                   dest="tomtom_evalue",
+                   default = False,
+                   action = "store_true",
+                   help = "Use E-value threshold instead of q-value (TOMTOM option: -evalue) (default: False)")
+    p_to.add_argument("--tomtom-m",
+                   dest="tomtom_m",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Use only query motifs with a specified ID, may be repeated (TOMTOM option: -m) file")
+    p_to.add_argument("--tomtom-min-overlap",
+                   dest="tomtom_min_overlap",
+                   type=int,
+                   metavar='int',
+                   default=1,
+                   help="Minimum overlap between query and target (TOMTOM option: -min-overlap) (default: 1)")
 
-
-
-
-
-    # STREME options ...
-
-    # TOMTOM options ...
 
 
 
@@ -2634,13 +2808,13 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bifile) file (default: use internal frequencies file, define which with --fimo-set-freqs)")
+                   help = "Provide FIMO nucleotide frequencies (FIMO option: --bfile) file (default: use internal frequencies file, define which with --fimo-ntf-mode)")
     p_oe.add_argument("--fimo-ntf-mode",
                    dest="fimo_ntf_mode",
                    type=int,
                    default=1,
-                   choices=[1, 2],
-                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) (default: 1)")
+                   choices=[1, 2, 3],
+                   help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) 3: use uniform frequencies (same for every nucleotide) (default: 1)")
     p_oe.add_argument("--fimo-pval",
                    dest="fimo_pval",
                    type=float,
@@ -2690,26 +2864,6 @@ def setup_argument_parser():
                    help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
 
     """
-    Info mode.
-    """
-    p_i = subparsers.add_parser('info',
-                                  help='Print out RBP IDs in database')
-    p_i.set_defaults(which='info')
-    # Optional arguments.
-    p_i.add_argument("--motif-db",
-                   dest="motif_db",
-                   type=int,
-                   default=1,
-                   choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
-    p_i.add_argument("--custom-db",
-                   dest="custom_db",
-                   type=str,
-                   metavar='str',
-                   default = False,
-                   help = "Provide custom motif database folder and print included IDs")
-
-    """
     Dist mode.
     """
     p_d = subparsers.add_parser('dist',
@@ -2755,45 +2909,26 @@ def setup_argument_parser():
                    action = "store_true",
                    help = "Plot .pdf (default: .png)")
 
-
     """
-    Compare mode.
+    Info mode.
     """
-    p_c = subparsers.add_parser('compare',
-                                  help='Compare different search results')
-    p_c.set_defaults(which='compare')
-    # Add required arguments group.
-    p_cm = p_c.add_argument_group("required arguments")
-    # Required arguments.
-    p_cm.add_argument("--in",
-                   dest="data_in",
-                   type=str,
-                   metavar='str',
-                   nargs='+',
-                   required=True,
-                   help="Supply motif search results data, either as folders (--out folders of rbpbench search or batch), or as files (both RBP and motif hit stats files needed!). Order of files does NOT matter")
-    p_cm.add_argument("--out",
-                   dest="out_folder",
-                   type=str,
-                   metavar='str',
-                   required=True,
-                   help="Comparison results output folder")
-    p_c.add_argument("--plot-abs-paths",
-                   dest="plot_abs_paths",
-                   default = False,
-                   action = "store_true",
-                   help = "Store plot files with absolute paths in HTML files. Default is relative paths (default: False)")
-    p_c.add_argument("--report-header",
-                   dest="report_header",
-                   default = False,
-                   action = "store_true",
-                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
-    p_c.add_argument("--sort-js-mode",
-                   dest="sort_js_mode",
+    p_i = subparsers.add_parser('info',
+                                  help='Print out RBP IDs in database')
+    p_i.set_defaults(which='info')
+    # Optional arguments.
+    p_i.add_argument("--motif-db",
+                   dest="motif_db",
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to plots output folder. 3: include .js code in HTML (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+    p_i.add_argument("--custom-db",
+                   dest="custom_db",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide custom motif database folder and print included IDs")
+
     return p
 
 
@@ -2911,6 +3046,7 @@ def main_search(args):
     fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text"
     if not args.meme_disable_check:
         check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
+        args.meme_version = meme_version
         if check:
             fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
     if args.meme_no_pgc:
@@ -2937,6 +3073,9 @@ def main_search(args):
     fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt.txt"
     if args.fimo_ntf_mode == 2:
         fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt_with_introns.txt"
+    elif args.fimo_ntf_mode == 3:
+        fimo_freqs_file = db_path + "/fimo_nt_freqs.uniform.txt"
+
     if args.fimo_user_ntf_file:
         fimo_freqs_file = args.fimo_user_ntf_file
     assert os.path.exists(fimo_freqs_file), "set FIMO nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
@@ -3222,9 +3361,9 @@ def main_search(args):
 
         # Remove , ; from given regex, to avoid motif_id format conflicts.
         regex = benchlib.remove_special_chars_from_str(args.regex,
-                                                       reg_ex="[ :;\(\)]")
+                                                       reg_ex="[ ;]")  # [ :;\(\)]
         
-        assert regex, "empty string after removing special chars ( [ :;\(\)] ) from --regex. Please provide a valid regex with DNA letters"
+        assert regex, "empty string after removing special chars ( ;) from --regex. Please provide a valid regex with DNA letters"
 
         args.regex = regex
 
@@ -3342,6 +3481,9 @@ def main_search(args):
         ext_down = int(ext_parts[1]) 
     else:
         assert False, "invalid --ext argument provided (correct format: --ext 10 OR --ext 20,10)"
+
+    args.ext_up = ext_up
+    args.ext_down = ext_down
 
     # Unstranded option.
     if args.unstranded:
@@ -5210,6 +5352,7 @@ def main_batch(args):
     fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text"
     if not args.meme_disable_check:
         check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
+        args.meme_version = meme_version
         if check:
             fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
     if args.meme_no_pgc:
@@ -5232,9 +5375,9 @@ def main_batch(args):
 
         # Remove , ; from given regex, to avoid motif_id format conflicts.
         regex = benchlib.remove_special_chars_from_str(args.regex,
-                                                       reg_ex="[ :;\(\)]")
+                                                       reg_ex="[ ;]")
         
-        assert regex, "empty string after removing special chars ( [ :;\(\)] ) from --regex. Please provide a valid regex with DNA letters"
+        assert regex, "empty string after removing special chars ( ;) from --regex. Please provide a valid regex with DNA letters"
 
 
     """
@@ -5327,6 +5470,9 @@ def main_batch(args):
     fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt.txt"
     if args.fimo_ntf_mode == 2:
         fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt_with_introns.txt"
+    elif args.fimo_ntf_mode == 3:
+        fimo_freqs_file = db_path + "/fimo_nt_freqs.uniform.txt"
+
     if args.fimo_user_ntf_file:
         fimo_freqs_file = args.fimo_user_ntf_file
     assert os.path.exists(fimo_freqs_file), "set FIMO nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
@@ -5521,6 +5667,8 @@ def main_batch(args):
     else:
         assert False, "invalid --ext argument provided (correct format: --ext 10 OR --ext 20,10)"
 
+    args.ext_up = ext_up
+    args.ext_down = ext_down
 
     """
     If --gtf file, read in GTF info.
@@ -7265,6 +7413,7 @@ def main_searchseq(args):
     fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text"
     if not args.meme_disable_check:
         check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
+        args.meme_version = meme_version
         if check:
             fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
     if args.meme_no_pgc:
@@ -7283,6 +7432,9 @@ def main_searchseq(args):
     fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt.txt"
     if args.fimo_ntf_mode == 2:
         fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt_with_introns.txt"
+    elif args.fimo_ntf_mode == 3:
+        fimo_freqs_file = db_path + "/fimo_nt_freqs.uniform.txt"
+
     if args.fimo_user_ntf_file:
         fimo_freqs_file = args.fimo_user_ntf_file
     assert os.path.exists(fimo_freqs_file), "set FIMO nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
@@ -8310,6 +8462,7 @@ def main_searchlong(args):
     fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text"
     if not args.meme_disable_check:
         check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
+        args.meme_version = meme_version
         if check:
             fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
     if args.meme_no_pgc:
@@ -8332,6 +8485,9 @@ def main_searchlong(args):
     fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt.txt"
     if args.fimo_ntf_mode == 2:
         fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt_with_introns.txt"
+    elif args.fimo_ntf_mode == 3:
+        fimo_freqs_file = db_path + "/fimo_nt_freqs.uniform.txt"
+
     if args.fimo_user_ntf_file:
         fimo_freqs_file = args.fimo_user_ntf_file
     assert os.path.exists(fimo_freqs_file), "set FIMO nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
@@ -8604,9 +8760,9 @@ def main_searchlong(args):
 
         # Remove , ; from given regex, to avoid motif_id format conflicts.
         regex = benchlib.remove_special_chars_from_str(args.regex,
-                                                       reg_ex="[ :;\(\)]")
+                                                       reg_ex="[ ;]")
                 
-        assert regex, "empty string after removing special chars ( [ :;\(\)] ) from --regex. Please provide a valid regex with DNA letters"
+        assert regex, "empty string after removing special chars ( ;) from --regex. Please provide a valid regex with DNA letters"
 
         args.regex = regex
 
@@ -9654,6 +9810,7 @@ def main_searchrna(args):
     fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text"
     if not args.meme_disable_check:
         check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
+        args.meme_version = meme_version
         if check:
             fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
     if args.meme_no_pgc:
@@ -9676,6 +9833,9 @@ def main_searchrna(args):
     fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt.txt"
     if args.fimo_ntf_mode == 2:
         fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt_with_introns.txt"
+    elif args.fimo_ntf_mode == 3:
+        fimo_freqs_file = db_path + "/fimo_nt_freqs.uniform.txt"
+
     if args.fimo_user_ntf_file:
         fimo_freqs_file = args.fimo_user_ntf_file
     assert os.path.exists(fimo_freqs_file), "set FIMO nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
@@ -9962,9 +10122,9 @@ def main_searchrna(args):
 
         # Remove , ; from given regex, to avoid motif_id format conflicts.
         regex = benchlib.remove_special_chars_from_str(args.regex,
-                                                       reg_ex="[ :;\(\)]")
+                                                       reg_ex="[ ;]")
         
-        assert regex, "empty string after removing special chars ( [ :;\(\)] ) from --regex. Please provide a valid regex with DNA letters"
+        assert regex, "empty string after removing special chars ( [ ;] ) from --regex. Please provide a valid regex with DNA letters"
 
         args.regex = regex
 
@@ -10298,6 +10458,9 @@ def main_searchrna(args):
         ext_down = int(ext_parts[1]) 
     else:
         assert False, "invalid --ext argument provided (correct format: --ext 10 OR --ext 20,10)"
+
+    args.ext_up = ext_up
+    args.ext_down = ext_down
 
     # Filter / extend --in transcript sites BED.
     print("Preprocess --in sites ... ")
@@ -11573,6 +11736,7 @@ def main_searchlongrna(args):
     fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text"
     if not args.meme_disable_check:
         check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
+        args.meme_version = meme_version
         if check:
             fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
     if args.meme_no_pgc:
@@ -11595,6 +11759,9 @@ def main_searchlongrna(args):
     fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt.txt"
     if args.fimo_ntf_mode == 2:
         fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt_with_introns.txt"
+    elif args.fimo_ntf_mode == 3:
+        fimo_freqs_file = db_path + "/fimo_nt_freqs.uniform.txt"
+
     if args.fimo_user_ntf_file:
         fimo_freqs_file = args.fimo_user_ntf_file
     assert os.path.exists(fimo_freqs_file), "set FIMO nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
@@ -11869,9 +12036,9 @@ def main_searchlongrna(args):
 
         # Remove , ; from given regex, to avoid motif_id format conflicts.
         regex = benchlib.remove_special_chars_from_str(args.regex,
-                                                       reg_ex="[ :;\(\)]")
+                                                       reg_ex="[ ;]")
         
-        assert regex, "empty string after removing special chars ( [ :;\(\)] ) from --regex. Please provide a valid regex with DNA letters"
+        assert regex, "empty string after removing special chars ( [ ;] ) from --regex. Please provide a valid regex with DNA letters"
 
         args.regex = regex
 
@@ -13183,6 +13350,7 @@ def main_enmo(args):
     fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text"
     if not args.meme_disable_check:
         check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
+        args.meme_version = meme_version
         if check:
             fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
     if args.meme_no_pgc:
@@ -13215,6 +13383,9 @@ def main_enmo(args):
     fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt.txt"
     if args.fimo_ntf_mode == 2:
         fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt_with_introns.txt"
+    elif args.fimo_ntf_mode == 3:
+        fimo_freqs_file = db_path + "/fimo_nt_freqs.uniform.txt"
+
     if args.fimo_user_ntf_file:
         fimo_freqs_file = args.fimo_user_ntf_file
     assert os.path.exists(fimo_freqs_file), "set FIMO nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
@@ -13490,9 +13661,9 @@ def main_enmo(args):
 
         # Remove , ; from given regex, to avoid motif_id format conflicts.
         regex = benchlib.remove_special_chars_from_str(args.regex,
-                                                       reg_ex="[ :;\(\)]")
+                                                       reg_ex="[ ;]")
         
-        assert regex, "empty string after removing special chars ( [ :;\(\)] ) from --regex. Please provide a valid regex with DNA letters"
+        assert regex, "empty string after removing special chars ( [ ;] ) from --regex. Please provide a valid regex with DNA letters"
 
         args.regex = regex
 
@@ -13742,6 +13913,9 @@ def main_enmo(args):
         ext_down = int(ext_parts[1]) 
     else:
         assert False, "invalid --ext argument provided (correct format: --ext 10 OR --ext 20,10)"
+
+    args.ext_up = ext_up
+    args.ext_down = ext_down
 
     # Filter / extend --in BED.
     print("Preprocess --in sites ... ")
@@ -15300,6 +15474,7 @@ def main_nemo(args):
     fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text"
     if not args.meme_disable_check:
         check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
+        args.meme_version = meme_version
         if check:
             fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
     if args.meme_no_pgc:
@@ -15332,6 +15507,9 @@ def main_nemo(args):
     fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt.txt"
     if args.fimo_ntf_mode == 2:
         fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt_with_introns.txt"
+    elif args.fimo_ntf_mode == 3:
+        fimo_freqs_file = db_path + "/fimo_nt_freqs.uniform.txt"
+
     if args.fimo_user_ntf_file:
         fimo_freqs_file = args.fimo_user_ntf_file
     assert os.path.exists(fimo_freqs_file), "set FIMO nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
@@ -15602,9 +15780,9 @@ def main_nemo(args):
 
         # Remove , ; from given regex, to avoid motif_id format conflicts.
         regex = benchlib.remove_special_chars_from_str(args.regex,
-                                                       reg_ex="[ :;\(\)]")
+                                                       reg_ex="[ ;]")
         
-        assert regex, "empty string after removing special chars ( [ :;\(\)] ) from --regex. Please provide a valid regex with DNA letters"
+        assert regex, "empty string after removing special chars ( [ ;] ) from --regex. Please provide a valid regex with DNA letters"
 
         args.regex = regex
 
@@ -15858,6 +16036,9 @@ def main_nemo(args):
 
     print("--in extension upstream == %i, downstream == %i ... " %(ext_up, ext_down))
 
+    args.ext_up = ext_up
+    args.ext_down = ext_down
+
     # Filter / extend --in BED.
     print("Preprocess --in sites ... ")
 
@@ -15894,7 +16075,6 @@ def main_nemo(args):
         print("WARNING: --in sites differ in length. For optimal results provide same length sites (e.g. motif hit sites or single positions)")
     max_core_len = max(core_reg_len_set)
 
-    # AALAMO
     from math import ceil
     max_dist_plot_range = max_ext + ceil(max_core_len/2)
     dist_plot_range = range(-max_dist_plot_range, max_dist_plot_range+1)
@@ -16875,6 +17055,9 @@ def main_nemo(args):
         else:
             found_motif_ids_dic[motif_id] = 1
 
+
+    print("found_motif_ids_dic:", found_motif_ids_dic)
+
     """
     Get motif enrichment stats.
 
@@ -16906,6 +17089,25 @@ def main_nemo(args):
         print("No motifs found in any regions (input or background). Exiting ... ")
         sys.exit()  # AALAMO
 
+    """
+    Hypothesis test modes.
+
+    """
+    # Wilcoxon rank-sum test / Mann Whitney U test mode.
+    wrs_alt_hypo = ""
+    if args.wrs_mode == 1:
+        wrs_alt_hypo = "two-sided"
+        print("Check if up- or downstream context regions have significantly different counts ... ")
+    elif args.wrs_mode == 2:
+        wrs_alt_hypo = "greater"
+        print("Check if upstream context regions have significantly lower counts ... ")
+    elif args.wrs_mode == 3:
+        wrs_alt_hypo = "less"
+        print("Check if downstream context regions have significantly lower counts ... ")
+    else:
+        assert False, "Invalid Wilcoxon rank-sum (Mann Whitney U) test mode: %i" %(args.wrs_mode)
+
+
     for motif_id in sorted(found_motif_ids_dic.keys()):
 
         motif_ids_list.append(motif_id)
@@ -16921,30 +17123,24 @@ def main_nemo(args):
         c_pos_hits = 0
         c_pos_hit_regions = 0
 
+        dist_plot_counts_dic = {dist: 0 for dist in dist_plot_range}
+
         if motif_id in pos_hits_dic:
             for reg_id in pos_hits_dic[motif_id]:
                 c_pos_hits += pos_hits_dic[motif_id][reg_id]
                 c_pos_hit_regions += 1
 
-        motif_enrich_stats.pos_set_avg_center_dist = pos_avg_center_dist_dic[motif_id] / c_pos_hits
+            motif_enrich_stats.pos_set_avg_center_dist = pos_avg_center_dist_dic[motif_id] / c_pos_hits
 
-        # Get center distance position with maximum count from pos_dist_c_dic[motif_id], where key is position and value is count.
-        pos_set_max_center_dist = max(pos_dist_c_dic[motif_id], key=pos_dist_c_dic[motif_id].get)
-        motif_enrich_stats.pos_set_max_center_dist = pos_set_max_center_dist
-        motif_enrich_stats.pos_set_max_center_dist_c = pos_dist_c_dic[motif_id][pos_set_max_center_dist]
-    
-        # Make positional motif hit counts dictionary (input sites only) for every motif ID.
-        dist_plot_counts_dic = {dist: 0 for dist in dist_plot_range}
-        for dist in pos_dist_c_dic[motif_id]:
-            if dist in dist_plot_counts_dic:
-                dist_plot_counts_dic[dist] = pos_dist_c_dic[motif_id][dist]
-        # motif2dist_plot_pos_dic[motif_id] = dist_plot_counts_dic
-
-        # AALAMO
-
-        # if motif_id == "RBFOX1_3":
-        #     print(motif_id)
-        #     print(dist_plot_counts_dic)
+            # Get center distance position with maximum count from pos_dist_c_dic[motif_id], where key is position and value is count.
+            pos_set_max_center_dist = max(pos_dist_c_dic[motif_id], key=pos_dist_c_dic[motif_id].get)
+            motif_enrich_stats.pos_set_max_center_dist = pos_set_max_center_dist
+            motif_enrich_stats.pos_set_max_center_dist_c = pos_dist_c_dic[motif_id][pos_set_max_center_dist]
+        
+            # Make positional motif hit counts dictionary (input sites only) for every motif ID.
+            for dist in pos_dist_c_dic[motif_id]:
+                if dist in dist_plot_counts_dic:
+                    dist_plot_counts_dic[dist] = pos_dist_c_dic[motif_id][dist]
 
         upstream_counts = []
         downstream_counts = []
@@ -16957,7 +17153,6 @@ def main_nemo(args):
         motif_enrich_stats.dist_plot_counts_dic = dist_plot_counts_dic
 
         # Wilcoxon rank-sum test.
-        wrs_alt_hypo = "two-sided"
         wrs_test_stat, wrs_pval = mannwhitneyu(upstream_counts, downstream_counts, alternative=wrs_alt_hypo)
         # Round p-values to 4 significant digits.
         wrs_pval = benchlib.round_to_n_significant_digits_v2(wrs_pval, 4)
@@ -16974,11 +17169,11 @@ def main_nemo(args):
                 c_neg_hits += neg_hits_dic[motif_id][reg_id]
                 c_neg_hit_regions += 1
 
-        motif_enrich_stats.neg_set_avg_center_dist = neg_avg_center_dist_dic[motif_id] / c_neg_hits
+            motif_enrich_stats.neg_set_avg_center_dist = neg_avg_center_dist_dic[motif_id] / c_neg_hits
 
-        neg_set_max_center_dist = max(neg_dist_c_dic[motif_id], key=neg_dist_c_dic[motif_id].get)
-        motif_enrich_stats.neg_set_max_center_dist = neg_set_max_center_dist
-        motif_enrich_stats.neg_set_max_center_dist_c = neg_dist_c_dic[motif_id][neg_set_max_center_dist]
+            neg_set_max_center_dist = max(neg_dist_c_dic[motif_id], key=neg_dist_c_dic[motif_id].get)
+            motif_enrich_stats.neg_set_max_center_dist = neg_set_max_center_dist
+            motif_enrich_stats.neg_set_max_center_dist_c = neg_dist_c_dic[motif_id][neg_set_max_center_dist]
 
         motif_enrich_stats.c_pos_hits = c_pos_hits
         motif_enrich_stats.c_neg_hits = c_neg_hits
@@ -17071,19 +17266,23 @@ def main_nemo(args):
         p_value = benchlib.round_to_n_significant_digits_v2(p_value, 4)
         motif_enrich_stats_dic[motif_id].fisher_pval = p_value
 
-        pos_set_avg_center_dist = round(motif_enrich_stats_dic[motif_id].pos_set_avg_center_dist, 1)
-        neg_set_avg_center_dist = round(motif_enrich_stats_dic[motif_id].neg_set_avg_center_dist, 1)
-        pos_set_max_center_dist = motif_enrich_stats_dic[motif_id].pos_set_max_center_dist
-        neg_set_max_center_dist = motif_enrich_stats_dic[motif_id].neg_set_max_center_dist
-        pos_set_max_center_dist_c = motif_enrich_stats_dic[motif_id].pos_set_max_center_dist_c
-        neg_set_max_center_dist_c = motif_enrich_stats_dic[motif_id].neg_set_max_center_dist_c
+        pos_set_avg_center_dist = "-"
+        neg_set_avg_center_dist = "-"
+        if motif_id in pos_hits_dic:
+            pos_set_avg_center_dist = str(round(motif_enrich_stats_dic[motif_id].pos_set_avg_center_dist, 1))
+        if motif_id in neg_hits_dic:
+            neg_set_avg_center_dist = str(round(motif_enrich_stats_dic[motif_id].neg_set_avg_center_dist, 1))
+        pos_set_max_center_dist = str(motif_enrich_stats_dic[motif_id].pos_set_max_center_dist)
+        neg_set_max_center_dist = str(motif_enrich_stats_dic[motif_id].neg_set_max_center_dist)
+        pos_set_max_center_dist_c = str(motif_enrich_stats_dic[motif_id].pos_set_max_center_dist_c)
+        neg_set_max_center_dist_c = str(motif_enrich_stats_dic[motif_id].neg_set_max_center_dist_c)
 
         if p_value_corr <= nemo_pval_thr:
             c_sig_fisher_pval += 1
             sig_motif_ids_list.append(motif_id)
         c_all_fisher_pval += 1
 
-        COSOUT.write("%s\t%s\t%i\t%i\t%i\t%i\t%s\t%i\t%i\t%s\t%i\t%i\t%s\t%s\n" %(motif_id, rbp_id, c_in_fg, c_not_in_fg, c_in_bg, c_not_in_bg, str(pos_set_avg_center_dist), pos_set_max_center_dist, pos_set_max_center_dist_c, str(neg_set_avg_center_dist), neg_set_max_center_dist, neg_set_max_center_dist_c, str(p_value), str(p_value_corr)))
+        COSOUT.write("%s\t%s\t%i\t%i\t%i\t%i\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" %(motif_id, rbp_id, c_in_fg, c_not_in_fg, c_in_bg, c_not_in_bg, pos_set_avg_center_dist, pos_set_max_center_dist, pos_set_max_center_dist_c, neg_set_avg_center_dist, neg_set_max_center_dist, neg_set_max_center_dist_c, str(p_value), str(p_value_corr)))
 
     COSOUT.close()
 
@@ -17473,94 +17672,9 @@ def main_nemo(args):
 
 
     """
-    make html report.
-    Check additional options?
-    
-    
-class NemoStats:
-
-    def __init__(self,
-                 motif_id: str,
-                 rbp_id: str,
-                 c_pos_hit_regions = 0,
-                 c_neg_hit_regions = 0,
-                 c_pos_regions = 0,
-                 c_neg_regions = 0,
-                 c_pos_hits = 0,
-                 c_neg_hits = 0,
-                 cont_table = "-",
-                 fisher_pval = 1.0,
-                 fisher_pval_corr = 1.0,
-                 fisher_corr_mode = 1,  # 1: BH, 2: Bonferroni, 3: no correction
-                 fisher_alt_hyp_mode = 1,  # Alternative hypothesis mode, 1: greater, 2: two-sided, 3: less
-                 motif_type="meme_xml",
-                 logo_png_file = False) -> None:
-
-    
-            rbp_stats = RBPStats(internal_id, cols[0], cols[1], cols[2], cols[3])
-            rbp_stats.rbp_id = cols[4]
-            rbp_stats.c_regions = int(cols[5])
-            rbp_stats.mean_reg_len = float(cols[6])
-
-
-            for other_motif_id, pair_c in sorted(pc_dic.items(), key=lambda item: item[1], reverse=True):
-
-                if pair_c >= motif_min_pair_count:
-
-                    # Plot motif (if sequence motif).
-                    plot_str = "-"
-                    if other_motif_id in seq_motif_blocks_dic:
-
-                        other_rbp_id = id2name_dic[other_motif_id]
-                        motif_plot = "%s.%s.png" %(other_rbp_id, other_motif_id)
-                        motif_plot_out = plots_out_folder + "/" + motif_plot
-                        plot_path = plots_folder + "/" + motif_plot
-
-                        # Check if motif in motif database folder.
-                        if motif_db_str:
-                            db_motif_path = benchlib_path + "/content/%s_motif_plots/%s" %(motif_db_str, motif_plot)
-                            if os.path.exists(db_motif_path):
-                                shutil.copy(db_motif_path, motif_plot_out)
-
-                        if not os.path.exists(motif_plot_out):
-                            create_motif_plot(other_motif_id, seq_motif_blocks_dic,
-                                              motif_plot_out)
-
-                        plot_str = '<image src = "' + plot_path + '" width="300px"></image>'
-
-                    # else:
-                    #     print("Motif ID %s not in seq_motif_blocks_dic ... " %(other_motif_id))
-
-                    # mdtext += "| %s | %s | %s | %i | %i | %i |\n" %(motif_id, other_motif_id, plot_str, pair_c, in_dic[other_motif_id], out_dic[other_motif_id])
-
-                    mdtext += '<tr>' + "\n"
-                    mdtext += "<td>" + motif_id + "</td>\n"
-                    mdtext += "<td>" + other_motif_id + "</td>\n"
-                    mdtext += "<td>" + plot_str + "</td>\n"
-                    mdtext += "<td>" + str(pair_c) + "</td>\n"
-                    mdtext += "<td>" + str(in_dic[other_motif_id]) + "</td>\n"
-                    mdtext += "<td>" + str(out_dic[other_motif_id]) + "</td>\n"
-                    mdtext += '</tr>' + "\n"
-
-
-    Store for each RBP the regions with motif hits (and hit counts), using
-    dictionary of dictionaries regions_with_motifs_dic.
-    This tells us, how many input regions have motif hits, separated by RBP.
-    Also store for each RBP the unique motif hit regions (and hit counts), using
-    dictionary of dictionaries unique_motifs_dic.
-
-    regions_with_motifs_dic:
-        Dictionary of dictionaries, format:
-        {rbp_id1 -> {'region1': motif_c_region1, 'region2': motif_c_region2}, rbp_id2 -> {'region1': motif_c_region1}}
-    unique_motifs_dic:
-        Dictionary of dictionaries, format:
-        {rbp_id1 -> {'motif_region1': c_motif_region1, 'motif_region2': c_motif_region2}, rbp_id2 -> .. }
+    Make html report.
 
     """
-
-
-
-
 
     html_report_out = args.out_folder + "/" + "report.rbpbench_nemo.html"
     if args.plot_abs_paths:
@@ -17569,7 +17683,6 @@ class NemoStats:
     if os.path.exists(html_report_out):
         os.remove(html_report_out)
 
-    # AALAMO
     plots_subfolder = "html_report_plots"
 
     print("Create report ... ")
@@ -17586,7 +17699,6 @@ class NemoStats:
                                        rbpbench_mode="nemo",
                                        html_report_out=html_report_out,
                                        plots_subfolder=plots_subfolder)
-
 
 
     """
@@ -17625,39 +17737,6 @@ class NemoStats:
     print("")
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ################################################################################
 
 def main_streme(args):
@@ -17666,8 +17745,102 @@ def main_streme(args):
 
     """
 
-    print("Running for you in STREME mode ... ")
+    print("Running STREME for you ... ")
 
+    assert os.path.exists(args.in_fa), "--in \"%s\" not found" % (args.in_fa)
+    assert benchlib.fasta_check_format(args.in_fa), "--in \"%s\" not in FASTA format" % (args.in_fa)
+
+    if args.in_neg_fa:
+        assert os.path.exists(args.in_neg_fa), "--neg-in \"%s\" not found" % (args.in_neg_fa)
+        assert benchlib.fasta_check_format(args.in_neg_fa), "--neg-in \"%s\" not in FASTA format" % (args.in_neg_fa)
+
+    """
+    Library path.
+    """
+    benchlib_path = os.path.dirname(benchlib.__file__)
+    db_path = benchlib_path + "/content"
+
+    """
+    FIMO nt frequencies.
+
+    """
+    fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt.txt"
+    if args.streme_ntf_mode == 2:
+        fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt_with_introns.txt"
+    elif args.streme_ntf_mode == 3:
+        fimo_freqs_file = db_path + "/fimo_nt_freqs.uniform.txt"
+
+    if args.streme_bfile:
+        fimo_freqs_file = args.streme_bfile
+
+    assert os.path.exists(fimo_freqs_file), "set nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
+
+    """
+    Outputs.
+
+    """
+
+    if not os.path.exists(args.out_folder):
+        os.makedirs(args.out_folder)
+
+    settings_file = args.out_folder + "/settings.rbpbench_streme.out"
+    streme_seqs_tsv = args.out_folder + "/sequences.tsv"
+    streme_sites_tsv = args.out_folder + "/sites.tsv"
+    streme_out_txt = args.out_folder + "/streme.txt"
+    streme_out_xml = args.out_folder + "/streme.xml"
+    streme_out_html = args.out_folder + "/streme.html"
+
+    
+    """
+    Run STREME.
+
+    """
+
+    call_dic = {}
+
+    print("Run STREME ... ")
+    benchlib.run_streme(args.in_fa, args.out_folder,
+                        neg_fa=args.in_neg_fa,
+                        streme_bfile=fimo_freqs_file,
+                        streme_evalue=args.streme_evalue,
+                        streme_thresh=args.streme_thresh,
+                        streme_minw=args.streme_minw,
+                        streme_maxw=args.streme_maxw,
+                        streme_seed=args.streme_seed,
+                        streme_order=args.streme_order,
+                        params="--dna",
+                        call_dic=call_dic,
+                        print_output=True,
+                        error_check=False)
+
+    """
+    Output parameter settings.
+
+    """
+    # Output mode settings.
+    print("Output parameter settings ... ")
+    SETOUT = open(settings_file, "w")
+    for arg in vars(args):
+        SETOUT.write("%s\t%s\n" %(arg, str(getattr(args, arg))))
+    for call in call_dic:
+        SETOUT.write("%s\t%s\n" %(call, call_dic[call]))
+    SETOUT.close()
+
+    """
+    Inform about outputs.
+
+    """
+    print("")
+    print("OUTPUT FILES")
+    print("============")
+    print("")
+    print("Run parameter settings:\n%s" %(settings_file))
+    print("STREME matching sites .tsv:\n%s" %(streme_sites_tsv))
+    print("STREME matching sequences .tsv:\n%s" %(streme_seqs_tsv))
+    print("STREME results .txt:\n%s" %(streme_out_txt))
+    print("STREME results .xml:\n%s" %(streme_out_xml))
+    print("STREME results .html:\n%s" %(streme_out_html))
+    print("")
 
 
 ################################################################################
@@ -17678,12 +17851,191 @@ def main_tomtom(args):
 
     """
 
-    print("Running for you in TOMTOM mode ... ")
+    print("Running TOMTOM for you ... ")
+
+    if args.custom_db_meme_xml:
+        assert os.path.exists(args.custom_db_meme_xml), "--custom-db \"%s\" not found" % (args.custom_db_meme_xml)
+
+    """
+    Library path.
+    """
+    benchlib_path = os.path.dirname(benchlib.__file__)
+    db_path = benchlib_path + "/content"
+
+    """
+    FIMO nt frequencies.
+
+    """
+    fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt.txt"
+    if args.tomtom_ntf_mode == 2:
+        fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt_with_introns.txt"
+    elif args.tomtom_ntf_mode == 3:
+        fimo_freqs_file = db_path + "/fimo_nt_freqs.uniform.txt"
+
+    if args.tomtom_bfile:
+        fimo_freqs_file = args.tomtom_bfile
+
+    assert os.path.exists(fimo_freqs_file), "set nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
+
+    """
+    Outputs.
+    """
+
+    if not os.path.exists(args.out_folder):
+        os.makedirs(args.out_folder)
+
+    settings_file = args.out_folder + "/settings.rbpbench_tomtom.out"
+    tomtom_out_tsv = args.out_folder + "/tomtom.tsv"
+    tomtom_out_xml = args.out_folder + "/tomtom.xml"
+    tomtom_out_html = args.out_folder + "/tomtom.html"
+
+    """
+    Motif database.
+
+    Only sequence motifs of interest for TOMTOM.
+    """
+    seq_motifs_db_file, str_motifs_db_file, rbp2ids_file, motif_db_str = specify_motif_db(args.motif_db, 
+                                                                            db_path=db_path)
+
+    if args.custom_db_meme_xml:
+        seq_motifs_db_file = args.custom_db_meme_xml
+        motif_db_str = args.custom_db_id
+
+    args.motif_db_str = motif_db_str
+
+    """
+    Check set motifs file.
+
+    """
+
+    seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
+                                                       empty_check=True)
+    assert seq_motif_blocks_dic, "No motifs found in MEME XML file \"%s\". Please provide motifs file in MEME motif format" % (seq_motifs_db_file)
 
 
+    """
+    Check --in query.
 
+    """
 
+    regex = False
+    query_motif_file = args.out_folder + "/query_motifs.meme"
+    db_motif_file = args.out_folder + "/db_motifs.meme"
+    shutil.copy(seq_motifs_db_file, db_motif_file)
 
+    if os.path.isfile(args.motif_in):
+        print("--in is motifs file. Check format ... ")
+
+        shutil.copy(args.motif_in, query_motif_file)
+
+        query_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
+                                                             empty_check=True)
+        assert query_motif_blocks_dic, "No motifs found in --in MEME XML file \"%s\". Please provide motifs file in MEME motif format" % (args.motif_in)
+
+    else:
+
+        print("--in is regex/sequence motif string. Extracting sequences from string ... ")
+
+        regex = args.motif_in
+        assert benchlib.is_valid_regex(regex), "given --in \"%s\" is not a valid regular expression. Please provide valid expression (e.g. --in AC[AC]GTA)" % (args.regex)
+        # Only allow a subset of regexes, namely with square brackets: AC[ACG]AC.
+        special_chars = r"[.^$*+?{}()|\\]"
+
+        regex = benchlib.remove_special_chars_from_str(regex,
+                                                       reg_ex=special_chars)
+
+        assert regex, "empty string after removing special chars \"%s\" from --regex. Please provide a valid regex with DNA letters" %(special_chars)
+
+        print("Regex after removing special chars:", regex)
+
+        query_motif_blocks_dic = {}
+
+        if args.regex_mode == 1:
+
+            seq_id = regex
+
+            # Get all sequence parts from regex.
+            seq_parts_list = benchlib.get_seq_parts_from_regex(regex)
+
+            for seq in seq_parts_list:
+                assert benchlib.seq_check_alphabet(seq, alphabet=["A", "C", "G", "T"]), "sequence \"%s\" derived from --in string has non-DNA letters in it. Please provide DNA sequences / regular expressions" %(seq)
+
+            seq_motif_block = benchlib.seq_parts_to_motif_block(seq_parts_list)
+
+            query_motif_blocks_dic[seq_id] = seq_motif_block
+
+        elif args.regex_mode == 2:
+            # Get all single sequences from regex.
+            seqs_list = benchlib.get_seqs_from_regex(regex)
+
+            # Convert sequences to sequence blocks.
+            for idx, seq in enumerate(seqs_list):
+                seq_id = "s%i_" %(idx+1) + seq
+
+                assert benchlib.seq_check_alphabet(seq, alphabet=["A", "C", "G", "T"]), "sequence \"%s\" derived from --in string has non-DNA letters in it. Please provide DNA sequences / regular expressions" %(seq)
+
+                seq_motif_block = benchlib.seq_to_motif_block(seq)
+
+                query_motif_blocks_dic[seq_id] = seq_motif_block
+
+        out_str, c_added_motifs = benchlib.blocks_to_xml_string(query_motif_blocks_dic, query_motif_blocks_dic)
+        benchlib.output_string_to_file(out_str, query_motif_file)
+        print("# of added query motifs from --in string:", c_added_motifs)
+
+    assert os.path.exists(query_motif_file), "no query motifs file written to output folder. Please contact developers"
+
+    args.regex = regex
+    args.query_motif_file = query_motif_file
+    args.db_motif_file = db_motif_file
+
+    """
+    Run TOMTOM.
+
+    """
+
+    call_dic = {}
+
+    # Bang the tomtom slowly, dumbass.
+    print("Run TOMTOM using query and database motif files ... ")
+    benchlib.run_tomtom(query_motif_file, db_motif_file, args.out_folder,
+                        tomtom_bfile=fimo_freqs_file,
+                        tomtom_thresh=args.tomtom_thresh,
+                        tomtom_evalue=args.tomtom_evalue,
+                        tomtom_m=args.tomtom_m,
+                        tomtom_min_overlap=args.tomtom_min_overlap,
+                        params="-norc",
+                        call_dic=call_dic,
+                        print_output=True,
+                        error_check=False)
+
+    """
+    Output parameter settings.
+
+    """
+    # Output mode settings.
+    print("Output parameter settings ... ")
+    SETOUT = open(settings_file, "w")
+    for arg in vars(args):
+        SETOUT.write("%s\t%s\n" %(arg, str(getattr(args, arg))))
+    for call in call_dic:
+        SETOUT.write("%s\t%s\n" %(call, call_dic[call]))
+    SETOUT.close()
+
+    """
+    Inform about outputs.
+
+    """
+    print("")
+    print("OUTPUT FILES")
+    print("============")
+    print("")
+    print("Run parameter settings:\n%s" %(settings_file))
+    print("Query motifs .meme:\n%s" %(query_motif_file))
+    print("Database motifs .meme:\n%s" %(db_motif_file))
+    print("TOMTOM results .tsv:\n%s" %(tomtom_out_tsv))
+    print("TOMTOM results .xml:\n%s" %(tomtom_out_xml))
+    print("TOMTOM results .html:\n%s" %(tomtom_out_html))
+    print("")
 
 
 ################################################################################
@@ -17862,9 +18214,6 @@ def main_goa(args):
     print("")
 
 
-
-
-
     """
     GOA table HTML.
 
@@ -17883,9 +18232,6 @@ def main_goa(args):
                                       report_header=args.report_header,
                                       sort_js_mode=args.sort_js_mode,
                                       html_report_out=html_goa_results_out)
-
-
-    # AALAMO
 
     """
     Output parameter settings.
@@ -17913,7 +18259,6 @@ def main_goa(args):
     print("GO enrichment analysis results (full table) .tsv:\n%s" %(goa_results_tsv))
     print("GO enrichment analysis results (filtered) .html:\n%s" %(html_goa_results_out))
     print("")
-
 
 
 
@@ -17945,6 +18290,7 @@ def main_optex(args):
     fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text"
     if not args.meme_disable_check:
         check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
+        args.meme_version = meme_version
         if check:
             fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
     if args.meme_no_pgc:
@@ -17963,6 +18309,9 @@ def main_optex(args):
     fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt.txt"
     if args.fimo_ntf_mode == 2:
         fimo_freqs_file = db_path + "/fimo_nt_freqs.ensembl_mpt_with_introns.txt"
+    elif args.fimo_ntf_mode == 3:
+        fimo_freqs_file = db_path + "/fimo_nt_freqs.uniform.txt"
+
     if args.fimo_user_ntf_file:
         fimo_freqs_file = args.fimo_user_ntf_file
     assert os.path.exists(fimo_freqs_file), "set FIMO nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
@@ -18476,7 +18825,6 @@ def main_optex(args):
     """
     print("Delete tmp folder ... ")
     if os.path.exists(tmp_out_folder):
-        import shutil
         shutil.rmtree(tmp_out_folder)
 
     """
