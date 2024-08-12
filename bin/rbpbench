@@ -2582,7 +2582,7 @@ def setup_argument_parser():
 
     """
     p_to = subparsers.add_parser('tomtom',
-                                help='Compare motif(s) with database motifs using TOMOTM')
+                                help='Compare motif(s) with database using TOMOTM')
     p_to.set_defaults(which='tomtom')
     # Add required arguments group.
     p_tom = p_to.add_argument_group("required arguments")
