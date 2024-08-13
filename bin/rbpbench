@@ -2039,7 +2039,7 @@ def setup_argument_parser():
                    type=int,
                    metavar='int',
                    default=5000,
-                   help="Minimum size of background set to be used for calculating motif enrichment. If size =< --in set, use --in set size. If size > --in set size, double the --in set until it is <= size. Only applies for --bg-mode 1. For --bg-mode 2, you can use --bg-shuff-factor (default: 5000)")
+                   help="Minimum size of background set to be used for calculating motif enrichment. If size <= --in set size, use --in set size. If size > --in set size, double the --in set until it is <= size. Only applies for --bg-mode 1. For --bg-mode 2, you can use --bg-shuff-factor (default: 5000)")
     p_em.add_argument("--bg-mask-bed",
                    dest="bg_mask_bed",
                    type=str,
@@ -2345,7 +2345,7 @@ def setup_argument_parser():
                    type=int,
                    metavar='int',
                    default=5000,
-                   help="Minimum size of background set to be used for calculating motif enrichment. If size =< --in set, use --in set size. If size > --in set size, double the --in set until it is <= size. Only applies for --bg-mode 1. For --bg-mode 2, you can use --bg-shuff-factor (default: 5000)")
+                   help="Minimum size of background set to be used for calculating motif enrichment. If size <= --in set size, use --in set size. If size > --in set size, double the --in set until it is <= size. Only applies for --bg-mode 1. For --bg-mode 2, you can use --bg-shuff-factor (default: 5000)")
     p_nm.add_argument("--bg-mask-bed",
                    dest="bg_mask_bed",
                    type=str,
@@ -13231,6 +13231,11 @@ def main_searchlongrna(args):
 
     """
     
+    args.bed_sc_thr = None
+    args.c_regions = c_regions
+    args.ext_up = None
+    args.ext_down = None
+
     html_motif_plots_out = args.out_folder + "/" + "motif_plots.rbpbench_searchlongrna.html"
     if args.plot_abs_paths:
         html_motif_plots_out = os.path.abspath(args.out_folder) + "/" + "motif_plots.rbpbench_searchlongrna.html"
@@ -13254,6 +13259,7 @@ def main_searchlongrna(args):
                                         html_report_out=html_motif_plots_out,
                                         rbpbench_mode="searchlongrna",
                                         reg_seq_str="regions",
+                                        goa_results_tsv="goa_results_on_motif_hit_transcripts.tsv",
                                         goa_results_df=goa_results_df,
                                         goa_stats_dic=goa_stats_dic,
                                         plots_subfolder=plots_subfolder)
@@ -13825,7 +13831,7 @@ def main_enmo(args):
     if not genomic_sites_input:
         print("--in site seem to be transcript sites. Checking ... ")
         for tr_id in chr_ids_in_dic:
-            assert tr_id in tr2gid_dic, "transcript ID %s from --in sites BED file not found in --gtf file. Please provide compatible --in and --gtf files"
+            assert tr_id in tr2gid_dic, "transcript ID %s from --in sites BED file not found in --gtf file. Please provide compatible --in and --gtf files" %(tr_id)
 
     # Get most prominent transcripts or if --tr-list is set, read in transcript IDs.
     tr_ids_dic = {}
@@ -13878,8 +13884,6 @@ def main_enmo(args):
     # Get transcript lengths.
     tr_len_dic = {}
 
-    # AALAMO
-
     for tid in tid2tio_dic:
         tr_len_dic[tid] = tid2tio_dic[tid].tr_length
         total_tr_intron_len += tid2tio_dic[tid].total_intron_len
@@ -13920,6 +13924,13 @@ def main_enmo(args):
     # Filter / extend --in BED.
     print("Preprocess --in sites ... ")
 
+    feat_len_dic = {}
+    if genomic_sites_input:
+        feat_len_dic = chr_len_dic
+    else:
+        feat_len_dic = tr_len_dic
+
+
     reg_stats_dic = benchlib.bed_filter_extend_bed(args.in_sites, f1_sites_bed,
                                                    ext_up=ext_up,
                                                    ext_down=ext_down,
@@ -13927,7 +13938,7 @@ def main_enmo(args):
                                                    score_col=args.bed_score_col,
                                                    score_thr=args.bed_sc_thr,
                                                    score_rev_filter=args.bed_sc_thr_rev_filter,
-                                                   chr_len_dic=chr_len_dic,
+                                                   chr_len_dic=feat_len_dic,
                                                    use_region_ids=True)
 
     print("# --in regions pre-filtering:  ", reg_stats_dic["c_in"])
@@ -15944,7 +15955,7 @@ def main_nemo(args):
     if not genomic_sites_input:
         print("--in site seem to be transcript sites. Checking ... ")
         for tr_id in chr_ids_in_dic:
-            assert tr_id in tr2gid_dic, "transcript ID %s from --in sites BED file not found in --gtf file. Please provide compatible --in and --gtf files"
+            assert tr_id in tr2gid_dic, "transcript ID %s from --in sites BED file not found in --gtf file. Please provide compatible --in and --gtf files" %(tr_id)
 
     # Get most prominent transcripts or if --tr-list is set, read in transcript IDs.
     tr_ids_dic = {}
@@ -16045,6 +16056,12 @@ def main_nemo(args):
     # Store original (ie before extending) region info (chr_id, start, end, strand) for each region ID.
     core_reg_dic = {}
 
+    feat_len_dic = {}
+    if genomic_sites_input:
+        feat_len_dic = chr_len_dic
+    else:
+        feat_len_dic = tr_len_dic
+
     reg_stats_dic = benchlib.bed_filter_extend_bed(args.in_sites, f1_sites_bed,
                                                    ext_up=ext_up,
                                                    ext_down=ext_down,
@@ -16055,7 +16072,7 @@ def main_nemo(args):
                                                    core_reg_id="pos",
                                                    core_reg_dic=core_reg_dic,
                                                    score_rev_filter=args.bed_sc_thr_rev_filter,
-                                                   chr_len_dic=chr_len_dic,
+                                                   chr_len_dic=feat_len_dic,
                                                    use_region_ids=False)
 
     print("# --in regions pre-filtering:  ", reg_stats_dic["c_in"])
@@ -17054,9 +17071,6 @@ def main_nemo(args):
             found_motif_ids_dic[motif_id] += 1
         else:
             found_motif_ids_dic[motif_id] = 1
-
-
-    print("found_motif_ids_dic:", found_motif_ids_dic)
 
     """
     Get motif enrichment stats.

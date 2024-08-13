@@ -5515,7 +5515,7 @@ def filter_out_center_motif_hits(hits_list, core_rel_reg_dic):
     >>> print(flt_hits_list[0])
     chr1:120-130(+)motif1
     >>> print(flt_hits_list[0].center_dist)
-    26
+    -26
 
     """
 
@@ -5539,8 +5539,8 @@ def filter_out_center_motif_hits(hits_list, core_rel_reg_dic):
         hit_center_pos = get_center_position(hit_seq_s-1, hit_seq_e)
         core_center_pos = get_center_position(core_seq_s-1, core_seq_e)
 
-        # Can be positive if hit upstream of center, or negative if hit downstream.
-        hit.center_dist = core_center_pos - hit_center_pos
+        # Can be negative if hit upstream of center, or positive if hit downstream.
+        hit.center_dist = hit_center_pos - core_center_pos
 
         flt_hits_list.append(hit)
 
@@ -5599,8 +5599,8 @@ def filter_out_neg_center_motif_hits(neg_hits_list, core_rel_reg_dic):
         hit_center_pos = get_center_position(hit_seq_s-1, hit_seq_e)
         core_center_pos = get_center_position(core_seq_s-1, core_seq_e)
 
-        # Can be positive if hit upstream of center, or negative if hit downstream.
-        hit.center_dist = core_center_pos - hit_center_pos
+        # Can be negative if hit upstream of center, or positive if hit downstream.
+        hit.center_dist =  hit_center_pos - core_center_pos
 
         flt_neg_hits_list.append(hit)
 
@@ -8553,12 +8553,19 @@ by RBPBench (rbpbench %s):
         p_val_info = "%s motifs with p-values below %s are considered significant." %(motif_add_info, str(args.enmo_pval_thr))
     else:
         assert False, "Invalid motif enrichment p-value mode (--enmo-pval-mode) set: %i" %(args.enmo_pval_mode)
-    
+
+    pval_dic = {}
+    c_sig_motifs = 0
+    for motif_id in motif_enrich_stats_dic:
+        pval = motif_enrich_stats_dic[motif_id].fisher_pval_corr
+        pval_dic[motif_id] = pval
+        if pval <= args.enmo_pval_thr:
+            c_sig_motifs += 1
 
     mdtext += """
 ## Motif enrichment statistics ### {#enmo-stats}
 
-**Table:** RBP binding motif enrichment statistics. Enrichment is calculated by comparing motif occurrences in input and background dataset. 
+**Table:** RBP binding motif enrichment statistics. # of significant motifs = %i. Enrichment is calculated by comparing motif occurrences in input and background dataset. 
 Based on the numbers of input and background sites with and without motif hits, 
 Fisher's exact test is used to assess the significance of motif enrichment.
 %s
@@ -8566,12 +8573,7 @@ Fisher's exact test is used to assess the significance of motif enrichment.
 For full motif results list regardless of significance, see *motif_enrichment_stats.tsv* output table.
 %s
 
-""" %(p_val_info, fisher_mode_info, regex_motif_info)
-
-    pval_dic = {}
-    for motif_id in motif_enrich_stats_dic:
-        pval = motif_enrich_stats_dic[motif_id].fisher_pval_corr
-        pval_dic[motif_id] = pval
+""" %(c_sig_motifs, p_val_info, fisher_mode_info, regex_motif_info)
 
     mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
     mdtext += "<thead>\n"
@@ -8840,34 +8842,40 @@ No co-occurrences calculated as there are no significant motifs (see upper table
         pos_3mer_dic = seqs_dic_count_kmer_freqs(pos_seqs_dic, 3, rna=False,
                                                  return_ratios=True,
                                                  perc=True,
-                                                 report_key_error=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
                                                  convert_to_uc=True)
         neg_3mer_dic = seqs_dic_count_kmer_freqs(neg_seqs_dic, 3, rna=False,
                                                  return_ratios=True,
                                                  perc=True,
-                                                 report_key_error=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
                                                  convert_to_uc=True)
         # Get 4-mer percentages.
         pos_4mer_dic = seqs_dic_count_kmer_freqs(pos_seqs_dic, 4, rna=False,
                                                  return_ratios=True,
                                                  perc=True,
-                                                 report_key_error=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
                                                  convert_to_uc=True)
         neg_4mer_dic = seqs_dic_count_kmer_freqs(neg_seqs_dic, 4, rna=False,
                                                  return_ratios=True,
                                                  perc=True,
-                                                 report_key_error=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
                                                  convert_to_uc=True)
         # Get 5-mer percentages.
         pos_5mer_dic = seqs_dic_count_kmer_freqs(pos_seqs_dic, 5, rna=False,
                                                  return_ratios=True,
                                                  perc=True,
-                                                 report_key_error=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
                                                  convert_to_uc=True)
         neg_5mer_dic = seqs_dic_count_kmer_freqs(neg_seqs_dic, 5, rna=False,
                                                  return_ratios=True,
                                                  perc=True,
-                                                 report_key_error=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
                                                  convert_to_uc=True)
 
         mdtext += """
@@ -9204,10 +9212,18 @@ by RBPBench (rbpbench %s):
     else:
         assert False, "Invalid Wilcoxon rank sum test mode (--wrs-mode) set: %i" %(args.wrs_mode)
 
+    pval_dic = {}
+    c_sig_motifs = 0
+    for motif_id in motif_enrich_stats_dic:
+        pval = motif_enrich_stats_dic[motif_id].fisher_pval_corr
+        pval_dic[motif_id] = pval
+        if pval <= args.nemo_pval_thr:
+            c_sig_motifs += 1
+
     mdtext += """
 ## Neighboring motif enrichment statistics ### {#nemo-stats}
 
-**Table:** Neighboring RBP binding motif enrichment statistics. Enrichment is calculated by comparing motif occurrences in the context regions 
+**Table:** Neighboring RBP binding motif enrichment statistics. # of significant motifs = %i. Enrichment is calculated by comparing motif occurrences in the context regions 
 surrounding given input sites (up- and downstream context region size specified via --ext), effectively comparing the input with the background context regions.
 Motif hits that overlap with the actual input sites are not counted.
 Based on the numbers of input and background context regions with and without motif hits, 
@@ -9220,12 +9236,7 @@ Wilcoxon rank sum (WRS) test is applied.
 %s
 %s
 
-""" %(p_val_info, fisher_mode_info, wrs_mode_info, regex_motif_info)
-
-    pval_dic = {}
-    for motif_id in motif_enrich_stats_dic:
-        pval = motif_enrich_stats_dic[motif_id].fisher_pval_corr
-        pval_dic[motif_id] = pval
+""" %(c_sig_motifs, p_val_info, fisher_mode_info, wrs_mode_info, regex_motif_info)
 
     mdtext += '<table style="max-width: 1400px; width: 100%; border-collapse: collapse; line-height: 0.9;">' + "\n"
     mdtext += "<thead>\n"
@@ -9327,8 +9338,8 @@ Wilcoxon rank sum (WRS) test is applied.
         plot_path = plots_folder + "/" + dist_plot
 
         plt.savefig(dist_plot_out)
+        plt.close()
         dist_plot_str = '<image src = "' + plot_path + '" width="300px"></image>'
-
 
 
         mdtext += '<tr>' + "\n"
@@ -9562,34 +9573,40 @@ No co-occurrences calculated as no significant context region motifs were found 
         pos_3mer_dic = seqs_dic_count_kmer_freqs(pos_seqs_dic, 3, rna=False,
                                                  return_ratios=True,
                                                  perc=True,
-                                                 report_key_error=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
                                                  convert_to_uc=True)
         neg_3mer_dic = seqs_dic_count_kmer_freqs(neg_seqs_dic, 3, rna=False,
                                                  return_ratios=True,
                                                  perc=True,
-                                                 report_key_error=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
                                                  convert_to_uc=True)
         # Get 4-mer percentages.
         pos_4mer_dic = seqs_dic_count_kmer_freqs(pos_seqs_dic, 4, rna=False,
                                                  return_ratios=True,
                                                  perc=True,
-                                                 report_key_error=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
                                                  convert_to_uc=True)
         neg_4mer_dic = seqs_dic_count_kmer_freqs(neg_seqs_dic, 4, rna=False,
                                                  return_ratios=True,
                                                  perc=True,
-                                                 report_key_error=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
                                                  convert_to_uc=True)
         # Get 5-mer percentages.
         pos_5mer_dic = seqs_dic_count_kmer_freqs(pos_seqs_dic, 5, rna=False,
                                                  return_ratios=True,
                                                  perc=True,
-                                                 report_key_error=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
                                                  convert_to_uc=True)
         neg_5mer_dic = seqs_dic_count_kmer_freqs(neg_seqs_dic, 5, rna=False,
                                                  return_ratios=True,
                                                  perc=True,
-                                                 report_key_error=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
                                                  convert_to_uc=True)
 
         mdtext += """
@@ -11994,6 +12011,7 @@ def search_generate_html_motif_plots(args, search_rbps_dic,
                                      reg_seq_str="regions",
                                      goa_results_df=False,
                                      goa_stats_dic=False,
+                                     goa_results_tsv="goa_results.tsv",
                                      plots_subfolder="html_motif_plots"):
     """
     Create motif plots for selected RBPs.
@@ -12112,7 +12130,11 @@ by RBPBench (rbpbench %s):
         else:
             add_head_info += "."
 
-    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s.%s # considered input %s = %i. Region extension (upstream, downstream) = (%i, %i).\n" %(str(args.fimo_pval), add_head_info, reg_seq_str, args.c_regions, args.ext_up, args.ext_down)
+    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s.%s # considered input %s = %i." %(str(args.fimo_pval), add_head_info, reg_seq_str, args.c_regions)
+    if args.ext_up is not None:
+        mdtext += " Region extension (upstream, downstream) = (%i, %i).\n" %(args.ext_up, args.ext_down)
+    mdtext += "\n"
+
     mdtext += "\n&nbsp;\n"
 
 
@@ -12181,7 +12203,7 @@ and respective number of motif hits found in supplied %s regions.
 
     """
 
-    if run_goa:
+    if args.run_goa:
 
         mdtext += """
 ## Motif hit GO enrichment analysis results ### {#goa-results}
@@ -12204,7 +12226,7 @@ and respective number of motif hits found in supplied %s regions.
         if args.goa_min_depth is not None:
             filter_further_info += " Only GO terms with >= %i depth are shown." %(args.goa_min_depth)
         if filter_further_info:
-            filter_further_info += " Note that additional filters (children + depth) can result in an empty table. For all significant GO terms (i.e., unfiltered results) check *goa_results.tsv* output table."
+            filter_further_info += " Note that additional filters (children + depth) can result in an empty table. For all significant GO terms (i.e., unfiltered results) check *%s* output table." %(goa_results_tsv)
 
         goa_rna_region_info = "transcripts"
         if args.goa_rna_region == 1:
