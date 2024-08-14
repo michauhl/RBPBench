@@ -7,6 +7,7 @@ import gzip
 import shutil
 import matplotlib.pyplot as plt
 from matplotlib_venn import venn2, venn3
+from itertools import combinations
 from venn import venn
 from logomaker import Logo
 from markdown import markdown
@@ -626,7 +627,8 @@ def run_go_analysis(target_genes_dic, background_genes_dic,
 
 ################################################################################
 
-def round_to_n_significant_digits_v2(num, n, zero_check_val=1e-304):
+def round_to_n_significant_digits_v2(num, n, zero_check_val=1e-304,
+                                     min_val=0):
     """
     Round float / scientific notation number to n significant digits.
     This function only works for positive numbers.
@@ -649,7 +651,7 @@ def round_to_n_significant_digits_v2(num, n, zero_check_val=1e-304):
     getcontext().prec = n  # Set precision to n.
 
     if num < zero_check_val:
-        return 0
+        return min_val
     else:
         d_num = Decimal(num)  # Convert float to decimal.
         return float(round(d_num, -int(floor(log10(abs(d_num))) - (n - 1))))
@@ -683,6 +685,176 @@ def round_to_n_significant_digits(num, n,
         return 0
     else:
         return round(num, -int(floor(log10(abs(num))) - (n - 1)))
+
+
+################################################################################
+
+def read_in_tomtom_tsv(tomtom_tsv):
+    """
+    Read in tomtom.tsv file (produced by tomtom call).
+
+    """
+
+    pair2sim_dic = {}
+    motif_ids_dic = {}
+
+    line_c = 0
+    with open(tomtom_tsv) as f:
+        for line in f:
+            line_c += 1
+            if line_c == 1:
+                continue
+            cols = line.strip().split("\t")
+            if len(cols) != 10:
+                continue
+            q_id = cols[0]
+            t_id = cols[1]
+            opt_offset = int(cols[2])
+            pval = float(cols[3])
+            e_val = float(cols[4])
+            q_val = float(cols[5])
+            overlap = int(cols[6])
+            q_cons = cols[7]
+            t_cons = cols[8]
+            orient = cols[9]
+
+            pval = round_to_n_significant_digits_v2(pval, 4,
+                                                    min_val=1e-304)
+
+            log_pval = log_tf_pval(pval)
+            log_pval = round_to_n_significant_digits_v2(log_pval, 4,
+                                                        min_val=0)
+
+            motif_ids_dic[q_id] = 1
+
+            pair_str1 = q_id + "," + t_id
+            pair_str2 = t_id + "," + q_id
+            pair2sim_dic[pair_str1] = log_pval
+            pair2sim_dic[pair_str2] = log_pval
+
+    f.closed
+
+    return pair2sim_dic, motif_ids_dic
+
+
+################################################################################
+
+def output_tomtom_sim_results(motif_ids_dic, pair2sim_dic, sim_out_tsv,
+                              header=False):
+    """
+    Output tomtom similarity results.
+
+    Similarity == -log10(pval_tomtom)
+    pval_tomtom measuring how similar two motifs are (the lower the more similar).
+    
+    """
+
+    motif_ids_list = [x for x in motif_ids_dic.keys()]
+    motif_ids_list.sort()
+
+    motif_pairs = list(combinations(motif_ids_list, 2))
+
+    OUTSIM = open(sim_out_tsv, "w")
+    if header:
+        OUTSIM.write("motif1\tmotif2\tsimilarity\n")
+
+    for pair in motif_pairs:
+        pair = list(pair)
+        pair.sort()
+        pair_str = pair[0] + "," + pair[1]
+
+        assert pair_str in pair2sim_dic, "motif pair string \"%s\" not in pair2sim_dic" %(pair_str)
+
+        sim = pair2sim_dic[pair_str]
+
+        OUTSIM.write("%s\t%s\t%s\n" %(pair[0], pair[1], str(sim)))
+
+    # Also get motif ID with itself pairs.
+    for motif_id in motif_ids_list:
+        
+        pair_str = motif_id + "," + motif_id
+
+        assert pair_str in pair2sim_dic, "motif pair string \"%s\" not in pair2sim_dic" %(pair_str)
+
+        sim = pair2sim_dic[pair_str]
+
+        OUTSIM.write("%s\t%s\t%s\n" %(motif_id, motif_id, str(sim)))
+
+    OUTSIM.close()
+
+
+################################################################################
+
+def read_in_tomtom_sim_results(sim_out_tsv):
+    """
+    Read in tomtom similarity results.
+
+    """
+
+    assert os.path.exists(sim_out_tsv), "sim_out_tsv %s not found" %(sim_out_tsv)
+
+    pair2sim_dic = {}
+
+    if re.search(".+\.gz$", sim_out_tsv):
+        f = gzip.open(sim_out_tsv, 'rt')
+    else:
+        f = open(sim_out_tsv, "r")
+    
+    for line in f:
+        cols = line.strip().split("\t")
+        if cols[2] == "similarity":
+            continue
+        motif1 = cols[0]
+        motif2 = cols[1]
+        sim = float(cols[2])
+
+        pair_str = motif1 + "," + motif2
+        pair2sim_dic[pair_str] = sim
+
+    f.closed
+
+
+    assert pair2sim_dic, "pair2sim_dic empty (no similarity values read in from %s)" %(sim_out_tsv)
+
+    return pair2sim_dic
+
+
+################################################################################
+
+def calc_tomtom_sim(seq_motifs_db_file, out_folder):
+    """
+    Based on given seq_motifs_db_file (MEME motif format file), 
+    calculate similarities between all motifs in file.
+    Return motif pair to similarity score dictionary, format:
+    "motif_id1,motif_id2" -> similarity_score 
+
+
+    tomtom -norc -oc mdb3_sim_out -dist ed -thresh 1.0 
+    """
+    assert os.path.exists(seq_motifs_db_file), "seq_motifs_db_file not found"
+
+    # Bang the tomtom slowly, dumbass.
+    run_tomtom(seq_motifs_db_file, seq_motifs_db_file, out_folder,
+                tomtom_bfile=False,
+                tomtom_thresh=1.0,
+                tomtom_evalue=False,
+                tomtom_m=False,
+                tomtom_min_overlap=1,
+                params="-norc -dist ed",
+                call_dic=None,
+                print_output=False,
+                error_check=False)
+
+    tomtom_tsv = out_folder + "/tomtom.tsv"
+    pair2sim_dic, motif_ids_dic = read_in_tomtom_tsv(tomtom_tsv)
+
+    tomtom_sim_out = out_folder + "/tomtom_sim.tsv"
+
+    output_tomtom_sim_results(motif_ids_dic, pair2sim_dic, tomtom_sim_out, header=True)
+
+    motif_pair2sim_dic = read_in_tomtom_sim_results(tomtom_sim_out)
+
+    return motif_pair2sim_dic
 
 
 ################################################################################
@@ -6221,16 +6393,6 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
     plot = px.imshow(df, color_continuous_scale=color_scale, zmin=zmin, zmax=zmax)
     # plot = px.imshow(df)
 
-    """
-    AALAMO
-    Old:
-    'hovertemplate': 'RBP1: %{x}<br>RBP2: %{y}<br>p-value: %{customdata[0]}<br>p-value after filtering: %{customdata[1]}<br>RBPs: %{customdata[2]}<br>Counts: %{customdata[3]}<br>Mean minimum motif distance: %{customdata[4]}<br>Motif pairs within set motif distance: %{customdata[5]} %<br>Correlation: %{customdata[6]}<br>-log10(p-value after filtering): %{z}'}])
-    New:
-    'hovertemplate': f'RBP1: {{x}}<br>RBP2: {{y}}<br>p-value: {{customdata[0]}}<br>p-value after filtering: {{customdata[1]}}<br>RBPs: {{customdata[2]}}<br>Counts: {{customdata[3]}}<br>Mean minimum motif distance: {{customdata[4]}}<br>Motif pairs within {max_motif_dist} nt: {{customdata[5]}} %<br>Correlation: {{customdata[6]}}<br>-log10(p-value after filtering): {{z}}'}])
-
-    hovertexts = [f'<b>Point {i}</b><br><img src="{img}" width="100px">' for i, img in enumerate(images, 1)]
-
-    """
     hover_content = '1) ' + id1 + ': %{x}<br>%{customdata[8]}2) ' + id2 + ': %{y}<br>%{customdata[9]}3) p-value: %{customdata[0]}<br>4) p-value after filtering: %{customdata[1]}<br>%{customdata[7]}5) ' + ids + ': %{customdata[2]}<br>6) Counts: %{customdata[3]}<br>7) Mean minimum motif distance (nt): %{customdata[4]}<br>8) Motif pairs within ' + str(max_motif_dist) + ' nt (%): %{customdata[5]}<br>9) Correlation: %{customdata[6]}<br>10) -log10(p-value after filtering): %{z}<extra></extra>'
 
     plot.update(data=[{'customdata': pval_cont_lll,

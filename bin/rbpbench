@@ -2152,6 +2152,14 @@ def setup_argument_parser():
                    metavar='int',
                    default=20,
                    help="Set maximum motif distance for motif co-occurrence plot statistic inside hover boxes (default: 20)")
+    
+    # aalamo add to nemo.
+    p_em.add_argument("--motif-sim-thr",
+                   dest="motif_sim_thr",
+                   type=float,
+                   metavar='float',
+                   default=None,
+                   help="Set motif pair similarity threshold for to filter out significantly co-occurring motifs that are similar to each other. Similarity between motifs is measured in -log10(TOMTOM p-value), so the larger the pair similarity value of two motifs, the more similar they are. Try e.g. --motif-sim-thr 2 (corresponding to TOMTOM p-value of 0.01) to filter out motif pairs > 2 similarity (default: None)")
 
     p_em.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
@@ -2965,6 +2973,21 @@ def specify_motif_db(motif_db_nr, db_path="./"):
         rbp2ids_file = db_path + "/rbp_motif2name_ids.3.txt"
         motif_db_str = "ray2013_human_rbps_rnacompete"
     return seq_motifs_db_file, str_motifs_db_file, rbp2ids_file, motif_db_str
+
+
+################################################################################
+
+def get_local_tomtom_sim_file(motif_db_nr, db_path="./"):
+    """
+    Get local TOMTOM motif pair similarities file path.
+
+    """
+    tomtom_sim_file = db_path + "/catRAPID_omics_v2.1_6plus_motifs.weak_rounded.ext.tomtom_sim.tsv.gz"
+    if motif_db_nr == 2:
+        tomtom_sim_file = db_path + "/catRAPID_omics_v2.1_6plus_motifs.weak_rounded.ext.ucrbps.tomtom_sim.tsv.gz"
+    elif motif_db_nr == 3:
+        tomtom_sim_file = db_path + "/Ray2013_rbp_Homo_sapiens.dna_encoded.tomtom_sim.tsv.gz"
+    return tomtom_sim_file
 
 
 ################################################################################
@@ -13375,6 +13398,8 @@ def main_enmo(args):
     assert benchlib.boundary_check(args.bg_shuff_factor, 1, 20), "set --bg-shuff-factor expected to be >= 1 and <= 20"
     assert benchlib.boundary_check(args.bg_shuff_k, 1, 5), "set --bg-shuff-k expected to be >= 1 and <= 5"
     assert benchlib.boundary_check(args.bg_min_size, 1, 200000), "set --bg-min-size expected to be >= 1 and <= 200000"
+    if args.motif_sim_thr is not None:
+        assert benchlib.boundary_check(args.motif_sim_thr, 0.0, 1000), "set --motif-sim-thr expected to be >= 0 and <= 1000"
 
     """
     Library path.
@@ -13409,12 +13434,24 @@ def main_enmo(args):
     """
     seq_motifs_db_file, str_motifs_db_file, rbp2ids_file, motif_db_str = specify_motif_db(args.motif_db, 
                                                                             db_path=db_path)
+
+    # AALAMO
+    motif_pair2sim_dic = {}
+    if args.motif_sim_thr is not None:
+        print("Read in motif similarities ... ")
+        tomtom_sim_file = get_local_tomtom_sim_file(args.motif_db, db_path=db_path)
+        motif_pair2sim_dic = benchlib.read_in_tomtom_sim_results(tomtom_sim_file)
+        print("Read in %i motif similarities ... " %(len(motif_pair2sim_dic)))
+
     # Custom motif database: folder given.
     if args.custom_db:
         assert not args.custom_db_meme_xml, "--custom-db folder set incompatible with --custom-db-meme-xml. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_cm, "--custom-db folder set incompatible with --custom-db-cm. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_info, "--custom-db folder set incompatible with --custom-db-info. Provide custom motif database either via folder (--custom-db) or as single files"
         seq_motifs_db_file, str_motifs_db_file, rbp2ids_file = specify_custom_motif_db(args.custom_db)
+        if args.motif_sim_thr is not None and os.path.exists(seq_motifs_db_file):
+            print("Calculate motif similarities for supplied custom motif database ... ")
+            motif_pair2sim_dic = benchlib.calc_tomtom_sim(seq_motifs_db_file, args.out_folder)
         motif_db_str = args.custom_db_id
     # Custom motif database: single files given.
     if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
@@ -13425,6 +13462,9 @@ def main_enmo(args):
         assert args.custom_db_meme_xml or args.custom_db_cm, "--custom-db-meme-xml and/or --custom-db-cm needed to define custom motif database"
         if args.custom_db_meme_xml:
             seq_motifs_db_file = args.custom_db_meme_xml
+            if args.motif_sim_thr is not None and os.path.exists(seq_motifs_db_file):
+                print("Calculate motif similarities for supplied custom motif database ... ")
+                motif_pair2sim_dic = benchlib.calc_tomtom_sim(seq_motifs_db_file, args.out_folder)
         else:
             seq_motifs_db_file = ""  # setting to empty string results in os.path.exists -> False.
         if args.custom_db_cm:
@@ -15052,7 +15092,7 @@ def main_enmo(args):
         for i in range(len_motif_list):
             for j in range(len_motif_list):
                 # Storing [p-value_str, pair_str, table_str, correlation_str].
-                pval_cont_lll[i].append(["1.0", "-", "-", "-", "-", "-", "-", "", "", ""])  
+                pval_cont_lll[i].append(["1.0", "-", "-", "-", "-", "-", "-", "", "-", "-"])  
 
         motif_pairs = list(combinations(sig_motif_ids_list, 2))
         con_pval_dic = {}
@@ -15192,6 +15232,8 @@ def main_enmo(args):
             if avg_min_dist_str != "-":
                 avg_min_dist = float(avg_min_dist_str)
 
+            # AALAMO
+
             if p_value > cooc_pval_thr:
                 p_value_plotted = 1.0
                 pval_cont_lll[idx2][idx1][7] = "(Filter: p-value > %s)<br>" %(str(cooc_pval_thr))
@@ -15199,6 +15241,14 @@ def main_enmo(args):
             if p_value <= cooc_pval_thr and avg_min_dist < args.min_motif_dist:
                 p_value_plotted = 1.0
                 pval_cont_lll[idx2][idx1][7] = "(Filter: mean minimum motif distance < %i)<br>" %(args.min_motif_dist)
+
+            if args.motif_sim_thr is not None:
+                if id2type_dic[pair[0]] == "meme_xml" and id2type_dic[pair[1]] == "meme_xml":
+                    assert pair_str in motif_pair2sim_dic, "No similarity score found for motif pair \"%s\"" %(pair_str)
+                    sim_score = motif_pair2sim_dic[pair_str]
+                    if sim_score > args.motif_sim_thr:
+                        p_value_plotted = 1.0
+                        pval_cont_lll[idx2][idx1][7] = "(Filter: motif similarity > %s)<br>" %(str(args.motif_sim_thr))
 
             c_all_fisher_pval += 1
             if p_value <= cooc_pval_thr and avg_min_dist >= args.min_motif_dist:
