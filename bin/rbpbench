@@ -130,7 +130,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_s.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -545,7 +545,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_b.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -892,7 +892,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_ss.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -1119,7 +1119,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_sl.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -1367,7 +1367,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_scr.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -1694,7 +1694,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_smr.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -1955,7 +1955,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_em.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -2261,7 +2261,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_nm.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -2605,7 +2605,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database used so search for motifs similar to --in. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database used so search for motifs similar to --in. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_to.add_argument("--custom-db",
                    dest="custom_db_meme_xml",
                    type=str,
@@ -2686,7 +2686,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    required = True,
-                   help = "Input GTF file with genomic annotations to extract background genes used for GOA. Note that eventually only genes are used which are present internal Ensembl gene ID -> GO ID(s) mapping or in provided mapping via --goa-gene2go-file")
+                   help = "Input GTF file with genomic annotations to extract background genes used for GOA. Note that eventually only genes are used which are present in internal Ensembl gene ID -> GO ID(s) mapping or in provided mapping via --goa-gene2go-file")
     p_goam.add_argument("--out",
                    dest="out_folder",
                    type=str,
@@ -2802,7 +2802,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_oe.add_argument("--fimo-ntf-file",
                    dest="fimo_user_ntf_file",
                    type=str,
@@ -2921,7 +2921,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 607 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 630 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_i.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -4472,7 +4472,7 @@ def main_search(args):
     for i in range(len_rbp_list):
         for j in range(len_rbp_list):
             # Storing [p-value_str, pair_str, table_str, correlation_str].
-            pval_cont_lll[i].append(["1.0","-", "-", "-", "-", "-", "-", ""])  
+            pval_cont_lll[i].append(["1.0", "-", "-", "-", "-", "-", "-", "", "", ""])  
 
     # Add p-values of 1.0 in diagonal.
     # for idx, rbp_id in enumerate(rbp_list):
@@ -11245,7 +11245,7 @@ def main_searchrna(args):
     for i in range(len_rbp_list):
         for j in range(len_rbp_list):
             # Storing [p-value_str, pair_str, table_str, correlation_str].
-            pval_cont_lll[i].append(["1.0","-", "-", "-", "-", "-", "-", ""])
+            pval_cont_lll[i].append(["1.0", "-", "-", "-", "-", "-", "-", "", "", ""])
 
     # Add p-values of 1.0 in diagonal.
     # for idx, rbp_id in enumerate(rbp_list):
@@ -15052,7 +15052,7 @@ def main_enmo(args):
         for i in range(len_motif_list):
             for j in range(len_motif_list):
                 # Storing [p-value_str, pair_str, table_str, correlation_str].
-                pval_cont_lll[i].append(["1.0","-", "-", "-", "-", "-", "-", ""])  
+                pval_cont_lll[i].append(["1.0", "-", "-", "-", "-", "-", "-", "", "", ""])  
 
         motif_pairs = list(combinations(sig_motif_ids_list, 2))
         con_pval_dic = {}
@@ -15107,6 +15107,24 @@ def main_enmo(args):
             pval_cont_lll[idx2][idx1][4] = avg_min_dist
             pval_cont_lll[idx2][idx1][5] = perc_close_hits
         
+            # rbp_id1 = rbp_id = id2name_dic[pair[0]]
+            # rbp_id2 = rbp_id = id2name_dic[pair[1]]
+
+            # motif1_path = benchlib_path + "/content/motif_plots/%s.%s.png" %(rbp_id1, pair[0])
+            # motif2_path = benchlib_path + "/content/motif_plots/%s.%s.png" %(rbp_id2, pair[1])
+
+            # with open(motif1_path, "rb") as image_file:
+            #     encoded_image1 = base64.b64encode(image_file.read()).decode()
+            # motif1_encoded = f"data:image/png;base64,{encoded_image1}"
+            # with open(motif2_path, "rb") as image_file:
+            #     encoded_image2 = base64.b64encode(image_file.read()).decode()
+            # motif2_encoded = f"data:image/png;base64,{encoded_image2}"
+
+            # if os.path.exists(motif1_path):
+            #     pval_cont_lll[idx2][idx1][8] = "<img src=\"%s\" width=\"50px\"><br>" %(motif1_encoded)
+            # if os.path.exists(motif2_path):
+            #     pval_cont_lll[idx2][idx1][9] = "<img src=\"%s\" width=\"50px\"><br>" %(motif2_encoded)
+
 
         """
         Multiple testing correction.
@@ -17435,7 +17453,7 @@ def main_nemo(args):
         for i in range(len_motif_list):
             for j in range(len_motif_list):
                 # Storing [p-value_str, pair_str, table_str, correlation_str].
-                pval_cont_lll[i].append(["1.0","-", "-", "-", "-", "-", "-", ""])  
+                pval_cont_lll[i].append(["1.0", "-", "-", "-", "-", "-", "-", "", "", ""])  
 
         motif_pairs = list(combinations(sig_motif_ids_list, 2))
         con_pval_dic = {}

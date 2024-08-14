@@ -6221,17 +6221,20 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
     plot = px.imshow(df, color_continuous_scale=color_scale, zmin=zmin, zmax=zmax)
     # plot = px.imshow(df)
 
-
     """
+    AALAMO
     Old:
     'hovertemplate': 'RBP1: %{x}<br>RBP2: %{y}<br>p-value: %{customdata[0]}<br>p-value after filtering: %{customdata[1]}<br>RBPs: %{customdata[2]}<br>Counts: %{customdata[3]}<br>Mean minimum motif distance: %{customdata[4]}<br>Motif pairs within set motif distance: %{customdata[5]} %<br>Correlation: %{customdata[6]}<br>-log10(p-value after filtering): %{z}'}])
     New:
     'hovertemplate': f'RBP1: {{x}}<br>RBP2: {{y}}<br>p-value: {{customdata[0]}}<br>p-value after filtering: {{customdata[1]}}<br>RBPs: {{customdata[2]}}<br>Counts: {{customdata[3]}}<br>Mean minimum motif distance: {{customdata[4]}}<br>Motif pairs within {max_motif_dist} nt: {{customdata[5]}} %<br>Correlation: {{customdata[6]}}<br>-log10(p-value after filtering): {{z}}'}])
 
+    hovertexts = [f'<b>Point {i}</b><br><img src="{img}" width="100px">' for i, img in enumerate(images, 1)]
+
     """
+    hover_content = '1) ' + id1 + ': %{x}<br>%{customdata[8]}2) ' + id2 + ': %{y}<br>%{customdata[9]}3) p-value: %{customdata[0]}<br>4) p-value after filtering: %{customdata[1]}<br>%{customdata[7]}5) ' + ids + ': %{customdata[2]}<br>6) Counts: %{customdata[3]}<br>7) Mean minimum motif distance (nt): %{customdata[4]}<br>8) Motif pairs within ' + str(max_motif_dist) + ' nt (%): %{customdata[5]}<br>9) Correlation: %{customdata[6]}<br>10) -log10(p-value after filtering): %{z}<extra></extra>'
 
     plot.update(data=[{'customdata': pval_cont_lll,
-                      'hovertemplate': '1) ' + id1 + ': %{x}<br>2) ' + id2 + ': %{y}<br>3) p-value: %{customdata[0]}<br>4) p-value after filtering: %{customdata[1]}<br>%{customdata[7]}5) ' + ids + ': %{customdata[2]}<br>6) Counts: %{customdata[3]}<br>7) Mean minimum motif distance (nt): %{customdata[4]}<br>8) Motif pairs within ' + str(max_motif_dist) + ' nt (%): %{customdata[5]}<br>9) Correlation: %{customdata[6]}<br>10) -log10(p-value after filtering): %{z}<extra></extra>'}])
+                      'hovertemplate': hover_content}])
     plot.update_layout(plot_bgcolor='white')
     plot.write_html(plot_out,
                     full_html=full_html,

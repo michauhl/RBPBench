@@ -143,7 +143,6 @@ FXR2_3	FXR2	meme_xml	human	34086933	-
 FXR2_4	FXR2	meme_xml	human	34086933	-
 FXR2_5	FXR2	meme_xml	human	34086933	-
 G3BP1_1	G3BP1	meme_xml	human	34086933	-
-G3BP1_2	G3BP1	meme_xml	human	34086933	-
 G3BP2_1	G3BP2	meme_xml	human	34086933	-
 GNL3_1	GNL3	meme_xml	human	34086933	-
 GNL3_2	GNL3	meme_xml	human	34086933	-
@@ -554,7 +553,6 @@ TRA2B_2	TRA2B	meme_xml	human	34086933	-
 TRNAU1AP_1	TRNAU1AP	meme_xml	human	34086933	-
 TRNAU1AP_2	TRNAU1AP	meme_xml	human	34086933	-
 TUT1_1	TUT1	meme_xml	human	34086933	-
-TUT1_2	TUT1	meme_xml	human	34086933	-
 U2AF1_1	U2AF1	meme_xml	human	34086933	-
 U2AF1_2	U2AF1	meme_xml	human	34086933	-
 U2AF1_3	U2AF1	meme_xml	human	34086933	-
