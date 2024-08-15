@@ -197,13 +197,17 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3],
                    help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) 3: use uniform frequencies (same for every nucleotide) (default: 1)")
-
     p_s.add_argument("--fimo-pval",
                    dest="fimo_pval",
                    type=float,
                    metavar='float',
                    default=0.001,
                    help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
+    p_s.add_argument("--fimo-best-hits",
+                   dest="fimo_best_hits",
+                   default = False,
+                   action = "store_true",
+                   help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/site combination). By default, report all hits (default: False)")
     p_s.add_argument("--bed-score-col",
                    dest="bed_score_col",
                    type=int,
@@ -606,13 +610,17 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3],
                    help="Set which internal nucleotide frequencies to use for FIMO search. 1: use frequencies from human ENSEMBL transcripts (excluding introns, A most prominent) 2: use frequencies from human ENSEMBL transcripts (including introns, resulting in lower G+C and T most prominent) 3: use uniform frequencies (same for every nucleotide) (default: 1)")
-
     p_b.add_argument("--fimo-pval",
                    dest="fimo_pval",
                    type=float,
                    metavar='float',
                    default=0.001,
                    help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
+    p_b.add_argument("--fimo-best-hits",
+                   dest="fimo_best_hits",
+                   default = False,
+                   action = "store_true",
+                   help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/site combination). By default, report all hits (default: False)")
     p_b.add_argument("--bed-score-col",
                    dest="bed_score_col",
                    type=int,
@@ -941,6 +949,11 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.001,
                    help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
+    p_ss.add_argument("--fimo-best-hits",
+                   dest="fimo_best_hits",
+                   default = False,
+                   action = "store_true",
+                   help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence combination). By default, report all hits (default: False)")
     p_ss.add_argument("--meme-no-check",
                    dest="meme_disable_check",
                    default = False,
@@ -1191,6 +1204,11 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.001,
                    help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
+    p_sl.add_argument("--fimo-best-hits",
+                   dest="fimo_best_hits",
+                   default = False,
+                   action = "store_true",
+                   help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/region combination). By default, report all hits (default: False)")
     p_sl.add_argument("--plot-motifs",
                    dest="plot_motifs",
                    default = False,
@@ -1456,6 +1474,11 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.001,
                    help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
+    p_scr.add_argument("--fimo-best-hits",
+                   dest="fimo_best_hits",
+                   default = False,
+                   action = "store_true",
+                   help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/site combination). By default, report all hits (default: False)")
     p_scr.add_argument("--set-rbp-id",
                    dest="set_rbp_id",
                    type=str,
@@ -1766,6 +1789,11 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.001,
                    help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
+    p_smr.add_argument("--fimo-best-hits",
+                   dest="fimo_best_hits",
+                   default = False,
+                   action = "store_true",
+                   help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/transcript combination). By default, report all hits (default: False)")
     p_smr.add_argument("--tr-list",
                    dest="tr_list",
                    type=str,
@@ -2109,6 +2137,12 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.0005,
                    help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.0005)")
+    p_em.add_argument("--fimo-best-hits",
+                   dest="fimo_best_hits",
+                   default = False,
+                   action = "store_true",
+                   help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/site combination). By default, report all hits (default: False)")
+
     p_em.add_argument("--fisher-mode",
                    dest="fisher_mode",
                    type=int,
@@ -2152,15 +2186,12 @@ def setup_argument_parser():
                    metavar='int',
                    default=20,
                    help="Set maximum motif distance for motif co-occurrence plot statistic inside hover boxes (default: 20)")
-    
-    # aalamo add to nemo.
     p_em.add_argument("--motif-sim-thr",
                    dest="motif_sim_thr",
                    type=float,
                    metavar='float',
                    default=None,
-                   help="Set motif pair similarity threshold for to filter out significantly co-occurring motifs that are similar to each other. Similarity between motifs is measured in -log10(TOMTOM p-value), so the larger the pair similarity value of two motifs, the more similar they are. Try e.g. --motif-sim-thr 2 (corresponding to TOMTOM p-value of 0.01) to filter out motif pairs > 2 similarity (default: None)")
-
+                   help="Set motif pair similarity threshold for to filter out significantly co-occurring motifs that are similar to each other. Similarity between motifs is measured in -log10(TOMTOM p-value), so the larger the pair similarity value of two motifs, the more similar they are. E.g., --motif-sim-thr 2 corresponds to TOMTOM p-value of 0.01, to filter out motif pairs > 2 similarity (default: None)")
     p_em.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
@@ -2423,6 +2454,11 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.0005,
                    help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.0005)")
+    p_nm.add_argument("--fimo-best-hits",
+                   dest="fimo_best_hits",
+                   default = False,
+                   action = "store_true",
+                   help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/site combination). By default, report all hits (default: False)")
     p_nm.add_argument("--fisher-mode",
                    dest="fisher_mode",
                    type=int,
@@ -2441,12 +2477,6 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3],
                    help="Defines multiple testing correction mode for motif enrichment p-values. 1: Benjamini-Hochberg (BH), 2: Bonferroni, 3: no correction (default: 1)")
-    p_nm.add_argument("--wrs-mode",
-                   dest="wrs_mode",
-                   type=int,
-                   default=1,
-                   choices=[1, 2],
-                   help="Defines Wilcoxon rank sum test alternative hypothesis for testing whether up- or downstream context regions have significantly higher motif hit counts (comparing the two regions, one test for each significant motif). 1: test for higher up- or downstream counts, 2: test for higher upstream counts, 3: test for higher downstream counts (default: 1)")
 
     # Motif co-occurrence stats.
     p_nm.add_argument("--cooc-pval-thr",
@@ -2473,6 +2503,12 @@ def setup_argument_parser():
                    metavar='int',
                    default=20,
                    help="Set maximum motif distance for motif co-occurrence plot statistic inside hover boxes (default: 20)")
+    p_nm.add_argument("--motif-sim-thr",
+                   dest="motif_sim_thr",
+                   type=float,
+                   metavar='float',
+                   default=None,
+                   help="Set motif pair similarity threshold for to filter out significantly co-occurring motifs that are similar to each other. Similarity between motifs is measured in -log10(TOMTOM p-value), so the larger the pair similarity value of two motifs, the more similar they are. E.g., --motif-sim-thr 2 corresponds to TOMTOM p-value of 0.01, to filter out motif pairs > 2 similarity (default: None)")
 
     p_nm.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
@@ -2829,6 +2865,11 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.001,
                    help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
+    p_oe.add_argument("--fimo-best-hits",
+                   dest="fimo_best_hits",
+                   default = False,
+                   action = "store_true",
+                   help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/site combination). By default, report all hits (default: False)")
     p_oe.add_argument("--bed-score-col",
                    dest="bed_score_col",
                    type=int,
@@ -3672,7 +3713,8 @@ def main_search(args):
         assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
 
         print("Read in FIMO results ... ")
-        fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv)
+        fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
+                                                       only_best_hits=args.fimo_best_hits)
 
         c_fimo_hits = len(fimo_hits_list)
         print("# of FIMO motif hits:", c_fimo_hits)
@@ -6075,7 +6117,8 @@ def main_batch(args):
             assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
 
             print("Read in FIMO results ... ")
-            fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv)
+            fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
+                                                           only_best_hits=args.fimo_best_hits)
 
             c_fimo_hits = len(fimo_hits_list)
             print("# of FIMO motif hits:", c_fimo_hits)
@@ -7849,6 +7892,7 @@ def main_searchseq(args):
 
         print("Read in FIMO results ... ")
         fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
+                                                       only_best_hits=args.fimo_best_hits,
                                                        seq_based=True)
 
         c_fimo_hits = len(fimo_hits_list)
@@ -9135,7 +9179,8 @@ def main_searchlong(args):
         assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
 
         print("Read in FIMO results ... ")
-        fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv)
+        fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
+                                                       only_best_hits=args.fimo_best_hits)
 
         c_fimo_hits = len(fimo_hits_list)
         print("# of FIMO motif hits:", c_fimo_hits)
@@ -10632,7 +10677,8 @@ def main_searchrna(args):
         assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
 
         print("Read in FIMO results ... ")
-        fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv)
+        fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
+                                                       only_best_hits=args.fimo_best_hits)
 
         c_fimo_hits = len(fimo_hits_list)
         print("# of FIMO motif hits:", c_fimo_hits)
@@ -12404,6 +12450,7 @@ def main_searchlongrna(args):
 
         print("Read in FIMO results ... ")
         fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
+                                                       only_best_hits=args.fimo_best_hits,
                                                        seq_based=True)
 
         c_fimo_hits = len(fimo_hits_list)
@@ -13376,14 +13423,14 @@ def main_enmo(args):
         assert check, "RBPBench requires meme version >= 5.0 (installed version: %s)" %(meme_version)
 
     # Check if MEME version is >= 5.5.4 (need to add fimo --no-pgc option to produce same results!).
-    fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text"
+    fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-qvalue"
     if not args.meme_disable_check:
         check, meme_version = benchlib.check_tool_version("meme -version", "5.5.4")
         args.meme_version = meme_version
         if check:
-            fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
+            fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-qvalue --no-pgc"
     if args.meme_no_pgc:
-        fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
+        fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-qvalue --no-pgc"
 
     # Regex check.
     if args.regex:
@@ -13437,11 +13484,10 @@ def main_enmo(args):
 
     # AALAMO
     motif_pair2sim_dic = {}
-    if args.motif_sim_thr is not None:
-        print("Read in motif similarities ... ")
-        tomtom_sim_file = get_local_tomtom_sim_file(args.motif_db, db_path=db_path)
-        motif_pair2sim_dic = benchlib.read_in_tomtom_sim_results(tomtom_sim_file)
-        print("Read in %i motif similarities ... " %(len(motif_pair2sim_dic)))
+    print("Read in motif similarities ... ")
+    tomtom_sim_file = get_local_tomtom_sim_file(args.motif_db, db_path=db_path)
+    motif_pair2sim_dic = benchlib.read_in_tomtom_sim_results(tomtom_sim_file)
+    print("Read in %i motif similarities ... " %(len(motif_pair2sim_dic)))
 
     # Custom motif database: folder given.
     if args.custom_db:
@@ -13449,7 +13495,7 @@ def main_enmo(args):
         assert not args.custom_db_cm, "--custom-db folder set incompatible with --custom-db-cm. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_info, "--custom-db folder set incompatible with --custom-db-info. Provide custom motif database either via folder (--custom-db) or as single files"
         seq_motifs_db_file, str_motifs_db_file, rbp2ids_file = specify_custom_motif_db(args.custom_db)
-        if args.motif_sim_thr is not None and os.path.exists(seq_motifs_db_file):
+        if os.path.exists(seq_motifs_db_file):
             print("Calculate motif similarities for supplied custom motif database ... ")
             motif_pair2sim_dic = benchlib.calc_tomtom_sim(seq_motifs_db_file, args.out_folder)
         motif_db_str = args.custom_db_id
@@ -13462,7 +13508,7 @@ def main_enmo(args):
         assert args.custom_db_meme_xml or args.custom_db_cm, "--custom-db-meme-xml and/or --custom-db-cm needed to define custom motif database"
         if args.custom_db_meme_xml:
             seq_motifs_db_file = args.custom_db_meme_xml
-            if args.motif_sim_thr is not None and os.path.exists(seq_motifs_db_file):
+            if os.path.exists(seq_motifs_db_file):
                 print("Calculate motif similarities for supplied custom motif database ... ")
                 motif_pair2sim_dic = benchlib.calc_tomtom_sim(seq_motifs_db_file, args.out_folder)
         else:
@@ -13502,6 +13548,13 @@ def main_enmo(args):
                                                            empty_check=True)
     for motif_id in seq_motif_blocks_dic:
         assert motif_id in id2name_dic, "MEME XML motif ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+
+    motif2conseq_dic = {}
+    if seq_motif_blocks_dic:
+        print("Get consensus sequences for sequence motifs ... ")
+        for motif_id in seq_motif_blocks_dic:
+            consensus_seq = benchlib.get_consensus_motif_from_seq_block(seq_motif_blocks_dic[motif_id])
+            motif2conseq_dic[motif_id] = consensus_seq
 
     """
     Get covariance model database motif blocks dictionary.
@@ -14572,7 +14625,8 @@ def main_enmo(args):
 
         assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
 
-        pos_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv)
+        pos_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
+                                                           only_best_hits=args.fimo_best_hits)
 
         c_pos_fimo_hits = len(pos_fimo_hits_list)
         print("# of FIMO motif hits in input regions:", c_pos_fimo_hits)
@@ -14587,7 +14641,8 @@ def main_enmo(args):
         assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
 
         neg_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv, 
-                                                           seq_based=seq_based)
+                                                           seq_based=seq_based,
+                                                           only_best_hits=args.fimo_best_hits)
 
         c_neg_fimo_hits = len(neg_fimo_hits_list)
         print("# of FIMO motif hits in background regions:", c_neg_fimo_hits)
@@ -14841,6 +14896,18 @@ def main_enmo(args):
         motif_enrich_stats.c_pos_regions = c_pos_regions
         motif_enrich_stats.c_neg_regions = c_neg_regions
 
+        # Set consensus sequence.
+        conseq = "-"
+        if id2type_dic[motif_id] == "meme_xml":
+            conseq = motif2conseq_dic[motif_id]
+        elif id2type_dic[motif_id] == "cm":
+            conseq = "-"
+        elif id2type_dic[motif_id] == "regex":
+            conseq = regex
+        else:
+            assert False, "Invalid motif type: %s" %(id2type_dic[motif_id])
+        motif_enrich_stats.consensus_seq = conseq
+
         c_pos_hits = 0
         c_pos_hit_regions = 0
 
@@ -15092,7 +15159,7 @@ def main_enmo(args):
         for i in range(len_motif_list):
             for j in range(len_motif_list):
                 # Storing [p-value_str, pair_str, table_str, correlation_str].
-                pval_cont_lll[i].append(["1.0", "-", "-", "-", "-", "-", "-", "", "-", "-"])  
+                pval_cont_lll[i].append(["1.0", "-", "-", "-", "-", "-", "-", "", "", ""])  
 
         motif_pairs = list(combinations(sig_motif_ids_list, 2))
         con_pval_dic = {}
@@ -15232,7 +15299,25 @@ def main_enmo(args):
             if avg_min_dist_str != "-":
                 avg_min_dist = float(avg_min_dist_str)
 
-            # AALAMO
+            # Get sequence motif consensus sequences.
+            conseq1 = "-"
+            if id2type_dic[pair[0]] == "meme_xml":
+                conseq1 = "Consensus: " + motif2conseq_dic[pair[0]]
+            elif id2type_dic[pair[0]] == "cm":
+                conseq1 = "Structure motif"
+            elif id2type_dic[pair[0]] == "regex":
+                conseq1 = "Regex: " + regex
+            else:
+                assert False, "Invalid motif type: %s" %(id2type_dic[pair[0]])
+            conseq2 = "-"
+            if id2type_dic[pair[1]] == "meme_xml":
+                conseq2 = "Consensus: " + motif2conseq_dic[pair[1]]
+            elif id2type_dic[pair[1]] == "cm":
+                conseq2 = "Structure motif"
+            elif id2type_dic[pair[1]] == "regex":
+                conseq2 = "Regex: " + regex
+            else:
+                assert False, "Invalid motif type: %s" %(id2type_dic[pair[1]])
 
             if p_value > cooc_pval_thr:
                 p_value_plotted = 1.0
@@ -15258,6 +15343,8 @@ def main_enmo(args):
             pval_ll[idx2][idx1] = p_value_plotted
             pval_cont_lll[idx2][idx1][0] = str(p_value)
             pval_cont_lll[idx2][idx1][1] = str(p_value_plotted)
+            pval_cont_lll[idx2][idx1][8] = conseq1 + "<br>"
+            pval_cont_lll[idx2][idx1][9] = conseq2 + "<br>"
 
             con_pval_dic[pair_str] = p_value
 
@@ -15474,6 +15561,7 @@ class EnmoStats:
                                        benchlib_path,
                                        df_pval=df_pval,
                                        pval_cont_lll=pval_cont_lll,
+                                       motif_pair2sim_dic=motif_pair2sim_dic,
                                        pos_seqs_dic=pos_seqs_dic,
                                        neg_seqs_dic=neg_seqs_dic,
                                        pos_reg2annot_dic=pos_reg2annot_dic,
@@ -15572,6 +15660,8 @@ def main_nemo(args):
     assert benchlib.boundary_check(args.bg_shuff_factor, 1, 20), "set --bg-shuff-factor expected to be >= 1 and <= 20"
     assert benchlib.boundary_check(args.bg_shuff_k, 1, 5), "set --bg-shuff-k expected to be >= 1 and <= 5"
     assert benchlib.boundary_check(args.bg_min_size, 1, 200000), "set --bg-min-size expected to be >= 1 and <= 200000"
+    if args.motif_sim_thr is not None:
+        assert benchlib.boundary_check(args.motif_sim_thr, 0.0, 1000), "set --motif-sim-thr expected to be >= 0 and <= 1000"
 
     """
     Library path.
@@ -15606,12 +15696,22 @@ def main_nemo(args):
     """
     seq_motifs_db_file, str_motifs_db_file, rbp2ids_file, motif_db_str = specify_motif_db(args.motif_db, 
                                                                             db_path=db_path)
+
+    motif_pair2sim_dic = {}
+    print("Read in motif similarities ... ")
+    tomtom_sim_file = get_local_tomtom_sim_file(args.motif_db, db_path=db_path)
+    motif_pair2sim_dic = benchlib.read_in_tomtom_sim_results(tomtom_sim_file)
+    print("Read in %i motif similarities ... " %(len(motif_pair2sim_dic)))
+
     # Custom motif database: folder given.
     if args.custom_db:
         assert not args.custom_db_meme_xml, "--custom-db folder set incompatible with --custom-db-meme-xml. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_cm, "--custom-db folder set incompatible with --custom-db-cm. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_info, "--custom-db folder set incompatible with --custom-db-info. Provide custom motif database either via folder (--custom-db) or as single files"
         seq_motifs_db_file, str_motifs_db_file, rbp2ids_file = specify_custom_motif_db(args.custom_db)
+        if os.path.exists(seq_motifs_db_file):
+            print("Calculate motif similarities for supplied custom motif database ... ")
+            motif_pair2sim_dic = benchlib.calc_tomtom_sim(seq_motifs_db_file, args.out_folder)
         motif_db_str = args.custom_db_id
     # Custom motif database: single files given.
     if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
@@ -15622,6 +15722,9 @@ def main_nemo(args):
         assert args.custom_db_meme_xml or args.custom_db_cm, "--custom-db-meme-xml and/or --custom-db-cm needed to define custom motif database"
         if args.custom_db_meme_xml:
             seq_motifs_db_file = args.custom_db_meme_xml
+            if os.path.exists(seq_motifs_db_file):
+                print("Calculate motif similarities for supplied custom motif database ... ")
+                motif_pair2sim_dic = benchlib.calc_tomtom_sim(seq_motifs_db_file, args.out_folder)
         else:
             seq_motifs_db_file = ""  # setting to empty string results in os.path.exists -> False.
         if args.custom_db_cm:
@@ -15659,6 +15762,13 @@ def main_nemo(args):
                                                            empty_check=True)
     for motif_id in seq_motif_blocks_dic:
         assert motif_id in id2name_dic, "MEME XML motif ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+
+    motif2conseq_dic = {}
+    if seq_motif_blocks_dic:
+        print("Get consensus sequences for sequence motifs ... ")
+        for motif_id in seq_motif_blocks_dic:
+            consensus_seq = benchlib.get_consensus_motif_from_seq_block(seq_motif_blocks_dic[motif_id])
+            motif2conseq_dic[motif_id] = consensus_seq
 
     """
     Get covariance model database motif blocks dictionary.
@@ -16833,6 +16943,7 @@ def main_nemo(args):
         assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
 
         pos_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
+                                                           only_best_hits=args.fimo_best_hits,
                                                            reg_dic=pos_reg_dic)
 
         c_pos_fimo_hits = len(pos_fimo_hits_list)
@@ -16849,6 +16960,7 @@ def main_nemo(args):
 
         neg_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
                                                            reg_dic=neg_reg_dic,  # only applies if seq_based False.
+                                                           only_best_hits=args.fimo_best_hits,
                                                            seq_based=seq_based)
 
         c_neg_fimo_hits = len(neg_fimo_hits_list)
@@ -17171,24 +17283,6 @@ def main_nemo(args):
         print("No motifs found in any regions (input or background). Exiting ... ")
         sys.exit()  # AALAMO
 
-    """
-    Hypothesis test modes.
-
-    """
-    # Wilcoxon rank-sum test / Mann Whitney U test mode.
-    wrs_alt_hypo = ""
-    if args.wrs_mode == 1:
-        wrs_alt_hypo = "two-sided"
-        print("Check if up- or downstream context regions have significantly different counts ... ")
-    elif args.wrs_mode == 2:
-        wrs_alt_hypo = "greater"
-        print("Check if upstream context regions have significantly lower counts ... ")
-    elif args.wrs_mode == 3:
-        wrs_alt_hypo = "less"
-        print("Check if downstream context regions have significantly lower counts ... ")
-    else:
-        assert False, "Invalid Wilcoxon rank-sum (Mann Whitney U) test mode: %i" %(args.wrs_mode)
-
 
     for motif_id in sorted(found_motif_ids_dic.keys()):
 
@@ -17201,6 +17295,18 @@ def main_nemo(args):
         motif_enrich_stats.motif_type = motif_type
         motif_enrich_stats.c_pos_regions = c_pos_regions
         motif_enrich_stats.c_neg_regions = c_neg_regions
+
+        # Set consensus sequence.
+        conseq = "-"
+        if id2type_dic[motif_id] == "meme_xml":
+            conseq = motif2conseq_dic[motif_id]
+        elif id2type_dic[motif_id] == "cm":
+            conseq = "-"
+        elif id2type_dic[motif_id] == "regex":
+            conseq = regex
+        else:
+            assert False, "Invalid motif type: %s" %(id2type_dic[motif_id])
+        motif_enrich_stats.consensus_seq = conseq
 
         c_pos_hits = 0
         c_pos_hit_regions = 0
@@ -17234,14 +17340,21 @@ def main_nemo(args):
 
         motif_enrich_stats.dist_plot_counts_dic = dist_plot_counts_dic
 
-        # Wilcoxon rank-sum test.
-        wrs_test_stat, wrs_pval = mannwhitneyu(upstream_counts, downstream_counts, alternative=wrs_alt_hypo)
-        # Round p-values to 4 significant digits.
+        # Wilcoxon rank-sum test two-sided.
+        wrs_test_stat, wrs_pval = mannwhitneyu(upstream_counts, downstream_counts, alternative="two-sided")
         wrs_pval = benchlib.round_to_n_significant_digits_v2(wrs_pval, 4)
-
-        motif_enrich_stats.wrs_pval = wrs_pval
-        motif_enrich_stats.wrs_test_stat = wrs_test_stat
-        motif_enrich_stats.wrs_alt_hypo = wrs_alt_hypo
+        motif_enrich_stats.wrs_pval_two_sided = wrs_pval
+        motif_enrich_stats.wrs_test_stat_two_sided = wrs_test_stat
+        # Wilcoxon rank-sum test greater.
+        wrs_test_stat, wrs_pval = mannwhitneyu(upstream_counts, downstream_counts, alternative="greater")
+        wrs_pval = benchlib.round_to_n_significant_digits_v2(wrs_pval, 4)
+        motif_enrich_stats.wrs_pval_greater = wrs_pval
+        motif_enrich_stats.wrs_test_stat_greater = wrs_test_stat
+        # Wilcoxon rank-sum test less.
+        wrs_test_stat, wrs_pval = mannwhitneyu(upstream_counts, downstream_counts, alternative="less")
+        wrs_pval = benchlib.round_to_n_significant_digits_v2(wrs_pval, 4)
+        motif_enrich_stats.wrs_pval_less = wrs_pval
+        motif_enrich_stats.wrs_test_stat_less = wrs_test_stat
 
         c_neg_hits = 0
         c_neg_hit_regions = 0
@@ -17625,6 +17738,26 @@ def main_nemo(args):
             if avg_min_dist_str != "-":
                 avg_min_dist = float(avg_min_dist_str)
 
+            # Get sequence motif consensus sequences.
+            conseq1 = "-"
+            if id2type_dic[pair[0]] == "meme_xml":
+                conseq1 = "Consensus: " + motif2conseq_dic[pair[0]]
+            elif id2type_dic[pair[0]] == "cm":
+                conseq1 = "Structure motif"
+            elif id2type_dic[pair[0]] == "regex":
+                conseq1 = "Regex: " + regex
+            else:
+                assert False, "Invalid motif type: %s" %(id2type_dic[pair[0]])
+            conseq2 = "-"
+            if id2type_dic[pair[1]] == "meme_xml":
+                conseq2 = "Consensus: " + motif2conseq_dic[pair[1]]
+            elif id2type_dic[pair[1]] == "cm":
+                conseq2 = "Structure motif"
+            elif id2type_dic[pair[1]] == "regex":
+                conseq2 = "Regex: " + regex
+            else:
+                assert False, "Invalid motif type: %s" %(id2type_dic[pair[1]])
+
             if p_value > cooc_pval_thr:
                 p_value_plotted = 1.0
                 pval_cont_lll[idx2][idx1][7] = "(Filter: p-value > %s)<br>" %(str(cooc_pval_thr))
@@ -17632,6 +17765,14 @@ def main_nemo(args):
             if p_value <= cooc_pval_thr and avg_min_dist < args.min_motif_dist:
                 p_value_plotted = 1.0
                 pval_cont_lll[idx2][idx1][7] = "(Filter: mean minimum motif distance < %i)<br>" %(args.min_motif_dist)
+
+            if args.motif_sim_thr is not None:
+                if id2type_dic[pair[0]] == "meme_xml" and id2type_dic[pair[1]] == "meme_xml":
+                    assert pair_str in motif_pair2sim_dic, "No similarity score found for motif pair \"%s\"" %(pair_str)
+                    sim_score = motif_pair2sim_dic[pair_str]
+                    if sim_score > args.motif_sim_thr:
+                        p_value_plotted = 1.0
+                        pval_cont_lll[idx2][idx1][7] = "(Filter: motif similarity > %s)<br>" %(str(args.motif_sim_thr))
 
             c_all_fisher_pval += 1
             if p_value <= cooc_pval_thr and avg_min_dist >= args.min_motif_dist:
@@ -17641,6 +17782,8 @@ def main_nemo(args):
             pval_ll[idx2][idx1] = p_value_plotted
             pval_cont_lll[idx2][idx1][0] = str(p_value)
             pval_cont_lll[idx2][idx1][1] = str(p_value_plotted)
+            pval_cont_lll[idx2][idx1][8] = conseq1 + "<br>"
+            pval_cont_lll[idx2][idx1][9] = conseq2 + "<br>"
 
             con_pval_dic[pair_str] = p_value
 
@@ -17773,6 +17916,7 @@ def main_nemo(args):
                                        benchlib_path,
                                        df_pval=df_pval,
                                        pval_cont_lll=pval_cont_lll,
+                                       motif_pair2sim_dic=motif_pair2sim_dic,
                                        pos_seqs_dic=pos_seqs_dic,
                                        neg_seqs_dic=neg_seqs_dic,
                                        pos_reg2annot_dic=pos_reg2annot_dic,
@@ -18701,7 +18845,8 @@ def main_optex(args):
             assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
 
             # print("Read in FIMO results ... ")
-            fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv)
+            fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
+                                                           only_best_hits=args.fimo_best_hits)
 
             # c_fimo_hits = len(fimo_hits_list)
             # print("# of FIMO motif hits:", c_fimo_hits)

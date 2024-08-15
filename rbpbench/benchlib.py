@@ -808,11 +808,12 @@ def read_in_tomtom_sim_results(sim_out_tsv):
         motif2 = cols[1]
         sim = float(cols[2])
 
-        pair_str = motif1 + "," + motif2
-        pair2sim_dic[pair_str] = sim
+        pair_str1 = motif1 + "," + motif2
+        pair_str2 = motif2 + "," + motif1
+        pair2sim_dic[pair_str1] = sim
+        pair2sim_dic[pair_str2] = sim
 
     f.closed
-
 
     assert pair2sim_dic, "pair2sim_dic empty (no similarity values read in from %s)" %(sim_out_tsv)
 
@@ -2014,6 +2015,19 @@ def read_in_xml_motifs(meme_xml_file,
     """
     Read in XML motifs, store in blocks dictionary.
 
+    motif_blocks_dic entry:
+    ['letter-probability matrix: alength= 4 w= 10 nsites= 20 E= 0', 
+    ' 0.050000  0.400000  0.050000  0.500000 ', 
+    ' 0.285714  0.000000  0.000000  0.714286 ', 
+    ' 0.252525  0.141414  0.606061  0.000000 ', 
+    ' 0.505051  0.090909  0.404040  0.000000 ', 
+    ' 0.714286  0.000000  0.000000  0.285714 ', 
+    ' 0.081633  0.000000  0.918367  0.000000 ', 
+    ' 0.505051  0.090909  0.404040  0.000000 ', 
+    ' 0.505051  0.090909  0.404040  0.000000 ', 
+    ' 0.353535  0.191919  0.454545  0.000000 ', 
+    ' 0.404040  0.242424  0.353535  0.000000 ']
+
     """
 
     assert os.path.exists(meme_xml_file), "meme_xml_file %s not found" % (meme_xml_file)
@@ -2030,6 +2044,61 @@ def read_in_xml_motifs(meme_xml_file,
         assert motif_blocks_dic, "motif_blocks_dic empty (malformatted MEME/DREME XML file provided?)"
 
     return motif_blocks_dic
+
+
+################################################################################
+
+def get_consensus_motif_from_seq_block(seq_block):
+    """
+    seq_block is list with following format:
+    ['letter-probability matrix: alength= 4 w= 10 nsites= 20 E= 0', 
+    ' 0.050000  0.400000  0.050000  0.500000 ', 
+    ' 0.285714  0.000000  0.000000  0.714286 ', 
+    ' 0.252525  0.141414  0.606061  0.000000 ', 
+    ' 0.505051  0.090909  0.404040  0.000000 ', 
+    ' 0.714286  0.000000  0.000000  0.285714 ', 
+    ' 0.081633  0.000000  0.918367  0.000000 ', 
+    ' 0.505051  0.090909  0.404040  0.000000 ', 
+    ' 0.505051  0.090909  0.404040  0.000000 ', 
+    ' 0.353535  0.191919  0.454545  0.000000 ', 
+    ' 0.404040  0.242424  0.353535  0.000000 ']
+    
+    Return consensus motif sequence.
+
+    >>> seq_block = ['letter-probability matrix: alength= 4 w= 10 nsites= 20 E= 0', ' 0.250000  0.250000  0.250000  0.250000 ', ' 0.285714  0.000000  0.000000  0.714286 ', ' 0.081633  0.000000  0.918367  0.000000 ']
+    >>> get_consensus_motif_from_seq_block(seq_block)
+    'ATG'
+    
+    """
+
+    idx2nt_dic = {0: "A", 1: "C", 2: "G", 3: "T"}
+
+    assert seq_block, "seq_block empty"
+    assert len(seq_block) > 1, "seq_block empty (only header present?)"
+
+    # Get consensus motif sequence.
+    consensus_seq = ""
+    for i in range(1, len(seq_block)):
+        line = seq_block[i]
+        line = line.strip()
+        if not line:
+            continue
+        # Split line.
+        ll = line.split()
+        assert len(ll) == 4, "invalid line format in seq_block (expected 4 columns)"
+        # Get max value index.
+        max_val = 0
+        max_idx = 0
+        for j in range(4):
+            val = float(ll[j])
+            if val > max_val:
+                max_val = val
+                max_idx = j
+        # Get consensus base.
+        max_nt = idx2nt_dic[max_idx]
+        consensus_seq += max_nt
+
+    return consensus_seq
 
 
 ################################################################################
@@ -5040,6 +5109,7 @@ class EnmoStats:
                  fisher_corr_mode = 1,  # 1: BH, 2: Bonferroni, 3: no correction
                  fisher_alt_hyp_mode = 1,  # Alternative hypothesis mode, 1: greater, 2: two-sided, 3: less
                  motif_type="meme_xml",
+                 consensus_seq="-",  # Consensus sequence of sequence motif (for structure motif "-", for regex "regex_string").
                  logo_png_file = False) -> None:
         self.motif_id = motif_id
         self.rbp_id = rbp_id
@@ -5055,6 +5125,7 @@ class EnmoStats:
         self.fisher_corr_mode = fisher_corr_mode
         self.fisher_alt_hyp_mode = fisher_alt_hyp_mode
         self.motif_type = motif_type
+        self.consensus_seq = consensus_seq
         self.logo_png_file = logo_png_file
 
 
@@ -5081,6 +5152,7 @@ class NemoStats:
                  fisher_corr_mode = 1,  # 1: BH, 2: Bonferroni, 3: no correction
                  fisher_alt_hyp_mode = 1,  # Alternative hypothesis mode, 1: greater, 2: two-sided, 3: less
                  motif_type="meme_xml",
+                 consensus_seq="-",  # Consensus sequence of sequence motif (for structure motif "-", for regex "regex_string").
                  pos_set_avg_center_dist="-",
                  neg_set_avg_center_dist="-",
                  pos_set_max_center_dist="-",
@@ -5088,9 +5160,12 @@ class NemoStats:
                  neg_set_max_center_dist="-",
                  neg_set_max_center_dist_c="-",
                  logo_png_file = False,
-                 wrs_pval=False,
-                 wrs_test_stat=False,
-                 wrs_alt_hypo="two-sided",
+                 wrs_pval_two_sided=False,
+                 wrs_test_stat_two_sided=False,
+                 wrs_pval_greater=False,
+                 wrs_test_stat_greater=False,
+                 wrs_pval_less=False,
+                 wrs_test_stat_less=False,         
                  dist_plot_counts_dic={}) -> None:
         self.motif_id = motif_id
         self.rbp_id = rbp_id
@@ -5106,6 +5181,7 @@ class NemoStats:
         self.fisher_corr_mode = fisher_corr_mode
         self.fisher_alt_hyp_mode = fisher_alt_hyp_mode
         self.motif_type = motif_type
+        self.consensus_seq = consensus_seq
         self.pos_set_avg_center_dist = pos_set_avg_center_dist
         self.neg_set_avg_center_dist = neg_set_avg_center_dist
         self.pos_set_max_center_dist = pos_set_max_center_dist
@@ -5113,6 +5189,12 @@ class NemoStats:
         self.neg_set_max_center_dist = neg_set_max_center_dist
         self.neg_set_max_center_dist_c = neg_set_max_center_dist_c
         self.logo_png_file = logo_png_file
+        self.wrs_pval_two_sided = wrs_pval_two_sided
+        self.wrs_test_stat_two_sided = wrs_test_stat_two_sided
+        self.wrs_pval_greater = wrs_pval_greater
+        self.wrs_test_stat_greater = wrs_test_stat_greater
+        self.wrs_pval_less = wrs_pval_less
+        self.wrs_test_stat_less = wrs_test_stat_less
         self.dist_plot_counts_dic = dist_plot_counts_dic
 
 
@@ -5784,6 +5866,7 @@ def filter_out_neg_center_motif_hits(neg_hits_list, core_rel_reg_dic):
 def read_in_fimo_results(fimo_tsv,
                          seq_based=False,
                          reg_dic=None,
+                         only_best_hits=False,
                          fast_fimo=True):
     """
     Read in FIMO motif finding results (TSV file).
@@ -5837,7 +5920,9 @@ def read_in_fimo_results(fimo_tsv,
         to get genomic coordinates from get_genomic_coords_from_seq_name, instead of seq_name.
         This can be applied in cases where seq_name is some ID that does not contain region info, but
         motif hit coordinates are still relative to the region.
-
+    only_best_hits:
+        Keep only best hits for each motif ID and sequence/site combination. I.e., hit with lowest p-value.
+        
     """
 
     fimo_hits_list = []
@@ -5905,7 +5990,44 @@ def read_in_fimo_results(fimo_tsv,
 
     f.closed
 
+    if only_best_hits:
+        print("--fimo-best-hits enabled. Keep only best motif hits ... ")
+        print("# of FIMO motif hits before best hit filtering: %i" %(len(fimo_hits_list)))
+        fimo_hits_list = get_best_fimo_hits(fimo_hits_list)
+        print("# of FIMO motif hits after best hit filtering: %i" %(len(fimo_hits_list)))
+
     return fimo_hits_list
+
+
+################################################################################
+
+def get_best_fimo_hits(fimo_hits_list):
+    """
+    Filter FIMO hits list, keep only best hit for each motif ID and sequence combination.
+
+    """
+    assert fimo_hits_list, "fimo_hits_list is empty"
+
+    filt_fimo_hits_list = []
+    best_list_idx_dic = {}  # "motif_id,seq_name" -> best list indexs.
+
+    for idx, fimo_hit in enumerate(fimo_hits_list):
+        seq_name = fimo_hit.seq_name
+        motif_id = fimo_hit.motif_id
+        p_val = fimo_hit.pval
+        comb_id = "%s,%s" %(motif_id, seq_name)
+        if comb_id not in best_list_idx_dic:
+            best_list_idx_dic[comb_id] = idx
+        else:
+            best_idx = best_list_idx_dic[comb_id]
+            if fimo_hits_list[best_idx].pval > p_val:
+                best_list_idx_dic[comb_id] = idx
+
+    for comb_id in best_list_idx_dic:
+        best_idx = best_list_idx_dic[comb_id]
+        filt_fimo_hits_list.append(fimo_hits_list[best_idx])
+
+    return filt_fimo_hits_list
 
 
 ################################################################################
@@ -6393,7 +6515,18 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
     plot = px.imshow(df, color_continuous_scale=color_scale, zmin=zmin, zmax=zmax)
     # plot = px.imshow(df)
 
-    hover_content = '1) ' + id1 + ': %{x}<br>%{customdata[8]}2) ' + id2 + ': %{y}<br>%{customdata[9]}3) p-value: %{customdata[0]}<br>4) p-value after filtering: %{customdata[1]}<br>%{customdata[7]}5) ' + ids + ': %{customdata[2]}<br>6) Counts: %{customdata[3]}<br>7) Mean minimum motif distance (nt): %{customdata[4]}<br>8) Motif pairs within ' + str(max_motif_dist) + ' nt (%): %{customdata[5]}<br>9) Correlation: %{customdata[6]}<br>10) -log10(p-value after filtering): %{z}<extra></extra>'
+    hover_content = (
+        '1) ' + id1 + ': %{x}<br>%{customdata[8]}'
+        '2) ' + id2 + ': %{y}<br>%{customdata[9]}'
+        '3) p-value: %{customdata[0]}<br>'
+        '4) p-value after filtering: %{customdata[1]}<br>%{customdata[7]}'
+        '5) ' + ids + ': %{customdata[2]}<br>'
+        '6) Counts: %{customdata[3]}<br>'
+        '7) Mean minimum motif distance (nt): %{customdata[4]}<br>'
+        '8) Motif pairs within ' + str(max_motif_dist) + ' nt (%): %{customdata[5]}<br>'
+        '9) Correlation: %{customdata[6]}<br>'
+        '10) -log10(p-value after filtering): %{z}<extra></extra>'
+    )
 
     plot.update(data=[{'customdata': pval_cont_lll,
                       'hovertemplate': hover_content}])
@@ -6470,6 +6603,76 @@ def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll,
     fig.update_traces(marker=dict(size=8))
     # fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
     fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
+def create_pca_motif_sim_plot_plotly(motif_ids_list, motif_sim_ll, motif_sim_stats_dic,
+                                     plot_out,
+                                     include_plotlyjs="cdn",
+                                     full_html=False):
+    """
+    AALAMO
+
+    motif_ids_list:
+    List of motif IDs, in same order as motif_sim_ll.
+    motif_sim_ll:
+    List of lists containing motif similarities. In order of motif_ids_list, 
+    so that motif_sim_ll[i][j] corresponds to motif_ids_list[i] and motif_ids_list[j].
+    motif_sim_stats_dic:
+    Dictionary with motif ID as key and list of [consensus_seq, con_table_str, pval, -log10pval] as value, 
+    for hoverbox information.
+
+    """
+
+    assert motif_ids_list, "motif_ids_list empty"
+
+    pca = PCA(n_components=2)
+    data_2d_pca = pca.fit_transform(motif_sim_ll)
+
+    df = pd.DataFrame(data_2d_pca, columns=['PC1', 'PC2'])
+    
+    df['Motif ID'] = motif_ids_list
+    df['Consensus sequence'] = [motif_sim_stats_dic[motif_id][0] for motif_id in motif_ids_list]
+    df['Counts'] = [motif_sim_stats_dic[motif_id][1] for motif_id in motif_ids_list]
+    df['p-value'] = [motif_sim_stats_dic[motif_id][2] for motif_id in motif_ids_list]
+    df['-log10(p-value)'] = [motif_sim_stats_dic[motif_id][3] for motif_id in motif_ids_list]
+
+    # colors = ['#E0FFFF', '#B0E0E6', '#87CEEB', '#4682B4', '#0000FF', '#00008B', '#000080']
+    # min_val = 0.01
+    # max_val = 1
+    # color_scale = create_color_scale(min_val, max_val, colors)
+    # color_scale.insert(0, [0, "white"])
+    # lp_min = df['-log10(p-value)'].min()
+    # lp_max = df['-log10(p-value)'].max()
+
+    explained_variance = pca.explained_variance_ratio_ * 100
+
+    fig = px.scatter(
+        df,
+        x='PC1',
+        y='PC2',
+        color='-log10(p-value)',
+        labels={
+            'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+            'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
+        },
+        hover_name='Motif ID',
+        hover_data=['Consensus sequence', 'Counts', 'p-value', '-log10(p-value)']
+        # color_continuous_scale=color_scale,
+        # range_color=[lp_min, lp_max]
+    )
+
+    fig.update_traces(
+        hovertemplate='motif: <b>%{hovertext}</b><br>Consensus: %{customdata[0]}<br>Counts: %{customdata[1]}<br>p-value: %{customdata[2]}<br>-log10(p-value): %{customdata[3]}<extra></extra>'
+    )
+
+    fig.update_traces(marker=dict(size=8))
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+    # fig.update_scenes(aspectmode='cube')
+    # fig.update_traces(marker=dict(size=3))
+    # fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
+    # fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
 
 
 ################################################################################
@@ -8521,6 +8724,79 @@ def get_sequence_length_statistics(seq_dic,
 
     return [nr_seqs, seq_len_mean, seq_len_median, seq_len_q1, seq_len_q3, seq_len_min, seq_len_max]
      
+################################################################################
+
+def get_motif_similarites_ll(motif_ids_list, motif_pair2sim_dic,
+                             min_max_norm=False):
+    """
+    Get motif similarities list of lists, in order of sorted motif IDs list.
+    So e.g. 3 motifs: A, B, C, then list of lists with entry format A-A: similarity of A with A, ...
+    [[A-A, A-B, A-C], [B-A, B-B, B-C], [C-A, C-B, C-C]]
+
+    motif_ids_list: list of motif IDs.
+    motif_pair2sim_dic format:
+    motif_pair2sim_dic[motif_id1 + "," + motif_id2] = sim_score
+
+    >>> motif_ids_list = ["A", "B"]
+    >>> motif_pair2sim_dic = {"A,A": 1.0, "A,B": 0.6, "B,A": 0.6, "B,B": 1.0}
+    >>> get_motif_similarites_ll(motif_ids_list, motif_pair2sim_dic)
+    [[1.0, 0.6], [0.6, 1.0]]
+
+    """
+    assert motif_ids_list, "motif_ids_list empty"
+    assert motif_pair2sim_dic, "motif_pair2sim_dic empty"
+
+    motif_sim_ll = []
+
+    # Sort motif IDs list.
+    motif_ids_list.sort()
+    for m1 in motif_ids_list:
+        motif_sim_list = []
+        for m2 in motif_ids_list:
+            m1m2_id = m1 + "," + m2
+            assert m1m2_id in motif_pair2sim_dic, "no similarity score stored for motif pair %s" %(m1m2_id)
+            m1m2_sim = motif_pair2sim_dic[m1m2_id]
+            motif_sim_list.append(m1m2_sim)
+        motif_sim_ll.append(motif_sim_list)
+
+    if min_max_norm:
+        motif_sim_ll = min_max_normalize_list_of_lists(motif_sim_ll)
+
+    return motif_sim_ll
+
+
+################################################################################
+
+def min_max_normalize_list_of_lists(in_ll):
+    """
+    Min-max normalize list of lists (i.e. 2d list of numeric values).
+
+    >>> in_ll = [[0, 1, 2], [3, 4, 5], [6, 7, 10]]
+    >>> min_max_normalize_list_of_lists(in_ll)
+    [[0.0, 0.1, 0.2], [0.3, 0.4, 0.5], [0.6, 0.7, 1.0]]
+
+    """
+    assert in_ll, "input list of lists empty"
+
+    min_val = 1000000
+    max_val = -1000000
+    for l in in_ll:
+        for v in l:
+            if v < min_val:
+                min_val = v
+            if v > max_val:
+                max_val = v
+
+    out_ll = []
+    for l in in_ll:
+        out_l = []
+        for v in l:
+            out_v = (v - min_val) / (max_val - min_val)
+            out_l.append(out_v)
+        out_ll.append(out_l)
+        
+    return out_ll
+
 
 ################################################################################
 
@@ -8530,6 +8806,7 @@ def enmo_generate_html_report(args,
                               benchlib_path,
                               df_pval=False, 
                               pval_cont_lll=False,
+                              motif_pair2sim_dic=False,
                               pos_seqs_dic=False,
                               neg_seqs_dic=False,
                               pos_reg2annot_dic=False,
@@ -8577,8 +8854,8 @@ def enmo_generate_html_report(args,
         site_type = "transcript"
 
     regex_motif_info = ""
-    if args.regex:
-        regex_motif_info = "Used regex motif: '%s'." %(args.regex)
+    # if args.regex:
+    #     regex_motif_info = "Used regex motif: '%s'." %(args.regex)
 
     report_header_info = "Motif enrichment report"
     if args.report_header:
@@ -8674,7 +8951,8 @@ List of available statistics and plots generated
 by RBPBench (rbpbench %s):
 
 - [Motif enrichment statistics](#enmo-stats)
-- [Motif co-occurrences heat map](#cooc-heat-map)""" %(report_header_info, rbpbench_mode)
+- [Motif co-occurrences heat map](#cooc-heat-map)
+- [Sequence motif similarities PCA plot](#motif-sim-plot)""" %(report_header_info, rbpbench_mode)
 
     mdtext += "\n"
 
@@ -8721,11 +8999,17 @@ by RBPBench (rbpbench %s):
 
     pval_dic = {}
     c_sig_motifs = 0
+    sig_seq_motif_ids_list = []
+
     for motif_id in motif_enrich_stats_dic:
         pval = motif_enrich_stats_dic[motif_id].fisher_pval_corr
         pval_dic[motif_id] = pval
         if pval <= args.enmo_pval_thr:
             c_sig_motifs += 1
+            if motif_enrich_stats_dic[motif_id].motif_type == "meme_xml":
+                sig_seq_motif_ids_list.append(motif_id)
+
+    sig_seq_motif_ids_list.sort()
 
     mdtext += """
 ## Motif enrichment statistics ### {#enmo-stats}
@@ -8821,7 +9105,6 @@ For full motif results list regardless of significance, see *motif_enrichment_st
     mdtext += '**# not bg** -> number of background sites without motif hits, '
     mdtext += '**p-value** -> Fisher exact test p-value (corrected).' + "\n"
     mdtext += "\n&nbsp;\n"
-
 
 
     """
@@ -8937,6 +9220,95 @@ No co-occurrences calculated as there are no significant motifs (see upper table
 &nbsp;
 
 """
+
+    """
+    Motif similarities (only for MEME formatted sequence motifs) PCA plot.
+    
+    AALAMO
+    
+    """
+
+    mdtext += """
+## Sequence motif similarities PCA plot ### {#motif-sim-plot}
+
+"""
+
+    # Get motif similarities of significant motifs.
+    motif_sim_ll = False
+    motif_sim_stats_dic = {}
+    if motif_pair2sim_dic and len(sig_seq_motif_ids_list) > 2:  # at least 3 significant sequence motifs needed.
+        motif_sim_ll = get_motif_similarites_ll(sig_seq_motif_ids_list, motif_pair2sim_dic,
+                                                min_max_norm=True)
+
+        for motif_id in sig_seq_motif_ids_list:
+            conseq = motif_enrich_stats_dic[motif_id].consensus_seq
+            pval = motif_enrich_stats_dic[motif_id].fisher_pval_corr
+            con_table_str = motif_enrich_stats_dic[motif_id].con_table
+            pval = round_to_n_significant_digits_v2(pval, 4,
+                                                    min_val=1e-304)
+            log_pval = log_tf_pval(pval)
+            log_pval = round_to_n_significant_digits_v2(log_pval, 4,
+                                                        min_val=0)
+            motif_sim_stats_dic[motif_id] = [conseq, con_table_str, pval, log_pval]
+
+        # for idx, motif_id in enumerate(sig_seq_motif_ids_list):
+        #     print(motif_id, motif_sim_stats_dic[motif_id][0], motif_sim_ll[idx])
+
+        motif_sim_plot_plotly =  "motif_sim_pca_plot.plotly.html"
+        motif_sim_plot_plotly_out = plots_out_folder + "/" + motif_sim_plot_plotly
+
+        create_pca_motif_sim_plot_plotly(sig_seq_motif_ids_list, motif_sim_ll,
+                                         motif_sim_stats_dic, motif_sim_plot_plotly_out,
+                                         include_plotlyjs=include_plotlyjs,
+                                         full_html=plotly_full_html)
+
+        plot_path = plots_folder + "/" + motif_sim_plot_plotly
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            js_code = read_file_content_into_str_var(motif_sim_plot_plotly_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:900px; width:1000px;")
+            mdtext += js_code + "\n"
+        else:
+            if plotly_embed_style == 1:
+                mdtext += "<div>\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1000" height="900"></iframe>' + "\n"
+                mdtext += '</div>'
+            elif plotly_embed_style == 2:
+                mdtext += '<object data="' + plot_path + '" width="1000" height="900"> </object>' + "\n"
+
+
+        mdtext += """
+
+**Figure:** Sequence motif similarities PCA plot. Motifs are colored by their significance, i.e., their -log10 p-value (used as legend color, i.e., the higher the more significant).
+Motifs closer together in the plot tend to have a higher motif similarity.
+Motif similarity is measured using TOMTOM's euclidean distance measure between motif position weight matrices (PWMs), and motif similarity vectors are used for 2-dimensional PCA.
+Only motifs that are sequence motifs and that are significantly %s (from upper table, also containing their sequence logos) are used for the similarity comparison.
+Hover box: 
+**Motif** -> Motif ID.
+**Consensus** -> Consensus sequence derived from PWM (PWM sequence logo can be found in upper motif enrichment statistics table).
+**Counts** -> contingency table of motif occurrence counts (i.e., number of input and background regions with/without motif hits), 
+with format [[A, B], [C, D]], where 
+A: # input regions with motif hits, 
+B: # input regions without motif hits,
+C: # background regions with motif hits,
+D: # background regions without motif hits.
+**p-value** -> Fisher exact test p-value (corrected) derived from contingency table.
+**-log10(p-value)** -> -log10 p-value of Fisher exact test p-value, used for coloring of motifs.
+
+&nbsp;
+
+""" %(motif_add_info)
+
+    else:
+
+        mdtext += """
+
+No motif similarities plot generated since there are < 3 significant sequence motifs.
+        
+&nbsp;
+
+"""
+
 
 
 
@@ -9177,6 +9549,7 @@ def nemo_generate_html_report(args,
                               benchlib_path,
                               df_pval=False, 
                               pval_cont_lll=False,
+                              motif_pair2sim_dic=False,
                               pos_seqs_dic=False,
                               neg_seqs_dic=False,
                               pos_reg2annot_dic=False,
@@ -9224,8 +9597,8 @@ def nemo_generate_html_report(args,
         site_type = "transcript"
 
     regex_motif_info = ""
-    if args.regex:
-        regex_motif_info = "Used regex motif: '%s'." %(args.regex)
+    # if args.regex:
+    #     regex_motif_info = "Used regex motif: '%s'." %(args.regex)
 
     report_header_info = "Neighboring motif enrichment report"
     if args.report_header:
@@ -9321,7 +9694,8 @@ List of available statistics and plots generated
 by RBPBench (rbpbench %s):
 
 - [Neighboring motif enrichment statistics](#nemo-stats)
-- [Motif co-occurrences heat map](#cooc-heat-map)""" %(report_header_info, rbpbench_mode)
+- [Motif co-occurrences heat map](#cooc-heat-map)
+- [Sequence motif similarities PCA plot](#motif-sim-plot)""" %(report_header_info, rbpbench_mode)
 
     mdtext += "\n"
 
@@ -9367,23 +9741,30 @@ by RBPBench (rbpbench %s):
         assert False, "Invalid motif enrichment p-value mode (--nemo-pval-mode) set: %i" %(args.nemo_pval_mode)
 
     # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
-    wrs_mode_info = ""
-    if args.wrs_mode == 1:
-        wrs_mode_info = "Wilcoxon rank sum test alternative hypothesis is set to 'two-sided', i.e., low WRS p-values (WRS p-value column) mean either up- or downstream context regions have significantly higher motif hit counts."
-    elif args.wrs_mode == 2:
-        wrs_mode_info = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low WRS p-values (WRS p-value column) mean upstream context regions have significantly higher motif hit counts."
-    elif args.wrs_mode == 3:
-        wrs_mode_info = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low WRS p-values (WRS p-value column) mean downstream context regions have significantly higher motif hit counts."
-    else:
-        assert False, "Invalid Wilcoxon rank sum test mode (--wrs-mode) set: %i" %(args.wrs_mode)
+    # wrs_mode_info = ""
+    # if args.wrs_mode == 1:
+    #     wrs_mode_info = "Wilcoxon rank sum test alternative hypothesis is set to 'two-sided', i.e., low WRS p-values (WRS p-value column) mean either up- or downstream context regions have significantly higher motif hit counts."
+    # elif args.wrs_mode == 2:
+    #     wrs_mode_info = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low WRS p-values (WRS p-value column) mean upstream context regions have significantly higher motif hit counts."
+    # elif args.wrs_mode == 3:
+    #     wrs_mode_info = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low WRS p-values (WRS p-value column) mean downstream context regions have significantly higher motif hit counts."
+    # else:
+    #     assert False, "Invalid Wilcoxon rank sum test mode (--wrs-mode) set: %i" %(args.wrs_mode)
+    wrs_mode_info = "Wilcoxon rank sum test alternative hypothesis is set to 'two-sided', i.e., low WRS p-values (WRS p-value column) mean either up- or downstream context regions have significantly higher motif hit counts."
 
     pval_dic = {}
     c_sig_motifs = 0
+    sig_seq_motif_ids_list = []
+
     for motif_id in motif_enrich_stats_dic:
         pval = motif_enrich_stats_dic[motif_id].fisher_pval_corr
         pval_dic[motif_id] = pval
         if pval <= args.nemo_pval_thr:
             c_sig_motifs += 1
+            if motif_enrich_stats_dic[motif_id].motif_type == "meme_xml":
+                sig_seq_motif_ids_list.append(motif_id)
+
+    sig_seq_motif_ids_list.sort()
 
     mdtext += """
 ## Neighboring motif enrichment statistics ### {#nemo-stats}
@@ -9442,17 +9823,14 @@ Wilcoxon rank sum (WRS) test is applied.
         c_neg_regions = motif_enrich_stats_dic[motif_id].c_neg_regions
         pos_avg_center_dist = round(motif_enrich_stats_dic[motif_id].pos_set_avg_center_dist, 1)
         neg_avg_center_dist = round(motif_enrich_stats_dic[motif_id].neg_set_avg_center_dist, 1)
-        pos_max_center_dist = motif_enrich_stats_dic[motif_id].pos_set_max_center_dist
-        pos_max_center_dist_c = motif_enrich_stats_dic[motif_id].pos_set_max_center_dist_c
-        neg_max_center_dist = motif_enrich_stats_dic[motif_id].neg_set_max_center_dist
-        neg_max_center_dist_c = motif_enrich_stats_dic[motif_id].neg_set_max_center_dist_c
-
+        # pos_max_center_dist = motif_enrich_stats_dic[motif_id].pos_set_max_center_dist
+        # pos_max_center_dist_c = motif_enrich_stats_dic[motif_id].pos_set_max_center_dist_c
+        # neg_max_center_dist = motif_enrich_stats_dic[motif_id].neg_set_max_center_dist
+        # neg_max_center_dist_c = motif_enrich_stats_dic[motif_id].neg_set_max_center_dist_c
 
         # dist_plot_counts_dic format: {pos: count, ...}, e.g. from -5 to 5: {5: 1, 4: 2, 3: 5, 2: 4, 1: 3, 0: 0, -1: 3, -2: 4, -3: 5, -4: 2, -5: 1}
         dist_plot_counts_dic = motif_enrich_stats_dic[motif_id].dist_plot_counts_dic
-        wrs_pval = motif_enrich_stats_dic[motif_id].wrs_pval
-        wrs_test_stat = motif_enrich_stats_dic[motif_id].wrs_test_stat
-        wrs_alt_hypo = motif_enrich_stats_dic[motif_id].wrs_alt_hypo
+        wrs_pval = motif_enrich_stats_dic[motif_id].wrs_pval_two_sided
 
         a_con = c_pos_hit_regions
         b_con = c_pos_regions - c_pos_hit_regions
@@ -9476,7 +9854,6 @@ Wilcoxon rank sum (WRS) test is applied.
                                     motif_plot_out)
 
             motif_plot_str = '<image src = "' + plot_path + '" width="300px"></image>'
-
 
         # Plot motif distances to center as positions on x-axis and counts on y-axis.
         # positions = list(dist_plot_counts_dic.keys())
@@ -9667,6 +10044,114 @@ No co-occurrences calculated as no significant context region motifs were found 
 
 """
 
+
+
+
+    """
+    Motif similarities (only for MEME formatted sequence motifs) PCA plot.
+    
+    AALAMO
+    
+    """
+
+    mdtext += """
+## Sequence motif similarities PCA plot ### {#motif-sim-plot}
+
+"""
+
+    # Get motif similarities of significant motifs.
+    motif_sim_ll = False
+    motif_sim_stats_dic = {}
+    if motif_pair2sim_dic and len(sig_seq_motif_ids_list) > 2:  # at least 3 significant sequence motifs needed.
+        motif_sim_ll = get_motif_similarites_ll(sig_seq_motif_ids_list, motif_pair2sim_dic,
+                                                min_max_norm=True)
+
+        for motif_id in sig_seq_motif_ids_list:
+            conseq = motif_enrich_stats_dic[motif_id].consensus_seq
+            pval = motif_enrich_stats_dic[motif_id].fisher_pval_corr
+            con_table_str = motif_enrich_stats_dic[motif_id].con_table
+            wrs_pval_greater = motif_enrich_stats_dic[motif_id].wrs_pval_greater
+            wrs_pval_less = motif_enrich_stats_dic[motif_id].wrs_pval_less
+
+            pval = round_to_n_significant_digits_v2(pval, 4,
+                                                    min_val=1e-304)
+            log_pval = log_tf_pval(pval)
+            log_pval = round_to_n_significant_digits_v2(log_pval, 4,
+                                                        min_val=0)
+
+            wrs_pval = 1.0
+            sign = 1
+            if wrs_pval_greater < wrs_pval_less: # upstream p-value lower.
+                wrs_pval = wrs_pval_greater
+                sign = -1
+            elif wrs_pval_less < wrs_pval_greater:
+                wrs_pval = wrs_pval_less
+            
+            wrs_pval = round_to_n_significant_digits_v2(wrs_pval, 4,
+                                                    min_val=1e-304)
+            log_wrs_pval = log_tf_pval(wrs_pval)
+            log_wrs_pval = round_to_n_significant_digits_v2(log_wrs_pval, 4,
+                                                            min_val=0)
+            log_wrs_pval = sign * log_wrs_pval
+
+            motif_sim_stats_dic[motif_id] = [conseq, con_table_str, pval, log_pval, wrs_pval_greater, wrs_pval_less, log_wrs_pval]
+
+            # AALAMO
+
+        motif_sim_plot_plotly =  "motif_sim_pca_plot.plotly.html"
+        motif_sim_plot_plotly_out = plots_out_folder + "/" + motif_sim_plot_plotly
+
+        create_pca_motif_sim_plot_plotly(sig_seq_motif_ids_list, motif_sim_ll,
+                                         motif_sim_stats_dic, motif_sim_plot_plotly_out,
+                                         include_plotlyjs=include_plotlyjs,
+                                         full_html=plotly_full_html)
+
+        plot_path = plots_folder + "/" + motif_sim_plot_plotly
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            js_code = read_file_content_into_str_var(motif_sim_plot_plotly_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:900px; width:1000px;")
+            mdtext += js_code + "\n"
+        else:
+            if plotly_embed_style == 1:
+                mdtext += "<div>\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1000" height="900"></iframe>' + "\n"
+                mdtext += '</div>'
+            elif plotly_embed_style == 2:
+                mdtext += '<object data="' + plot_path + '" width="1000" height="900"> </object>' + "\n"
+
+
+        mdtext += """
+
+**Figure:** Sequence motif similarities PCA plot. Motifs are colored by their significance, i.e., their -log10 p-value (used as legend color, i.e., the higher the more significant).
+Motifs closer together in the plot tend to have a higher motif similarity.
+Motif similarity is measured using TOMTOM's euclidean distance measure between motif position weight matrices (PWMs), and motif similarity vectors are used for 2-dimensional PCA.
+Only motifs that are sequence motifs and that are significantly %s (from upper table, also containing their sequence logos) are used for the similarity comparison.
+Hover box: 
+**Motif** -> Motif ID.
+**Consensus** -> Consensus sequence derived from PWM (PWM sequence logo can be found in upper motif enrichment statistics table).
+**Counts** -> contingency table of motif occurrence counts (i.e., number of input and background regions with/without motif hits), 
+with format [[A, B], [C, D]], where 
+A: # input regions with motif hits, 
+B: # input regions without motif hits,
+C: # background regions with motif hits,
+D: # background regions without motif hits.
+**p-value** -> Fisher exact test p-value (corrected) derived from contingency table.
+**-log10(p-value)** -> -log10 p-value of Fisher exact test p-value, used for coloring of motifs.
+
+&nbsp;
+
+""" %(motif_add_info)
+
+    else:
+
+        mdtext += """
+
+No motif similarities plot generated since there are < 3 significant sequence motifs.
+        
+&nbsp;
+
+"""
 
 
     """
@@ -12047,8 +12532,6 @@ def log_tf_df(df,
                             pv = min_pv
                     ltf_pval = log_tf_pval(pv)
                     df.iloc[i, j] = ltf_pval
-
-
 
 
 ################################################################################
