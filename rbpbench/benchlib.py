@@ -785,7 +785,8 @@ def output_tomtom_sim_results(motif_ids_dic, pair2sim_dic, sim_out_tsv,
 
 ################################################################################
 
-def read_in_tomtom_sim_results(sim_out_tsv):
+def read_in_tomtom_sim_results(sim_out_tsv,
+                               motif_sim_cap=50):
     """
     Read in tomtom similarity results.
 
@@ -807,6 +808,10 @@ def read_in_tomtom_sim_results(sim_out_tsv):
         motif1 = cols[0]
         motif2 = cols[1]
         sim = float(cols[2])
+
+        if motif_sim_cap:
+            if sim > motif_sim_cap:
+                sim = motif_sim_cap
 
         pair_str1 = motif1 + "," + motif2
         pair_str2 = motif2 + "," + motif1
@@ -5688,6 +5693,22 @@ def bed_get_core_rel_reg_dic(core_reg_dic, in_bed):
     Based on core region dictionary, containing chromosome coordinates, 
     get relative region dictionary (i.e. relative to sequence not to chromosome start).
 
+    test3.bed:
+    chr1	100	200	r1	0	+
+    chr1	100	200	r2	0	-
+
+    >>> core_reg_dic = {"r1": ["chr1", 120, 130, "+"], "r2": ["chr1", 120, 130, "-"], "r3": ["chr1", 200, 210, "+"], "r4": ["chr1", 200, 210, "-"]}
+    >>> in_bed = "test_data/test3.bed"
+    >>> core_rel_reg_dic = bed_get_core_rel_reg_dic(core_reg_dic, in_bed)
+    >>> print(core_rel_reg_dic["r1"])
+    ['r1', 20, 30, '+']
+    >>> print(core_rel_reg_dic["r2"])
+    ['r2', 70, 80, '+']
+    >>> print(core_rel_reg_dic["r3"])
+    ['r3', 0, 10, '+']
+    >>> print(core_rel_reg_dic["r4"])
+    ['r4', 90, 100, '+']
+    
     """
     core_rel_reg_dic = {}
 
@@ -5715,7 +5736,7 @@ def bed_get_core_rel_reg_dic(core_reg_dic, in_bed):
                 rel_s = reg_e - core_e
                 rel_e = rel_s + core_len
 
-            core_rel_reg_dic[reg_id] = [reg_chr, rel_s, rel_e, reg_pol]
+            core_rel_reg_dic[reg_id] = [reg_id, rel_s, rel_e, "+"]
 
     f.closed
 
@@ -5750,6 +5771,28 @@ def bed_get_region_str_len_dic(in_bed):
 
 ################################################################################
 
+def intervals_overlap(start1, end1, start2, end2):
+    """
+    Check if two intervals [start1, end1] and [start2, end2] overlap.
+    All indices are 1-based.
+
+    >>> intervals_overlap(1, 10, 5, 15)
+    True
+    >>> intervals_overlap(1, 10, 11, 15)
+    False
+    >>> intervals_overlap(5, 20, 10, 15)
+    True
+    >>> intervals_overlap(25, 30, 20, 25)
+    True
+    >>> intervals_overlap(40, 50, 20, 25)
+    False
+
+    """
+    return start1 <= end2 and end1 >= start2
+
+
+################################################################################
+
 def filter_out_center_motif_hits(hits_list, core_rel_reg_dic):
     """
     Filter positive regions hits list (FIMO, CMSEARCH), based on given core region
@@ -5761,10 +5804,13 @@ def filter_out_center_motif_hits(hits_list, core_rel_reg_dic):
     If hit overlaps with core region, filter it out, otherwise keep it and 
     store in flt_hits_list.
 
+    AALAMO
+
+
     >>> fh1 = FimoHit("chr1", 140, 150, "+", 0.0, "motif1", "pos1", 0.0, seq_s=40, seq_e=50)
     >>> fh2 = FimoHit("chr1", 120, 130, "+", 0.0, "motif1", "pos1", 0.0, seq_s=20, seq_e=30)
     >>> hits_list = [fh1, fh2]
-    >>> core_rel_reg_dic = {"pos1": ["chr1", 45, 55, "+"]}
+    >>> core_rel_reg_dic = {"pos1": ["pos1", 45, 55, "+"]}
     >>> flt_hits_list = filter_out_center_motif_hits(hits_list, core_rel_reg_dic)
     >>> print(flt_hits_list[0])
     chr1:120-130(+)motif1
@@ -5777,17 +5823,17 @@ def filter_out_center_motif_hits(hits_list, core_rel_reg_dic):
 
     for hit in hits_list:
 
-        # motif_id = hit.motif_id
+        motif_id = hit.motif_id
         seq_name = hit.seq_name
         hit_seq_s = hit.seq_s  # hit start on sequence snippet, already 1-based.
         hit_seq_e = hit.seq_e
         core_seq_s = core_rel_reg_dic[seq_name][1] + 1  # make 1-based.
         core_seq_e = core_rel_reg_dic[seq_name][2]
 
-        # If hit_seq_s inside core region or hit_seq_e inside core region, filter out.
-        if hit_seq_s >= core_seq_s and hit_seq_s <= core_seq_e:
-            continue
-        if hit_seq_e >= core_seq_s and hit_seq_e <= core_seq_e:
+        assert hit_seq_s <= hit_seq_e, "hit_seq_s > hit_seq_e"
+        assert core_seq_s <= core_seq_e, "core_seq_s > core_seq_e"
+
+        if intervals_overlap(hit_seq_s, hit_seq_e, core_seq_s, core_seq_e):
             continue
 
         hit_center_pos = get_center_position(hit_seq_s-1, hit_seq_e)
@@ -5823,7 +5869,7 @@ def filter_out_neg_center_motif_hits(neg_hits_list, core_rel_reg_dic):
     >>> fh1 = FimoHit("chr1", 140, 150, "+", 0.0, "motif1", "pos1;neg1", 0.0, seq_s=40, seq_e=50)
     >>> fh2 = FimoHit("chr1", 120, 130, "+", 0.0, "motif1", "pos1;neg1", 0.0, seq_s=20, seq_e=30)
     >>> hits_list = [fh1, fh2]
-    >>> core_rel_reg_dic = {"pos1": ["chr1", 45, 55, "+"]}
+    >>> core_rel_reg_dic = {"pos1": ["pos1", 45, 55, "+"]}
     >>> flt_hits_list = filter_out_neg_center_motif_hits(hits_list, core_rel_reg_dic)
     >>> print(flt_hits_list[0])
     chr1:120-130(+)motif1
@@ -5838,16 +5884,14 @@ def filter_out_neg_center_motif_hits(neg_hits_list, core_rel_reg_dic):
         seq_name = hit.seq_name
         hit_seq_s = hit.seq_s  # hit start on sequence snippet, already 1-based.
         hit_seq_e = hit.seq_e
-
         pos_seq_name = seq_name.split(";")[0]
-
         core_seq_s = core_rel_reg_dic[pos_seq_name][1] + 1  # make 1-based.
         core_seq_e = core_rel_reg_dic[pos_seq_name][2]
 
-        # If hit_seq_s inside core region or hit_seq_e inside core region, filter out.
-        if hit_seq_s >= core_seq_s and hit_seq_s <= core_seq_e:
-            continue
-        if hit_seq_e >= core_seq_s and hit_seq_e <= core_seq_e:
+        assert hit_seq_s <= hit_seq_e, "hit_seq_s > hit_seq_e"
+        assert core_seq_s <= core_seq_e, "core_seq_s > core_seq_e"
+
+        if intervals_overlap(hit_seq_s, hit_seq_e, core_seq_s, core_seq_e):
             continue
 
         hit_center_pos = get_center_position(hit_seq_s-1, hit_seq_e)
@@ -6463,6 +6507,17 @@ def create_color_scale(min_value, max_value, colors):
 
 ################################################################################
 
+def rgb_to_hex(rgb):
+    """
+    Convert RGB to hex.
+
+    """
+    rgb = rgb.replace('rgb(', '').replace(')', '').split(',')
+    return '#{:02x}{:02x}{:02x}'.format(int(rgb[0]), int(rgb[1]), int(rgb[2]))
+
+
+################################################################################
+
 def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
                             max_motif_dist=50,
                             min_motif_dist=0,
@@ -6493,16 +6548,27 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
     # color_scale = [[0, "midnightblue"], [0, 'darkblue'], [0.25, 'blue'], [0.5, 'purple'], [0.75, 'red'], [1, 'yellow']]
     
     # Light blue to dark blue gradient.
-    colors = ['#E0FFFF', '#B0E0E6', '#87CEEB', '#4682B4', '#0000FF', '#00008B', '#000080']  
+    # colors = ['#E0FFFF', '#B0E0E6', '#87CEEB', '#4682B4', '#0000FF', '#00008B', '#000080']  
     # colors = ['darkblue', 'blue', 'purple', 'red', 'orange', 'yellow']
     # colors = ['green', 'red']
 
     min_val = 0.01
     max_val = 1  # df.max().max() # color scale values need to be 0 .. 1.
 
-    color_scale = create_color_scale(min_val, max_val, colors)
+    # color_scale = create_color_scale(min_val, max_val, colors)
+    # color_scale.insert(0, [0, "white"])  # lightgray ? dimgray (old color)
 
-    color_scale.insert(0, [0, "white"])  # lightgray ? dimgray (old color)
+
+    # Define the Blues color scale.
+    blues_colors = px.colors.sequential.Blues
+    blues_colors_hex = [rgb_to_hex(color) for color in blues_colors]
+    # blues_colors_hex: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+
+    color_scale = create_color_scale(min_val, max_val, blues_colors_hex)
+    color_scale.insert(0, [0, "white"])  # lightgray ? dimgray was old color.
+
+    # # Insert white at the beginning of the color scale
+    # custom_color_scale = [[0, 'white']] + [[i / (len(blues_colors) - 1), color] for i, color in enumerate(blues_colors)]
 
     # Set the color scale range according to the data (minimum 0 .. 1).
     zmin = min(0, df.min().min())
@@ -6534,6 +6600,7 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
     plot.write_html(plot_out,
                     full_html=full_html,
                     include_plotlyjs=include_plotlyjs)
+
 
 ################################################################################
 
@@ -6607,10 +6674,11 @@ def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll,
 
 ################################################################################
 
-def create_pca_motif_sim_plot_plotly(motif_ids_list, motif_sim_ll, motif_sim_stats_dic,
-                                     plot_out,
-                                     include_plotlyjs="cdn",
-                                     full_html=False):
+def create_pca_motif_sim_sig_plot_plotly(motif_ids_list, motif_sim_ll, 
+                                         motif_sim_stats_dic,
+                                         plot_out,
+                                         include_plotlyjs="cdn",
+                                         full_html=False):
     """
     AALAMO
 
@@ -6646,6 +6714,18 @@ def create_pca_motif_sim_plot_plotly(motif_ids_list, motif_sim_ll, motif_sim_sta
     # lp_min = df['-log10(p-value)'].min()
     # lp_max = df['-log10(p-value)'].max()
 
+    # Define the custom blue color scale
+    # colors = ['#E0FFFF', '#B0E0E6', '#87CEEB', '#4682B4', '#0000FF', '#00008B', '#000080']
+    # color_scale = [[i / (len(colors) - 1), color] for i, color in enumerate(colors)]
+    # Viridis, Magma
+    # intron green: #2ca02c
+    # 3utr blue: #1f77b4
+    # cds orange: #ff7f0e
+
+    # blues_colors_hex: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+
+    color_scale = ['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+
     explained_variance = pca.explained_variance_ratio_ * 100
 
     fig = px.scatter(
@@ -6658,8 +6738,9 @@ def create_pca_motif_sim_plot_plotly(motif_ids_list, motif_sim_ll, motif_sim_sta
             'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
         },
         hover_name='Motif ID',
-        hover_data=['Consensus sequence', 'Counts', 'p-value', '-log10(p-value)']
-        # color_continuous_scale=color_scale,
+        hover_data=['Consensus sequence', 'Counts', 'p-value', '-log10(p-value)'],
+        # color_continuous_scale='Blues'  # AALAMO
+        color_continuous_scale=color_scale # ylgnbu
         # range_color=[lp_min, lp_max]
     )
 
@@ -6667,12 +6748,102 @@ def create_pca_motif_sim_plot_plotly(motif_ids_list, motif_sim_ll, motif_sim_sta
         hovertemplate='motif: <b>%{hovertext}</b><br>Consensus: %{customdata[0]}<br>Counts: %{customdata[1]}<br>p-value: %{customdata[2]}<br>-log10(p-value): %{customdata[3]}<extra></extra>'
     )
 
-    fig.update_traces(marker=dict(size=8))
+    fig.update_traces(marker=dict(size=11))
+    fig.update_layout(coloraxis_colorbar_title='')
     fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
     # fig.update_scenes(aspectmode='cube')
     # fig.update_traces(marker=dict(size=3))
     # fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
     # fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
+def create_pca_motif_sim_dir_plot_plotly(motif_ids_list, motif_sim_ll, 
+                                         motif_sim_stats_dic,
+                                         plot_out,
+                                         include_plotlyjs="cdn",
+                                         full_html=False):
+    """
+    AALAMO
+
+    motif_ids_list:
+    List of motif IDs, in same order as motif_sim_ll.
+    motif_sim_ll:
+    List of lists containing motif similarities. In order of motif_ids_list, 
+    so that motif_sim_ll[i][j] corresponds to motif_ids_list[i] and motif_ids_list[j].
+    motif_sim_stats_dic:
+    Dictionary with motif ID as key and list of
+    [conseq, con_table_str, pval, log_pval, wrs_pval_greater, wrs_pval_less, log_wrs_pval]
+    as value, for hoverbox information.
+
+    """
+
+    assert motif_ids_list, "motif_ids_list empty"
+
+    pca = PCA(n_components=2)
+    data_2d_pca = pca.fit_transform(motif_sim_ll)
+
+    df = pd.DataFrame(data_2d_pca, columns=['PC1', 'PC2'])
+    
+    df['Motif ID'] = motif_ids_list
+    df['Consensus sequence'] = [motif_sim_stats_dic[motif_id][0] for motif_id in motif_ids_list]
+    df['Counts'] = [motif_sim_stats_dic[motif_id][1] for motif_id in motif_ids_list]
+    df['p-value'] = [motif_sim_stats_dic[motif_id][2] for motif_id in motif_ids_list]
+    df['WRS p-value (upstream)'] = [motif_sim_stats_dic[motif_id][4] for motif_id in motif_ids_list]
+    df['WRS p-value (downstream)'] = [motif_sim_stats_dic[motif_id][5] for motif_id in motif_ids_list]
+    df['-log10(WRS p-value)'] = [motif_sim_stats_dic[motif_id][6] for motif_id in motif_ids_list]
+
+    # Get maximum -log10(WRS p-value) for colorbar scaling.
+    max_abs_log10_pval = df['-log10(WRS p-value)'].abs().max()
+
+    # Define a custom diverging color scale
+    custom_color_scale = [
+        [0, '#ff7f0e'],  # counts higher in upstream context
+        [0.5, 'white'],  # Color around zero
+        [1, '#1f77b4']  # counts higher in downstream context
+    ]
+
+    # intron green: #2ca02c
+    # 3utr blue: #1f77b4
+    # cds orange: #ff7f0e
+
+    # dark blue from Blues: #08306b
+    # blues_colors_hex: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+
+
+    # colors = ['#E0FFFF', '#B0E0E6', '#87CEEB', '#4682B4', '#0000FF', '#00008B', '#000080']
+    # min_val = 0.01
+    # max_val = 1
+    # color_scale = create_color_scale(min_val, max_val, colors)
+    # color_scale.insert(0, [0, "white"])
+    # lp_min = df['-log10(p-value)'].min()
+    # lp_max = df['-log10(p-value)'].max()
+
+    explained_variance = pca.explained_variance_ratio_ * 100
+
+    fig = px.scatter(
+        df,
+        x='PC1',
+        y='PC2',
+        color='-log10(WRS p-value)',
+        labels={
+            'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+            'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
+        },
+        hover_name='Motif ID',
+        hover_data=['Consensus sequence', 'Counts', 'p-value', 'WRS p-value (upstream)', 'WRS p-value (downstream)', '-log10(WRS p-value)'],
+        color_continuous_scale=custom_color_scale,
+        range_color=[-max_abs_log10_pval, max_abs_log10_pval]
+    )
+
+    fig.update_traces(
+        hovertemplate='motif: <b>%{hovertext}</b><br>Consensus: %{customdata[0]}<br>Counts: %{customdata[1]}<br>p-value: %{customdata[2]}<br>WRS p-value (upstream): %{customdata[3]}<br>WRS p-value (downstream): %{customdata[4]}<br>-log10(WRS p-value): %{customdata[5]}<extra></extra>'
+    )
+
+    fig.update_traces(marker=dict(size=11))
+    fig.update_layout(coloraxis_colorbar_title='')
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
 
 
 ################################################################################
@@ -8952,7 +9123,7 @@ by RBPBench (rbpbench %s):
 
 - [Motif enrichment statistics](#enmo-stats)
 - [Motif co-occurrences heat map](#cooc-heat-map)
-- [Sequence motif similarities PCA plot](#motif-sim-plot)""" %(report_header_info, rbpbench_mode)
+- [Sequence motif similarity vs significance PCA plot](#motif-sim-sig-plot)""" %(report_header_info, rbpbench_mode)
 
     mdtext += "\n"
 
@@ -9221,15 +9392,16 @@ No co-occurrences calculated as there are no significant motifs (see upper table
 
 """
 
+
     """
-    Motif similarities (only for MEME formatted sequence motifs) PCA plot.
+    Motif similarity (only for MEME formatted sequence motifs) vs significance PCA plot.
     
     AALAMO
     
     """
 
     mdtext += """
-## Sequence motif similarities PCA plot ### {#motif-sim-plot}
+## Sequence motif similarity vs significance PCA plot ### {#motif-sim-sig-plot}
 
 """
 
@@ -9238,7 +9410,7 @@ No co-occurrences calculated as there are no significant motifs (see upper table
     motif_sim_stats_dic = {}
     if motif_pair2sim_dic and len(sig_seq_motif_ids_list) > 2:  # at least 3 significant sequence motifs needed.
         motif_sim_ll = get_motif_similarites_ll(sig_seq_motif_ids_list, motif_pair2sim_dic,
-                                                min_max_norm=True)
+                                                min_max_norm=args.motif_sim_norm)
 
         for motif_id in sig_seq_motif_ids_list:
             conseq = motif_enrich_stats_dic[motif_id].consensus_seq
@@ -9254,10 +9426,10 @@ No co-occurrences calculated as there are no significant motifs (see upper table
         # for idx, motif_id in enumerate(sig_seq_motif_ids_list):
         #     print(motif_id, motif_sim_stats_dic[motif_id][0], motif_sim_ll[idx])
 
-        motif_sim_plot_plotly =  "motif_sim_pca_plot.plotly.html"
+        motif_sim_plot_plotly =  "motif_sim_sig_pca_plot.plotly.html"
         motif_sim_plot_plotly_out = plots_out_folder + "/" + motif_sim_plot_plotly
 
-        create_pca_motif_sim_plot_plotly(sig_seq_motif_ids_list, motif_sim_ll,
+        create_pca_motif_sim_sig_plot_plotly(sig_seq_motif_ids_list, motif_sim_ll,
                                          motif_sim_stats_dic, motif_sim_plot_plotly_out,
                                          include_plotlyjs=include_plotlyjs,
                                          full_html=plotly_full_html)
@@ -9279,10 +9451,10 @@ No co-occurrences calculated as there are no significant motifs (see upper table
 
         mdtext += """
 
-**Figure:** Sequence motif similarities PCA plot. Motifs are colored by their significance, i.e., their -log10 p-value (used as legend color, i.e., the higher the more significant).
-Motifs closer together in the plot tend to have a higher motif similarity.
+**Figure:** Sequence motif similarity vs significance PCA plot. Motifs are arranged by their similarity and colored by their significance, i.e., their -log10 p-value (used as legend color, i.e., the higher the more significant).
+Motifs closer together in the plot translates to higher motif similarity.
 Motif similarity is measured using TOMTOM's euclidean distance measure between motif position weight matrices (PWMs), and motif similarity vectors are used for 2-dimensional PCA.
-Only motifs that are sequence motifs and that are significantly %s (from upper table, also containing their sequence logos) are used for the similarity comparison.
+Only motifs that are sequence motifs and that are significantly %s (from upper table, sequence logos shown as well) are used for the comparison.
 Hover box: 
 **Motif** -> Motif ID.
 **Consensus** -> Consensus sequence derived from PWM (PWM sequence logo can be found in upper motif enrichment statistics table).
@@ -9303,12 +9475,11 @@ D: # background regions without motif hits.
 
         mdtext += """
 
-No motif similarities plot generated since there are < 3 significant sequence motifs.
+No motif similarity vs significance plot generated since there are < 3 significant sequence motifs.
         
 &nbsp;
 
 """
-
 
 
 
@@ -9432,18 +9603,15 @@ Frequency distributions of k-mers (in percent) for the input and background data
         # Create 3-mer plotly scatter plot.
         create_kmer_sc_plotly_scatter_plot(pos_3mer_dic, neg_3mer_dic, 3,
                                         plotly_3mer_plot_out,
-                                        plotly_js_path,
-                                        theme=1)
+                                        plotly_js_path)
         # Create 4-mer plotly scatter plot.
         create_kmer_sc_plotly_scatter_plot(pos_4mer_dic, neg_4mer_dic, 4,
                                         plotly_4mer_plot_out,
-                                        plotly_js_path,
-                                        theme=1)
+                                        plotly_js_path)
         # Create 5-mer plotly scatter plot.
         create_kmer_sc_plotly_scatter_plot(pos_5mer_dic, neg_5mer_dic, 5,
                                         plotly_5mer_plot_out,
-                                        plotly_js_path,
-                                        theme=1)
+                                        plotly_js_path)
         # Plot paths inside html report.
         plotly_3mer_plot_path = plots_folder + "/" + plotly_3mer_plot
         plotly_4mer_plot_path = plots_folder + "/" + plotly_4mer_plot
@@ -9695,7 +9863,8 @@ by RBPBench (rbpbench %s):
 
 - [Neighboring motif enrichment statistics](#nemo-stats)
 - [Motif co-occurrences heat map](#cooc-heat-map)
-- [Sequence motif similarities PCA plot](#motif-sim-plot)""" %(report_header_info, rbpbench_mode)
+- [Sequence motif similarity vs significance PCA plot](#motif-sim-sig-plot)
+- [Sequence motif similarity vs direction PCA plot](#motif-sim-dir-plot)""" %(report_header_info, rbpbench_mode)
 
     mdtext += "\n"
 
@@ -10046,16 +10215,15 @@ No co-occurrences calculated as no significant context region motifs were found 
 
 
 
-
     """
-    Motif similarities (only for MEME formatted sequence motifs) PCA plot.
+    Motif similarity (only for MEME formatted sequence motifs) vs significance PCA plot.
     
     AALAMO
     
     """
 
     mdtext += """
-## Sequence motif similarities PCA plot ### {#motif-sim-plot}
+## Sequence motif similarity vs significance PCA plot ### {#motif-sim-sig-plot}
 
 """
 
@@ -10064,7 +10232,100 @@ No co-occurrences calculated as no significant context region motifs were found 
     motif_sim_stats_dic = {}
     if motif_pair2sim_dic and len(sig_seq_motif_ids_list) > 2:  # at least 3 significant sequence motifs needed.
         motif_sim_ll = get_motif_similarites_ll(sig_seq_motif_ids_list, motif_pair2sim_dic,
-                                                min_max_norm=True)
+                                                min_max_norm=args.motif_sim_norm)
+
+        for motif_id in sig_seq_motif_ids_list:
+            conseq = motif_enrich_stats_dic[motif_id].consensus_seq
+            pval = motif_enrich_stats_dic[motif_id].fisher_pval_corr
+            con_table_str = motif_enrich_stats_dic[motif_id].con_table
+            pval = round_to_n_significant_digits_v2(pval, 4,
+                                                    min_val=1e-304)
+            log_pval = log_tf_pval(pval)
+            log_pval = round_to_n_significant_digits_v2(log_pval, 4,
+                                                        min_val=0)
+            motif_sim_stats_dic[motif_id] = [conseq, con_table_str, pval, log_pval]
+
+        # for idx, motif_id in enumerate(sig_seq_motif_ids_list):
+        #     print(motif_id, motif_sim_stats_dic[motif_id][0], motif_sim_ll[idx])
+
+        motif_sim_plot_plotly =  "motif_sim_sig_pca_plot.plotly.html"
+        motif_sim_plot_plotly_out = plots_out_folder + "/" + motif_sim_plot_plotly
+
+        create_pca_motif_sim_sig_plot_plotly(sig_seq_motif_ids_list, motif_sim_ll,
+                                         motif_sim_stats_dic, motif_sim_plot_plotly_out,
+                                         include_plotlyjs=include_plotlyjs,
+                                         full_html=plotly_full_html)
+
+        plot_path = plots_folder + "/" + motif_sim_plot_plotly
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            js_code = read_file_content_into_str_var(motif_sim_plot_plotly_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:900px; width:1000px;")
+            mdtext += js_code + "\n"
+        else:
+            if plotly_embed_style == 1:
+                mdtext += "<div>\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1000" height="900"></iframe>' + "\n"
+                mdtext += '</div>'
+            elif plotly_embed_style == 2:
+                mdtext += '<object data="' + plot_path + '" width="1000" height="900"> </object>' + "\n"
+
+
+        mdtext += """
+
+**Figure:** Sequence motif similarity vs significance PCA plot. Motifs are arranged by their similarity and colored by their significance, i.e., their -log10 p-value (used as legend color, i.e., the higher the more significant).
+Motifs closer together in the plot translates to higher motif similarity.
+Motif similarity is measured using TOMTOM's euclidean distance measure between motif position weight matrices (PWMs), and motif similarity vectors are used for 2-dimensional PCA.
+Only motifs that are sequence motifs and that are significantly %s (from upper table, sequence logos shown as well) are used for the comparison.
+Hover box: 
+**Motif** -> Motif ID.
+**Consensus** -> Consensus sequence derived from PWM (PWM sequence logo can be found in upper motif enrichment statistics table).
+**Counts** -> contingency table of motif occurrence counts (i.e., number of input and background regions with/without motif hits), 
+with format [[A, B], [C, D]], where 
+A: # input regions with motif hits, 
+B: # input regions without motif hits,
+C: # background regions with motif hits,
+D: # background regions without motif hits.
+**p-value** -> Fisher exact test p-value (corrected) derived from contingency table.
+**-log10(p-value)** -> -log10 p-value of Fisher exact test p-value, used for coloring of motifs.
+
+&nbsp;
+
+""" %(motif_add_info)
+
+    else:
+
+        mdtext += """
+
+No motif similarity vs significance plot generated since there are < 3 significant sequence motifs.
+        
+&nbsp;
+
+"""
+
+
+
+
+
+
+    """
+    Motif similarity (only for MEME formatted sequence motifs) vs direction / context PCA plot.
+    
+    AALAMO
+    
+    """
+
+    mdtext += """
+## Sequence motif similarities vs direction PCA plot ### {#motif-sim-dir-plot}
+
+"""
+
+    # Get motif similarities of significant motifs.
+    motif_sim_ll = False
+    motif_sim_stats_dic = {}
+    if motif_pair2sim_dic and len(sig_seq_motif_ids_list) > 2:  # at least 3 significant sequence motifs needed.
+        motif_sim_ll = get_motif_similarites_ll(sig_seq_motif_ids_list, motif_pair2sim_dic,
+                                                min_max_norm=args.motif_sim_norm)
 
         for motif_id in sig_seq_motif_ids_list:
             conseq = motif_enrich_stats_dic[motif_id].consensus_seq
@@ -10092,16 +10353,18 @@ No co-occurrences calculated as no significant context region motifs were found 
             log_wrs_pval = log_tf_pval(wrs_pval)
             log_wrs_pval = round_to_n_significant_digits_v2(log_wrs_pval, 4,
                                                             min_val=0)
+            
+            # log_wrs_pval zero if wrs_pval_greater == wrs_pval_less, negative if wrs_pval_greater greater, positive if wrs_pval_less greater.
             log_wrs_pval = sign * log_wrs_pval
 
             motif_sim_stats_dic[motif_id] = [conseq, con_table_str, pval, log_pval, wrs_pval_greater, wrs_pval_less, log_wrs_pval]
 
             # AALAMO
 
-        motif_sim_plot_plotly =  "motif_sim_pca_plot.plotly.html"
+        motif_sim_plot_plotly =  "motif_sim_dir_pca_plot.plotly.html"
         motif_sim_plot_plotly_out = plots_out_folder + "/" + motif_sim_plot_plotly
 
-        create_pca_motif_sim_plot_plotly(sig_seq_motif_ids_list, motif_sim_ll,
+        create_pca_motif_sim_dir_plot_plotly(sig_seq_motif_ids_list, motif_sim_ll,
                                          motif_sim_stats_dic, motif_sim_plot_plotly_out,
                                          include_plotlyjs=include_plotlyjs,
                                          full_html=plotly_full_html)
@@ -10123,10 +10386,13 @@ No co-occurrences calculated as no significant context region motifs were found 
 
         mdtext += """
 
-**Figure:** Sequence motif similarities PCA plot. Motifs are colored by their significance, i.e., their -log10 p-value (used as legend color, i.e., the higher the more significant).
-Motifs closer together in the plot tend to have a higher motif similarity.
+**Figure:** Sequence motif similarity vs direction PCA plot. Motifs are arranged by their similarity and colored by their preferred binding direction relative to the provided central sites (up- or downstream context). 
+Significance of directional preference is given as the -log10 of the Wilcoxon rank sum test p-value (used as legend color, i.e., the more negative or positive the value the more significant the preference).
+A negative -log10 p-value indicates a preference for upstream context, whereas a positive value indicates a preference for downstream context.
+A -log10 p-value close to 0 indicates no significant directional preference.
+Motifs closer together in the plot translates to higher motif similarity.
 Motif similarity is measured using TOMTOM's euclidean distance measure between motif position weight matrices (PWMs), and motif similarity vectors are used for 2-dimensional PCA.
-Only motifs that are sequence motifs and that are significantly %s (from upper table, also containing their sequence logos) are used for the similarity comparison.
+Only motifs that are sequence motifs and that are significantly %s (from upper table, also containing their sequence logos) are used for the comparison.
 Hover box: 
 **Motif** -> Motif ID.
 **Consensus** -> Consensus sequence derived from PWM (PWM sequence logo can be found in upper motif enrichment statistics table).
@@ -10137,7 +10403,10 @@ B: # input regions without motif hits,
 C: # background regions with motif hits,
 D: # background regions without motif hits.
 **p-value** -> Fisher exact test p-value (corrected) derived from contingency table.
-**-log10(p-value)** -> -log10 p-value of Fisher exact test p-value, used for coloring of motifs.
+**WRS p-value (upstream)** -> Wilcoxon rank sum test p-value to test for significantly higher counts in upstream context regions.
+**WRS p-value (downstream)** -> Wilcoxon rank sum test p-value to test for significantly higher counts in downstream context regions.
+**-log10(WRS p-value)** -> -log10 p-value of Wilcoxon rank sum test p-value used for coloring of motifs. 
+The smaller of the two WRS p-values is taken. A negative value indicates upstream preference, a positive value downstream preference.
 
 &nbsp;
 
@@ -10147,7 +10416,7 @@ D: # background regions without motif hits.
 
         mdtext += """
 
-No motif similarities plot generated since there are < 3 significant sequence motifs.
+No motif similarity vs direction plot generated since there are < 3 significant sequence motifs.
         
 &nbsp;
 
@@ -10276,18 +10545,15 @@ Frequency distributions of k-mers (in percent) for the input and background data
         # Create 3-mer plotly scatter plot.
         create_kmer_sc_plotly_scatter_plot(pos_3mer_dic, neg_3mer_dic, 3,
                                         plotly_3mer_plot_out,
-                                        plotly_js_path,
-                                        theme=1)
+                                        plotly_js_path)
         # Create 4-mer plotly scatter plot.
         create_kmer_sc_plotly_scatter_plot(pos_4mer_dic, neg_4mer_dic, 4,
                                         plotly_4mer_plot_out,
-                                        plotly_js_path,
-                                        theme=1)
+                                        plotly_js_path)
         # Create 5-mer plotly scatter plot.
         create_kmer_sc_plotly_scatter_plot(pos_5mer_dic, neg_5mer_dic, 5,
                                         plotly_5mer_plot_out,
-                                        plotly_js_path,
-                                        theme=1)
+                                        plotly_js_path)
         # Plot paths inside html report.
         plotly_3mer_plot_path = plots_folder + "/" + plotly_3mer_plot
         plotly_4mer_plot_path = plots_folder + "/" + plotly_4mer_plot
@@ -10387,28 +10653,8 @@ percentage = 0.09765625. R2 = %.6f.
 
 ################################################################################
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def create_kmer_sc_plotly_scatter_plot(pos_mer_dic, neg_mer_dic, k,
-                                       out_html, plotly_js,
-                                       theme=1):
+                                       out_html, plotly_js):
     """
     Create plotly graph plot, containing k-mer scores of positive
     and negative set, and store in .html file.
@@ -10478,6 +10724,10 @@ def create_kmer_sc_plotly_scatter_plot(pos_mer_dic, neg_mer_dic, k,
 
     df = pd.DataFrame(data, columns = [pos_label, neg_label, kmer_label])
 
+    # # 3utr blue: #1f77b4
+    # dot_col = "#1f77b4"  
+
+    # AALAMo
     # # Color of dots.
     # dot_col = "#69e9f6"
     # if theme == 2:

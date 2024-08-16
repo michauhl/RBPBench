@@ -2192,6 +2192,17 @@ def setup_argument_parser():
                    metavar='float',
                    default=None,
                    help="Set motif pair similarity threshold for to filter out significantly co-occurring motifs that are similar to each other. Similarity between motifs is measured in -log10(TOMTOM p-value), so the larger the pair similarity value of two motifs, the more similar they are. E.g., --motif-sim-thr 2 corresponds to TOMTOM p-value of 0.01, to filter out motif pairs > 2 similarity (default: None)")
+    p_em.add_argument("--motif-sim-cap",
+                   dest="motif_sim_cap",
+                   type=float,
+                   metavar='float',
+                   default=50,
+                   help="Cap maximum motif similarity value to given value (default: 50)")
+    p_em.add_argument("--motif-sim-norm",
+                   dest="motif_sim_norm",
+                   default = False,
+                   action = "store_true",
+                   help="Normalize motif similarities (min-max normalization) for PCA plot (default: False)")
     p_em.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
@@ -2509,7 +2520,17 @@ def setup_argument_parser():
                    metavar='float',
                    default=None,
                    help="Set motif pair similarity threshold for to filter out significantly co-occurring motifs that are similar to each other. Similarity between motifs is measured in -log10(TOMTOM p-value), so the larger the pair similarity value of two motifs, the more similar they are. E.g., --motif-sim-thr 2 corresponds to TOMTOM p-value of 0.01, to filter out motif pairs > 2 similarity (default: None)")
-
+    p_nm.add_argument("--motif-sim-cap",
+                   dest="motif_sim_cap",
+                   type=float,
+                   metavar='float',
+                   default=50,
+                   help="Cap maximum motif similarity value to given value (default: 50)")
+    p_nm.add_argument("--motif-sim-norm",
+                   dest="motif_sim_norm",
+                   default = False,
+                   action = "store_true",
+                   help="Normalize motif similarities (min-max normalization) for PCA plot (default: False)")
     p_nm.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
@@ -13447,6 +13468,7 @@ def main_enmo(args):
     assert benchlib.boundary_check(args.bg_min_size, 1, 200000), "set --bg-min-size expected to be >= 1 and <= 200000"
     if args.motif_sim_thr is not None:
         assert benchlib.boundary_check(args.motif_sim_thr, 0.0, 1000), "set --motif-sim-thr expected to be >= 0 and <= 1000"
+    assert benchlib.boundary_check(args.motif_sim_cap, 0.5, 500), "set --motif-sim-cap expected to be >= 0.5 and <= 500"
 
     """
     Library path.
@@ -13486,7 +13508,8 @@ def main_enmo(args):
     motif_pair2sim_dic = {}
     print("Read in motif similarities ... ")
     tomtom_sim_file = get_local_tomtom_sim_file(args.motif_db, db_path=db_path)
-    motif_pair2sim_dic = benchlib.read_in_tomtom_sim_results(tomtom_sim_file)
+    motif_pair2sim_dic = benchlib.read_in_tomtom_sim_results(tomtom_sim_file,
+                                                             motif_sim_cap=args.motif_sim_cap)
     print("Read in %i motif similarities ... " %(len(motif_pair2sim_dic)))
 
     # Custom motif database: folder given.
@@ -13497,7 +13520,8 @@ def main_enmo(args):
         seq_motifs_db_file, str_motifs_db_file, rbp2ids_file = specify_custom_motif_db(args.custom_db)
         if os.path.exists(seq_motifs_db_file):
             print("Calculate motif similarities for supplied custom motif database ... ")
-            motif_pair2sim_dic = benchlib.calc_tomtom_sim(seq_motifs_db_file, args.out_folder)
+            motif_pair2sim_dic = benchlib.calc_tomtom_sim(seq_motifs_db_file, args.out_folder,
+                                                          motif_sim_cap=args.motif_sim_cap)
         motif_db_str = args.custom_db_id
     # Custom motif database: single files given.
     if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
@@ -13510,7 +13534,8 @@ def main_enmo(args):
             seq_motifs_db_file = args.custom_db_meme_xml
             if os.path.exists(seq_motifs_db_file):
                 print("Calculate motif similarities for supplied custom motif database ... ")
-                motif_pair2sim_dic = benchlib.calc_tomtom_sim(seq_motifs_db_file, args.out_folder)
+                motif_pair2sim_dic = benchlib.calc_tomtom_sim(seq_motifs_db_file, args.out_folder,
+                                                              motif_sim_cap=args.motif_sim_cap)
         else:
             seq_motifs_db_file = ""  # setting to empty string results in os.path.exists -> False.
         if args.custom_db_cm:
@@ -15662,6 +15687,7 @@ def main_nemo(args):
     assert benchlib.boundary_check(args.bg_min_size, 1, 200000), "set --bg-min-size expected to be >= 1 and <= 200000"
     if args.motif_sim_thr is not None:
         assert benchlib.boundary_check(args.motif_sim_thr, 0.0, 1000), "set --motif-sim-thr expected to be >= 0 and <= 1000"
+    assert benchlib.boundary_check(args.motif_sim_cap, 0.5, 500), "set --motif-sim-cap expected to be >= 0.5 and <= 500"
 
     """
     Library path.
@@ -15700,7 +15726,8 @@ def main_nemo(args):
     motif_pair2sim_dic = {}
     print("Read in motif similarities ... ")
     tomtom_sim_file = get_local_tomtom_sim_file(args.motif_db, db_path=db_path)
-    motif_pair2sim_dic = benchlib.read_in_tomtom_sim_results(tomtom_sim_file)
+    motif_pair2sim_dic = benchlib.read_in_tomtom_sim_results(tomtom_sim_file,
+                                                             motif_sim_cap=args.motif_sim_cap)
     print("Read in %i motif similarities ... " %(len(motif_pair2sim_dic)))
 
     # Custom motif database: folder given.
@@ -15711,7 +15738,8 @@ def main_nemo(args):
         seq_motifs_db_file, str_motifs_db_file, rbp2ids_file = specify_custom_motif_db(args.custom_db)
         if os.path.exists(seq_motifs_db_file):
             print("Calculate motif similarities for supplied custom motif database ... ")
-            motif_pair2sim_dic = benchlib.calc_tomtom_sim(seq_motifs_db_file, args.out_folder)
+            motif_pair2sim_dic = benchlib.calc_tomtom_sim(seq_motifs_db_file, args.out_folder,
+                                                          motif_sim_cap=args.motif_sim_cap)
         motif_db_str = args.custom_db_id
     # Custom motif database: single files given.
     if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
@@ -15724,7 +15752,8 @@ def main_nemo(args):
             seq_motifs_db_file = args.custom_db_meme_xml
             if os.path.exists(seq_motifs_db_file):
                 print("Calculate motif similarities for supplied custom motif database ... ")
-                motif_pair2sim_dic = benchlib.calc_tomtom_sim(seq_motifs_db_file, args.out_folder)
+                motif_pair2sim_dic = benchlib.calc_tomtom_sim(seq_motifs_db_file, args.out_folder,
+                                                              motif_sim_cap=args.motif_sim_cap)
         else:
             seq_motifs_db_file = ""  # setting to empty string results in os.path.exists -> False.
         if args.custom_db_cm:
@@ -16270,6 +16299,7 @@ def main_nemo(args):
         print("WARNING: --in sites differ in length. For optimal results provide same length sites (e.g. motif hit sites or single positions)")
     max_core_len = max(core_reg_len_set)
 
+    # AALAMO: so 51 on each side + center (0 position).
     from math import ceil
     max_dist_plot_range = max_ext + ceil(max_core_len/2)
     dist_plot_range = range(-max_dist_plot_range, max_dist_plot_range+1)
@@ -17333,12 +17363,14 @@ def main_nemo(args):
         upstream_counts = []
         downstream_counts = []
         for dist in dist_plot_counts_dic:
-            if dist > 0:
+            if dist < 0:
                 upstream_counts.append(dist_plot_counts_dic[dist])
-            elif dist < 0:
+            elif dist > 0:
                 downstream_counts.append(dist_plot_counts_dic[dist])
 
         motif_enrich_stats.dist_plot_counts_dic = dist_plot_counts_dic
+
+        # AALAMO
 
         # Wilcoxon rank-sum test two-sided.
         wrs_test_stat, wrs_pval = mannwhitneyu(upstream_counts, downstream_counts, alternative="two-sided")
@@ -17355,6 +17387,22 @@ def main_nemo(args):
         wrs_pval = benchlib.round_to_n_significant_digits_v2(wrs_pval, 4)
         motif_enrich_stats.wrs_pval_less = wrs_pval
         motif_enrich_stats.wrs_test_stat_less = wrs_test_stat
+
+        # if motif_id == "CSTF2_1":
+        #     # print("dist_plot_counts_dic:", dist_plot_counts_dic)
+        #     print(motif_id, "two-sided", motif_enrich_stats.wrs_pval_two_sided)
+        #     print(motif_id, "greater", motif_enrich_stats.wrs_pval_greater)
+        #     print(motif_id, "less", motif_enrich_stats.wrs_pval_less)
+
+        # if motif_id == "CSTF2_2":
+        #     # print("dist_plot_counts_dic:", dist_plot_counts_dic)
+        #     print(motif_id, "two-sided", motif_enrich_stats.wrs_pval_two_sided)
+        #     print(motif_id, "greater", motif_enrich_stats.wrs_pval_greater)
+        #     print(motif_id, "less", motif_enrich_stats.wrs_pval_less)
+
+        # if motif_id == "PUM1_2":
+        #     print(motif_id, "dist_plot_counts_dic:", dist_plot_counts_dic)
+
 
         c_neg_hits = 0
         c_neg_hit_regions = 0

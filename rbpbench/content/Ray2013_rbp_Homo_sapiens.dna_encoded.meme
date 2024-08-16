@@ -7,7 +7,7 @@ strands: + -
 Background letter frequencies (from uniform background):
 A 0.25000 C 0.25000 G 0.25000 T 0.25000 
 
-MOTIF RNCMPT00001 A1CF
+MOTIF A1CF_RNCMPT00001 A1CF
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.395329  0.105514  0.105514  0.393643
@@ -19,7 +19,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.321131  0.143804  0.478371  0.056694
 
 
-MOTIF RNCMPT00002 ANKHD1
+MOTIF ANKHD1_RNCMPT00002 ANKHD1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.773203  0.075599  0.075599  0.075599
@@ -31,7 +31,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.427754  0.079309  0.099730  0.393206
 
 
-MOTIF RNCMPT00004 BRUNOL4
+MOTIF BRUNOL4_RNCMPT00004 BRUNOL4
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.085063  0.085063  0.175952  0.653921
@@ -43,7 +43,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.083101  0.083101  0.264548  0.569250
 
 
-MOTIF RNCMPT00166 BRUNOL5
+MOTIF BRUNOL5_RNCMPT00166 BRUNOL5
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.083964  0.083964  0.083964  0.748109
@@ -55,7 +55,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.057167  0.057167  0.228839  0.656826
 
 
-MOTIF RNCMPT00187 BRUNOL6
+MOTIF BRUNOL6_RNCMPT00187 BRUNOL6
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.060327  0.060327  0.060327  0.819020
@@ -67,7 +67,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.060273  0.060273  0.731747  0.147707
 
 
-MOTIF RNCMPT00156 CNOT4
+MOTIF CNOT4_RNCMPT00156 CNOT4
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.028926  0.168883  0.773265  0.028926
@@ -79,7 +79,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.301008  0.184127  0.209704  0.305161
 
 
-MOTIF RNCMPT00012 CPEB2
+MOTIF CPEB2_RNCMPT00012 CPEB2
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.032879  0.796091  0.032879  0.138151
@@ -91,7 +91,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.032710  0.032710  0.214375  0.720205
 
 
-MOTIF RNCMPT00158 CPEB4
+MOTIF CPEB4_RNCMPT00158 CPEB4
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.169793  0.452469  0.164509  0.213229
@@ -103,7 +103,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.030536  0.030536  0.030536  0.908393
 
 
-MOTIF RNCMPT00013 DAZAP1
+MOTIF DAZAP1_RNCMPT00013 DAZAP1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.012021  0.012021  0.012021  0.963936
@@ -115,7 +115,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.337268  0.059158  0.544416  0.059158
 
 
-MOTIF RNCMPT00149 ENOX1
+MOTIF ENOX1_RNCMPT00149 ENOX1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.343506  0.437938  0.066673  0.151883
@@ -127,7 +127,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.065343  0.065343  0.803970  0.065343
 
 
-MOTIF RNCMPT00150 ESRP2
+MOTIF ESRP2_RNCMPT00150 ESRP2
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.085113  0.085113  0.085113  0.744660
@@ -139,7 +139,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.206193  0.107355  0.197175  0.489277
 
 
-MOTIF RNCMPT00016 FMR1
+MOTIF FMR1_RNCMPT00016 FMR1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.110871  0.110871  0.576231  0.202027
@@ -151,7 +151,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.133741  0.041453  0.783354  0.041453
 
 
-MOTIF RNCMPT00018 FUS
+MOTIF FUS_RNCMPT00018 FUS
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.184857  0.173742  0.173172  0.468230
@@ -163,7 +163,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.039958  0.791476  0.039958  0.128607
 
 
-MOTIF RNCMPT00161 FXR1
+MOTIF FXR1_RNCMPT00161 FXR1
 
 letter-probability matrix: alength= 4 w= 8 nsites= 20 E= 0
   0.594617  0.135128  0.135128  0.135128
@@ -176,7 +176,7 @@ letter-probability matrix: alength= 4 w= 8 nsites= 20 E= 0
   0.608334  0.130555  0.130555  0.130555
 
 
-MOTIF RNCMPT00020 FXR2
+MOTIF FXR2_RNCMPT00020 FXR2
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.178194  0.087275  0.559956  0.174576
@@ -188,7 +188,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.236167  0.041807  0.680219  0.041807
 
 
-MOTIF RNCMPT00021 G3BP2
+MOTIF G3BP2_RNCMPT00021 G3BP2
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.742366  0.058178  0.058178  0.141278
@@ -200,7 +200,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.608185  0.010931  0.281095  0.099788
 
 
-MOTIF RNCMPT00022 HNRNPA1
+MOTIF HNRNPA1_RNCMPT00022 HNRNPA1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.268221  0.082931  0.272138  0.376709
@@ -212,7 +212,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.591092  0.103957  0.103957  0.200994
 
 
-MOTIF RNCMPT00023 HNRNPA1L2
+MOTIF HNRNPA1L2_RNCMPT00023 HNRNPA1L2
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.177970  0.086131  0.267262  0.468637
@@ -224,7 +224,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.452984  0.082779  0.082779  0.381458
 
 
-MOTIF RNCMPT00024 HNRNPA2B1
+MOTIF HNRNPA2B1_RNCMPT00024 HNRNPA2B1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.293787  0.106691  0.294857  0.304665
@@ -236,7 +236,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.659321  0.082386  0.082386  0.175907
 
 
-MOTIF RNCMPT00025 HNRNPC
+MOTIF HNRNPC_RNCMPT00025 HNRNPC
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.565810  0.184580  0.080344  0.169265
@@ -248,7 +248,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.054568  0.147524  0.272217  0.525691
 
 
-MOTIF RNCMPT00167 HNRNPCL1
+MOTIF HNRNPCL1_RNCMPT00167 HNRNPCL1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.539994  0.180235  0.079750  0.200020
@@ -260,7 +260,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.053241  0.131117  0.255010  0.560633
 
 
-MOTIF RNCMPT00160 HNRNPH2
+MOTIF HNRNPH2_RNCMPT00160 HNRNPH2
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.055748  0.120905  0.767599  0.055748
@@ -272,7 +272,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.136874  0.136240  0.651529  0.075358
 
 
-MOTIF RNCMPT00026 HNRNPK
+MOTIF HNRNPK_RNCMPT00026 HNRNPK
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.109805  0.856032  0.017082  0.017082
@@ -284,7 +284,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.088050  0.735850  0.088050  0.088050
 
 
-MOTIF RNCMPT00027 HNRNPL
+MOTIF HNRNPL_RNCMPT00027 HNRNPL
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.737563  0.146785  0.057826  0.057826
@@ -296,7 +296,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.716365  0.213976  0.034830  0.034830
 
 
-MOTIF RNCMPT00091 HNRNPL
+MOTIF HNRNPL_RNCMPT00091 HNRNPL
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.941252  0.019583  0.019583  0.019583
@@ -308,7 +308,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.361424  0.270886  0.277205  0.090486
 
 
-MOTIF RNCMPT00178 HNRPLL
+MOTIF HNRPLL_RNCMPT00178 HNRPLL
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.646437  0.057251  0.239060  0.057251
@@ -320,7 +320,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.969888  0.010037  0.010037  0.010037
 
 
-MOTIF RNCMPT00112 HuR
+MOTIF HuR_RNCMPT00112 HuR
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.058324  0.058324  0.058324  0.825028
@@ -332,7 +332,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.057875  0.057875  0.057875  0.826375
 
 
-MOTIF RNCMPT00117 HuR
+MOTIF HuR_RNCMPT00117 HuR
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.033204  0.033204  0.033204  0.900389
@@ -344,7 +344,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.057362  0.057362  0.145933  0.739343
 
 
-MOTIF RNCMPT00136 HuR
+MOTIF HuR_RNCMPT00136 HuR
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.210756  0.032594  0.032594  0.724055
@@ -356,7 +356,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.032614  0.032614  0.032614  0.902157
 
 
-MOTIF RNCMPT00032 HuR
+MOTIF HuR_RNCMPT00032 HuR
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.006480  0.006480  0.006480  0.980561
@@ -368,7 +368,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.056950  0.143730  0.143650  0.655670
 
 
-MOTIF RNCMPT00274 HuR
+MOTIF HuR_RNCMPT00274 HuR
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.009890  0.113671  0.107291  0.769148
@@ -380,7 +380,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.009890  0.103464  0.195407  0.691239
 
 
-MOTIF RNCMPT00033 IGF2BP2
+MOTIF IGF2BP2_RNCMPT00033 IGF2BP2
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.564545  0.176611  0.171979  0.086865
@@ -392,7 +392,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.951033  0.016322  0.016322  0.016322
 
 
-MOTIF RNCMPT00172 IGF2BP3
+MOTIF IGF2BP3_RNCMPT00172 IGF2BP3
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.713391  0.161112  0.062748  0.062748
@@ -404,7 +404,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.863386  0.105437  0.015588  0.015588
 
 
-MOTIF RNCMPT00169 KHDRBS1
+MOTIF KHDRBS1_RNCMPT00169 KHDRBS1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.798665  0.033955  0.033955  0.133425
@@ -416,7 +416,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.286279  0.195872  0.413270  0.104579
 
 
-MOTIF RNCMPT00185 KHDRBS2
+MOTIF KHDRBS2_RNCMPT00185 KHDRBS2
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.357306  0.082405  0.477884  0.082405
@@ -428,7 +428,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.516879  0.318808  0.036202  0.128111
 
 
-MOTIF RNCMPT00034 KHDRBS3
+MOTIF KHDRBS3_RNCMPT00034 KHDRBS3
 
 letter-probability matrix: alength= 4 w= 8 nsites= 20 E= 0
   0.212203  0.129283  0.529231  0.129283
@@ -441,7 +441,7 @@ letter-probability matrix: alength= 4 w= 8 nsites= 20 E= 0
   0.233726  0.314652  0.320817  0.130804
 
 
-MOTIF RNCMPT00036 LIN28A
+MOTIF LIN28A_RNCMPT00036 LIN28A
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.304006  0.387398  0.109358  0.199238
@@ -453,7 +453,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.719902  0.062553  0.154991  0.062553
 
 
-MOTIF RNCMPT00162 LIN28A
+MOTIF LIN28A_RNCMPT00162 LIN28A
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.112110  0.575850  0.112110  0.199930
@@ -465,7 +465,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.444437  0.144544  0.349923  0.061096
 
 
-MOTIF RNCMPT00037 MATR3
+MOTIF MATR3_RNCMPT00037 MATR3
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.458381  0.367197  0.087211  0.087211
@@ -477,7 +477,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.177173  0.087882  0.647063  0.087882
 
 
-MOTIF RNCMPT00038 MBNL1
+MOTIF MBNL1_RNCMPT00038 MBNL1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.315548  0.190242  0.212007  0.282204
@@ -489,7 +489,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.056386  0.749438  0.137790  0.056386
 
 
-MOTIF RNCMPT00041 MSI1
+MOTIF MSI1_RNCMPT00041 MSI1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.057391  0.057391  0.057391  0.827827
@@ -501,7 +501,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.138156  0.056942  0.747959  0.056942
 
 
-MOTIF RNCMPT00176 MSI1
+MOTIF MSI1_RNCMPT00176 MSI1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.034560  0.034560  0.034560  0.896320
@@ -513,7 +513,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.102480  0.102480  0.692560  0.102480
 
 
-MOTIF RNCMPT00155 PABPC1
+MOTIF PABPC1_RNCMPT00155 PABPC1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.757581  0.080806  0.080806  0.080806
@@ -525,7 +525,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.687289  0.203573  0.008524  0.100614
 
 
-MOTIF RNCMPT00153 PABPC3
+MOTIF PABPC3_RNCMPT00153 PABPC3
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.264222  0.082819  0.570140  0.082819
@@ -537,7 +537,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.329573  0.549634  0.060397  0.060397
 
 
-MOTIF RNCMPT00043 PABPC4
+MOTIF PABPC4_RNCMPT00043 PABPC4
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.778437  0.103080  0.110525  0.007958
@@ -549,7 +549,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.682707  0.104799  0.204536  0.007958
 
 
-MOTIF RNCMPT00171 PABPC5
+MOTIF PABPC5_RNCMPT00171 PABPC5
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.754944  0.081685  0.081685  0.081685
@@ -561,7 +561,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.111062  0.180493  0.013324  0.695121
 
 
-MOTIF RNCMPT00157 PABPN1
+MOTIF PABPN1_RNCMPT00157 PABPN1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.974659  0.008447  0.008447  0.008447
@@ -573,7 +573,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.224876  0.312170  0.225891  0.237063
 
 
-MOTIF RNCMPT00186 PCBP1
+MOTIF PCBP1_RNCMPT00186 PCBP1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.060777  0.817669  0.060777  0.060777
@@ -585,7 +585,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.014667  0.955999  0.014667  0.014667
 
 
-MOTIF RNCMPT00044 PCBP2
+MOTIF PCBP2_RNCMPT00044 PCBP2
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.046320  0.779292  0.046320  0.128069
@@ -597,7 +597,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.157967  0.625488  0.068061  0.148484
 
 
-MOTIF RNCMPT00045 PPRC1
+MOTIF PPRC1_RNCMPT00045 PPRC1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.086966  0.360843  0.465224  0.086966
@@ -609,7 +609,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.064957  0.340098  0.529988  0.064957
 
 
-MOTIF RNCMPT00268 PTBP1
+MOTIF PTBP1_RNCMPT00268 PTBP1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.242168  0.538758  0.062005  0.157070
@@ -621,7 +621,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.062081  0.158058  0.062081  0.717779
 
 
-MOTIF RNCMPT00269 PTBP1
+MOTIF PTBP1_RNCMPT00269 PTBP1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.482936  0.211619  0.108073  0.197372
@@ -633,7 +633,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.062502  0.162216  0.062502  0.712780
 
 
-MOTIF RNCMPT00047 QKI
+MOTIF QKI_RNCMPT00047 QKI
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.824350  0.058550  0.058550  0.058550
@@ -645,7 +645,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.411148  0.304972  0.173046  0.110834
 
 
-MOTIF RNCMPT00159 RALY
+MOTIF RALY_RNCMPT00159 RALY
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.120423  0.030364  0.030364  0.818849
@@ -657,7 +657,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.078456  0.174053  0.551652  0.195838
 
 
-MOTIF RNCMPT00168 RBFOX1
+MOTIF RBFOX1_RNCMPT00168 RBFOX1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.312097  0.051748  0.051748  0.584408
@@ -669,7 +669,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.313688  0.481445  0.102434  0.102434
 
 
-MOTIF RNCMPT00184 RBM24
+MOTIF RBM24_RNCMPT00184 RBM24
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.471804  0.081259  0.081259  0.365679
@@ -681,7 +681,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.535515  0.057327  0.157537  0.249621
 
 
-MOTIF RNCMPT00049 RBM28
+MOTIF RBM28_RNCMPT00049 RBM28
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.080212  0.080212  0.759363  0.080212
@@ -693,7 +693,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.403106  0.084658  0.163315  0.348921
 
 
-MOTIF RNCMPT00050 RBM3
+MOTIF RBM3_RNCMPT00050 RBM3
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.169306  0.082405  0.665884  0.082405
@@ -705,7 +705,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.682840  0.105720  0.105720  0.105720
 
 
-MOTIF RNCMPT00113 RBM4
+MOTIF RBM4_RNCMPT00113 RBM4
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.030023  0.114467  0.747742  0.107768
@@ -717,7 +717,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.079148  0.079148  0.762556  0.079148
 
 
-MOTIF RNCMPT00052 RBM4
+MOTIF RBM4_RNCMPT00052 RBM4
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.054772  0.054772  0.835684  0.054772
@@ -729,7 +729,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.056470  0.234661  0.570651  0.138218
 
 
-MOTIF RNCMPT00053 RBM41
+MOTIF RBM41_RNCMPT00053 RBM41
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.446003  0.056673  0.056673  0.440652
@@ -741,7 +741,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.104460  0.104460  0.194732  0.596347
 
 
-MOTIF RNCMPT00151 RBM42
+MOTIF RBM42_RNCMPT00151 RBM42
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.762510  0.079163  0.079163  0.079163
@@ -753,7 +753,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.104219  0.104219  0.687343  0.104219
 
 
-MOTIF RNCMPT00241 RBM45
+MOTIF RBM45_RNCMPT00241 RBM45
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.080318  0.080318  0.759046  0.080318
@@ -765,7 +765,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.451310  0.285092  0.182618  0.080980
 
 
-MOTIF RNCMPT00054 RBM46
+MOTIF RBM46_RNCMPT00054 RBM46
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.713699  0.035556  0.215189  0.035556
@@ -777,7 +777,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.301564  0.109225  0.197022  0.392189
 
 
-MOTIF RNCMPT00055 RBM5
+MOTIF RBM5_RNCMPT00055 RBM5
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.130306  0.038747  0.792199  0.038747
@@ -789,7 +789,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.577822  0.110334  0.201509  0.110334
 
 
-MOTIF RNCMPT00154 RBM5
+MOTIF RBM5_RNCMPT00154 RBM5
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.063448  0.270051  0.603054  0.063448
@@ -801,7 +801,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.151742  0.063227  0.721805  0.063227
 
 
-MOTIF RNCMPT00170 RBM6
+MOTIF RBM6_RNCMPT00170 RBM6
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.457688  0.278487  0.086341  0.177485
@@ -813,7 +813,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.278215  0.086146  0.549492  0.086146
 
 
-MOTIF RNCMPT00056 RBM8A
+MOTIF RBM8A_RNCMPT00056 RBM8A
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.194887  0.112873  0.579367  0.112873
@@ -825,7 +825,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.066638  0.157225  0.614434  0.161702
 
 
-MOTIF RNCMPT00152 RBMS1
+MOTIF RBMS1_RNCMPT00152 RBMS1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.107773  0.107773  0.193821  0.590633
@@ -837,7 +837,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.012366  0.589475  0.385792  0.012366
 
 
-MOTIF RNCMPT00173 RBMS3
+MOTIF RBMS3_RNCMPT00173 RBMS3
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.173860  0.173712  0.083428  0.568999
@@ -849,7 +849,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.148495  0.246917  0.365980  0.238608
 
 
-MOTIF RNCMPT00057 RBMS3
+MOTIF RBMS3_RNCMPT00057 RBMS3
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.582687  0.202666  0.107323  0.107323
@@ -861,7 +861,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.524784  0.356884  0.059166  0.059166
 
 
-MOTIF RNCMPT00063 SAMD4A
+MOTIF SAMD4A_RNCMPT00063 SAMD4A
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.006139  0.006139  0.981584  0.006139
@@ -873,7 +873,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.189288  0.610310  0.100201  0.100201
 
 
-MOTIF RNCMPT00064 SART3
+MOTIF SART3_RNCMPT00064 SART3
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.757020  0.080993  0.080993  0.080993
@@ -885,7 +885,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.687405  0.203937  0.008735  0.099923
 
 
-MOTIF RNCMPT00177 SFPQ
+MOTIF SFPQ_RNCMPT00177 SFPQ
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.088446  0.088446  0.643731  0.179376
@@ -897,7 +897,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.087225  0.087225  0.262023  0.563527
 
 
-MOTIF RNCMPT00070 SNRNP70
+MOTIF SNRNP70_RNCMPT00070 SNRNP70
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.289450  0.105283  0.499985  0.105283
@@ -909,7 +909,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.129135  0.035876  0.799114  0.035876
 
 
-MOTIF RNCMPT00071 SNRPA
+MOTIF SNRPA_RNCMPT00071 SNRPA
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.264249  0.080354  0.080354  0.575043
@@ -921,7 +921,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.626483  0.057442  0.258633  0.057442
 
 
-MOTIF RNCMPT00106 SRSF1
+MOTIF SRSF1_RNCMPT00106 SRSF1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.033006  0.033006  0.900981  0.033006
@@ -933,7 +933,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.293264  0.373623  0.172300  0.160813
 
 
-MOTIF RNCMPT00107 SRSF1
+MOTIF SRSF1_RNCMPT00107 SRSF1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.009655  0.009655  0.971034  0.009655
@@ -945,7 +945,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.312984  0.308198  0.192780  0.186037
 
 
-MOTIF RNCMPT00108 SRSF1
+MOTIF SRSF1_RNCMPT00108 SRSF1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.032837  0.032837  0.901489  0.032837
@@ -957,7 +957,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.360909  0.190569  0.367942  0.080580
 
 
-MOTIF RNCMPT00109 SRSF1
+MOTIF SRSF1_RNCMPT00109 SRSF1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.032205  0.032205  0.903386  0.032205
@@ -969,7 +969,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.365815  0.271333  0.282574  0.080278
 
 
-MOTIF RNCMPT00110 SRSF1
+MOTIF SRSF1_RNCMPT00110 SRSF1
 
 letter-probability matrix: alength= 4 w= 8 nsites= 20 E= 0
   0.328310  0.407810  0.131940  0.131940
@@ -982,7 +982,7 @@ letter-probability matrix: alength= 4 w= 8 nsites= 20 E= 0
   0.339071  0.313698  0.218962  0.128269
 
 
-MOTIF RNCMPT00163 SRSF1
+MOTIF SRSF1_RNCMPT00163 SRSF1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.083926  0.083926  0.748222  0.083926
@@ -994,7 +994,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.200981  0.221260  0.520675  0.057085
 
 
-MOTIF RNCMPT00088 SRSF10
+MOTIF SRSF10_RNCMPT00088 SRSF10
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.883916  0.097811  0.009136  0.009136
@@ -1006,7 +1006,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.326935  0.145171  0.494836  0.033058
 
 
-MOTIF RNCMPT00089 SRSF10
+MOTIF SRSF10_RNCMPT00089 SRSF10
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.902768  0.032411  0.032411  0.032411
@@ -1018,7 +1018,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.514301  0.141181  0.312848  0.031670
 
 
-MOTIF RNCMPT00090 SRSF10
+MOTIF SRSF10_RNCMPT00090 SRSF10
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.907616  0.030795  0.030795  0.030795
@@ -1030,7 +1030,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.520756  0.219658  0.173216  0.086369
 
 
-MOTIF RNCMPT00019 SRSF10
+MOTIF SRSF10_RNCMPT00019 SRSF10
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.832591  0.055803  0.055803  0.055803
@@ -1042,7 +1042,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.536016  0.261823  0.145620  0.056540
 
 
-MOTIF RNCMPT00072 SRSF2
+MOTIF SRSF2_RNCMPT00072 SRSF2
 
 letter-probability matrix: alength= 4 w= 8 nsites= 20 E= 0
   0.607398  0.130867  0.130867  0.130867
@@ -1055,7 +1055,7 @@ letter-probability matrix: alength= 4 w= 8 nsites= 20 E= 0
   0.320766  0.135638  0.407959  0.135638
 
 
-MOTIF RNCMPT00073 SRSF7
+MOTIF SRSF7_RNCMPT00073 SRSF7
 
 letter-probability matrix: alength= 4 w= 8 nsites= 20 E= 0
   0.203253  0.126507  0.543734  0.126507
@@ -1068,7 +1068,7 @@ letter-probability matrix: alength= 4 w= 8 nsites= 20 E= 0
   0.340377  0.132145  0.395334  0.132145
 
 
-MOTIF RNCMPT00074 SRSF9
+MOTIF SRSF9_RNCMPT00074 SRSF9
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.884672  0.038443  0.038443  0.038443
@@ -1080,7 +1080,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.645466  0.086154  0.182227  0.086154
 
 
-MOTIF RNCMPT00067 SRSF9
+MOTIF SRSF9_RNCMPT00067 SRSF9
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.083092  0.083092  0.661491  0.172325
@@ -1092,7 +1092,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.690610  0.232383  0.038504  0.038504
 
 
-MOTIF RNCMPT00076 TARDBP
+MOTIF TARDBP_RNCMPT00076 TARDBP
 
 letter-probability matrix: alength= 4 w= 8 nsites= 20 E= 0
   0.323700  0.129601  0.222720  0.323978
@@ -1105,7 +1105,7 @@ letter-probability matrix: alength= 4 w= 8 nsites= 20 E= 0
   0.310646  0.130681  0.334147  0.224525
 
 
-MOTIF RNCMPT00165 TIA1
+MOTIF TIA1_RNCMPT00165 TIA1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.217648  0.125438  0.034310  0.622603
@@ -1117,7 +1117,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.082183  0.471503  0.184047  0.262267
 
 
-MOTIF RNCMPT00077 TIA1
+MOTIF TIA1_RNCMPT00077 TIA1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.150245  0.061963  0.061963  0.725829
@@ -1129,7 +1129,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.084299  0.084299  0.566467  0.264935
 
 
-MOTIF RNCMPT00075 TUT1
+MOTIF TUT1_RNCMPT00075 TUT1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.199425  0.575805  0.112385  0.112385
@@ -1141,7 +1141,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.090343  0.090343  0.090343  0.728970
 
 
-MOTIF RNCMPT00079 U2AF2
+MOTIF U2AF2_RNCMPT00079 U2AF2
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.134654  0.130356  0.053414  0.681576
@@ -1153,7 +1153,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.052968  0.717499  0.052968  0.176564
 
 
-MOTIF RNCMPT00116 YBX1
+MOTIF YBX1_RNCMPT00116 YBX1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.906349  0.031217  0.031217  0.031217
@@ -1165,7 +1165,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.546033  0.058173  0.230546  0.165248
 
 
-MOTIF RNCMPT00083 YBX1
+MOTIF YBX1_RNCMPT00083 YBX1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.979863  0.006712  0.006712  0.006712
@@ -1177,7 +1177,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.492456  0.153980  0.171615  0.181949
 
 
-MOTIF RNCMPT00084 YBX2
+MOTIF YBX2_RNCMPT00084 YBX2
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.881093  0.009666  0.099576  0.009666
@@ -1189,7 +1189,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.328968  0.105498  0.271540  0.293994
 
 
-MOTIF RNCMPT00085 ZC3H10
+MOTIF ZC3H10_RNCMPT00085 ZC3H10
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.099214  0.273471  0.528102  0.099214
@@ -1201,7 +1201,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.216884  0.564327  0.109394  0.109394
 
 
-MOTIF RNCMPT00086 ZC3H14
+MOTIF ZC3H14_RNCMPT00086 ZC3H14
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.017519  0.017519  0.101852  0.863110
@@ -1213,7 +1213,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.040588  0.040588  0.040588  0.878235
 
 
-MOTIF RNCMPT00087 ZCRB1
+MOTIF ZCRB1_RNCMPT00087 ZCRB1
 
 letter-probability matrix: alength= 4 w= 8 nsites= 20 E= 0
   0.123627  0.123627  0.629120  0.123627
@@ -1226,7 +1226,7 @@ letter-probability matrix: alength= 4 w= 8 nsites= 20 E= 0
   0.134901  0.134901  0.414189  0.316009
 
 
-MOTIF RNCMPT00164 ZNF638
+MOTIF ZNF638_RNCMPT00164 ZNF638
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.090768  0.180152  0.178182  0.550898

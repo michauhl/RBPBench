@@ -1,629 +1,629 @@
-RBP_motif_id	RBP_name	Motif_type	Organism	References	Experiment
-A1CF_1	A1CF	meme_xml	human	34086933	-
-A1CF_2	A1CF	meme_xml	human	34086933	-
-ACIN1_1	ACIN1	meme_xml	human	34086933	-
-ACIN1_2	ACIN1	meme_xml	human	34086933	-
-ACO1_1	ACO1	meme_xml	human	34086933	-
-ADAR_1	ADAR	meme_xml	human	34086933	-
-ADAR_2	ADAR	meme_xml	human	34086933	-
-ADAR_3	ADAR	meme_xml	human	34086933	-
-ADAR_4	ADAR	meme_xml	human	34086933	-
-AGGF1_1	AGGF1	meme_xml	human	34086933	-
-AGGF1_2	AGGF1	meme_xml	human	34086933	-
-AGO1_1	AGO1	meme_xml	human	34086933	-
-AGO2_1	AGO2	meme_xml	human	34086933	-
-AGO2_2	AGO2	meme_xml	human	34086933	-
-AKAP1_1	AKAP1	meme_xml	human	34086933	-
-AKAP8_1	AKAP8	meme_xml	human	34086933	-
-ANKHD1_1	ANKHD1	meme_xml	human	34086933	-
-AUH_1	AUH	meme_xml	human	34086933	-
-AUH_2	AUH	meme_xml	human	34086933	-
-BCCIP_1	BCCIP	meme_xml	human	34086933	-
-BOLL_1	BOLL	meme_xml	human	34086933	-
-BOLL_2	BOLL	meme_xml	human	34086933	-
-BOLL_3	BOLL	meme_xml	human	34086933	-
-BUD13_1	BUD13	meme_xml	human	34086933	-
-BUD13_2	BUD13	meme_xml	human	34086933	-
-BUD13_3	BUD13	meme_xml	human	34086933	-
-BUD13_4	BUD13	meme_xml	human	34086933	-
-CAPRIN1_1	CAPRIN1	meme_xml	human	34086933	-
-CBX7_1	CBX7	meme_xml	human	34086933	-
-CDC40_1	CDC40	meme_xml	human	34086933	-
-CDC40_2	CDC40	meme_xml	human	34086933	-
-CELF1_1	CELF1	meme_xml	human	34086933	-
-CELF2_1	CELF2	meme_xml	human	34086933	-
-CELF2_2	CELF2	meme_xml	human	34086933	-
-CELF4_1	CELF4	meme_xml	human	34086933	-
-CELF5_1	CELF5	meme_xml	human	34086933	-
-CELF6_1	CELF6	meme_xml	human	34086933	-
-CNBP_1	CNBP	meme_xml	human	34086933	-
-CNBP_2	CNBP	meme_xml	human	34086933	-
-CNOT4_1	CNOT4	meme_xml	human	34086933	-
-CPEB1_1	CPEB1	meme_xml	human	34086933	-
-CPEB2_1	CPEB2	meme_xml	human	34086933	-
-CPEB4_1	CPEB4	meme_xml	human	34086933	-
-CPSF6_1	CPSF6	meme_xml	human	34086933	-
-CPSF7_1	CPSF7	meme_xml	human	34086933	-
-CSTF2_1	CSTF2	meme_xml	human	34086933	-
-CSTF2_2	CSTF2	meme_xml	human	34086933	-
-CSTF2T_1	CSTF2T	meme_xml	human	34086933	-
-CSTF2T_2	CSTF2T	meme_xml	human	34086933	-
-DAZ3_1	DAZ3	meme_xml	human	34086933	-
-DAZ3_2	DAZ3	meme_xml	human	34086933	-
-DAZ3_3	DAZ3	meme_xml	human	34086933	-
-DAZ3_4	DAZ3	meme_xml	human	34086933	-
-DAZAP1_1	DAZAP1	meme_xml	human	34086933	-
-DAZAP1_2	DAZAP1	meme_xml	human	34086933	-
-DAZAP1_3	DAZAP1	meme_xml	human	34086933	-
-DAZAP1_4	DAZAP1	meme_xml	human	34086933	-
-DDX3X_1	DDX3X	meme_xml	human	34086933	-
-DDX3X_2	DDX3X	meme_xml	human	34086933	-
-DDX6_1	DDX6	meme_xml	human	34086933	-
-DDX19B_1	DDX19B	meme_xml	human	34086933	-
-DDX24_1	DDX24	meme_xml	human	34086933	-
-DDX24_2	DDX24	meme_xml	human	34086933	-
-DDX54_1	DDX54	meme_xml	human	34086933	-
-DDX54_2	DDX54	meme_xml	human	34086933	-
-DDX55_1	DDX55	meme_xml	human	34086933	-
-DDX55_2	DDX55	meme_xml	human	34086933	-
-DDX55_3	DDX55	meme_xml	human	34086933	-
-DDX55_4	DDX55	meme_xml	human	34086933	-
-DDX55_5	DDX55	meme_xml	human	34086933	-
-DDX55_6	DDX55	meme_xml	human	34086933	-
-DDX58_1	DDX58	meme_xml	human	34086933	-
-DDX59_1	DDX59	meme_xml	human	34086933	-
-DGCR8_1	DGCR8	meme_xml	human	34086933	-
-DKC1_1	DKC1	meme_xml	human	34086933	-
-DKC1_2	DKC1	meme_xml	human	34086933	-
-DKC1_3	DKC1	meme_xml	human	34086933	-
-EFTUD2_1	EFTUD2	meme_xml	human	34086933	-
-EIF3D_1	EIF3D	meme_xml	human	34086933	-
-EIF3D_2	EIF3D	meme_xml	human	34086933	-
-EIF3D_3	EIF3D	meme_xml	human	34086933	-
-EIF3D_4	EIF3D	meme_xml	human	34086933	-
-EIF3D_5	EIF3D	meme_xml	human	34086933	-
-EIF4A3_1	EIF4A3	meme_xml	human	34086933	-
-EIF4A3_2	EIF4A3	meme_xml	human	34086933	-
-EIF4A3_3	EIF4A3	meme_xml	human	34086933	-
-EIF4B_1	EIF4B	meme_xml	human	34086933	-
-EIF4G2_1	EIF4G2	meme_xml	human	34086933	-
-EIF4G2_2	EIF4G2	meme_xml	human	34086933	-
-EIF4G2_3	EIF4G2	meme_xml	human	34086933	-
-EIF4G2_4	EIF4G2	meme_xml	human	34086933	-
-ELAVL1_1	ELAVL1	meme_xml	human	34086933	-
-ELAVL1_2	ELAVL1	meme_xml	human	34086933	-
-ELAVL1_3	ELAVL1	meme_xml	human	34086933	-
-ELAVL1_4	ELAVL1	meme_xml	human	34086933	-
-ELAVL2_1	ELAVL2	meme_xml	human	34086933	-
-ELAVL2_2	ELAVL2	meme_xml	human	34086933	-
-ELAVL2_3	ELAVL2	meme_xml	human	34086933	-
-ELAVL2_4	ELAVL2	meme_xml	human	34086933	-
-ELAVL3_1	ELAVL3	meme_xml	human	34086933	-
-ELAVL3_2	ELAVL3	meme_xml	human	34086933	-
-ELAVL3_3	ELAVL3	meme_xml	human	34086933	-
-ELAVL4_1	ELAVL4	meme_xml	human	34086933	-
-ELAVL4_2	ELAVL4	meme_xml	human	34086933	-
-ELAVL4_3	ELAVL4	meme_xml	human	34086933	-
-ENOX1_1	ENOX1	meme_xml	human	34086933	-
-ERI1_1	ERI1	meme_xml	human	34086933	-
-ESRP1_1	ESRP1	meme_xml	human	34086933	-
-ESRP1_2	ESRP1	meme_xml	human	34086933	-
-ESRP1_3	ESRP1	meme_xml	human	34086933	-
-ESRP2_1	ESRP2	meme_xml	human	34086933	-
-EWSR1_1	EWSR1	meme_xml	human	34086933	-
-EWSR1_2	EWSR1	meme_xml	human	34086933	-
-FAM120A_1	FAM120A	meme_xml	human	34086933	-
-FAM120A_2	FAM120A	meme_xml	human	34086933	-
-FAM120A_3	FAM120A	meme_xml	human	34086933	-
-FASTKD2_1	FASTKD2	meme_xml	human	34086933	-
-FASTKD2_2	FASTKD2	meme_xml	human	34086933	-
-FASTKD2_3	FASTKD2	meme_xml	human	34086933	-
-FBL_1	FBL	meme_xml	human	34086933	-
-FIP1L1_1	FIP1L1	meme_xml	human	34086933	-
-FIP1L1_2	FIP1L1	meme_xml	human	34086933	-
-FMR1_1	FMR1	meme_xml	human	34086933	-
-FMR1_2	FMR1	meme_xml	human	34086933	-
-FMR1_3	FMR1	meme_xml	human	34086933	-
-FMR1_4	FMR1	meme_xml	human	34086933	-
-FMR1_5	FMR1	meme_xml	human	34086933	-
-FTO_1	FTO	meme_xml	human	34086933	-
-FTO_2	FTO	meme_xml	human	34086933	-
-FUBP1_1	FUBP1	meme_xml	human	34086933	-
-FUBP1_2	FUBP1	meme_xml	human	34086933	-
-FUBP1_3	FUBP1	meme_xml	human	34086933	-
-FUBP3_1	FUBP3	meme_xml	human	34086933	-
-FUBP3_2	FUBP3	meme_xml	human	34086933	-
-FUS_1	FUS	meme_xml	human	34086933	-
-FUS_2	FUS	meme_xml	human	34086933	-
-FXR1_1	FXR1	meme_xml	human	34086933	-
-FXR1_2	FXR1	meme_xml	human	34086933	-
-FXR2_1	FXR2	meme_xml	human	34086933	-
-FXR2_2	FXR2	meme_xml	human	34086933	-
-FXR2_3	FXR2	meme_xml	human	34086933	-
-FXR2_4	FXR2	meme_xml	human	34086933	-
-FXR2_5	FXR2	meme_xml	human	34086933	-
-G3BP1_1	G3BP1	meme_xml	human	34086933	-
-G3BP2_1	G3BP2	meme_xml	human	34086933	-
-GNL3_1	GNL3	meme_xml	human	34086933	-
-GNL3_2	GNL3	meme_xml	human	34086933	-
-GPKOW_1	GPKOW	meme_xml	human	34086933	-
-GPKOW_2	GPKOW	meme_xml	human	34086933	-
-GRSF1_1	GRSF1	meme_xml	human	34086933	-
-GRSF1_2	GRSF1	meme_xml	human	34086933	-
-GRWD1_1	GRWD1	meme_xml	human	34086933	-
-GRWD1_2	GRWD1	meme_xml	human	34086933	-
-GTF2F1_1	GTF2F1	meme_xml	human	34086933	-
-HLTF_1	HLTF	meme_xml	human	34086933	-
-HNRNPA0_1	HNRNPA0	meme_xml	human	34086933	-
-HNRNPA0_2	HNRNPA0	meme_xml	human	34086933	-
-HNRNPA1_1	HNRNPA1	meme_xml	human	34086933	-
-HNRNPA1_2	HNRNPA1	meme_xml	human	34086933	-
-HNRNPA1_3	HNRNPA1	meme_xml	human	34086933	-
-HNRNPA1_4	HNRNPA1	meme_xml	human	34086933	-
-HNRNPA1_5	HNRNPA1	meme_xml	human	34086933	-
-HNRNPA1_6	HNRNPA1	meme_xml	human	34086933	-
-HNRNPA1_7	HNRNPA1	meme_xml	human	34086933	-
-HNRNPA1L2_1	HNRNPA1L2	meme_xml	human	34086933	-
-HNRNPA2B1_1	HNRNPA2B1	meme_xml	human	34086933	-
-HNRNPA2B1_2	HNRNPA2B1	meme_xml	human	34086933	-
-HNRNPA2B1_3	HNRNPA2B1	meme_xml	human	34086933	-
-HNRNPA2B1_4	HNRNPA2B1	meme_xml	human	34086933	-
-HNRNPA3_1	HNRNPA3	meme_xml	human	34086933	-
-HNRNPAB_1	HNRNPAB	meme_xml	human	34086933	-
-HNRNPAB_2	HNRNPAB	meme_xml	human	34086933	-
-HNRNPAB_3	HNRNPAB	meme_xml	human	34086933	-
-HNRNPC_1	HNRNPC	meme_xml	human	12509468;27055826;34086933	UV cross-linking;Immunoprecipitation
-HNRNPC_2	HNRNPC	meme_xml	human	19910374;27055826;34086933	Mutagenesis;western blot;siRNA knockdown
-HNRNPC_3	HNRNPC	meme_xml	human	23846655	RNAcompete
-HNRNPC_4	HNRNPC	meme_xml	human	12509468;27055826;34086933	UV cross-linking;Immunoprecipitation
-HNRNPCL1_1	HNRNPCL1	meme_xml	human	34086933	-
-HNRNPD_1	HNRNPD	meme_xml	human	34086933	-
-HNRNPD_2	HNRNPD	meme_xml	human	34086933	-
-HNRNPD_3	HNRNPD	meme_xml	human	34086933	-
-HNRNPDL_1	HNRNPDL	meme_xml	human	34086933	-
-HNRNPDL_2	HNRNPDL	meme_xml	human	34086933	-
-HNRNPDL_3	HNRNPDL	meme_xml	human	34086933	-
-HNRNPF_1	HNRNPF	meme_xml	human	34086933	-
-HNRNPH1_1	HNRNPH1	meme_xml	human	34086933	-
-HNRNPH2_1	HNRNPH2	meme_xml	human	34086933	-
-HNRNPK_1	HNRNPK	meme_xml	human	34086933	-
-HNRNPK_2	HNRNPK	meme_xml	human	34086933	-
-HNRNPL_1	HNRNPL	meme_xml	human	34086933	-
-HNRNPL_2	HNRNPL	meme_xml	human	34086933	-
-HNRNPL_3	HNRNPL	meme_xml	human	34086933	-
-HNRNPL_4	HNRNPL	meme_xml	human	34086933	-
-HNRNPL_5	HNRNPL	meme_xml	human	34086933	-
-HNRNPLL_1	HNRNPLL	meme_xml	human	34086933	-
-HNRNPLL_2	HNRNPLL	meme_xml	human	34086933	-
-HNRNPM_1	HNRNPM	meme_xml	human	34086933	-
-HNRNPM_2	HNRNPM	meme_xml	human	34086933	-
-HNRNPM_3	HNRNPM	meme_xml	human	34086933	-
-HNRNPM_4	HNRNPM	meme_xml	human	34086933	-
-HNRNPM_5	HNRNPM	meme_xml	human	34086933	-
-HNRNPU_1	HNRNPU	meme_xml	human	34086933	-
-HNRNPU_2	HNRNPU	meme_xml	human	34086933	-
-HNRNPU_3	HNRNPU	meme_xml	human	34086933	-
-HNRNPU_4	HNRNPU	meme_xml	human	34086933	-
-HNRNPU_5	HNRNPU	meme_xml	human	34086933	-
-HNRNPU_6	HNRNPU	meme_xml	human	34086933	-
-HNRNPUL1_1	HNRNPUL1	meme_xml	human	34086933	-
-HNRNPUL1_2	HNRNPUL1	meme_xml	human	34086933	-
-HNRNPUL1_3	HNRNPUL1	meme_xml	human	34086933	-
-HNRNPUL1_4	HNRNPUL1	meme_xml	human	34086933	-
-IFIH1_1	IFIH1	meme_xml	human	34086933	-
-IGF2BP1_1	IGF2BP1	meme_xml	human	34086933	-
-IGF2BP1_2	IGF2BP1	meme_xml	human	34086933	-
-IGF2BP1_3	IGF2BP1	meme_xml	human	34086933	-
-IGF2BP1_4	IGF2BP1	meme_xml	human	34086933	-
-IGF2BP2_1	IGF2BP2	meme_xml	human	34086933	-
-IGF2BP2_2	IGF2BP2	meme_xml	human	34086933	-
-IGF2BP3_1	IGF2BP3	meme_xml	human	34086933	-
-IGHMBP2_1	IGHMBP2	meme_xml	human	34086933	-
-ILF2_1	ILF2	meme_xml	human	34086933	-
-ILF2_2	ILF2	meme_xml	human	34086933	-
-ILF3_1	ILF3	meme_xml	human	34086933	-
-ILF3_2	ILF3	meme_xml	human	34086933	-
-ILF3_3	ILF3	meme_xml	human	34086933	-
-KHDRBS1_1	KHDRBS1	meme_xml	human	34086933	-
-KHDRBS1_2	KHDRBS1	meme_xml	human	34086933	-
-KHDRBS2_1	KHDRBS2	meme_xml	human	34086933	-
-KHDRBS3_1	KHDRBS3	meme_xml	human	34086933	-
-KHDRBS3_2	KHDRBS3	meme_xml	human	34086933	-
-KHSRP_1	KHSRP	meme_xml	human	34086933	-
-KHSRP_2	KHSRP	meme_xml	human	34086933	-
-KHSRP_3	KHSRP	meme_xml	human	34086933	-
-KHSRP_4	KHSRP	meme_xml	human	34086933	-
-KHSRP_5	KHSRP	meme_xml	human	34086933	-
-LARP4_1	LARP4	meme_xml	human	34086933	-
-LARP4_2	LARP4	meme_xml	human	34086933	-
-LARP4_3	LARP4	meme_xml	human	34086933	-
-LARP4B_1	LARP4B	meme_xml	human	34086933	-
-LIN28A_1	LIN28A	meme_xml	human	34086933	-
-LIN28B_1	LIN28B	meme_xml	human	34086933	-
-LSM11_1	LSM11	meme_xml	human	34086933	-
-LSM11_2	LSM11	meme_xml	human	34086933	-
-LSM11_3	LSM11	meme_xml	human	34086933	-
-LSM11_4	LSM11	meme_xml	human	34086933	-
-MATR3_1	MATR3	meme_xml	human	34086933	-
-MBNL1_1	MBNL1	meme_xml	human	34086933	-
-MBNL1_2	MBNL1	meme_xml	human	34086933	-
-MBNL1_3	MBNL1	meme_xml	human	34086933	-
-MBNL1_4	MBNL1	meme_xml	human	34086933	-
-MBNL1_5	MBNL1	meme_xml	human	34086933	-
-METAP2_1	METAP2	meme_xml	human	34086933	-
-MSI1_1	MSI1	meme_xml	human	34086933	-
-MSI1_2	MSI1	meme_xml	human	34086933	-
-MSI1_3	MSI1	meme_xml	human	34086933	-
-MSI1_4	MSI1	meme_xml	human	34086933	-
-MSI2_1	MSI2	meme_xml	human	34086933	-
-MTPAP_1	MTPAP	meme_xml	human	34086933	-
-MTPAP_2	MTPAP	meme_xml	human	34086933	-
-NCBP2_1	NCBP2	meme_xml	human	34086933	-
-NCBP2_2	NCBP2	meme_xml	human	34086933	-
-NCBP2_3	NCBP2	meme_xml	human	34086933	-
-NELFE_1	NELFE	meme_xml	human	34086933	-
-NELFE_2	NELFE	meme_xml	human	34086933	-
-NKRF_1	NKRF	meme_xml	human	34086933	-
-NKRF_2	NKRF	meme_xml	human	34086933	-
-NKRF_3	NKRF	meme_xml	human	34086933	-
-NOL12_1	NOL12	meme_xml	human	34086933	-
-NOL12_2	NOL12	meme_xml	human	34086933	-
-NONO_1	NONO	meme_xml	human	34086933	-
-NONO_2	NONO	meme_xml	human	34086933	-
-NOP56_1	NOP56	meme_xml	human	34086933	-
-NOP58_1	NOP58	meme_xml	human	34086933	-
-NOVA1_1	NOVA1	meme_xml	human	34086933	-
-NOVA2_1	NOVA2	meme_xml	human	34086933	-
-NOVA2_2	NOVA2	meme_xml	human	34086933	-
-NOVA2_3	NOVA2	meme_xml	human	34086933	-
-NOVA2_4	NOVA2	meme_xml	human	34086933	-
-NPM1_1	NPM1	meme_xml	human	34086933	-
-NPM1_2	NPM1	meme_xml	human	34086933	-
-NSUN2_1	NSUN2	meme_xml	human	34086933	-
-NSUN2_2	NSUN2	meme_xml	human	34086933	-
-NUMA1_1	NUMA1	meme_xml	human	34086933	-
-NUP42_1	NUP42	meme_xml	human	34086933	-
-NUP42_2	NUP42	meme_xml	human	34086933	-
-NXF1_1	NXF1	meme_xml	human	34086933	-
-OAS1_1	OAS1	meme_xml	human	34086933	-
-OBI1_1	OBI1	meme_xml	human	34086933	-
-PABPC1_1	PABPC1	meme_xml	human	34086933	-
-PABPC1_2	PABPC1	meme_xml	human	34086933	-
-PABPC1_3	PABPC1	meme_xml	human	34086933	-
-PABPC3_1	PABPC3	meme_xml	human	34086933	-
-PABPC4_1	PABPC4	meme_xml	human	34086933	-
-PABPC5_1	PABPC5	meme_xml	human	34086933	-
-PABPN1_1	PABPN1	meme_xml	human	34086933	-
-PABPN1L_1	PABPN1L	meme_xml	human	34086933	-
-PARP1_1	PARP1	meme_xml	human	34086933	-
-PARP1_2	PARP1	meme_xml	human	34086933	-
-PCBP1_1	PCBP1	meme_xml	human	34086933	-
-PCBP1_2	PCBP1	meme_xml	human	34086933	-
-PCBP1_3	PCBP1	meme_xml	human	34086933	-
-PCBP1_4	PCBP1	meme_xml	human	34086933	-
-PCBP1_5	PCBP1	meme_xml	human	34086933	-
-PCBP1_6	PCBP1	meme_xml	human	34086933	-
-PCBP1_7	PCBP1	meme_xml	human	34086933	-
-PCBP2_1	PCBP2	meme_xml	human	34086933	-
-PCBP2_2	PCBP2	meme_xml	human	34086933	-
-PCBP2_3	PCBP2	meme_xml	human	34086933	-
-PCBP2_4	PCBP2	meme_xml	human	34086933	-
-PCBP2_5	PCBP2	meme_xml	human	34086933	-
-PCBP2_6	PCBP2	meme_xml	human	34086933	-
-PCBP2_7	PCBP2	meme_xml	human	34086933	-
-PCBP2_8	PCBP2	meme_xml	human	34086933	-
-PCBP2_9	PCBP2	meme_xml	human	34086933	-
-PCBP4_1	PCBP4	meme_xml	human	34086933	-
-PCBP4_2	PCBP4	meme_xml	human	34086933	-
-PPIE_1	PPIE	meme_xml	human	34086933	-
-PPIE_2	PPIE	meme_xml	human	34086933	-
-PPIG_1	PPIG	meme_xml	human	34086933	-
-PPIG_2	PPIG	meme_xml	human	34086933	-
-PPIL4_1	PPIL4	meme_xml	human	34086933	-
-PPIL4_2	PPIL4	meme_xml	human	34086933	-
-PPIL4_3	PPIL4	meme_xml	human	34086933	-
-PPIL4_4	PPIL4	meme_xml	human	34086933	-
-PPIL4_5	PPIL4	meme_xml	human	34086933	-
-PPRC1_1	PPRC1	meme_xml	human	34086933	-
-PRPF8_1	PRPF8	meme_xml	human	34086933	-
-PRPF8_2	PRPF8	meme_xml	human	34086933	-
-PRPF8_3	PRPF8	meme_xml	human	34086933	-
-PRR3_1	PRR3	meme_xml	human	34086933	-
-PRR3_2	PRR3	meme_xml	human	34086933	-
-PTBP1_1	PTBP1	meme_xml	human	34086933	-
-PTBP1_2	PTBP1	meme_xml	human	34086933	-
-PTBP1_3	PTBP1	meme_xml	human	34086933	-
-PTBP1_4	PTBP1	meme_xml	human	34086933	-
-PTBP1_5	PTBP1	meme_xml	human	34086933	-
-PTBP2_1	PTBP2	meme_xml	human	34086933	-
-PTBP3_1	PTBP3	meme_xml	human	34086933	-
-PUF60_1	PUF60	meme_xml	human	34086933	-
-PUM1_1	PUM1	meme_xml	human	31724725;34086933	RBNS_ENCODE
-PUM1_2	PUM1	meme_xml	human	34086933	-
-PUM1_3	PUM1	meme_xml	human	34086933	-
-PUM2_1	PUM2	meme_xml	human	34086933	-
-PUM2_2	PUM2	meme_xml	human	34086933	-
-PUM2_3	PUM2	meme_xml	human	34086933	-
-PUM2_4	PUM2	meme_xml	human	34086933	-
-PUM2_5	PUM2	meme_xml	human	34086933	-
-QKI_1	QKI	meme_xml	human	34086933	-
-QKI_2	QKI	meme_xml	human	34086933	-
-QKI_3	QKI	meme_xml	human	34086933	-
-QKI_4	QKI	meme_xml	human	34086933	-
-QKI_5	QKI	meme_xml	human	34086933	-
-QKI_6	QKI	meme_xml	human	34086933	-
-QKI_7	QKI	meme_xml	human	34086933	-
-QKI_8	QKI	meme_xml	human	34086933	-
-RALY_1	RALY	meme_xml	human	34086933	-
-RALYL_1	RALYL	meme_xml	human	34086933	-
-RANGAP1_1	RANGAP1	meme_xml	human	34086933	-
-RBFOX1_1	RBFOX1	meme_xml	human	34086933	-
-RBFOX1_2	RBFOX1	meme_xml	human	34086933	-
-RBFOX1_3	RBFOX1	meme_xml	human	34086933	-
-RBFOX1_4	RBFOX1	meme_xml	human	34086933	-
-RBFOX2_1	RBFOX2	meme_xml	human	34086933	-
-RBFOX2_2	RBFOX2	meme_xml	human	34086933	-
-RBFOX3_1	RBFOX3	meme_xml	human	34086933	-
-RBM3_1	RBM3	meme_xml	human	34086933	-
-RBM4_1	RBM4	meme_xml	human	34086933	-
-RBM4_2	RBM4	meme_xml	human	34086933	-
-RBM4B_1	RBM4B	meme_xml	human	34086933	-
-RBM4B_2	RBM4B	meme_xml	human	34086933	-
-RBM4B_3	RBM4B	meme_xml	human	34086933	-
-RBM5_1	RBM5	meme_xml	human	34086933	-
-RBM5_2	RBM5	meme_xml	human	34086933	-
-RBM5_3	RBM5	meme_xml	human	34086933	-
-RBM6_1	RBM6	meme_xml	human	34086933	-
-RBM8A_1	RBM8A	meme_xml	human	34086933	-
-RBM10_1	RBM10	meme_xml	human	34086933	-
-RBM10_2	RBM10	meme_xml	human	34086933	-
-RBM14_1	RBM14	meme_xml	human	34086933	-
-RBM15_1	RBM15	meme_xml	human	34086933	-
-RBM15B_1	RBM15B	meme_xml	human	34086933	-
-RBM15B_2	RBM15B	meme_xml	human	34086933	-
-RBM22_1	RBM22	meme_xml	human	34086933	-
-RBM22_2	RBM22	meme_xml	human	34086933	-
-RBM22_3	RBM22	meme_xml	human	34086933	-
-RBM22_4	RBM22	meme_xml	human	34086933	-
-RBM22_5	RBM22	meme_xml	human	34086933	-
-RBM22_6	RBM22	meme_xml	human	34086933	-
-RBM22_7	RBM22	meme_xml	human	34086933	-
-RBM23_1	RBM23	meme_xml	human	34086933	-
-RBM23_2	RBM23	meme_xml	human	34086933	-
-RBM24_1	RBM24	meme_xml	human	34086933	-
-RBM25_1	RBM25	meme_xml	human	34086933	-
-RBM25_2	RBM25	meme_xml	human	34086933	-
-RBM25_3	RBM25	meme_xml	human	34086933	-
-RBM25_4	RBM25	meme_xml	human	34086933	-
-RBM28_1	RBM28	meme_xml	human	34086933	-
-RBM39_1	RBM39	meme_xml	human	34086933	-
-RBM41_1	RBM41	meme_xml	human	34086933	-
-RBM42_1	RBM42	meme_xml	human	34086933	-
-RBM45_1	RBM45	meme_xml	human	34086933	-
-RBM45_2	RBM45	meme_xml	human	34086933	-
-RBM45_3	RBM45	meme_xml	human	34086933	-
-RBM45_4	RBM45	meme_xml	human	34086933	-
-RBM45_5	RBM45	meme_xml	human	34086933	-
-RBM46_1	RBM46	meme_xml	human	34086933	-
-RBM47_1	RBM47	meme_xml	human	34086933	-
-RBMS1_1	RBMS1	meme_xml	human	34086933	-
-RBMS2_1	RBMS2	meme_xml	human	34086933	-
-RBMS3_1	RBMS3	meme_xml	human	34086933	-
-RBMS3_2	RBMS3	meme_xml	human	34086933	-
-RBMS3_3	RBMS3	meme_xml	human	34086933	-
-RBMS3_4	RBMS3	meme_xml	human	34086933	-
-RBMS3_5	RBMS3	meme_xml	human	34086933	-
-RBMX_1	RBMX	meme_xml	human	34086933	-
-RBMX_2	RBMX	meme_xml	human	34086933	-
-RBMY1A1_1	RBMY1A1	meme_xml	human	34086933	-
-RC3H1_1	RC3H1	meme_xml	human	34086933	-
-RC3H1_2	RC3H1	meme_xml	human	34086933	-
-TROVE2_1	TROVE2	meme_xml	human	34086933	-
-TROVE2_2	TROVE2	meme_xml	human	34086933	-
-TROVE2_3	TROVE2	meme_xml	human	34086933	-
-TROVE2_4	TROVE2	meme_xml	human	34086933	-
-TROVE2_5	TROVE2	meme_xml	human	34086933	-
-TROVE2_6	TROVE2	meme_xml	human	34086933	-
-TROVE2_7	TROVE2	meme_xml	human	34086933	-
-RPS5_1	RPS5	meme_xml	human	34086933	-
-RPS5_2	RPS5	meme_xml	human	34086933	-
-SAFB2_1	SAFB2	meme_xml	human	34086933	-
-SAFB2_2	SAFB2	meme_xml	human	34086933	-
-SAMD4A_1	SAMD4A	meme_xml	human	34086933	-
-SART3_1	SART3	meme_xml	human	34086933	-
-SF1_1	SF1	meme_xml	human	34086933	-
-SF1_2	SF1	meme_xml	human	34086933	-
-SF3A3_1	SF3A3	meme_xml	human	34086933	-
-SF3A3_2	SF3A3	meme_xml	human	34086933	-
-SF3A3_3	SF3A3	meme_xml	human	34086933	-
-SF3A3_4	SF3A3	meme_xml	human	34086933	-
-SF3B4_1	SF3B4	meme_xml	human	34086933	-
-SF3B4_2	SF3B4	meme_xml	human	34086933	-
-SFPQ_1	SFPQ	meme_xml	human	34086933	-
-SFPQ_2	SFPQ	meme_xml	human	34086933	-
-SFPQ_3	SFPQ	meme_xml	human	34086933	-
-SFPQ_4	SFPQ	meme_xml	human	34086933	-
-SFPQ_5	SFPQ	meme_xml	human	34086933	-
-SFPQ_6	SFPQ	meme_xml	human	34086933	-
-SLTM_1	SLTM	meme_xml	human	34086933	-
-SMNDC1_1	SMNDC1	meme_xml	human	34086933	-
-SMNDC1_2	SMNDC1	meme_xml	human	34086933	-
-SND1_1	SND1	meme_xml	human	34086933	-
-SND1_2	SND1	meme_xml	human	34086933	-
-SND1_3	SND1	meme_xml	human	34086933	-
-SND1_4	SND1	meme_xml	human	34086933	-
-SND1_5	SND1	meme_xml	human	34086933	-
-SNRNP70_1	SNRNP70	meme_xml	human	34086933	-
-SNRPA_1	SNRPA	meme_xml	human	34086933	-
-SNRPA_2	SNRPA	meme_xml	human	34086933	-
-SNRPA_3	SNRPA	meme_xml	human	34086933	-
-SNRPB2_1	SNRPB2	meme_xml	human	34086933	-
-SOX2_1	SOX2	meme_xml	human	34086933	-
-SRP14_1	SRP14	meme_xml	human	34086933	-
-SRP68_1	SRP68	meme_xml	human	34086933	-
-SRRM4_1	SRRM4	meme_xml	human	34086933	-
-SRRM4_2	SRRM4	meme_xml	human	34086933	-
-SRSF1_1	SRSF1	meme_xml	human	34086933	-
-SRSF1_2	SRSF1	meme_xml	human	34086933	-
-SRSF1_3	SRSF1	meme_xml	human	34086933	-
-SRSF1_4	SRSF1	meme_xml	human	34086933	-
-SRSF1_5	SRSF1	meme_xml	human	34086933	-
-SRSF1_6	SRSF1	meme_xml	human	34086933	-
-SRSF1_7	SRSF1	meme_xml	human	34086933	-
-SRSF1_8	SRSF1	meme_xml	human	34086933	-
-SRSF1_9	SRSF1	meme_xml	human	34086933	-
-SRSF1_10	SRSF1	meme_xml	human	34086933	-
-SRSF1_11	SRSF1	meme_xml	human	34086933	-
-SRSF2_1	SRSF2	meme_xml	human	34086933	-
-SRSF2_2	SRSF2	meme_xml	human	34086933	-
-SRSF2_3	SRSF2	meme_xml	human	34086933	-
-SRSF2_4	SRSF2	meme_xml	human	34086933	-
-SRSF2_5	SRSF2	meme_xml	human	34086933	-
-SRSF2_6	SRSF2	meme_xml	human	34086933	-
-SRSF2_7	SRSF2	meme_xml	human	34086933	-
-SRSF2_8	SRSF2	meme_xml	human	34086933	-
-SRSF3_1	SRSF3	meme_xml	human	34086933	-
-SRSF3_2	SRSF3	meme_xml	human	34086933	-
-SRSF3_3	SRSF3	meme_xml	human	34086933	-
-SRSF3_4	SRSF3	meme_xml	human	34086933	-
-SRSF4_1	SRSF4	meme_xml	human	34086933	-
-SRSF4_2	SRSF4	meme_xml	human	34086933	-
-SRSF5_1	SRSF5	meme_xml	human	34086933	-
-SRSF5_2	SRSF5	meme_xml	human	34086933	-
-SRSF5_3	SRSF5	meme_xml	human	34086933	-
-SRSF5_4	SRSF5	meme_xml	human	34086933	-
-SRSF5_5	SRSF5	meme_xml	human	34086933	-
-SRSF6_1	SRSF6	meme_xml	human	34086933	-
-SRSF6_2	SRSF6	meme_xml	human	34086933	-
-SRSF6_3	SRSF6	meme_xml	human	34086933	-
-SRSF6_4	SRSF6	meme_xml	human	34086933	-
-SRSF7_1	SRSF7	meme_xml	human	34086933	-
-SRSF7_2	SRSF7	meme_xml	human	34086933	-
-SRSF7_3	SRSF7	meme_xml	human	34086933	-
-SRSF7_4	SRSF7	meme_xml	human	34086933	-
-SRSF7_5	SRSF7	meme_xml	human	34086933	-
-SRSF7_6	SRSF7	meme_xml	human	34086933	-
-SRSF7_7	SRSF7	meme_xml	human	34086933	-
-SRSF7_8	SRSF7	meme_xml	human	34086933	-
-SRSF7_9	SRSF7	meme_xml	human	34086933	-
-SRSF7_10	SRSF7	meme_xml	human	34086933	-
-SRSF8_1	SRSF8	meme_xml	human	34086933	-
-SRSF8_2	SRSF8	meme_xml	human	34086933	-
-SRSF9_1	SRSF9	meme_xml	human	34086933	-
-SRSF10_1	SRSF10	meme_xml	human	34086933	-
-SRSF10_2	SRSF10	meme_xml	human	34086933	-
-SRSF10_3	SRSF10	meme_xml	human	34086933	-
-SRSF10_4	SRSF10	meme_xml	human	34086933	-
-SRSF10_5	SRSF10	meme_xml	human	34086933	-
-SRSF11_1	SRSF11	meme_xml	human	34086933	-
-SRSF11_2	SRSF11	meme_xml	human	34086933	-
-SSB_1	SSB	meme_xml	human	34086933	-
-SUB1_1	SUB1	meme_xml	human	34086933	-
-SUB1_2	SUB1	meme_xml	human	34086933	-
-SUGP2_1	SUGP2	meme_xml	human	34086933	-
-SUGP2_2	SUGP2	meme_xml	human	34086933	-
-SUPV3L1_1	SUPV3L1	meme_xml	human	34086933	-
-SUPV3L1_2	SUPV3L1	meme_xml	human	34086933	-
-SYNCRIP_1	SYNCRIP	meme_xml	human	34086933	-
-TAF15_1	TAF15	meme_xml	human	34086933	-
-TAF15_2	TAF15	meme_xml	human	34086933	-
-TAF15_3	TAF15	meme_xml	human	34086933	-
-TAF15_4	TAF15	meme_xml	human	34086933	-
-TAF15_5	TAF15	meme_xml	human	34086933	-
-TARBP2_1	TARBP2	meme_xml	human	34086933	-
-TARBP2_2	TARBP2	meme_xml	human	34086933	-
-TARBP2_3	TARBP2	meme_xml	human	34086933	-
-TARDBP_1	TARDBP	meme_xml	human	34086933	-
-TARDBP_2	TARDBP	meme_xml	human	34086933	-
-TARDBP_3	TARDBP	meme_xml	human	34086933	-
-TBRG4_1	TBRG4	meme_xml	human	34086933	-
-TBRG4_2	TBRG4	meme_xml	human	34086933	-
-TIA1_1	TIA1	meme_xml	human	34086933	-
-TIAL1_1	TIAL1	meme_xml	human	34086933	-
-TIAL1_2	TIAL1	meme_xml	human	34086933	-
-TNRC6A_1	TNRC6A	meme_xml	human	34086933	-
-TNRC6A_2	TNRC6A	meme_xml	human	34086933	-
-TRA2A_1	TRA2A	meme_xml	human	34086933	-
-TRA2A_2	TRA2A	meme_xml	human	34086933	-
-TRA2A_3	TRA2A	meme_xml	human	34086933	-
-TRA2A_4	TRA2A	meme_xml	human	34086933	-
-TRA2A_5	TRA2A	meme_xml	human	34086933	-
-TRA2B_1	TRA2B	meme_xml	human	34086933	-
-TRA2B_2	TRA2B	meme_xml	human	34086933	-
-TRNAU1AP_1	TRNAU1AP	meme_xml	human	34086933	-
-TRNAU1AP_2	TRNAU1AP	meme_xml	human	34086933	-
-TUT1_1	TUT1	meme_xml	human	34086933	-
-U2AF1_1	U2AF1	meme_xml	human	34086933	-
-U2AF1_2	U2AF1	meme_xml	human	34086933	-
-U2AF1_3	U2AF1	meme_xml	human	34086933	-
-U2AF1_4	U2AF1	meme_xml	human	34086933	-
-U2AF2_1	U2AF2	meme_xml	human	34086933	-
-U2AF2_2	U2AF2	meme_xml	human	34086933	-
-U2AF2_3	U2AF2	meme_xml	human	34086933	-
-UCHL5_1	UCHL5	meme_xml	human	34086933	-
-UCHL5_2	UCHL5	meme_xml	human	34086933	-
-UCHL5_3	UCHL5	meme_xml	human	34086933	-
-UNK_1	UNK	meme_xml	human	34086933	-
-UNK_2	UNK	meme_xml	human	34086933	-
-UNK_3	UNK	meme_xml	human	34086933	-
-UPF1_1	UPF1	meme_xml	human	34086933	-
-WDR33_1	WDR33	meme_xml	human	34086933	-
-XPO5_1	XPO5	meme_xml	human	34086933	-
-XPO5_2	XPO5	meme_xml	human	34086933	-
-XPO5_3	XPO5	meme_xml	human	34086933	-
-XRCC6_1	XRCC6	meme_xml	human	34086933	-
-XRCC6_2	XRCC6	meme_xml	human	34086933	-
-XRCC6_3	XRCC6	meme_xml	human	34086933	-
-XRCC6_4	XRCC6	meme_xml	human	34086933	-
-XRN2_1	XRN2	meme_xml	human	34086933	-
-XRN2_2	XRN2	meme_xml	human	34086933	-
-XRN2_3	XRN2	meme_xml	human	34086933	-
-YBX1_1	YBX1	meme_xml	human	34086933	-
-YBX1_2	YBX1	meme_xml	human	34086933	-
-YBX1_3	YBX1	meme_xml	human	34086933	-
-YBX2_1	YBX2	meme_xml	human	34086933	-
-YBX3_1	YBX3	meme_xml	human	34086933	-
-YTHDC1_1	YTHDC1	meme_xml	human	34086933	-
-YWHAG_1	YWHAG	meme_xml	human	34086933	-
-ZC3H10_1	ZC3H10	meme_xml	human	34086933	-
-ZCRB1_1	ZCRB1	meme_xml	human	34086933	-
-ZFP36_1	ZFP36	meme_xml	human	34086933	-
-ZFP36_2	ZFP36	meme_xml	human	34086933	-
-ZFP36L2_1	ZFP36L2	meme_xml	human	34086933	-
-ZFP36L2_2	ZFP36L2	meme_xml	human	34086933	-
-ZNF184_1	ZNF184	meme_xml	human	34086933	-
-ZNF326_1	ZNF326	meme_xml	human	34086933	-
-ZNF326_2	ZNF326	meme_xml	human	34086933	-
-ZNF326_3	ZNF326	meme_xml	human	34086933	-
-ZNF622_1	ZNF622	meme_xml	human	34086933	-
-ZNF622_2	ZNF622	meme_xml	human	34086933	-
-ZNF622_3	ZNF622	meme_xml	human	34086933	-
-ZNF638_1	ZNF638	meme_xml	human	34086933	-
-ZRANB2_1	ZRANB2	meme_xml	human	34086933	-
-ZRANB2_2	ZRANB2	meme_xml	human	34086933	-
-ZRANB2_3	ZRANB2	meme_xml	human	34086933	-
-ZRANB2_4	ZRANB2	meme_xml	human	34086933	-
-RF00032	SLBP	cm	human	34086933	-
-RNCMPT01219	RPL5	meme_xml	human	37002329	RNAcompete
-RNCMPT01084	RPL11	meme_xml	human	37002329	RNAcompete
-RNCMPT01297	RPL22	meme_xml	human	37002329	RNAcompete
-RNCMPT01114	RPL30	meme_xml	human	37002329	RNAcompete
-RNCMPT01363	RPS12	meme_xml	human	37002329	RNAcompete
-RNCMPT01071	NHP2L1	meme_xml	human	37002329	RNAcompete
-RNCMPT01740	RPS2	meme_xml	human	37002329	RNAcompete
-RNCMPT01411	RPS15A	meme_xml	human	37002329	RNAcompete
-RNCMPT01299	RPP25	meme_xml	human	37002329	RNAcompete
-RNCMPT01313	PEG10	meme_xml	human	37002329	RNAcompete
-RNCMPT01267	GAR1	meme_xml	human	37002329	RNAcompete
-RNCMPT00625	SERBP1	meme_xml	human	37002329	RNAcompete
-RNCMPT01140	LSM6	meme_xml	human	37002329	RNAcompete
-RNCMPT01322	NUDT21	meme_xml	human	37002329	RNAcompete
-RNCMPT00592	IFIT2	meme_xml	human	37002329	RNAcompete
-RNCMPT01327	CNBP	meme_xml	human	37002329	RNAcompete
-RNCMPT01357	ZRANB2	meme_xml	human	37002329	RNAcompete
-RNCMPT01394	PRPF31	meme_xml	human	37002329	RNAcompete
-RNCMPT01334	NUDT16L1	meme_xml	human	37002329	RNAcompete
-RNCMPT01439	PURA	meme_xml	human	37002329	RNAcompete
-RNCMPT01403	SSBP1	meme_xml	human	37002329	RNAcompete
-RNCMPT01854	HARS2	meme_xml	human	37002329	RNAcompete
-RNCMPT00297	ILF2	meme_xml	human	37002329	RNAcompete
+RBP_motif_id	RBP_name	Motif_type	Organism	References	Experiment	Comments		
+A1CF_1	A1CF	meme_xml	human	34086933	-	-		
+A1CF_2	A1CF	meme_xml	human	34086933	-	-		
+ACIN1_1	ACIN1	meme_xml	human	34086933	-	-		
+ACIN1_2	ACIN1	meme_xml	human	34086933	-	-		
+ACO1_1	ACO1	meme_xml	human	34086933	-	-		
+ADAR_1	ADAR	meme_xml	human	34086933	-	-		
+ADAR_2	ADAR	meme_xml	human	34086933	-	-		
+ADAR_3	ADAR	meme_xml	human	34086933	-	-		
+ADAR_4	ADAR	meme_xml	human	34086933	-	-		
+AGGF1_1	AGGF1	meme_xml	human	34086933	-	-		
+AGGF1_2	AGGF1	meme_xml	human	34086933	-	-		
+AGO1_1	AGO1	meme_xml	human	34086933	-	-		
+AGO2_1	AGO2	meme_xml	human	34086933	-	-		
+AGO2_2	AGO2	meme_xml	human	34086933	-	-		
+AKAP1_1	AKAP1	meme_xml	human	34086933	-	-		
+AKAP8_1	AKAP8	meme_xml	human	34086933	-	-		
+ANKHD1_1	ANKHD1	meme_xml	human	23846655	RNAcompete	-		
+AUH_1	AUH	meme_xml	human	34086933	-	-		
+AUH_2	AUH	meme_xml	human	34086933	-	-		
+BCCIP_1	BCCIP	meme_xml	human	34086933	-	-		
+BOLL_1	BOLL	meme_xml	human	34086933	-	-		
+BOLL_2	BOLL	meme_xml	human	34086933	-	-		
+BOLL_3	BOLL	meme_xml	human	34086933	-	-		
+BUD13_1	BUD13	meme_xml	human	34086933	-	-		
+BUD13_2	BUD13	meme_xml	human	34086933	-	-		
+BUD13_3	BUD13	meme_xml	human	34086933	-	-		
+BUD13_4	BUD13	meme_xml	human	34086933	-	-		
+CAPRIN1_1	CAPRIN1	meme_xml	human	34086933	-	-		
+CBX7_1	CBX7	meme_xml	human	34086933	-	-		
+CDC40_1	CDC40	meme_xml	human	34086933	-	-		
+CDC40_2	CDC40	meme_xml	human	34086933	-	-		
+CELF1_1	CELF1	meme_xml	human	34086933	-	-		
+CELF2_1	CELF2	meme_xml	human	34086933	-	-		
+CELF2_2	CELF2	meme_xml	human	34086933	-	-		
+CELF4_1	CELF4	meme_xml	human	23846655	RNAcompete	-		
+CELF5_1	CELF5	meme_xml	human	23846655	RNAcompete	-		
+CELF6_1	CELF6	meme_xml	human	23846655	RNAcompete	-		
+CNBP_1	CNBP	meme_xml	human	34086933	-	-		
+CNBP_2	CNBP	meme_xml	human	34086933	-	-		
+CNOT4_1	CNOT4	meme_xml	human	34086933	-	-		
+CPEB1_1	CPEB1	meme_xml	human	34086933	-	-		
+CPEB2_1	CPEB2	meme_xml	human	23846655	RNAcompete	-		
+CPEB4_1	CPEB4	meme_xml	human	34086933	-	-		
+CPSF6_1	CPSF6	meme_xml	human	34086933	-	-		
+CPSF7_1	CPSF7	meme_xml	human	34086933	-	-		
+CSTF2_1	CSTF2	meme_xml	human	34086933	-	-		
+CSTF2_2	CSTF2	meme_xml	human	34086933	-	-		
+CSTF2T_1	CSTF2T	meme_xml	human	34086933	-	-		
+CSTF2T_2	CSTF2T	meme_xml	human	34086933	-	-		
+DAZ3_1	DAZ3	meme_xml	human	34086933	-	-		
+DAZ3_2	DAZ3	meme_xml	human	34086933	-	-		
+DAZ3_3	DAZ3	meme_xml	human	34086933	-	-		
+DAZ3_4	DAZ3	meme_xml	human	34086933	-	-		
+DAZAP1_1	DAZAP1	meme_xml	human	34086933	-	-		
+DAZAP1_2	DAZAP1	meme_xml	human	34086933	-	-		
+DAZAP1_3	DAZAP1	meme_xml	human	34086933	-	-		
+DAZAP1_4	DAZAP1	meme_xml	human	34086933	-	-		
+DDX3X_1	DDX3X	meme_xml	human	34086933	-	-		
+DDX3X_2	DDX3X	meme_xml	human	34086933	-	-		
+DDX6_1	DDX6	meme_xml	human	34086933	-	-		
+DDX19B_1	DDX19B	meme_xml	human	34086933	-	-		
+DDX24_1	DDX24	meme_xml	human	34086933	-	-		
+DDX24_2	DDX24	meme_xml	human	34086933	-	-		
+DDX54_1	DDX54	meme_xml	human	34086933	-	-		
+DDX54_2	DDX54	meme_xml	human	34086933	-	-		
+DDX55_1	DDX55	meme_xml	human	34086933	-	-		
+DDX55_2	DDX55	meme_xml	human	34086933	-	-		
+DDX55_3	DDX55	meme_xml	human	34086933	-	-		
+DDX55_4	DDX55	meme_xml	human	34086933	-	-		
+DDX55_5	DDX55	meme_xml	human	34086933	-	-		
+DDX55_6	DDX55	meme_xml	human	34086933	-	-		
+DDX58_1	DDX58	meme_xml	human	34086933	-	-		
+DDX59_1	DDX59	meme_xml	human	34086933	-	-		
+DGCR8_1	DGCR8	meme_xml	human	34086933	-	-		
+DKC1_1	DKC1	meme_xml	human	34086933	-	-		
+DKC1_2	DKC1	meme_xml	human	34086933	-	-		
+DKC1_3	DKC1	meme_xml	human	34086933	-	-		
+EFTUD2_1	EFTUD2	meme_xml	human	34086933	-	-		
+EIF3D_1	EIF3D	meme_xml	human	34086933	-	-		
+EIF3D_2	EIF3D	meme_xml	human	34086933	-	-		
+EIF3D_3	EIF3D	meme_xml	human	34086933	-	-		
+EIF3D_4	EIF3D	meme_xml	human	34086933	-	-		
+EIF3D_5	EIF3D	meme_xml	human	34086933	-	-		
+EIF4A3_1	EIF4A3	meme_xml	human	34086933	-	-		
+EIF4A3_2	EIF4A3	meme_xml	human	34086933	-	-		
+EIF4A3_3	EIF4A3	meme_xml	human	34086933	-	-		
+EIF4B_1	EIF4B	meme_xml	human	34086933	-	-		
+EIF4G2_1	EIF4G2	meme_xml	human	34086933	-	-		
+EIF4G2_2	EIF4G2	meme_xml	human	34086933	-	-		
+EIF4G2_3	EIF4G2	meme_xml	human	34086933	-	-		
+EIF4G2_4	EIF4G2	meme_xml	human	34086933	-	-		
+ELAVL1_1	ELAVL1	meme_xml	human	34086933	-	-		
+ELAVL1_2	ELAVL1	meme_xml	human	34086933	-	-		
+ELAVL1_3	ELAVL1	meme_xml	human	34086933	-	-		
+ELAVL1_4	ELAVL1	meme_xml	human	34086933	-	-		
+ELAVL2_1	ELAVL2	meme_xml	human	34086933	-	-		
+ELAVL2_2	ELAVL2	meme_xml	human	34086933	-	-		
+ELAVL2_3	ELAVL2	meme_xml	human	34086933	-	-		
+ELAVL2_4	ELAVL2	meme_xml	human	34086933	-	-		
+ELAVL3_1	ELAVL3	meme_xml	human	34086933	-	-		
+ELAVL3_2	ELAVL3	meme_xml	human	34086933	-	-		
+ELAVL3_3	ELAVL3	meme_xml	human	34086933	-	-		
+ELAVL4_1	ELAVL4	meme_xml	human	34086933	-	-		
+ELAVL4_2	ELAVL4	meme_xml	human	34086933	-	-		
+ELAVL4_3	ELAVL4	meme_xml	human	34086933	-	-		
+ENOX1_1	ENOX1	meme_xml	human	34086933	-	-		
+ERI1_1	ERI1	meme_xml	human	34086933	-	-		
+ESRP1_1	ESRP1	meme_xml	human	34086933	-	-		
+ESRP1_2	ESRP1	meme_xml	human	34086933	-	-		
+ESRP1_3	ESRP1	meme_xml	human	34086933	-	-		
+ESRP2_1	ESRP2	meme_xml	human	34086933	-	-		
+EWSR1_1	EWSR1	meme_xml	human	34086933	-	-		
+EWSR1_2	EWSR1	meme_xml	human	34086933	-	-		
+FAM120A_1	FAM120A	meme_xml	human	34086933	-	-		
+FAM120A_2	FAM120A	meme_xml	human	34086933	-	-		
+FAM120A_3	FAM120A	meme_xml	human	34086933	-	-		
+FASTKD2_1	FASTKD2	meme_xml	human	34086933	-	-		
+FASTKD2_2	FASTKD2	meme_xml	human	34086933	-	-		
+FASTKD2_3	FASTKD2	meme_xml	human	34086933	-	-		
+FBL_1	FBL	meme_xml	human	34086933	-	-		
+FIP1L1_1	FIP1L1	meme_xml	human	34086933	-	-		
+FIP1L1_2	FIP1L1	meme_xml	human	34086933	-	-		
+FMR1_1	FMR1	meme_xml	human	34086933	-	-		
+FMR1_2	FMR1	meme_xml	human	34086933	-	-		
+FMR1_3	FMR1	meme_xml	human	34086933	-	-		
+FMR1_4	FMR1	meme_xml	human	34086933	-	-		
+FMR1_5	FMR1	meme_xml	human	34086933	-	-		
+FTO_1	FTO	meme_xml	human	34086933	-	-		
+FTO_2	FTO	meme_xml	human	34086933	-	-		
+FUBP1_1	FUBP1	meme_xml	human	34086933	-	-		
+FUBP1_2	FUBP1	meme_xml	human	34086933	-	-		
+FUBP1_3	FUBP1	meme_xml	human	34086933	-	-		
+FUBP3_1	FUBP3	meme_xml	human	34086933	-	-		
+FUBP3_2	FUBP3	meme_xml	human	34086933	-	-		
+FUS_1	FUS	meme_xml	human	34086933	-	-		
+FUS_2	FUS	meme_xml	human	34086933	-	-		
+FXR1_1	FXR1	meme_xml	human	34086933	-	-		
+FXR1_2	FXR1	meme_xml	human	34086933	-	-		
+FXR2_1	FXR2	meme_xml	human	34086933	-	-		
+FXR2_2	FXR2	meme_xml	human	34086933	-	-		
+FXR2_3	FXR2	meme_xml	human	34086933	-	-		
+FXR2_4	FXR2	meme_xml	human	34086933	-	-		
+FXR2_5	FXR2	meme_xml	human	34086933	-	-		
+G3BP1_1	G3BP1	meme_xml	human	34086933	-	-		
+G3BP2_1	G3BP2	meme_xml	human	34086933	-	-		
+GNL3_1	GNL3	meme_xml	human	34086933	-	-		
+GNL3_2	GNL3	meme_xml	human	34086933	-	-		
+GPKOW_1	GPKOW	meme_xml	human	34086933	-	-		
+GPKOW_2	GPKOW	meme_xml	human	34086933	-	-		
+GRSF1_1	GRSF1	meme_xml	human	34086933	-	-		
+GRSF1_2	GRSF1	meme_xml	human	34086933	-	-		
+GRWD1_1	GRWD1	meme_xml	human	34086933	-	-		
+GRWD1_2	GRWD1	meme_xml	human	34086933	-	-		
+GTF2F1_1	GTF2F1	meme_xml	human	34086933	-	-		
+HLTF_1	HLTF	meme_xml	human	34086933	-	-		
+HNRNPA0_1	HNRNPA0	meme_xml	human	34086933	-	-		
+HNRNPA0_2	HNRNPA0	meme_xml	human	34086933	-	-		
+HNRNPA1_1	HNRNPA1	meme_xml	human	34086933	-	-		
+HNRNPA1_2	HNRNPA1	meme_xml	human	34086933	-	-		
+HNRNPA1_3	HNRNPA1	meme_xml	human	34086933	-	-		
+HNRNPA1_4	HNRNPA1	meme_xml	human	34086933	-	-		
+HNRNPA1_5	HNRNPA1	meme_xml	human	34086933	-	-		
+HNRNPA1_6	HNRNPA1	meme_xml	human	34086933	-	-		
+HNRNPA1_7	HNRNPA1	meme_xml	human	34086933	-	-		
+HNRNPA1L2_1	HNRNPA1L2	meme_xml	human	34086933	-	-		
+HNRNPA2B1_1	HNRNPA2B1	meme_xml	human	34086933	-	-		
+HNRNPA2B1_2	HNRNPA2B1	meme_xml	human	34086933	-	-		
+HNRNPA2B1_3	HNRNPA2B1	meme_xml	human	34086933	-	-		
+HNRNPA2B1_4	HNRNPA2B1	meme_xml	human	34086933	-	-		
+HNRNPA3_1	HNRNPA3	meme_xml	human	34086933	-	-		
+HNRNPAB_1	HNRNPAB	meme_xml	human	34086933	-	-		
+HNRNPAB_2	HNRNPAB	meme_xml	human	34086933	-	-		
+HNRNPAB_3	HNRNPAB	meme_xml	human	34086933	-	-		
+HNRNPC_1	HNRNPC	meme_xml	human	12509468;27055826;34086933	CLIP	UV	cross-linking;Immunoprecipitation	
+HNRNPC_2	HNRNPC	meme_xml	human	19910374;27055826;34086933	Mut_WB_siRNA_KD	Mutagenesis;western	blot;siRNA	knockdown
+HNRNPC_3	HNRNPC	meme_xml	human	23846655	RNAcompete	-		
+HNRNPC_4	HNRNPC	meme_xml	human	12509468;27055826;34086933	CLIP	UV	cross-linking;Immunoprecipitation	
+HNRNPCL1_1	HNRNPCL1	meme_xml	human	34086933	-	-		
+HNRNPD_1	HNRNPD	meme_xml	human	34086933	-	-		
+HNRNPD_2	HNRNPD	meme_xml	human	34086933	-	-		
+HNRNPD_3	HNRNPD	meme_xml	human	34086933	-	-		
+HNRNPDL_1	HNRNPDL	meme_xml	human	34086933	-	-		
+HNRNPDL_2	HNRNPDL	meme_xml	human	34086933	-	-		
+HNRNPDL_3	HNRNPDL	meme_xml	human	34086933	-	-		
+HNRNPF_1	HNRNPF	meme_xml	human	34086933	-	-		
+HNRNPH1_1	HNRNPH1	meme_xml	human	34086933	-	-		
+HNRNPH2_1	HNRNPH2	meme_xml	human	34086933	-	-		
+HNRNPK_1	HNRNPK	meme_xml	human	34086933	-	-		
+HNRNPK_2	HNRNPK	meme_xml	human	34086933	-	-		
+HNRNPL_1	HNRNPL	meme_xml	human	34086933	-	-		
+HNRNPL_2	HNRNPL	meme_xml	human	34086933	-	-		
+HNRNPL_3	HNRNPL	meme_xml	human	34086933	-	-		
+HNRNPL_4	HNRNPL	meme_xml	human	34086933	-	-		
+HNRNPL_5	HNRNPL	meme_xml	human	34086933	-	-		
+HNRNPLL_1	HNRNPLL	meme_xml	human	34086933	-	-		
+HNRNPLL_2	HNRNPLL	meme_xml	human	34086933	-	-		
+HNRNPM_1	HNRNPM	meme_xml	human	34086933	-	-		
+HNRNPM_2	HNRNPM	meme_xml	human	34086933	-	-		
+HNRNPM_3	HNRNPM	meme_xml	human	34086933	-	-		
+HNRNPM_4	HNRNPM	meme_xml	human	34086933	-	-		
+HNRNPM_5	HNRNPM	meme_xml	human	34086933	-	-		
+HNRNPU_1	HNRNPU	meme_xml	human	34086933	-	-		
+HNRNPU_2	HNRNPU	meme_xml	human	34086933	-	-		
+HNRNPU_3	HNRNPU	meme_xml	human	34086933	-	-		
+HNRNPU_4	HNRNPU	meme_xml	human	34086933	-	-		
+HNRNPU_5	HNRNPU	meme_xml	human	34086933	-	-		
+HNRNPU_6	HNRNPU	meme_xml	human	34086933	-	-		
+HNRNPUL1_1	HNRNPUL1	meme_xml	human	34086933	-	-		
+HNRNPUL1_2	HNRNPUL1	meme_xml	human	34086933	-	-		
+HNRNPUL1_3	HNRNPUL1	meme_xml	human	34086933	-	-		
+HNRNPUL1_4	HNRNPUL1	meme_xml	human	34086933	-	-		
+IFIH1_1	IFIH1	meme_xml	human	34086933	-	-		
+IGF2BP1_1	IGF2BP1	meme_xml	human	34086933	-	-		
+IGF2BP1_2	IGF2BP1	meme_xml	human	34086933	-	-		
+IGF2BP1_3	IGF2BP1	meme_xml	human	34086933	-	-		
+IGF2BP1_4	IGF2BP1	meme_xml	human	34086933	-	-		
+IGF2BP2_1	IGF2BP2	meme_xml	human	34086933	-	-		
+IGF2BP2_2	IGF2BP2	meme_xml	human	34086933	-	-		
+IGF2BP3_1	IGF2BP3	meme_xml	human	34086933	-	-		
+IGHMBP2_1	IGHMBP2	meme_xml	human	34086933	-	-		
+ILF2_1	ILF2	meme_xml	human	34086933	-	-		
+ILF2_2	ILF2	meme_xml	human	34086933	-	-		
+ILF3_1	ILF3	meme_xml	human	34086933	-	-		
+ILF3_2	ILF3	meme_xml	human	34086933	-	-		
+ILF3_3	ILF3	meme_xml	human	34086933	-	-		
+KHDRBS1_1	KHDRBS1	meme_xml	human	34086933	-	-		
+KHDRBS1_2	KHDRBS1	meme_xml	human	34086933	-	-		
+KHDRBS2_1	KHDRBS2	meme_xml	human	34086933	-	-		
+KHDRBS3_1	KHDRBS3	meme_xml	human	34086933	-	-		
+KHDRBS3_2	KHDRBS3	meme_xml	human	34086933	-	-		
+KHSRP_1	KHSRP	meme_xml	human	34086933	-	-		
+KHSRP_2	KHSRP	meme_xml	human	34086933	-	-		
+KHSRP_3	KHSRP	meme_xml	human	34086933	-	-		
+KHSRP_4	KHSRP	meme_xml	human	34086933	-	-		
+KHSRP_5	KHSRP	meme_xml	human	34086933	-	-		
+LARP4_1	LARP4	meme_xml	human	34086933	-	-		
+LARP4_2	LARP4	meme_xml	human	34086933	-	-		
+LARP4_3	LARP4	meme_xml	human	34086933	-	-		
+LARP4B_1	LARP4B	meme_xml	human	34086933	-	-		
+LIN28A_1	LIN28A	meme_xml	human	34086933	-	-		
+LIN28B_1	LIN28B	meme_xml	human	34086933	-	-		
+LSM11_1	LSM11	meme_xml	human	34086933	-	-		
+LSM11_2	LSM11	meme_xml	human	34086933	-	-		
+LSM11_3	LSM11	meme_xml	human	34086933	-	-		
+LSM11_4	LSM11	meme_xml	human	34086933	-	-		
+MATR3_1	MATR3	meme_xml	human	34086933	-	-		
+MBNL1_1	MBNL1	meme_xml	human	34086933	-	-		
+MBNL1_2	MBNL1	meme_xml	human	34086933	-	-		
+MBNL1_3	MBNL1	meme_xml	human	34086933	-	-		
+MBNL1_4	MBNL1	meme_xml	human	34086933	-	-		
+MBNL1_5	MBNL1	meme_xml	human	34086933	-	-		
+METAP2_1	METAP2	meme_xml	human	34086933	-	-		
+MSI1_1	MSI1	meme_xml	human	34086933	-	-		
+MSI1_2	MSI1	meme_xml	human	34086933	-	-		
+MSI1_3	MSI1	meme_xml	human	34086933	-	-		
+MSI1_4	MSI1	meme_xml	human	34086933	-	-		
+MSI2_1	MSI2	meme_xml	human	34086933	-	-		
+MTPAP_1	MTPAP	meme_xml	human	34086933	-	-		
+MTPAP_2	MTPAP	meme_xml	human	34086933	-	-		
+NCBP2_1	NCBP2	meme_xml	human	34086933	-	-		
+NCBP2_2	NCBP2	meme_xml	human	34086933	-	-		
+NCBP2_3	NCBP2	meme_xml	human	34086933	-	-		
+NELFE_1	NELFE	meme_xml	human	34086933	-	-		
+NELFE_2	NELFE	meme_xml	human	34086933	-	-		
+NKRF_1	NKRF	meme_xml	human	34086933	-	-		
+NKRF_2	NKRF	meme_xml	human	34086933	-	-		
+NKRF_3	NKRF	meme_xml	human	34086933	-	-		
+NOL12_1	NOL12	meme_xml	human	34086933	-	-		
+NOL12_2	NOL12	meme_xml	human	34086933	-	-		
+NONO_1	NONO	meme_xml	human	34086933	-	-		
+NONO_2	NONO	meme_xml	human	34086933	-	-		
+NOP56_1	NOP56	meme_xml	human	34086933	-	-		
+NOP58_1	NOP58	meme_xml	human	34086933	-	-		
+NOVA1_1	NOVA1	meme_xml	human	34086933	-	-		
+NOVA2_1	NOVA2	meme_xml	human	34086933	-	-		
+NOVA2_2	NOVA2	meme_xml	human	34086933	-	-		
+NOVA2_3	NOVA2	meme_xml	human	34086933	-	-		
+NOVA2_4	NOVA2	meme_xml	human	34086933	-	-		
+NPM1_1	NPM1	meme_xml	human	34086933	-	-		
+NPM1_2	NPM1	meme_xml	human	34086933	-	-		
+NSUN2_1	NSUN2	meme_xml	human	34086933	-	-		
+NSUN2_2	NSUN2	meme_xml	human	34086933	-	-		
+NUMA1_1	NUMA1	meme_xml	human	34086933	-	-		
+NUP42_1	NUP42	meme_xml	human	34086933	-	-		
+NUP42_2	NUP42	meme_xml	human	34086933	-	-		
+NXF1_1	NXF1	meme_xml	human	34086933	-	-		
+OAS1_1	OAS1	meme_xml	human	34086933	-	-		
+OBI1_1	OBI1	meme_xml	human	34086933	-	-		
+PABPC1_1	PABPC1	meme_xml	human	34086933	-	-		
+PABPC1_2	PABPC1	meme_xml	human	34086933	-	-		
+PABPC1_3	PABPC1	meme_xml	human	34086933	-	-		
+PABPC3_1	PABPC3	meme_xml	human	34086933	-	-		
+PABPC4_1	PABPC4	meme_xml	human	34086933	-	-		
+PABPC5_1	PABPC5	meme_xml	human	34086933	-	-		
+PABPN1_1	PABPN1	meme_xml	human	34086933	-	-		
+PABPN1L_1	PABPN1L	meme_xml	human	34086933	-	-		
+PARP1_1	PARP1	meme_xml	human	34086933	-	-		
+PARP1_2	PARP1	meme_xml	human	34086933	-	-		
+PCBP1_1	PCBP1	meme_xml	human	34086933	-	-		
+PCBP1_2	PCBP1	meme_xml	human	34086933	-	-		
+PCBP1_3	PCBP1	meme_xml	human	34086933	-	-		
+PCBP1_4	PCBP1	meme_xml	human	34086933	-	-		
+PCBP1_5	PCBP1	meme_xml	human	34086933	-	-		
+PCBP1_6	PCBP1	meme_xml	human	34086933	-	-		
+PCBP1_7	PCBP1	meme_xml	human	34086933	-	-		
+PCBP2_1	PCBP2	meme_xml	human	34086933	-	-		
+PCBP2_2	PCBP2	meme_xml	human	34086933	-	-		
+PCBP2_3	PCBP2	meme_xml	human	34086933	-	-		
+PCBP2_4	PCBP2	meme_xml	human	34086933	-	-		
+PCBP2_5	PCBP2	meme_xml	human	34086933	-	-		
+PCBP2_6	PCBP2	meme_xml	human	34086933	-	-		
+PCBP2_7	PCBP2	meme_xml	human	34086933	-	-		
+PCBP2_8	PCBP2	meme_xml	human	34086933	-	-		
+PCBP2_9	PCBP2	meme_xml	human	34086933	-	-		
+PCBP4_1	PCBP4	meme_xml	human	34086933	-	-		
+PCBP4_2	PCBP4	meme_xml	human	34086933	-	-		
+PPIE_1	PPIE	meme_xml	human	34086933	-	-		
+PPIE_2	PPIE	meme_xml	human	34086933	-	-		
+PPIG_1	PPIG	meme_xml	human	34086933	-	-		
+PPIG_2	PPIG	meme_xml	human	34086933	-	-		
+PPIL4_1	PPIL4	meme_xml	human	34086933	-	-		
+PPIL4_2	PPIL4	meme_xml	human	34086933	-	-		
+PPIL4_3	PPIL4	meme_xml	human	34086933	-	-		
+PPIL4_4	PPIL4	meme_xml	human	34086933	-	-		
+PPIL4_5	PPIL4	meme_xml	human	34086933	-	-		
+PPRC1_1	PPRC1	meme_xml	human	34086933	-	-		
+PRPF8_1	PRPF8	meme_xml	human	34086933	-	-		
+PRPF8_2	PRPF8	meme_xml	human	34086933	-	-		
+PRPF8_3	PRPF8	meme_xml	human	34086933	-	-		
+PRR3_1	PRR3	meme_xml	human	34086933	-	-		
+PRR3_2	PRR3	meme_xml	human	34086933	-	-		
+PTBP1_1	PTBP1	meme_xml	human	34086933	-	-		
+PTBP1_2	PTBP1	meme_xml	human	34086933	-	-		
+PTBP1_3	PTBP1	meme_xml	human	34086933	-	-		
+PTBP1_4	PTBP1	meme_xml	human	34086933	-	-		
+PTBP1_5	PTBP1	meme_xml	human	34086933	-	-		
+PTBP2_1	PTBP2	meme_xml	human	34086933	-	-		
+PTBP3_1	PTBP3	meme_xml	human	34086933	-	-		
+PUF60_1	PUF60	meme_xml	human	34086933	-	-		
+PUM1_1	PUM1	meme_xml	human	31724725;34086933	RBNS	RBNS_ENCODE		
+PUM1_2	PUM1	meme_xml	human	34086933	-	-		
+PUM1_3	PUM1	meme_xml	human	34086933	-	-		
+PUM2_1	PUM2	meme_xml	human	34086933	-	-		
+PUM2_2	PUM2	meme_xml	human	34086933	-	-		
+PUM2_3	PUM2	meme_xml	human	34086933	-	-		
+PUM2_4	PUM2	meme_xml	human	34086933	-	-		
+PUM2_5	PUM2	meme_xml	human	34086933	-	-		
+QKI_1	QKI	meme_xml	human	34086933	-	-		
+QKI_2	QKI	meme_xml	human	34086933	-	-		
+QKI_3	QKI	meme_xml	human	34086933	-	-		
+QKI_4	QKI	meme_xml	human	34086933	-	-		
+QKI_5	QKI	meme_xml	human	34086933	-	-		
+QKI_6	QKI	meme_xml	human	34086933	-	-		
+QKI_7	QKI	meme_xml	human	34086933	-	-		
+QKI_8	QKI	meme_xml	human	34086933	-	-		
+RALY_1	RALY	meme_xml	human	34086933	-	-		
+RALYL_1	RALYL	meme_xml	human	34086933	-	-		
+RANGAP1_1	RANGAP1	meme_xml	human	34086933	-	-		
+RBFOX1_1	RBFOX1	meme_xml	human	34086933	-	-		
+RBFOX1_2	RBFOX1	meme_xml	human	34086933	-	-		
+RBFOX1_3	RBFOX1	meme_xml	human	34086933	-	-		
+RBFOX1_4	RBFOX1	meme_xml	human	34086933	-	-		
+RBFOX2_1	RBFOX2	meme_xml	human	34086933	-	-		
+RBFOX2_2	RBFOX2	meme_xml	human	34086933	-	-		
+RBFOX3_1	RBFOX3	meme_xml	human	34086933	-	-		
+RBM3_1	RBM3	meme_xml	human	34086933	-	-		
+RBM4_1	RBM4	meme_xml	human	34086933	-	-		
+RBM4_2	RBM4	meme_xml	human	34086933	-	-		
+RBM4B_1	RBM4B	meme_xml	human	34086933	-	-		
+RBM4B_2	RBM4B	meme_xml	human	34086933	-	-		
+RBM4B_3	RBM4B	meme_xml	human	34086933	-	-		
+RBM5_1	RBM5	meme_xml	human	34086933	-	-		
+RBM5_2	RBM5	meme_xml	human	34086933	-	-		
+RBM5_3	RBM5	meme_xml	human	34086933	-	-		
+RBM6_1	RBM6	meme_xml	human	34086933	-	-		
+RBM8A_1	RBM8A	meme_xml	human	34086933	-	-		
+RBM10_1	RBM10	meme_xml	human	34086933	-	-		
+RBM10_2	RBM10	meme_xml	human	34086933	-	-		
+RBM14_1	RBM14	meme_xml	human	34086933	-	-		
+RBM15_1	RBM15	meme_xml	human	34086933	-	-		
+RBM15B_1	RBM15B	meme_xml	human	34086933	-	-		
+RBM15B_2	RBM15B	meme_xml	human	34086933	-	-		
+RBM22_1	RBM22	meme_xml	human	34086933	-	-		
+RBM22_2	RBM22	meme_xml	human	34086933	-	-		
+RBM22_3	RBM22	meme_xml	human	34086933	-	-		
+RBM22_4	RBM22	meme_xml	human	34086933	-	-		
+RBM22_5	RBM22	meme_xml	human	34086933	-	-		
+RBM22_6	RBM22	meme_xml	human	34086933	-	-		
+RBM22_7	RBM22	meme_xml	human	34086933	-	-		
+RBM23_1	RBM23	meme_xml	human	34086933	-	-		
+RBM23_2	RBM23	meme_xml	human	34086933	-	-		
+RBM24_1	RBM24	meme_xml	human	34086933	-	-		
+RBM25_1	RBM25	meme_xml	human	34086933	-	-		
+RBM25_2	RBM25	meme_xml	human	34086933	-	-		
+RBM25_3	RBM25	meme_xml	human	34086933	-	-		
+RBM25_4	RBM25	meme_xml	human	34086933	-	-		
+RBM28_1	RBM28	meme_xml	human	34086933	-	-		
+RBM39_1	RBM39	meme_xml	human	34086933	-	-		
+RBM41_1	RBM41	meme_xml	human	34086933	-	-		
+RBM42_1	RBM42	meme_xml	human	34086933	-	-		
+RBM45_1	RBM45	meme_xml	human	34086933	-	-		
+RBM45_2	RBM45	meme_xml	human	34086933	-	-		
+RBM45_3	RBM45	meme_xml	human	34086933	-	-		
+RBM45_4	RBM45	meme_xml	human	34086933	-	-		
+RBM45_5	RBM45	meme_xml	human	34086933	-	-		
+RBM46_1	RBM46	meme_xml	human	34086933	-	-		
+RBM47_1	RBM47	meme_xml	human	34086933	-	-		
+RBMS1_1	RBMS1	meme_xml	human	34086933	-	-		
+RBMS2_1	RBMS2	meme_xml	human	34086933	-	-		
+RBMS3_1	RBMS3	meme_xml	human	34086933	-	-		
+RBMS3_2	RBMS3	meme_xml	human	34086933	-	-		
+RBMS3_3	RBMS3	meme_xml	human	34086933	-	-		
+RBMS3_4	RBMS3	meme_xml	human	34086933	-	-		
+RBMS3_5	RBMS3	meme_xml	human	34086933	-	-		
+RBMX_1	RBMX	meme_xml	human	34086933	-	-		
+RBMX_2	RBMX	meme_xml	human	34086933	-	-		
+RBMY1A1_1	RBMY1A1	meme_xml	human	34086933	-	-		
+RC3H1_1	RC3H1	meme_xml	human	34086933	-	-		
+RC3H1_2	RC3H1	meme_xml	human	34086933	-	-		
+TROVE2_1	TROVE2	meme_xml	human	34086933	-	-		
+TROVE2_2	TROVE2	meme_xml	human	34086933	-	-		
+TROVE2_3	TROVE2	meme_xml	human	34086933	-	-		
+TROVE2_4	TROVE2	meme_xml	human	34086933	-	-		
+TROVE2_5	TROVE2	meme_xml	human	34086933	-	-		
+TROVE2_6	TROVE2	meme_xml	human	34086933	-	-		
+TROVE2_7	TROVE2	meme_xml	human	34086933	-	-		
+RPS5_1	RPS5	meme_xml	human	34086933	-	-		
+RPS5_2	RPS5	meme_xml	human	34086933	-	-		
+SAFB2_1	SAFB2	meme_xml	human	34086933	-	-		
+SAFB2_2	SAFB2	meme_xml	human	34086933	-	-		
+SAMD4A_1	SAMD4A	meme_xml	human	34086933	-	-		
+SART3_1	SART3	meme_xml	human	34086933	-	-		
+SF1_1	SF1	meme_xml	human	34086933	-	-		
+SF1_2	SF1	meme_xml	human	34086933	-	-		
+SF3A3_1	SF3A3	meme_xml	human	34086933	-	-		
+SF3A3_2	SF3A3	meme_xml	human	34086933	-	-		
+SF3A3_3	SF3A3	meme_xml	human	34086933	-	-		
+SF3A3_4	SF3A3	meme_xml	human	34086933	-	-		
+SF3B4_1	SF3B4	meme_xml	human	34086933	-	-		
+SF3B4_2	SF3B4	meme_xml	human	34086933	-	-		
+SFPQ_1	SFPQ	meme_xml	human	34086933	-	-		
+SFPQ_2	SFPQ	meme_xml	human	34086933	-	-		
+SFPQ_3	SFPQ	meme_xml	human	34086933	-	-		
+SFPQ_4	SFPQ	meme_xml	human	34086933	-	-		
+SFPQ_5	SFPQ	meme_xml	human	34086933	-	-		
+SFPQ_6	SFPQ	meme_xml	human	34086933	-	-		
+SLTM_1	SLTM	meme_xml	human	34086933	-	-		
+SMNDC1_1	SMNDC1	meme_xml	human	34086933	-	-		
+SMNDC1_2	SMNDC1	meme_xml	human	34086933	-	-		
+SND1_1	SND1	meme_xml	human	34086933	-	-		
+SND1_2	SND1	meme_xml	human	34086933	-	-		
+SND1_3	SND1	meme_xml	human	34086933	-	-		
+SND1_4	SND1	meme_xml	human	34086933	-	-		
+SND1_5	SND1	meme_xml	human	34086933	-	-		
+SNRNP70_1	SNRNP70	meme_xml	human	34086933	-	-		
+SNRPA_1	SNRPA	meme_xml	human	34086933	-	-		
+SNRPA_2	SNRPA	meme_xml	human	34086933	-	-		
+SNRPA_3	SNRPA	meme_xml	human	34086933	-	-		
+SNRPB2_1	SNRPB2	meme_xml	human	34086933	-	-		
+SOX2_1	SOX2	meme_xml	human	34086933	-	-		
+SRP14_1	SRP14	meme_xml	human	34086933	-	-		
+SRP68_1	SRP68	meme_xml	human	34086933	-	-		
+SRRM4_1	SRRM4	meme_xml	human	34086933	-	-		
+SRRM4_2	SRRM4	meme_xml	human	34086933	-	-		
+SRSF1_1	SRSF1	meme_xml	human	34086933	-	-		
+SRSF1_2	SRSF1	meme_xml	human	34086933	-	-		
+SRSF1_3	SRSF1	meme_xml	human	34086933	-	-		
+SRSF1_4	SRSF1	meme_xml	human	34086933	-	-		
+SRSF1_5	SRSF1	meme_xml	human	34086933	-	-		
+SRSF1_6	SRSF1	meme_xml	human	34086933	-	-		
+SRSF1_7	SRSF1	meme_xml	human	34086933	-	-		
+SRSF1_8	SRSF1	meme_xml	human	34086933	-	-		
+SRSF1_9	SRSF1	meme_xml	human	34086933	-	-		
+SRSF1_10	SRSF1	meme_xml	human	34086933	-	-		
+SRSF1_11	SRSF1	meme_xml	human	34086933	-	-		
+SRSF2_1	SRSF2	meme_xml	human	34086933	-	-		
+SRSF2_2	SRSF2	meme_xml	human	34086933	-	-		
+SRSF2_3	SRSF2	meme_xml	human	34086933	-	-		
+SRSF2_4	SRSF2	meme_xml	human	34086933	-	-		
+SRSF2_5	SRSF2	meme_xml	human	34086933	-	-		
+SRSF2_6	SRSF2	meme_xml	human	34086933	-	-		
+SRSF2_7	SRSF2	meme_xml	human	34086933	-	-		
+SRSF2_8	SRSF2	meme_xml	human	34086933	-	-		
+SRSF3_1	SRSF3	meme_xml	human	34086933	-	-		
+SRSF3_2	SRSF3	meme_xml	human	34086933	-	-		
+SRSF3_3	SRSF3	meme_xml	human	34086933	-	-		
+SRSF3_4	SRSF3	meme_xml	human	34086933	-	-		
+SRSF4_1	SRSF4	meme_xml	human	34086933	-	-		
+SRSF4_2	SRSF4	meme_xml	human	34086933	-	-		
+SRSF5_1	SRSF5	meme_xml	human	34086933	-	-		
+SRSF5_2	SRSF5	meme_xml	human	34086933	-	-		
+SRSF5_3	SRSF5	meme_xml	human	34086933	-	-		
+SRSF5_4	SRSF5	meme_xml	human	34086933	-	-		
+SRSF5_5	SRSF5	meme_xml	human	34086933	-	-		
+SRSF6_1	SRSF6	meme_xml	human	34086933	-	-		
+SRSF6_2	SRSF6	meme_xml	human	34086933	-	-		
+SRSF6_3	SRSF6	meme_xml	human	34086933	-	-		
+SRSF6_4	SRSF6	meme_xml	human	34086933	-	-		
+SRSF7_1	SRSF7	meme_xml	human	34086933	-	-		
+SRSF7_2	SRSF7	meme_xml	human	34086933	-	-		
+SRSF7_3	SRSF7	meme_xml	human	34086933	-	-		
+SRSF7_4	SRSF7	meme_xml	human	34086933	-	-		
+SRSF7_5	SRSF7	meme_xml	human	34086933	-	-		
+SRSF7_6	SRSF7	meme_xml	human	34086933	-	-		
+SRSF7_7	SRSF7	meme_xml	human	34086933	-	-		
+SRSF7_8	SRSF7	meme_xml	human	34086933	-	-		
+SRSF7_9	SRSF7	meme_xml	human	34086933	-	-		
+SRSF7_10	SRSF7	meme_xml	human	34086933	-	-		
+SRSF8_1	SRSF8	meme_xml	human	34086933	-	-		
+SRSF8_2	SRSF8	meme_xml	human	34086933	-	-		
+SRSF9_1	SRSF9	meme_xml	human	34086933	-	-		
+SRSF10_1	SRSF10	meme_xml	human	34086933	-	-		
+SRSF10_2	SRSF10	meme_xml	human	34086933	-	-		
+SRSF10_3	SRSF10	meme_xml	human	34086933	-	-		
+SRSF10_4	SRSF10	meme_xml	human	34086933	-	-		
+SRSF10_5	SRSF10	meme_xml	human	34086933	-	-		
+SRSF11_1	SRSF11	meme_xml	human	34086933	-	-		
+SRSF11_2	SRSF11	meme_xml	human	34086933	-	-		
+SSB_1	SSB	meme_xml	human	34086933	-	-		
+SUB1_1	SUB1	meme_xml	human	34086933	-	-		
+SUB1_2	SUB1	meme_xml	human	34086933	-	-		
+SUGP2_1	SUGP2	meme_xml	human	34086933	-	-		
+SUGP2_2	SUGP2	meme_xml	human	34086933	-	-		
+SUPV3L1_1	SUPV3L1	meme_xml	human	34086933	-	-		
+SUPV3L1_2	SUPV3L1	meme_xml	human	34086933	-	-		
+SYNCRIP_1	SYNCRIP	meme_xml	human	34086933	-	-		
+TAF15_1	TAF15	meme_xml	human	34086933	-	-		
+TAF15_2	TAF15	meme_xml	human	34086933	-	-		
+TAF15_3	TAF15	meme_xml	human	34086933	-	-		
+TAF15_4	TAF15	meme_xml	human	34086933	-	-		
+TAF15_5	TAF15	meme_xml	human	34086933	-	-		
+TARBP2_1	TARBP2	meme_xml	human	34086933	-	-		
+TARBP2_2	TARBP2	meme_xml	human	34086933	-	-		
+TARBP2_3	TARBP2	meme_xml	human	34086933	-	-		
+TARDBP_1	TARDBP	meme_xml	human	34086933	-	-		
+TARDBP_2	TARDBP	meme_xml	human	34086933	-	-		
+TARDBP_3	TARDBP	meme_xml	human	34086933	-	-		
+TBRG4_1	TBRG4	meme_xml	human	34086933	-	-		
+TBRG4_2	TBRG4	meme_xml	human	34086933	-	-		
+TIA1_1	TIA1	meme_xml	human	34086933	-	-		
+TIAL1_1	TIAL1	meme_xml	human	34086933	-	-		
+TIAL1_2	TIAL1	meme_xml	human	34086933	-	-		
+TNRC6A_1	TNRC6A	meme_xml	human	34086933	-	-		
+TNRC6A_2	TNRC6A	meme_xml	human	34086933	-	-		
+TRA2A_1	TRA2A	meme_xml	human	34086933	-	-		
+TRA2A_2	TRA2A	meme_xml	human	34086933	-	-		
+TRA2A_3	TRA2A	meme_xml	human	34086933	-	-		
+TRA2A_4	TRA2A	meme_xml	human	34086933	-	-		
+TRA2A_5	TRA2A	meme_xml	human	34086933	-	-		
+TRA2B_1	TRA2B	meme_xml	human	34086933	-	-		
+TRA2B_2	TRA2B	meme_xml	human	34086933	-	-		
+TRNAU1AP_1	TRNAU1AP	meme_xml	human	34086933	-	-		
+TRNAU1AP_2	TRNAU1AP	meme_xml	human	34086933	-	-		
+TUT1_1	TUT1	meme_xml	human	34086933	-	-		
+U2AF1_1	U2AF1	meme_xml	human	34086933	-	-		
+U2AF1_2	U2AF1	meme_xml	human	34086933	-	-		
+U2AF1_3	U2AF1	meme_xml	human	34086933	-	-		
+U2AF1_4	U2AF1	meme_xml	human	34086933	-	-		
+U2AF2_1	U2AF2	meme_xml	human	34086933	-	-		
+U2AF2_2	U2AF2	meme_xml	human	34086933	-	-		
+U2AF2_3	U2AF2	meme_xml	human	34086933	-	-		
+UCHL5_1	UCHL5	meme_xml	human	34086933	-	-		
+UCHL5_2	UCHL5	meme_xml	human	34086933	-	-		
+UCHL5_3	UCHL5	meme_xml	human	34086933	-	-		
+UNK_1	UNK	meme_xml	human	34086933	-	-		
+UNK_2	UNK	meme_xml	human	34086933	-	-		
+UNK_3	UNK	meme_xml	human	34086933	-	-		
+UPF1_1	UPF1	meme_xml	human	34086933	-	-		
+WDR33_1	WDR33	meme_xml	human	34086933	-	-		
+XPO5_1	XPO5	meme_xml	human	34086933	-	-		
+XPO5_2	XPO5	meme_xml	human	34086933	-	-		
+XPO5_3	XPO5	meme_xml	human	34086933	-	-		
+XRCC6_1	XRCC6	meme_xml	human	34086933	-	-		
+XRCC6_2	XRCC6	meme_xml	human	34086933	-	-		
+XRCC6_3	XRCC6	meme_xml	human	34086933	-	-		
+XRCC6_4	XRCC6	meme_xml	human	34086933	-	-		
+XRN2_1	XRN2	meme_xml	human	34086933	-	-		
+XRN2_2	XRN2	meme_xml	human	34086933	-	-		
+XRN2_3	XRN2	meme_xml	human	34086933	-	-		
+YBX1_1	YBX1	meme_xml	human	34086933	-	-		
+YBX1_2	YBX1	meme_xml	human	34086933	-	-		
+YBX1_3	YBX1	meme_xml	human	34086933	-	-		
+YBX2_1	YBX2	meme_xml	human	34086933	-	-		
+YBX3_1	YBX3	meme_xml	human	34086933	-	-		
+YTHDC1_1	YTHDC1	meme_xml	human	34086933	-	-		
+YWHAG_1	YWHAG	meme_xml	human	34086933	-	-		
+ZC3H10_1	ZC3H10	meme_xml	human	34086933	-	-		
+ZCRB1_1	ZCRB1	meme_xml	human	34086933	-	-		
+ZFP36_1	ZFP36	meme_xml	human	34086933	-	-		
+ZFP36_2	ZFP36	meme_xml	human	34086933	-	-		
+ZFP36L2_1	ZFP36L2	meme_xml	human	34086933	-	-		
+ZFP36L2_2	ZFP36L2	meme_xml	human	34086933	-	-		
+ZNF184_1	ZNF184	meme_xml	human	34086933	-	-		
+ZNF326_1	ZNF326	meme_xml	human	34086933	-	-		
+ZNF326_2	ZNF326	meme_xml	human	34086933	-	-		
+ZNF326_3	ZNF326	meme_xml	human	34086933	-	-		
+ZNF622_1	ZNF622	meme_xml	human	34086933	-	-		
+ZNF622_2	ZNF622	meme_xml	human	34086933	-	-		
+ZNF622_3	ZNF622	meme_xml	human	34086933	-	-		
+ZNF638_1	ZNF638	meme_xml	human	34086933	-	-		
+ZRANB2_1	ZRANB2	meme_xml	human	34086933	-	-		
+ZRANB2_2	ZRANB2	meme_xml	human	34086933	-	-		
+ZRANB2_3	ZRANB2	meme_xml	human	34086933	-	-		
+ZRANB2_4	ZRANB2	meme_xml	human	34086933	-	-		
+RF00032	SLBP	cm	human	34086933	-	-		
+RPL5_RNCMPT01219	RPL5	meme_xml	human	37002329	RNAcompete	-		
+RPL11_RNCMPT01084	RPL11	meme_xml	human	37002329	RNAcompete	-		
+RPL22_RNCMPT01297	RPL22	meme_xml	human	37002329	RNAcompete	-		
+RPL30_RNCMPT01114	RPL30	meme_xml	human	37002329	RNAcompete	-		
+RPS12_RNCMPT01363	RPS12	meme_xml	human	37002329	RNAcompete	-		
+NHP2L1_RNCMPT01071	NHP2L1	meme_xml	human	37002329	RNAcompete	-		
+RPS2_RNCMPT01740	RPS2	meme_xml	human	37002329	RNAcompete	-		
+RPS15A_RNCMPT01411	RPS15A	meme_xml	human	37002329	RNAcompete	-		
+RPP25_RNCMPT01299	RPP25	meme_xml	human	37002329	RNAcompete	-		
+PEG10_RNCMPT01313	PEG10	meme_xml	human	37002329	RNAcompete	-		
+GAR1_RNCMPT01267	GAR1	meme_xml	human	37002329	RNAcompete	-		
+SERBP1_RNCMPT00625	SERBP1	meme_xml	human	37002329	RNAcompete	-		
+LSM6_RNCMPT01140	LSM6	meme_xml	human	37002329	RNAcompete	-		
+NUDT21_RNCMPT01322	NUDT21	meme_xml	human	37002329	RNAcompete	-		
+IFIT2_RNCMPT00592	IFIT2	meme_xml	human	37002329	RNAcompete	-		
+CNBP_RNCMPT01327	CNBP	meme_xml	human	37002329	RNAcompete	-		
+ZRANB2_RNCMPT01357	ZRANB2	meme_xml	human	37002329	RNAcompete	-		
+PRPF31_RNCMPT01394	PRPF31	meme_xml	human	37002329	RNAcompete	-		
+NUDT16L1_RNCMPT01334	NUDT16L1	meme_xml	human	37002329	RNAcompete	-		
+PURA_RNCMPT01439	PURA	meme_xml	human	37002329	RNAcompete	-		
+SSBP1_RNCMPT01403	SSBP1	meme_xml	human	37002329	RNAcompete	-		
+HARS2_RNCMPT01854	HARS2	meme_xml	human	37002329	RNAcompete	-		
+ILF2_RNCMPT00297	ILF2	meme_xml	human	37002329	RNAcompete	-		
