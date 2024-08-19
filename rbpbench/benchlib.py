@@ -3982,6 +3982,34 @@ def output_string_to_file(out_str, out_file):
 
 ################################################################################
 
+def get_fid2desc_mapping(fid2desc_file):
+    """
+    Get RBP molecular function to description mapping.
+    
+    """
+
+    assert os.path.exists(fid2desc_file), "file %s does not exist" %(fid2desc_file)
+
+    # Get function ID to function description mapping.
+    fid2desc_dic = {}
+    desc2fid_dic = {}
+
+    with open(fid2desc_file) as f:
+        for line in f:
+            if line.startswith('Function ID'):
+                continue
+            cols = line.strip().split("\t")
+            fid = cols[0]
+            disc = cols[1]
+            fid2desc_dic[fid] = disc
+            desc2fid_dic[disc] = fid
+    f.closed
+
+    return fid2desc_dic, desc2fid_dic
+
+
+################################################################################
+
 def get_rbp_id_mappings(rbp2ids_file):
     """
     Read in file mapping RBP names to motif IDs and motif types.
@@ -3991,7 +4019,7 @@ def get_rbp_id_mappings(rbp2ids_file):
 
     FILE FORMAT:
 
-    RBP_motif_id	RBP_name	Motif_type	Organism
+    RBP_motif_ID	RBP_name	Motif_type	Organism
     AGGF1_1	AGGF1	meme_xml	human
     AGGF1_2	AGGF1	meme_xml	human
     AKAP1_1	AKAP1	meme_xml	human
@@ -4003,23 +4031,42 @@ def get_rbp_id_mappings(rbp2ids_file):
     RBPBench v0.3:
     Currently ignore Organism column / do not use this information.
 
+    RBPBench v1.0 updated:
+    RBP_motif_ID	RBP_name	Motif_type	Organism	Gene_ID	Function_IDs	Reference	Experiment	Comments
+    A1CF_1	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	34086933	-	-
+    A1CF_2	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	34086933	-	-
+    ACIN1_1	ACIN1	meme_xml	human	-	-	34086933	-	-
+    
     """
     name2ids_dic = {}
+    name2gid_dic = {}
     id2type_dic = {}
+    name2fids_dic = {}
     # id2org_dic = {}
 
     with open(rbp2ids_file) as f:
         for line in f:
-            if re.search("^RBP_motif_id", line) or re.search("^#", line):
+            if re.search("^RBP_motif_ID", line) or re.search("^#", line):
                 continue
             cols = line.strip().split("\t")
             motif_id = cols[0]
             rbp_name = cols[1]
             motif_type = cols[2]
-            # organism = cols[3]            
+            organism = cols[3]            
             # if organism != "human":
             #     rbp_name = rbp_name + "_" + organism
             # id2org_dic[motif_id] = organism
+            gene_id = cols[4]
+            function_ids = cols[5]
+
+            fids_list = []
+            if function_ids != "-":
+                fids_list = function_ids.split(";")
+    
+            fids_list.sort()
+
+            name2gid_dic[rbp_name] = gene_id
+            name2fids_dic[rbp_name] = fids_list
 
             id2type_dic[motif_id] = motif_type
             if rbp_name in name2ids_dic:
@@ -4030,7 +4077,7 @@ def get_rbp_id_mappings(rbp2ids_file):
 
     assert name2ids_dic, "no RBP IDs read in from %s" %(rbp2ids_file)
 
-    return name2ids_dic, id2type_dic  #, id2org_dic
+    return name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic
 
 
 ################################################################################
@@ -6667,7 +6714,7 @@ def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll,
         hovertemplate='<b>%{hovertext}</b><br>Annotation percentages: %{customdata[1]}<extra></extra>'
     )
 
-    fig.update_traces(marker=dict(size=8))
+    fig.update_traces(marker=dict(size=8, line=dict(width=0.5, color='white')))
     # fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
     fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
 
@@ -6748,8 +6795,13 @@ def create_pca_motif_sim_sig_plot_plotly(motif_ids_list, motif_sim_ll,
         hovertemplate='motif: <b>%{hovertext}</b><br>Consensus: %{customdata[0]}<br>Counts: %{customdata[1]}<br>p-value: %{customdata[2]}<br>-log10(p-value): %{customdata[3]}<extra></extra>'
     )
 
-    fig.update_traces(marker=dict(size=11))
-    fig.update_layout(coloraxis_colorbar_title='')
+    fig.update_traces(marker=dict(size=12, line=dict(width=0.75, color='white')))
+    fig.update_layout(coloraxis_colorbar_title=''
+                      # plot_bgcolor='white',
+                      # paper_bgcolor='white',
+                      # xaxis=dict(showgrid=False, zeroline=False, gridcolor='lightgray', zerolinecolor='lightgray'),
+                      # yaxis=dict(showgrid=False, zeroline=False, gridcolor='lightgray', zerolinecolor='lightgray')
+                      )
     fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
     # fig.update_scenes(aspectmode='cube')
     # fig.update_traces(marker=dict(size=3))
@@ -6841,8 +6893,17 @@ def create_pca_motif_sim_dir_plot_plotly(motif_ids_list, motif_sim_ll,
         hovertemplate='motif: <b>%{hovertext}</b><br>Consensus: %{customdata[0]}<br>Counts: %{customdata[1]}<br>p-value: %{customdata[2]}<br>WRS p-value (upstream): %{customdata[3]}<br>WRS p-value (downstream): %{customdata[4]}<br>-log10(WRS p-value): %{customdata[5]}<extra></extra>'
     )
 
-    fig.update_traces(marker=dict(size=11))
-    fig.update_layout(coloraxis_colorbar_title='')
+    # fig.update_traces(marker=dict(size=11))
+    # fig.update_layout(coloraxis_colorbar_title='')
+
+    fig.update_traces(marker=dict(size=12, line=dict(width=0.75, color='white')))
+    fig.update_layout(coloraxis_colorbar_title=''
+                      # plot_bgcolor='white',
+                      # paper_bgcolor='white',
+                      # xaxis=dict(showgrid=False, zeroline=False, gridcolor='lightgray', zerolinecolor='lightgray'),
+                      # yaxis=dict(showgrid=False, zeroline=False, gridcolor='lightgray', zerolinecolor='lightgray')
+                      )
+
     fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
 
 
@@ -6902,6 +6963,9 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
         # print("combined_id:", combined_id)
         # print(id2occ_list_dic[internal_id])
 
+
+    color_scale = ['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+
     if sparse_pca:
 
         from sklearn.decomposition import SparsePCA
@@ -6947,6 +7011,7 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
                 'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
             },
             hover_name='Dataset ID',
+            color_continuous_scale=color_scale,
             hover_data=['# occupied genes', '% occupied genes']
         )
 
@@ -6954,8 +7019,10 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
         hovertemplate='<b>%{hovertext}</b><br>Occupied genes (#): %{customdata[0]}<br>Occupied genes (%): %{customdata[1]}<extra></extra>'
     )
 
+
     fig.update_scenes(aspectmode='cube')
-    fig.update_traces(marker=dict(size=3))
+
+    fig.update_traces(marker=dict(size=3, line=dict(width=0.5, color='white')))
     fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
     fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
 
@@ -7203,7 +7270,16 @@ def create_gene_occ_cooc_plot_plotly(df_gene_occ, gene_cooc_lll, plot_out,
 
     """
 
-    plot = px.imshow(df_gene_occ)
+    min_val = 0.01
+    max_val = 1
+    blues_colors = px.colors.sequential.Blues
+    blues_colors_hex = [rgb_to_hex(color) for color in blues_colors]
+    color_scale = create_color_scale(min_val, max_val, blues_colors_hex)
+    color_scale.insert(0, [0, "white"])
+    zmin = min(0, df_gene_occ.min().min())
+    zmax = max(1, df_gene_occ.max().max())
+
+    plot = px.imshow(df_gene_occ, color_continuous_scale=color_scale, zmin=zmin, zmax=zmax)
 
     plot.update(data=[{'customdata': gene_cooc_lll,
                        'hovertemplate': '1) Set1: %{customdata[1]}<br>2) Set2: %{customdata[2]}<br>3) cosine similarity: %{customdata[0]}<br>4) Counts: %{customdata[3]}<extra></extra>'}])
@@ -7485,6 +7561,7 @@ def batch_generate_html_report(args,
     assert kmer_freqs_ll, "no k-mer frequencies found for report creation"
 
     # Use absolute paths?
+    out_folder = args.out_folder
     if args.plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
 
@@ -11435,14 +11512,15 @@ No plot generated since set --upset-plot-min-rbp-count results in no RBPs remain
     """
 
     # If --set-rbp-id and no motif hits, disable set_rbp_id again.
-    if set_rbp_id is not None and no_region_hits:
+    set_rbp_id = args.set_rbp_id
+    if args.set_rbp_id is not None and no_region_hits:
         mdtext += """
 ## Set RBP %s motifs distance statistics ### {#rbp-motif-dist-stats}
 
 No motif distance statistics and plots generated since no motif hits found in input regions.
 
 
-""" %(set_rbp_id)
+""" %(args.set_rbp_id)
         
         set_rbp_id = None
 

@@ -161,6 +161,13 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
+    p_s.add_argument("--functions",
+                   dest="rbp_functions",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   required=True,
+                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions)")
     p_s.add_argument("--regex",
                    dest="regex",
                    type=str,
@@ -931,6 +938,13 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
+    p_ss.add_argument("--functions",
+                   dest="rbp_functions",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   required=True,
+                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions)")
     p_ss.add_argument("--fimo-ntf-file",
                    dest="fimo_user_ntf_file",
                    type=str,
@@ -1163,6 +1177,13 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
+    p_sl.add_argument("--functions",
+                   dest="rbp_functions",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   required=True,
+                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions)")
     p_sl.add_argument("--regex",
                    dest="regex",
                    type=str,
@@ -1416,6 +1437,13 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
+    p_scr.add_argument("--functions",
+                   dest="rbp_functions",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   required=True,
+                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions)")
     p_scr.add_argument("--regex",
                    dest="regex",
                    type=str,
@@ -1748,6 +1776,13 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
+    p_smr.add_argument("--functions",
+                   dest="rbp_functions",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   required=True,
+                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions)")
     p_smr.add_argument("--regex",
                    dest="regex",
                    type=str,
@@ -2014,6 +2049,13 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
+    p_em.add_argument("--functions",
+                   dest="rbp_functions",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   required=True,
+                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions)")
     p_em.add_argument("--regex",
                    dest="regex",
                    type=str,
@@ -2342,6 +2384,13 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
+    p_nm.add_argument("--functions",
+                   dest="rbp_functions",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   required=True,
+                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions)")
     p_nm.add_argument("--regex",
                    dest="regex",
                    type=str,
@@ -3206,7 +3255,7 @@ def main_search(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -3495,6 +3544,72 @@ def main_search(args):
     if args.set_rbp_id is not None:
         assert args.set_rbp_id in loaded_rbps_dic, "given --set-rbp-id \"%s\" is not part of loaded RBP IDs. Please provide --set-rbp-id that is part of loaded RBPs (user-defined or database RBP ID)" %(args.set_rbp_id)
 
+    """
+    Get function ID -> function descriptions mapping.
+
+    """
+    fid2desc_file = db_path + "/rbp_function_list.32728246.tsv"
+    fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
+    
+    """
+    If --functions set, filter loaded_rbps_dic.
+    
+    AALAMO:
+    keep regex 
+
+    """
+    rbp_fids_dic = {}
+    if args.rbp_functions:
+
+        print("Filtering loaded RBPs by provided function IDs ... ")
+
+        for fid in args.rbp_functions:
+            rbp_fids_dic[fid] = 1
+
+        # Check if provided function IDs are valid.
+        for fid in rbp_fids_dic:
+            assert fid in fid2desc_dic, "function ID \"%s\" provided via --functions not found in internal function ID -> description mapping. Please provide valid function IDs (see rbpbench info for a detailed description)" %(fid)
+
+        # Filter loaded_rbps_dic.
+        filtered_rbps_dic = {}
+        for rbp_id in loaded_rbps_dic:
+            if rbp_id == regex_id:  # keep regex if set.
+                filtered_rbps_dic[regex_id] = regex_id
+                continue
+            if rbp_id not in name2fids_dic:
+                continue
+            for fid in rbp_fids_dic:
+                if fid in name2fids_dic[rbp_id]:
+                    filtered_rbps_dic[rbp_id] = motif_db_str
+                    break
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
+
+        c_loaded_rbps_pre = len(loaded_rbps_dic)
+        c_loaded_rbps_post = len(filtered_rbps_dic)
+        loaded_rbps_dic = filtered_rbps_dic
+
+        print("# RBPs pre-filtering by functions: ", c_loaded_rbps_pre)
+        print("# RBPs post-filtering by functions:", c_loaded_rbps_post)
+
+        # Filter loaded motif IDs.
+        filtered_motif_ids_dic = {}
+        for rbp_id in loaded_rbps_dic:
+            if rbp_id == regex_id:
+                if args.motif_regex_id:
+                    filtered_motif_ids_dic[regex_id] = regex_id
+                else:
+                    filtered_motif_ids_dic[regex] = regex_id
+            else:
+                for motif_id in name2ids_dic[rbp_id]:
+                    filtered_motif_ids_dic[motif_id] = motif_db_str
+        
+        c_loaded_motif_ids_pre = len(loaded_motif_ids_dic)
+        c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
+        loaded_motif_ids_dic = filtered_motif_ids_dic
+
+        print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
+        print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
 
     """
     Load RBP data, store in RBP() class.
@@ -5605,7 +5720,7 @@ def main_batch(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -7567,7 +7682,7 @@ def main_searchseq(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -8621,7 +8736,7 @@ def main_searchlong(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -9970,7 +10085,7 @@ def main_searchrna(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -11897,7 +12012,7 @@ def main_searchlongrna(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -13556,7 +13671,7 @@ def main_enmo(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -15774,7 +15889,7 @@ def main_nemo(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -18634,7 +18749,7 @@ def main_optex(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbpid in name2ids_dic:
@@ -19164,7 +19279,7 @@ def main_info(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     c_motif_ids = 0
@@ -19173,15 +19288,45 @@ def main_info(args):
             c_motif_ids += 1
             id2name_dic[motif_id] = rbp_id
 
+    """
+    Get function ID -> function descriptions mapping.
+
+    """
+    fid2desc_file = db_path + "/rbp_function_list.32728246.tsv"
+    fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
+    
     print("")
     print("Motif database: %s" %(motif_db_str))
     print("# RBP IDs:      %i" %(len(name2ids_dic)))
     print("# motif IDs:    %i" %(c_motif_ids))
     print("")
-    print("rbp_id\t#_motifs")
-    for rbp_id in name2ids_dic:
+
+    print("###########################################")
+    print("  RBP FUNCTION ID -> FUNCTION DESCRIPTION")
+    print("###########################################")
+    print("")
+    print("{:<10} {:>40}".format("Function ID", "Function description"))
+    for fid in sorted(fid2desc_dic):
+        print("{:<10} {:>40}".format(fid, fid2desc_dic[fid]))
+    print("")
+    print("")
+    print("###########################################")
+    print("  RBP ID -> # MOTIF IDS -> RBP FUNCTIONS")
+    print("###########################################")
+    print("")
+
+    # print("rbp_id\t#_motifs")
+    # for rbp_id in name2ids_dic:
+    #     c_rbp_motifs = len(name2ids_dic[rbp_id])
+    #     print("%s\t%i" %(rbp_id, c_rbp_motifs))
+    # print("")
+    print("{:<10} {:>10} {:>30}".format("RBP ID", "# Motifs", "Function ID"))
+    for rbp_id in sorted(name2ids_dic):
+        fids = "-"
+        if name2fids_dic[rbp_id]:
+            fids = ",".join(name2fids_dic[rbp_id]) 
         c_rbp_motifs = len(name2ids_dic[rbp_id])
-        print("%s\t%i" %(rbp_id, c_rbp_motifs))
+        print("{:<10} {:>10} {:>30}".format(rbp_id, c_rbp_motifs, fids))
     print("")
 
 
