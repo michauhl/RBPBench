@@ -10922,7 +10922,7 @@ def search_generate_html_report(args,
     no_region_hits = True
     for rbp_id in rbp2regidx_dic:
         if rbp2regidx_dic[rbp_id]:
-            no_region_hits = False 
+            no_region_hits = False
             break
 
     site_type_uc = "Genomic"
@@ -10932,7 +10932,7 @@ def search_generate_html_report(args,
         site_type = "transcript"
 
     regex_motif_info = ""
-    if args.regex_id:
+    if args.regex:
         regex_motif_info = "Used regex motif: '%s'." %(name2ids_dic[args.regex_id][0])
 
     report_header_info = "Search report"

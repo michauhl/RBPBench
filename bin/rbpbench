@@ -167,7 +167,7 @@ def setup_argument_parser():
                    metavar='str',
                    nargs='+',
                    required=True,
-                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions)")
+                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions). NOTE that --regex is not affected by filtering")
     p_s.add_argument("--regex",
                    dest="regex",
                    type=str,
@@ -944,7 +944,7 @@ def setup_argument_parser():
                    metavar='str',
                    nargs='+',
                    required=True,
-                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions)")
+                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions). NOTE that --regex is not affected by filtering")
     p_ss.add_argument("--fimo-ntf-file",
                    dest="fimo_user_ntf_file",
                    type=str,
@@ -1183,7 +1183,7 @@ def setup_argument_parser():
                    metavar='str',
                    nargs='+',
                    required=True,
-                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions)")
+                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions). NOTE that --regex is not affected by filtering")
     p_sl.add_argument("--regex",
                    dest="regex",
                    type=str,
@@ -1443,7 +1443,7 @@ def setup_argument_parser():
                    metavar='str',
                    nargs='+',
                    required=True,
-                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions)")
+                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions). NOTE that --regex is not affected by filtering")
     p_scr.add_argument("--regex",
                    dest="regex",
                    type=str,
@@ -1782,7 +1782,7 @@ def setup_argument_parser():
                    metavar='str',
                    nargs='+',
                    required=True,
-                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions)")
+                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions). NOTE that --regex is not affected by filtering")
     p_smr.add_argument("--regex",
                    dest="regex",
                    type=str,
@@ -2055,7 +2055,7 @@ def setup_argument_parser():
                    metavar='str',
                    nargs='+',
                    required=True,
-                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions)")
+                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions). NOTE that --regex is not affected by filtering")
     p_em.add_argument("--regex",
                    dest="regex",
                    type=str,
@@ -2390,7 +2390,7 @@ def setup_argument_parser():
                    metavar='str',
                    nargs='+',
                    required=True,
-                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions)")
+                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions). NOTE that --regex is not affected by filtering")
     p_nm.add_argument("--regex",
                    dest="regex",
                    type=str,
@@ -3553,9 +3553,6 @@ def main_search(args):
     
     """
     If --functions set, filter loaded_rbps_dic.
-    
-    AALAMO:
-    keep regex 
 
     """
     rbp_fids_dic = {}
@@ -3602,7 +3599,8 @@ def main_search(args):
                     filtered_motif_ids_dic[regex] = regex_id
             else:
                 for motif_id in name2ids_dic[rbp_id]:
-                    filtered_motif_ids_dic[motif_id] = motif_db_str
+                    set_db_str = loaded_motif_ids_dic[motif_id]
+                    filtered_motif_ids_dic[motif_id] = set_db_str
         
         c_loaded_motif_ids_pre = len(loaded_motif_ids_dic)
         c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
@@ -7790,7 +7788,7 @@ def main_searchseq(args):
         assert not args.user_cm, "--user-cm provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
         assert not args.user_rbp_id, "--user-rbp-id set but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
 
-    special_rbp_ids_list = ["USER", "REGEX"]
+    special_rbp_ids_list = ["USER"]
 
     # If ALL set, load all RBPs (+ optinally USER).
     if "ALL" in rbp_in_dic:
@@ -7888,6 +7886,65 @@ def main_searchseq(args):
                 name2ids_dic[user_rbp_id].append(acc_id)
                 id2type_dic[acc_id] = "cm"
                 id2name_dic[acc_id] = user_rbp_id
+
+
+
+    """
+    Get function ID -> function descriptions mapping.
+
+    """
+    fid2desc_file = db_path + "/rbp_function_list.32728246.tsv"
+    fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
+    
+    """
+    If --functions set, filter loaded_rbps_dic.
+
+    """
+    rbp_fids_dic = {}
+    if args.rbp_functions:
+
+        print("Filtering loaded RBPs by provided function IDs ... ")
+
+        for fid in args.rbp_functions:
+            rbp_fids_dic[fid] = 1
+
+        # Check if provided function IDs are valid.
+        for fid in rbp_fids_dic:
+            assert fid in fid2desc_dic, "function ID \"%s\" provided via --functions not found in internal function ID -> description mapping. Please provide valid function IDs (see rbpbench info for a detailed description)" %(fid)
+
+        # Filter loaded_rbps_dic.
+        filtered_rbps_dic = {}
+        for rbp_id in loaded_rbps_dic:
+            if rbp_id not in name2fids_dic:
+                continue
+            for fid in rbp_fids_dic:
+                if fid in name2fids_dic[rbp_id]:
+                    filtered_rbps_dic[rbp_id] = motif_db_str
+                    break
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
+
+        c_loaded_rbps_pre = len(loaded_rbps_dic)
+        c_loaded_rbps_post = len(filtered_rbps_dic)
+        loaded_rbps_dic = filtered_rbps_dic
+
+        print("# RBPs pre-filtering by functions: ", c_loaded_rbps_pre)
+        print("# RBPs post-filtering by functions:", c_loaded_rbps_post)
+
+        # Filter loaded motif IDs.
+        filtered_motif_ids_dic = {}
+        for rbp_id in loaded_rbps_dic:
+            for motif_id in name2ids_dic[rbp_id]:
+                set_db_str = loaded_motif_ids_dic[motif_id]
+                filtered_motif_ids_dic[motif_id] = set_db_str
+        
+        c_loaded_motif_ids_pre = len(loaded_motif_ids_dic)
+        c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
+        loaded_motif_ids_dic = filtered_motif_ids_dic
+
+        print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
+        print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
+
 
     """
     Check if loaded RBP IDs have motifs.
@@ -8993,6 +9050,75 @@ def main_searchlong(args):
             name2ids_dic[regex_id] = [regex]  # rbp_id -> motif_ids
 
         loaded_rbps_dic[regex_id] = regex_id  # rbp_id -> motif_db_str
+
+    else:
+        regex_id = False
+
+
+    """
+    Get function ID -> function descriptions mapping.
+
+    """
+    fid2desc_file = db_path + "/rbp_function_list.32728246.tsv"
+    fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
+    
+    """
+    If --functions set, filter loaded_rbps_dic.
+
+    """
+    rbp_fids_dic = {}
+    if args.rbp_functions:
+
+        print("Filtering loaded RBPs by provided function IDs ... ")
+
+        for fid in args.rbp_functions:
+            rbp_fids_dic[fid] = 1
+
+        # Check if provided function IDs are valid.
+        for fid in rbp_fids_dic:
+            assert fid in fid2desc_dic, "function ID \"%s\" provided via --functions not found in internal function ID -> description mapping. Please provide valid function IDs (see rbpbench info for a detailed description)" %(fid)
+
+        # Filter loaded_rbps_dic.
+        filtered_rbps_dic = {}
+        for rbp_id in loaded_rbps_dic:
+            if rbp_id == regex_id:  # keep regex if set.
+                filtered_rbps_dic[regex_id] = regex_id
+                continue
+            if rbp_id not in name2fids_dic:
+                continue
+            for fid in rbp_fids_dic:
+                if fid in name2fids_dic[rbp_id]:
+                    filtered_rbps_dic[rbp_id] = motif_db_str
+                    break
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
+
+        c_loaded_rbps_pre = len(loaded_rbps_dic)
+        c_loaded_rbps_post = len(filtered_rbps_dic)
+        loaded_rbps_dic = filtered_rbps_dic
+
+        print("# RBPs pre-filtering by functions: ", c_loaded_rbps_pre)
+        print("# RBPs post-filtering by functions:", c_loaded_rbps_post)
+
+        # Filter loaded motif IDs.
+        filtered_motif_ids_dic = {}
+        for rbp_id in loaded_rbps_dic:
+            if rbp_id == regex_id:
+                if args.motif_regex_id:
+                    filtered_motif_ids_dic[regex_id] = regex_id
+                else:
+                    filtered_motif_ids_dic[regex] = regex_id
+            else:
+                for motif_id in name2ids_dic[rbp_id]:
+                    set_db_str = loaded_motif_ids_dic[motif_id]
+                    filtered_motif_ids_dic[motif_id] = set_db_str
+        
+        c_loaded_motif_ids_pre = len(loaded_motif_ids_dic)
+        c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
+        loaded_motif_ids_dic = filtered_motif_ids_dic
+
+        print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
+        print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
 
 
     """
@@ -10374,6 +10500,75 @@ def main_searchrna(args):
 
     if args.set_rbp_id is not None:
         assert args.set_rbp_id in loaded_rbps_dic, "given --set-rbp-id \"%s\" is not part of loaded RBP IDs. Please provide --set-rbp-id that is part of loaded RBPs (user-defined or database RBP ID)" %(args.set_rbp_id)
+
+
+
+    """
+    Get function ID -> function descriptions mapping.
+
+    """
+    fid2desc_file = db_path + "/rbp_function_list.32728246.tsv"
+    fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
+    
+    """
+    If --functions set, filter loaded_rbps_dic.
+
+    """
+    rbp_fids_dic = {}
+    if args.rbp_functions:
+
+        print("Filtering loaded RBPs by provided function IDs ... ")
+
+        for fid in args.rbp_functions:
+            rbp_fids_dic[fid] = 1
+
+        # Check if provided function IDs are valid.
+        for fid in rbp_fids_dic:
+            assert fid in fid2desc_dic, "function ID \"%s\" provided via --functions not found in internal function ID -> description mapping. Please provide valid function IDs (see rbpbench info for a detailed description)" %(fid)
+
+        # Filter loaded_rbps_dic.
+        filtered_rbps_dic = {}
+        for rbp_id in loaded_rbps_dic:
+            if rbp_id == regex_id:  # keep regex if set.
+                filtered_rbps_dic[regex_id] = regex_id
+                continue
+            if rbp_id not in name2fids_dic:
+                continue
+            for fid in rbp_fids_dic:
+                if fid in name2fids_dic[rbp_id]:
+                    filtered_rbps_dic[rbp_id] = motif_db_str
+                    break
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
+
+        c_loaded_rbps_pre = len(loaded_rbps_dic)
+        c_loaded_rbps_post = len(filtered_rbps_dic)
+        loaded_rbps_dic = filtered_rbps_dic
+
+        print("# RBPs pre-filtering by functions: ", c_loaded_rbps_pre)
+        print("# RBPs post-filtering by functions:", c_loaded_rbps_post)
+
+        # Filter loaded motif IDs.
+        filtered_motif_ids_dic = {}
+        for rbp_id in loaded_rbps_dic:
+            if rbp_id == regex_id:
+                if args.motif_regex_id:
+                    filtered_motif_ids_dic[regex_id] = regex_id
+                else:
+                    filtered_motif_ids_dic[regex] = regex_id
+            else:
+                for motif_id in name2ids_dic[rbp_id]:
+                    set_db_str = loaded_motif_ids_dic[motif_id]
+                    filtered_motif_ids_dic[motif_id] = set_db_str
+        
+        c_loaded_motif_ids_pre = len(loaded_motif_ids_dic)
+        c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
+        loaded_motif_ids_dic = filtered_motif_ids_dic
+
+        print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
+        print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
+
+
 
 
     """
@@ -12275,6 +12470,73 @@ def main_searchlongrna(args):
     else:
         regex_id = False
 
+
+    """
+    Get function ID -> function descriptions mapping.
+
+    """
+    fid2desc_file = db_path + "/rbp_function_list.32728246.tsv"
+    fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
+    
+    """
+    If --functions set, filter loaded_rbps_dic.
+
+    """
+    rbp_fids_dic = {}
+    if args.rbp_functions:
+
+        print("Filtering loaded RBPs by provided function IDs ... ")
+
+        for fid in args.rbp_functions:
+            rbp_fids_dic[fid] = 1
+
+        # Check if provided function IDs are valid.
+        for fid in rbp_fids_dic:
+            assert fid in fid2desc_dic, "function ID \"%s\" provided via --functions not found in internal function ID -> description mapping. Please provide valid function IDs (see rbpbench info for a detailed description)" %(fid)
+
+        # Filter loaded_rbps_dic.
+        filtered_rbps_dic = {}
+        for rbp_id in loaded_rbps_dic:
+            if rbp_id == regex_id:  # keep regex if set.
+                filtered_rbps_dic[regex_id] = regex_id
+                continue
+            if rbp_id not in name2fids_dic:
+                continue
+            for fid in rbp_fids_dic:
+                if fid in name2fids_dic[rbp_id]:
+                    filtered_rbps_dic[rbp_id] = motif_db_str
+                    break
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
+
+        c_loaded_rbps_pre = len(loaded_rbps_dic)
+        c_loaded_rbps_post = len(filtered_rbps_dic)
+        loaded_rbps_dic = filtered_rbps_dic
+
+        print("# RBPs pre-filtering by functions: ", c_loaded_rbps_pre)
+        print("# RBPs post-filtering by functions:", c_loaded_rbps_post)
+
+        # Filter loaded motif IDs.
+        filtered_motif_ids_dic = {}
+        for rbp_id in loaded_rbps_dic:
+            if rbp_id == regex_id:
+                if args.motif_regex_id:
+                    filtered_motif_ids_dic[regex_id] = regex_id
+                else:
+                    filtered_motif_ids_dic[regex] = regex_id
+            else:
+                for motif_id in name2ids_dic[rbp_id]:
+                    set_db_str = loaded_motif_ids_dic[motif_id]
+                    filtered_motif_ids_dic[motif_id] = set_db_str
+        
+        c_loaded_motif_ids_pre = len(loaded_motif_ids_dic)
+        c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
+        loaded_motif_ids_dic = filtered_motif_ids_dic
+
+        print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
+        print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
+
+
     """
     Load RBP data, store in RBP() class.
 
@@ -13940,6 +14202,72 @@ def main_enmo(args):
         """
     else:
         regex_id = False
+
+
+    """
+    Get function ID -> function descriptions mapping.
+
+    """
+    fid2desc_file = db_path + "/rbp_function_list.32728246.tsv"
+    fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
+    
+    """
+    If --functions set, filter loaded_rbps_dic.
+
+    """
+    rbp_fids_dic = {}
+    if args.rbp_functions:
+
+        print("Filtering loaded RBPs by provided function IDs ... ")
+
+        for fid in args.rbp_functions:
+            rbp_fids_dic[fid] = 1
+
+        # Check if provided function IDs are valid.
+        for fid in rbp_fids_dic:
+            assert fid in fid2desc_dic, "function ID \"%s\" provided via --functions not found in internal function ID -> description mapping. Please provide valid function IDs (see rbpbench info for a detailed description)" %(fid)
+
+        # Filter loaded_rbps_dic.
+        filtered_rbps_dic = {}
+        for rbp_id in loaded_rbps_dic:
+            if rbp_id == regex_id:  # keep regex if set.
+                filtered_rbps_dic[regex_id] = regex_id
+                continue
+            if rbp_id not in name2fids_dic:
+                continue
+            for fid in rbp_fids_dic:
+                if fid in name2fids_dic[rbp_id]:
+                    filtered_rbps_dic[rbp_id] = motif_db_str
+                    break
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
+
+        c_loaded_rbps_pre = len(loaded_rbps_dic)
+        c_loaded_rbps_post = len(filtered_rbps_dic)
+        loaded_rbps_dic = filtered_rbps_dic
+
+        print("# RBPs pre-filtering by functions: ", c_loaded_rbps_pre)
+        print("# RBPs post-filtering by functions:", c_loaded_rbps_post)
+
+        # Filter loaded motif IDs.
+        filtered_motif_ids_dic = {}
+        for rbp_id in loaded_rbps_dic:
+            if rbp_id == regex_id:
+                if args.motif_regex_id:
+                    filtered_motif_ids_dic[regex_id] = regex_id
+                else:
+                    filtered_motif_ids_dic[regex] = regex_id
+            else:
+                for motif_id in name2ids_dic[rbp_id]:
+                    set_db_str = loaded_motif_ids_dic[motif_id]
+                    filtered_motif_ids_dic[motif_id] = set_db_str
+        
+        c_loaded_motif_ids_pre = len(loaded_motif_ids_dic)
+        c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
+        loaded_motif_ids_dic = filtered_motif_ids_dic
+
+        print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
+        print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
 
 
     """
@@ -16153,6 +16481,73 @@ def main_nemo(args):
         """
     else:
         regex_id = False
+
+
+    """
+    Get function ID -> function descriptions mapping.
+
+    """
+    fid2desc_file = db_path + "/rbp_function_list.32728246.tsv"
+    fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
+    
+    """
+    If --functions set, filter loaded_rbps_dic.
+
+    """
+    rbp_fids_dic = {}
+    if args.rbp_functions:
+
+        print("Filtering loaded RBPs by provided function IDs ... ")
+
+        for fid in args.rbp_functions:
+            rbp_fids_dic[fid] = 1
+
+        # Check if provided function IDs are valid.
+        for fid in rbp_fids_dic:
+            assert fid in fid2desc_dic, "function ID \"%s\" provided via --functions not found in internal function ID -> description mapping. Please provide valid function IDs (see rbpbench info for a detailed description)" %(fid)
+
+        # Filter loaded_rbps_dic.
+        filtered_rbps_dic = {}
+        for rbp_id in loaded_rbps_dic:
+            if rbp_id == regex_id:  # keep regex if set.
+                filtered_rbps_dic[regex_id] = regex_id
+                continue
+            if rbp_id not in name2fids_dic:
+                continue
+            for fid in rbp_fids_dic:
+                if fid in name2fids_dic[rbp_id]:
+                    filtered_rbps_dic[rbp_id] = motif_db_str
+                    break
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
+
+        c_loaded_rbps_pre = len(loaded_rbps_dic)
+        c_loaded_rbps_post = len(filtered_rbps_dic)
+        loaded_rbps_dic = filtered_rbps_dic
+
+        print("# RBPs pre-filtering by functions: ", c_loaded_rbps_pre)
+        print("# RBPs post-filtering by functions:", c_loaded_rbps_post)
+
+        # Filter loaded motif IDs.
+        filtered_motif_ids_dic = {}
+        for rbp_id in loaded_rbps_dic:
+            if rbp_id == regex_id:
+                if args.motif_regex_id:
+                    filtered_motif_ids_dic[regex_id] = regex_id
+                else:
+                    filtered_motif_ids_dic[regex] = regex_id
+            else:
+                for motif_id in name2ids_dic[rbp_id]:
+                    set_db_str = loaded_motif_ids_dic[motif_id]
+                    filtered_motif_ids_dic[motif_id] = set_db_str
+        
+        c_loaded_motif_ids_pre = len(loaded_motif_ids_dic)
+        c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
+        loaded_motif_ids_dic = filtered_motif_ids_dic
+
+        print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
+        print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
+
 
 
     """
