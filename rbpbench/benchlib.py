@@ -5851,9 +5851,6 @@ def filter_out_center_motif_hits(hits_list, core_rel_reg_dic):
     If hit overlaps with core region, filter it out, otherwise keep it and 
     store in flt_hits_list.
 
-    AALAMO
-
-
     >>> fh1 = FimoHit("chr1", 140, 150, "+", 0.0, "motif1", "pos1", 0.0, seq_s=40, seq_e=50)
     >>> fh2 = FimoHit("chr1", 120, 130, "+", 0.0, "motif1", "pos1", 0.0, seq_s=20, seq_e=30)
     >>> hits_list = [fh1, fh2]
@@ -6727,7 +6724,6 @@ def create_pca_motif_sim_sig_plot_plotly(motif_ids_list, motif_sim_ll,
                                          include_plotlyjs="cdn",
                                          full_html=False):
     """
-    AALAMO
 
     motif_ids_list:
     List of motif IDs, in same order as motif_sim_ll.
@@ -6786,7 +6782,7 @@ def create_pca_motif_sim_sig_plot_plotly(motif_ids_list, motif_sim_ll,
         },
         hover_name='Motif ID',
         hover_data=['Consensus sequence', 'Counts', 'p-value', '-log10(p-value)'],
-        # color_continuous_scale='Blues'  # AALAMO
+        # color_continuous_scale='Blues'
         color_continuous_scale=color_scale # ylgnbu
         # range_color=[lp_min, lp_max]
     )
@@ -6817,7 +6813,6 @@ def create_pca_motif_sim_dir_plot_plotly(motif_ids_list, motif_sim_ll,
                                          include_plotlyjs="cdn",
                                          full_html=False):
     """
-    AALAMO
 
     motif_ids_list:
     List of motif IDs, in same order as motif_sim_ll.
@@ -9473,8 +9468,6 @@ No co-occurrences calculated as there are no significant motifs (see upper table
     """
     Motif similarity (only for MEME formatted sequence motifs) vs significance PCA plot.
     
-    AALAMO
-    
     """
 
     mdtext += """
@@ -10294,9 +10287,7 @@ No co-occurrences calculated as no significant context region motifs were found 
 
     """
     Motif similarity (only for MEME formatted sequence motifs) vs significance PCA plot.
-    
-    AALAMO
-    
+
     """
 
     mdtext += """
@@ -10387,9 +10378,7 @@ No motif similarity vs significance plot generated since there are < 3 significa
 
     """
     Motif similarity (only for MEME formatted sequence motifs) vs direction / context PCA plot.
-    
-    AALAMO
-    
+
     """
 
     mdtext += """
@@ -10436,7 +10425,6 @@ No motif similarity vs significance plot generated since there are < 3 significa
 
             motif_sim_stats_dic[motif_id] = [conseq, con_table_str, pval, log_pval, wrs_pval_greater, wrs_pval_less, log_wrs_pval]
 
-            # AALAMO
 
         motif_sim_plot_plotly =  "motif_sim_dir_pca_plot.plotly.html"
         motif_sim_plot_plotly_out = plots_out_folder + "/" + motif_sim_plot_plotly
@@ -10803,8 +10791,6 @@ def create_kmer_sc_plotly_scatter_plot(pos_mer_dic, neg_mer_dic, k,
 
     # # 3utr blue: #1f77b4
     # dot_col = "#1f77b4"  
-
-    # AALAMo
     # # Color of dots.
     # dot_col = "#69e9f6"
     # if theme == 2:

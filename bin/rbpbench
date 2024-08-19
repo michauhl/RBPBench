@@ -13881,7 +13881,6 @@ def main_enmo(args):
     seq_motifs_db_file, str_motifs_db_file, rbp2ids_file, motif_db_str = specify_motif_db(args.motif_db, 
                                                                             db_path=db_path)
 
-    # AALAMO
     motif_pair2sim_dic = {}
     print("Read in motif similarities ... ")
     tomtom_sim_file = get_local_tomtom_sim_file(args.motif_db, db_path=db_path)
@@ -14338,7 +14337,7 @@ def main_enmo(args):
         2: 1, 2, ... , X, MT
 
     """
-    chr_style = 1  # no changes to   IDs in GTF files.  AALAMO !!!
+    chr_style = 1
     
     if "1" in chr_ids_dic:
         assert "chr1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
@@ -16618,7 +16617,7 @@ def main_nemo(args):
         2: 1, 2, ... , X, MT
 
     """
-    chr_style = 1  # no changes to   IDs in GTF files.  AALAMO !!!
+    chr_style = 1
     
     if "1" in chr_ids_dic:
         assert "chr1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
@@ -16809,7 +16808,7 @@ def main_nemo(args):
         print("WARNING: --in sites differ in length. For optimal results provide same length sites (e.g. motif hit sites or single positions)")
     max_core_len = max(core_reg_len_set)
 
-    # AALAMO: so 51 on each side + center (0 position).
+    # Define motif hit context plot length.
     from math import ceil
     max_dist_plot_range = max_ext + ceil(max_core_len/2)
     dist_plot_range = range(-max_dist_plot_range, max_dist_plot_range+1)
@@ -17823,7 +17822,6 @@ def main_nemo(args):
         print("No motifs found in any regions (input or background). Exiting ... ")
         sys.exit()  # AALAMO
 
-
     for motif_id in sorted(found_motif_ids_dic.keys()):
 
         motif_ids_list.append(motif_id)
@@ -17879,8 +17877,6 @@ def main_nemo(args):
                 downstream_counts.append(dist_plot_counts_dic[dist])
 
         motif_enrich_stats.dist_plot_counts_dic = dist_plot_counts_dic
-
-        # AALAMO
 
         # Wilcoxon rank-sum test two-sided.
         wrs_test_stat, wrs_pval = mannwhitneyu(upstream_counts, downstream_counts, alternative="two-sided")
