@@ -215,13 +215,24 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/site combination). By default, report all hits (default: False)")
+    p_s.add_argument("--cmsearch-bs",
+                   dest="cmsearch_bs",
+                   type=float,
+                   metavar='float',
+                   default=1.0,
+                   help="CMSEARCH bit score threshold (CMSEARCH options: -T --incT). The higher the more strict (default: 1.0)")
+    p_s.add_argument("--cmsearch-mode",
+                   dest="cmsearch_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set CMSEARCH mode to control strictness of filtering. 1: default setting (CMSEARCH option: --default). 2: max setting (CMSEARCH option: --max), i.e., turn all heuristic filters off, slower and more sensitive / more hits) (default: 1)")
     p_s.add_argument("--bed-score-col",
                    dest="bed_score_col",
                    type=int,
                    metavar='int',
                    default=5,
                    help="--in BED score column used for p-value calculations. BED score can be e.g. log2 fold change or -log10 p-value of the region (default: 5)")
-
     p_s.add_argument("--bed-sc-thr",
                    dest="bed_sc_thr",
                    type = float,
@@ -628,6 +639,18 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/site combination). By default, report all hits (default: False)")
+    p_b.add_argument("--cmsearch-bs",
+                   dest="cmsearch_bs",
+                   type=float,
+                   metavar='float',
+                   default=1.0,
+                   help="CMSEARCH bit score threshold (CMSEARCH options: -T --incT). The higher the more strict (default: 1.0)")
+    p_b.add_argument("--cmsearch-mode",
+                   dest="cmsearch_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set CMSEARCH mode to control strictness of filtering. 1: default setting (CMSEARCH option: --default). 2: max setting (CMSEARCH option: --max), i.e., turn all heuristic filters off, slower and more sensitive / more hits) (default: 1)")
     p_b.add_argument("--bed-score-col",
                    dest="bed_score_col",
                    type=int,
@@ -968,6 +991,18 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence combination). By default, report all hits (default: False)")
+    p_ss.add_argument("--cmsearch-bs",
+                   dest="cmsearch_bs",
+                   type=float,
+                   metavar='float',
+                   default=1.0,
+                   help="CMSEARCH bit score threshold (CMSEARCH options: -T --incT). The higher the more strict (default: 1.0)")
+    p_ss.add_argument("--cmsearch-mode",
+                   dest="cmsearch_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set CMSEARCH mode to control strictness of filtering. 1: default setting (CMSEARCH option: --default). 2: max setting (CMSEARCH option: --max), i.e., turn all heuristic filters off, slower and more sensitive / more hits) (default: 1)")
     p_ss.add_argument("--meme-no-check",
                    dest="meme_disable_check",
                    default = False,
@@ -1230,6 +1265,18 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/region combination). By default, report all hits (default: False)")
+    p_sl.add_argument("--cmsearch-bs",
+                   dest="cmsearch_bs",
+                   type=float,
+                   metavar='float',
+                   default=1.0,
+                   help="CMSEARCH bit score threshold (CMSEARCH options: -T --incT). The higher the more strict (default: 1.0)")
+    p_sl.add_argument("--cmsearch-mode",
+                   dest="cmsearch_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set CMSEARCH mode to control strictness of filtering. 1: default setting (CMSEARCH option: --default). 2: max setting (CMSEARCH option: --max), i.e., turn all heuristic filters off, slower and more sensitive / more hits) (default: 1)")
     p_sl.add_argument("--plot-motifs",
                    dest="plot_motifs",
                    default = False,
@@ -1507,6 +1554,18 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/site combination). By default, report all hits (default: False)")
+    p_scr.add_argument("--cmsearch-bs",
+                   dest="cmsearch_bs",
+                   type=float,
+                   metavar='float',
+                   default=1.0,
+                   help="CMSEARCH bit score threshold (CMSEARCH options: -T --incT). The higher the more strict (default: 1.0)")
+    p_scr.add_argument("--cmsearch-mode",
+                   dest="cmsearch_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set CMSEARCH mode to control strictness of filtering. 1: default setting (CMSEARCH option: --default). 2: max setting (CMSEARCH option: --max), i.e., turn all heuristic filters off, slower and more sensitive / more hits) (default: 1)")
     p_scr.add_argument("--set-rbp-id",
                    dest="set_rbp_id",
                    type=str,
@@ -1829,6 +1888,18 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/transcript combination). By default, report all hits (default: False)")
+    p_smr.add_argument("--cmsearch-bs",
+                   dest="cmsearch_bs",
+                   type=float,
+                   metavar='float',
+                   default=1.0,
+                   help="CMSEARCH bit score threshold (CMSEARCH options: -T --incT). The higher the more strict (default: 1.0)")
+    p_smr.add_argument("--cmsearch-mode",
+                   dest="cmsearch_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set CMSEARCH mode to control strictness of filtering. 1: default setting (CMSEARCH option: --default). 2: max setting (CMSEARCH option: --max), i.e., turn all heuristic filters off, slower and more sensitive / more hits) (default: 1)")
     p_smr.add_argument("--tr-list",
                    dest="tr_list",
                    type=str,
@@ -2184,7 +2255,18 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/site combination). By default, report all hits (default: False)")
-
+    p_em.add_argument("--cmsearch-bs",
+                   dest="cmsearch_bs",
+                   type=float,
+                   metavar='float',
+                   default=1.0,
+                   help="CMSEARCH bit score threshold (CMSEARCH options: -T --incT). The higher the more strict (default: 1.0)")
+    p_em.add_argument("--cmsearch-mode",
+                   dest="cmsearch_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set CMSEARCH mode to control strictness of filtering. 1: default setting (CMSEARCH option: --default). 2: max setting (CMSEARCH option: --max), i.e., turn all heuristic filters off, slower and more sensitive / more hits) (default: 1)")
     p_em.add_argument("--fisher-mode",
                    dest="fisher_mode",
                    type=int,
@@ -2519,6 +2601,18 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/site combination). By default, report all hits (default: False)")
+    p_nm.add_argument("--cmsearch-bs",
+                   dest="cmsearch_bs",
+                   type=float,
+                   metavar='float',
+                   default=1.0,
+                   help="CMSEARCH bit score threshold (CMSEARCH options: -T --incT). The higher the more strict (default: 1.0)")
+    p_nm.add_argument("--cmsearch-mode",
+                   dest="cmsearch_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set CMSEARCH mode to control strictness of filtering. 1: default setting (CMSEARCH option: --default). 2: max setting (CMSEARCH option: --max), i.e., turn all heuristic filters off, slower and more sensitive / more hits) (default: 1)")
     p_nm.add_argument("--fisher-mode",
                    dest="fisher_mode",
                    type=int,
@@ -2944,6 +3038,18 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/site combination). By default, report all hits (default: False)")
+    p_oe.add_argument("--cmsearch-bs",
+                   dest="cmsearch_bs",
+                   type=float,
+                   metavar='float',
+                   default=1.0,
+                   help="CMSEARCH bit score threshold (CMSEARCH options: -T --incT). The higher the more strict (default: 1.0)")
+    p_oe.add_argument("--cmsearch-mode",
+                   dest="cmsearch_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set CMSEARCH mode to control strictness of filtering. 1: default setting (CMSEARCH option: --default). 2: max setting (CMSEARCH option: --max), i.e., turn all heuristic filters off, slower and more sensitive / more hits) (default: 1)")
     p_oe.add_argument("--bed-score-col",
                    dest="bed_score_col",
                    type=int,
@@ -3898,10 +4004,18 @@ def main_search(args):
 
         # Run cmsearch.
         print("Run cmsearch ... ")
+        cmsh_mode = ""
+        if args.cmsearch_mode == 1:
+            cmsh_mode = "--default"
+        elif args.cmsearch_mode == 2:
+            cmsh_mode = "--max"
+        else:
+            assert False, "invalid --cmsearch-mode %i set" %(args.cmsearch_mode)
+        cmsh_params = "-g --tformat fasta --toponly --incT %s -T %s %s" %(args.cmsearch_bs, args.cmsearch_bs, cmsh_mode)
         benchlib.run_cmsearch(filtered_sites_fa, str_motifs_cm, cmsearch_res_txt,
                         error_check=False,
                         call_dic=call_dic,
-                        params="-g --tformat fasta --toponly --incT 1 -T 1 --default") # or add --anytrunc and remove --g
+                        params=cmsh_params) # or add --anytrunc and remove --g
         # Read in hits.
         print("Read in cmsearch results ... ")
         cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt, 
@@ -6277,10 +6391,19 @@ def main_batch(args):
 
             # Run cmsearch.
             print("Run cmsearch ... ")
+            cmsh_mode = ""
+            if args.cmsearch_mode == 1:
+                cmsh_mode = "--default"
+            elif args.cmsearch_mode == 2:
+                cmsh_mode = "--max"
+            else:
+                assert False, "invalid --cmsearch-mode %i set" %(args.cmsearch_mode)
+            cmsh_params = "-g --tformat fasta --toponly --incT %s -T %s %s" %(args.cmsearch_bs, args.cmsearch_bs, cmsh_mode)
+
             benchlib.run_cmsearch(filtered_sites_fa, str_motifs_cm, cmsearch_res_txt,
                                   error_check=False,
                                   call_dic=call_dic,
-                                  params="-g --tformat fasta --toponly --incT 1 -T 1 --default")
+                                  params=cmsh_params)
             # Read in hits.
             print("Read in cmsearch results ... ")
             cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt)
@@ -8111,10 +8234,19 @@ def main_searchseq(args):
 
         # Run cmsearch.
         print("Run cmsearch ... ")
+        cmsh_mode = ""
+        if args.cmsearch_mode == 1:
+            cmsh_mode = "--default"
+        elif args.cmsearch_mode == 2:
+            cmsh_mode = "--max"
+        else:
+            assert False, "invalid --cmsearch-mode %i set" %(args.cmsearch_mode)
+        cmsh_params = "-g --tformat fasta --toponly --incT %s -T %s %s" %(args.cmsearch_bs, args.cmsearch_bs, cmsh_mode)
+
         benchlib.run_cmsearch(filtered_seqs_fa, str_motifs_cm, cmsearch_res_txt,
                         error_check=False,
                         call_dic=call_dic,
-                        params="-g --tformat fasta --toponly --incT 1 -T 1 --default")  # or add --anytrunc and remove --g
+                        params=cmsh_params)  # or add --anytrunc and remove --g
         # Read in hits.
         print("Read in cmsearch results ... ")
         cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt,
@@ -9492,10 +9624,19 @@ def main_searchlong(args):
 
         # Run cmsearch.
         print("Run cmsearch ... ")
+        cmsh_mode = ""
+        if args.cmsearch_mode == 1:
+            cmsh_mode = "--default"
+        elif args.cmsearch_mode == 2:
+            cmsh_mode = "--max"
+        else:
+            assert False, "invalid --cmsearch-mode %i set" %(args.cmsearch_mode)
+        cmsh_params = "-g --tformat fasta --toponly --incT %s -T %s %s" %(args.cmsearch_bs, args.cmsearch_bs, cmsh_mode)
+
         benchlib.run_cmsearch(filtered_sites_fa, str_motifs_cm, cmsearch_res_txt,
                         error_check=False,
                         call_dic=call_dic,
-                        params="-g --tformat fasta --toponly --incT 1 -T 1 --default") # or add --anytrunc and remove --g
+                        params=cmsh_params) # or add --anytrunc and remove --g
         # Read in hits.
         print("Read in cmsearch results ... ")
         cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt, 
@@ -11059,10 +11200,19 @@ def main_searchrna(args):
 
         # Run cmsearch.
         print("Run cmsearch ... ")
+        cmsh_mode = ""
+        if args.cmsearch_mode == 1:
+            cmsh_mode = "--default"
+        elif args.cmsearch_mode == 2:
+            cmsh_mode = "--max"
+        else:
+            assert False, "invalid --cmsearch-mode %i set" %(args.cmsearch_mode)
+        cmsh_params = "-g --tformat fasta --toponly --incT %s -T %s %s" %(args.cmsearch_bs, args.cmsearch_bs, cmsh_mode)
+
         benchlib.run_cmsearch(filtered_sites_fa, str_motifs_cm, cmsearch_res_txt,
                         error_check=False,
                         call_dic=call_dic,
-                        params="-g --tformat fasta --toponly --incT 1 -T 1 --default") # or add --anytrunc and remove --g
+                        params=cmsh_params) # or add --anytrunc and remove --g
         # Read in hits.
         print("Read in cmsearch results ... ")
         cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt, 
@@ -12900,10 +13050,19 @@ def main_searchlongrna(args):
 
         # Run cmsearch.
         print("Run cmsearch ... ")
+        cmsh_mode = ""
+        if args.cmsearch_mode == 1:
+            cmsh_mode = "--default"
+        elif args.cmsearch_mode == 2:
+            cmsh_mode = "--max"
+        else:
+            assert False, "invalid --cmsearch-mode %i set" %(args.cmsearch_mode)
+        cmsh_params = "-g --tformat fasta --toponly --incT %s -T %s %s" %(args.cmsearch_bs, args.cmsearch_bs, cmsh_mode)
+
         benchlib.run_cmsearch(tr_seqs_fa, str_motifs_cm, cmsearch_res_txt,
                         error_check=False,
                         call_dic=call_dic,
-                        params="-g --tformat fasta --toponly --incT 1 -T 1 --default") # or add --anytrunc and remove --g
+                        params=cmsh_params) # or add --anytrunc and remove --g
         # Read in hits.
         print("Read in cmsearch results ... ")
         cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt,
@@ -15159,6 +15318,15 @@ def main_enmo(args):
     pos_cmsearch_hits_list = []
     neg_cmsearch_hits_list = []
 
+    cmsh_mode = ""
+    if args.cmsearch_mode == 1:
+        cmsh_mode = "--default"
+    elif args.cmsearch_mode == 2:
+        cmsh_mode = "--max"
+    else:
+        assert False, "invalid --cmsearch-mode %i set" %(args.cmsearch_mode)
+    cmsh_params = "-g --tformat fasta --toponly --incT %s -T %s %s" %(args.cmsearch_bs, args.cmsearch_bs, cmsh_mode)
+
     if str_rbps_dic:
         
         print("Output covariance models to .cm ... ")
@@ -15168,7 +15336,7 @@ def main_enmo(args):
         benchlib.run_cmsearch(filtered_sites_fa, str_motifs_cm, cmsearch_res_txt,
                         error_check=False,
                         call_dic=call_dic,
-                        params="-g --tformat fasta --toponly --incT 1 -T 1 --default")
+                        params=cmsh_params)
 
         pos_cmsearch_hits_list, c_pos_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt, 
                                                                            check=True)
@@ -15178,7 +15346,7 @@ def main_enmo(args):
         print("Run cmsearch on background regions ... ")
         benchlib.run_cmsearch(neg_seqs_fa, str_motifs_cm, cmsearch_res_txt,
                         error_check=False,
-                        params="-g --tformat fasta --toponly --incT 1 -T 1 --default")
+                        params=cmsh_params)
 
         neg_cmsearch_hits_list, c_neg_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt, 
                                                                             seq_based=seq_based,
@@ -17564,6 +17732,15 @@ def main_nemo(args):
     pos_cmsearch_hits_list = []
     neg_cmsearch_hits_list = []
 
+    cmsh_mode = ""
+    if args.cmsearch_mode == 1:
+        cmsh_mode = "--default"
+    elif args.cmsearch_mode == 2:
+        cmsh_mode = "--max"
+    else:
+        assert False, "invalid --cmsearch-mode %i set" %(args.cmsearch_mode)
+    cmsh_params = "-g --tformat fasta --toponly --incT %s -T %s %s" %(args.cmsearch_bs, args.cmsearch_bs, cmsh_mode)
+
     if str_rbps_dic:
         
         print("Output covariance models to .cm ... ")
@@ -17573,7 +17750,7 @@ def main_nemo(args):
         benchlib.run_cmsearch(filtered_sites_fa, str_motifs_cm, cmsearch_res_txt,
                         error_check=False,
                         call_dic=call_dic,
-                        params="-g --tformat fasta --toponly --incT 1 -T 1 --default")
+                        params=cmsh_params)
 
         pos_cmsearch_hits_list, c_pos_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt,
                                                                             reg_dic=pos_reg_dic,
@@ -17584,7 +17761,7 @@ def main_nemo(args):
         print("Run cmsearch on background regions ... ")
         benchlib.run_cmsearch(neg_seqs_fa, str_motifs_cm, cmsearch_res_txt,
                         error_check=False,
-                        params="-g --tformat fasta --toponly --incT 1 -T 1 --default")
+                        params=cmsh_params)
 
         neg_cmsearch_hits_list, c_neg_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt,
                                                                             reg_dic=neg_reg_dic,
@@ -19426,12 +19603,19 @@ def main_optex(args):
             # print("Output covariance models to .cm ... ")
             benchlib.output_cm_blocks_to_file(str_motif_blocks_dic, loaded_motif_ids_dic, str_motifs_cm)
 
-            # Run cmsearch.
-            # print("Run cmsearch ... ")
+            cmsh_mode = ""
+            if args.cmsearch_mode == 1:
+                cmsh_mode = "--default"
+            elif args.cmsearch_mode == 2:
+                cmsh_mode = "--max"
+            else:
+                assert False, "invalid --cmsearch-mode %i set" %(args.cmsearch_mode)
+            cmsh_params = "-g --tformat fasta --toponly --incT %s -T %s %s" %(args.cmsearch_bs, args.cmsearch_bs, cmsh_mode)
+
             benchlib.run_cmsearch(filtered_sites_fa, str_motifs_cm, cmsearch_res_txt,
                             error_check=False,
                             call_dic=call_dic,
-                            params="-g --tformat fasta --toponly --incT 1 -T 1 --default")
+                            params=cmsh_params)
             # Read in hits.
             # print("Read in cmsearch results ... ")
             cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt)
