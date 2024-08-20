@@ -5840,7 +5840,8 @@ def intervals_overlap(start1, end1, start2, end2):
 
 ################################################################################
 
-def filter_out_center_motif_hits(hits_list, core_rel_reg_dic):
+def filter_out_center_motif_hits(hits_list, core_rel_reg_dic,
+                                 allow_overlaps=False):
     """
     Filter positive regions hits list (FIMO, CMSEARCH), based on given core region
     (via core_rel_reg_dic) with which the hit should not overlap.
@@ -5877,8 +5878,9 @@ def filter_out_center_motif_hits(hits_list, core_rel_reg_dic):
         assert hit_seq_s <= hit_seq_e, "hit_seq_s > hit_seq_e"
         assert core_seq_s <= core_seq_e, "core_seq_s > core_seq_e"
 
-        if intervals_overlap(hit_seq_s, hit_seq_e, core_seq_s, core_seq_e):
-            continue
+        if not allow_overlaps:
+            if intervals_overlap(hit_seq_s, hit_seq_e, core_seq_s, core_seq_e):
+                continue
 
         hit_center_pos = get_center_position(hit_seq_s-1, hit_seq_e)
         core_center_pos = get_center_position(core_seq_s-1, core_seq_e)
@@ -5893,7 +5895,8 @@ def filter_out_center_motif_hits(hits_list, core_rel_reg_dic):
 
 ################################################################################
 
-def filter_out_neg_center_motif_hits(neg_hits_list, core_rel_reg_dic):
+def filter_out_neg_center_motif_hits(neg_hits_list, core_rel_reg_dic,
+                                     allow_overlaps=False):
     """
     Filter negative regions hits list (FIMO, CMSEARCH), based on given positive 
     core region (via core_rel_reg_dic) with which the hit should not overlap.
@@ -5935,8 +5938,9 @@ def filter_out_neg_center_motif_hits(neg_hits_list, core_rel_reg_dic):
         assert hit_seq_s <= hit_seq_e, "hit_seq_s > hit_seq_e"
         assert core_seq_s <= core_seq_e, "core_seq_s > core_seq_e"
 
-        if intervals_overlap(hit_seq_s, hit_seq_e, core_seq_s, core_seq_e):
-            continue
+        if not allow_overlaps:
+            if intervals_overlap(hit_seq_s, hit_seq_e, core_seq_s, core_seq_e):
+                continue
 
         hit_center_pos = get_center_position(hit_seq_s-1, hit_seq_e)
         core_center_pos = get_center_position(core_seq_s-1, core_seq_e)
@@ -9991,6 +9995,10 @@ by RBPBench (rbpbench %s):
     #     assert False, "Invalid Wilcoxon rank sum test mode (--wrs-mode) set: %i" %(args.wrs_mode)
     wrs_mode_info = "Wilcoxon rank sum test alternative hypothesis is set to 'two-sided', i.e., low WRS p-values (WRS p-value column) mean either up- or downstream context regions have significantly higher motif hit counts."
 
+    ol_info = "Motif hits that overlap with the actual input sites are not counted."
+    if args.allow_overlaps:
+        ol_info = "Motif hits that overlap with the actual input sites are counted as well (--allow-overlaps enabled)."
+
     pval_dic = {}
     c_sig_motifs = 0
     sig_seq_motif_ids_list = []
@@ -10010,7 +10018,7 @@ by RBPBench (rbpbench %s):
 
 **Table:** Neighboring RBP binding motif enrichment statistics. # of significant motifs = %i. Enrichment is calculated by comparing motif occurrences in the context regions 
 surrounding given input sites (up- and downstream context region size specified via --ext), effectively comparing the input with the background context regions.
-Motif hits that overlap with the actual input sites are not counted.
+%s
 Based on the numbers of input and background context regions with and without motif hits, 
 Fisher's exact test is used to assess the significance of motif enrichment.
 %s
@@ -10021,7 +10029,7 @@ Wilcoxon rank sum (WRS) test is applied.
 %s
 %s
 
-""" %(c_sig_motifs, p_val_info, fisher_mode_info, wrs_mode_info, regex_motif_info)
+""" %(c_sig_motifs, ol_info, p_val_info, fisher_mode_info, wrs_mode_info, regex_motif_info)
 
     mdtext += '<table style="max-width: 1400px; width: 100%; border-collapse: collapse; line-height: 0.9;">' + "\n"
     mdtext += "<thead>\n"

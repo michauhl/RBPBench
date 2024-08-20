@@ -166,7 +166,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    nargs='+',
-                   required=True,
+                   default=False,
                    help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions). NOTE that --regex is not affected by filtering")
     p_s.add_argument("--regex",
                    dest="regex",
@@ -943,7 +943,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    nargs='+',
-                   required=True,
+                   default=False,
                    help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions). NOTE that --regex is not affected by filtering")
     p_ss.add_argument("--fimo-ntf-file",
                    dest="fimo_user_ntf_file",
@@ -1182,7 +1182,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    nargs='+',
-                   required=True,
+                   default=False,
                    help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions). NOTE that --regex is not affected by filtering")
     p_sl.add_argument("--regex",
                    dest="regex",
@@ -1442,7 +1442,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    nargs='+',
-                   required=True,
+                   default=False,
                    help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions). NOTE that --regex is not affected by filtering")
     p_scr.add_argument("--regex",
                    dest="regex",
@@ -1781,7 +1781,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    nargs='+',
-                   required=True,
+                   default=False,
                    help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions). NOTE that --regex is not affected by filtering")
     p_smr.add_argument("--regex",
                    dest="regex",
@@ -2054,7 +2054,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    nargs='+',
-                   required=True,
+                   default=False,
                    help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions). NOTE that --regex is not affected by filtering")
     p_em.add_argument("--regex",
                    dest="regex",
@@ -2389,7 +2389,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    nargs='+',
-                   required=True,
+                   default=False,
                    help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions). NOTE that --regex is not affected by filtering")
     p_nm.add_argument("--regex",
                    dest="regex",
@@ -2537,7 +2537,11 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3],
                    help="Defines multiple testing correction mode for motif enrichment p-values. 1: Benjamini-Hochberg (BH), 2: Bonferroni, 3: no correction (default: 1)")
-
+    p_nm.add_argument("--allow-overlaps",
+                   dest="allow_overlaps",
+                   default = False,
+                   action = "store_true",
+                   help = "Allow overlaps of motif hit regions with provided --in sites. By default, motif hits overlapping with --in sites are filtered out (default: False)")
     # Motif co-occurrence stats.
     p_nm.add_argument("--cooc-pval-thr",
                    dest="cooc_pval_thr",
@@ -3580,14 +3584,14 @@ def main_search(args):
                     filtered_rbps_dic[rbp_id] = motif_db_str
                     break
 
-        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
-
         c_loaded_rbps_pre = len(loaded_rbps_dic)
         c_loaded_rbps_post = len(filtered_rbps_dic)
         loaded_rbps_dic = filtered_rbps_dic
 
         print("# RBPs pre-filtering by functions: ", c_loaded_rbps_pre)
         print("# RBPs post-filtering by functions:", c_loaded_rbps_post)
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
 
         # Filter loaded motif IDs.
         filtered_motif_ids_dic = {}
@@ -7922,14 +7926,14 @@ def main_searchseq(args):
                     filtered_rbps_dic[rbp_id] = motif_db_str
                     break
 
-        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
-
         c_loaded_rbps_pre = len(loaded_rbps_dic)
         c_loaded_rbps_post = len(filtered_rbps_dic)
         loaded_rbps_dic = filtered_rbps_dic
 
         print("# RBPs pre-filtering by functions: ", c_loaded_rbps_pre)
         print("# RBPs post-filtering by functions:", c_loaded_rbps_post)
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
 
         # Filter loaded motif IDs.
         filtered_motif_ids_dic = {}
@@ -9091,14 +9095,14 @@ def main_searchlong(args):
                     filtered_rbps_dic[rbp_id] = motif_db_str
                     break
 
-        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
-
         c_loaded_rbps_pre = len(loaded_rbps_dic)
         c_loaded_rbps_post = len(filtered_rbps_dic)
         loaded_rbps_dic = filtered_rbps_dic
 
         print("# RBPs pre-filtering by functions: ", c_loaded_rbps_pre)
         print("# RBPs post-filtering by functions:", c_loaded_rbps_post)
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
 
         # Filter loaded motif IDs.
         filtered_motif_ids_dic = {}
@@ -10539,14 +10543,14 @@ def main_searchrna(args):
                     filtered_rbps_dic[rbp_id] = motif_db_str
                     break
 
-        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
-
         c_loaded_rbps_pre = len(loaded_rbps_dic)
         c_loaded_rbps_post = len(filtered_rbps_dic)
         loaded_rbps_dic = filtered_rbps_dic
 
         print("# RBPs pre-filtering by functions: ", c_loaded_rbps_pre)
         print("# RBPs post-filtering by functions:", c_loaded_rbps_post)
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
 
         # Filter loaded motif IDs.
         filtered_motif_ids_dic = {}
@@ -12507,14 +12511,14 @@ def main_searchlongrna(args):
                     filtered_rbps_dic[rbp_id] = motif_db_str
                     break
 
-        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
-
         c_loaded_rbps_pre = len(loaded_rbps_dic)
         c_loaded_rbps_post = len(filtered_rbps_dic)
         loaded_rbps_dic = filtered_rbps_dic
 
         print("# RBPs pre-filtering by functions: ", c_loaded_rbps_pre)
         print("# RBPs post-filtering by functions:", c_loaded_rbps_post)
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
 
         # Filter loaded motif IDs.
         filtered_motif_ids_dic = {}
@@ -14239,14 +14243,14 @@ def main_enmo(args):
                     filtered_rbps_dic[rbp_id] = motif_db_str
                     break
 
-        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
-
         c_loaded_rbps_pre = len(loaded_rbps_dic)
         c_loaded_rbps_post = len(filtered_rbps_dic)
         loaded_rbps_dic = filtered_rbps_dic
 
         print("# RBPs pre-filtering by functions: ", c_loaded_rbps_pre)
         print("# RBPs post-filtering by functions:", c_loaded_rbps_post)
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
 
         # Filter loaded motif IDs.
         filtered_motif_ids_dic = {}
@@ -16518,14 +16522,14 @@ def main_nemo(args):
                     filtered_rbps_dic[rbp_id] = motif_db_str
                     break
 
-        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
-
         c_loaded_rbps_pre = len(loaded_rbps_dic)
         c_loaded_rbps_post = len(filtered_rbps_dic)
         loaded_rbps_dic = filtered_rbps_dic
 
         print("# RBPs pre-filtering by functions: ", c_loaded_rbps_pre)
         print("# RBPs post-filtering by functions:", c_loaded_rbps_post)
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
 
         # Filter loaded motif IDs.
         filtered_motif_ids_dic = {}
@@ -17542,8 +17546,10 @@ def main_nemo(args):
 
     # Filter out hits overlapping with center motif sites (ie --in sites provided).
     print("Remove FIMO/REGEX hits overlapping with center motif sites ... ")
-    flt_pos_fimo_hits_list = benchlib.filter_out_center_motif_hits(pos_fimo_hits_list, core_rel_reg_dic)
-    flt_neg_fimo_hits_list = benchlib.filter_out_neg_center_motif_hits(neg_fimo_hits_list, core_rel_reg_dic)
+    flt_pos_fimo_hits_list = benchlib.filter_out_center_motif_hits(pos_fimo_hits_list, core_rel_reg_dic,
+                                                                   allow_overlaps=args.allow_overlaps)
+    flt_neg_fimo_hits_list = benchlib.filter_out_neg_center_motif_hits(neg_fimo_hits_list, core_rel_reg_dic,
+                                                                       allow_overlaps=args.allow_overlaps)
 
     print("# positive FIMO/REGEX hits before filtering:", len(pos_fimo_hits_list))
     print("# positive FIMO/REGEX hits after filtering: ", len(flt_pos_fimo_hits_list))
@@ -17590,8 +17596,10 @@ def main_nemo(args):
 
     # Filter out hits overlapping with center motif sites (ie --in sites provided).
     print("Remove CMSEARCH hits overlapping with center motif sites ... ")
-    flt_pos_cmsearch_hits_list = benchlib.filter_out_center_motif_hits(pos_cmsearch_hits_list, core_rel_reg_dic)
-    flt_neg_cmsearch_hits_list = benchlib.filter_out_neg_center_motif_hits(neg_cmsearch_hits_list, core_rel_reg_dic)
+    flt_pos_cmsearch_hits_list = benchlib.filter_out_center_motif_hits(pos_cmsearch_hits_list, core_rel_reg_dic,
+                                                                       allow_overlaps=args.allow_overlaps)
+    flt_neg_cmsearch_hits_list = benchlib.filter_out_neg_center_motif_hits(neg_cmsearch_hits_list, core_rel_reg_dic,
+                                                                           allow_overlaps=args.allow_overlaps)
 
     print("# positive CMSEARCH hits before filtering:", len(pos_cmsearch_hits_list))
     print("# positive CMSEARCH hits after filtering: ", len(flt_pos_cmsearch_hits_list))
