@@ -400,6 +400,113 @@ def get_gid2go_mapping(gid2go_file,
 
 ################################################################################
 
+class GeneDesc:
+    """
+    Stores gene description (compact gene infos objects).
+
+    """
+
+    def __init__(self,
+                 gene_id: str,
+                 gene_name: str,
+                 gene_synonyms: str,
+                 gene_type: str,
+                 gene_desc: str) -> None:
+        self.gene_id = gene_id
+        self.gene_name = gene_name
+        self.gene_synonyms = gene_synonyms
+        self.gene_type = gene_type
+        self.gene_desc = gene_desc
+
+
+################################################################################
+
+def get_gene_descriptions(target_reg_annot_file):
+    """
+    Read in gene descriptions.
+
+    E.g. get from ensembl_gene_infos.biomart.GRCh38.112.tsv.gz:
+    gene_id	gene_name	gene_synonyms	gene_type	gene_description
+    ENSG00000286112	KYAT1	CCBL1;GTK;KAT1;KATI	protein_coding	kynurenine aminotransferase 1 [Source:NCBI gene (formerly Entrezgene);Acc:883]
+    ENSG00000171097	KYAT1	CCBL1;GTK;KAT1;KATI;CCBL1;GTK;KATI	protein_coding	kynurenine aminotransferase 1 [Source:HGNC Symbol;Acc:HGNC:1564]
+    ENSG00000291087	CRYBB2P1	CRYB2B	lncRNA	crystallin beta B2 pseudogene 1 [Source:NCBI gene (formerly Entrezgene);Acc:1416]
+    ...
+    
+    """
+
+    gene_desc_dic = {}
+    with gzip.open(target_reg_annot_file, 'rt') as f:
+        for line in f:
+            if line.startswith("gene_id"):
+                continue
+            cols = line.strip().split("\t")
+            gene_id = cols[0]
+            gene_name = cols[1]
+            gene_synonyms = cols[2]
+            gene_type = cols[3]
+            gene_desc = cols[4]
+            gene_desc_obj = GeneDesc(gene_id, gene_name, gene_synonyms, gene_type, gene_desc)
+            gene_desc_dic[gene_id] = gene_desc_obj
+
+    assert gene_desc_dic, "no gene descriptions read in from %s" %(target_reg_annot_file)
+    return gene_desc_dic
+
+
+################################################################################
+
+def output_target_reg_annot(target_genes_dic, gene_infos_file, target_reg_annot_file,
+                            remove_version_numbers=True,
+                            gid2tid_dic=None,
+                            tid2tio_dic=None):
+
+    """
+    Output target region annotations (target regions used in GOA).
+                              
+    """
+
+    assert target_genes_dic, "No target genes provided"
+    # check if gene_infos_file file exists.
+    assert os.path.exists(gene_infos_file), "gene infos file %s not found" %(gene_infos_file)
+
+    gene_desc_dic = get_gene_descriptions(gene_infos_file)
+
+    OUTANNOT = open(target_reg_annot_file, "w")
+
+    OUTANNOT.write("gene_id\tgene_name\tgene_synonyms\tgene_type\tgene_description\ttr_id\ttr_type\n")
+
+    for gene_id in target_genes_dic:
+
+        gene_id_full = gene_id
+
+        if remove_version_numbers:
+            gene_id = re.sub("\.\d+$", "", gene_id)
+
+        gene_name = "-"
+        gene_synonyms = "-"
+        gene_type = "-"
+        gene_desc = "-"
+        if gene_id in gene_desc_dic:
+            gene_name = gene_desc_dic[gene_id].gene_name
+            gene_synonyms = gene_desc_dic[gene_id].gene_synonyms
+            gene_type = gene_desc_dic[gene_id].gene_type
+            gene_desc = gene_desc_dic[gene_id].gene_desc
+
+        tr_id = "-"
+        tr_type = "-"
+        if gid2tid_dic is not None:
+            if gene_id in gid2tid_dic or gene_id_full in gid2tid_dic:
+                tr_id = gid2tid_dic[gene_id]
+                if tid2tio_dic is not None:
+                    if tr_id in tid2tio_dic:
+                        tr_type = tid2tio_dic[tr_id].tr_biotype
+
+        OUTANNOT.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\n" %(gene_id, gene_name, gene_synonyms, gene_type, gene_desc, tr_id, tr_type))
+
+    OUTANNOT.close()
+
+
+################################################################################
+
 def run_go_analysis(target_genes_dic, background_genes_dic, 
                     gid2go_file, out_folder,
                     pval_thr=0.05,
@@ -6124,7 +6231,9 @@ def get_best_fimo_hits(fimo_hits_list):
 
 ################################################################################
 
-def get_target_genes_with_rbp_hits(reg2annot_dic, tr2gid_dic, region_rbp_binds_dic):
+def get_target_genes_with_rbp_hits(reg2annot_dic, tr2gid_dic, region_rbp_binds_dic,
+                                   gid2tid_dic=None,
+                                   goa_cooc_mode=3):
     """
     Get target genes dictionary with RBP hits.
 
@@ -6135,21 +6244,38 @@ def get_target_genes_with_rbp_hits(reg2annot_dic, tr2gid_dic, region_rbp_binds_d
     region_rbp_binds_dic format:
     'chr20:62139082-62139128(-)': [False, False, False]
     
-    >>> reg2annot_dic = {'chr1:1000-2000(+)': ['CDS', 'ENST6666'], 'chr1:1000-2000(-)': ['intergenic', False], 'chr1:5000-6000(-)': ['intron', 'ENST6667']}
-    >>> tr2gid_dic = {'ENST6666': 'GID1', 'ENST6667': 'GID2'}
-    >>> region_rbp_binds_dic = {'chr1:1000-2000(+)': [True, True, True], 'chr1:1000-2000(-)': [True, True, True], 'chr1:5000-6000(-)': [False, True, True]}
-    >>> get_target_genes_with_rbp_hits(reg2annot_dic, tr2gid_dic, region_rbp_binds_dic)
+    >>> reg2annot_dic = {'chr1:1000-2000(+)': ['CDS', 'ENST6666'], 'chr1:1000-2000(-)': ['intergenic', False], 'chr1:5000-6000(-)': ['intron', 'ENST6667'], 'chr1:5000-6000(+)': ['CDS', 'ENST6668']}
+    >>> tr2gid_dic = {'ENST6666': 'GID1', 'ENST6667': 'GID2', 'ENST6668': 'GID3'}
+    >>> region_rbp_binds_dic = {'chr1:1000-2000(+)': [True, True, True], 'chr1:1000-2000(-)': [True, True, True], 'chr1:5000-6000(-)': [False, True, True], 'chr1:5000-6000(+)': [False, False, False]}
+    >>> get_target_genes_with_rbp_hits(reg2annot_dic, tr2gid_dic, region_rbp_binds_dic, goa_cooc_mode=3)
     {'GID1': 1}
-
+    >>> get_target_genes_with_rbp_hits(reg2annot_dic, tr2gid_dic, region_rbp_binds_dic, goa_cooc_mode=2)
+    {'GID1': 1, 'GID2': 1}
+    >>> get_target_genes_with_rbp_hits(reg2annot_dic, tr2gid_dic, region_rbp_binds_dic, goa_cooc_mode=1)
+    {'GID1': 1, 'GID2': 1, 'GID3': 1}
+    
     """
 
     target_genes_dic = {}
     for reg_id in region_rbp_binds_dic:
         tr_id = reg2annot_dic[reg_id][1]
         if tr_id:
-            # Check if region_rbp_binds_dic[reg_id] list has only True values.
-            if all(region_rbp_binds_dic[reg_id]):
-                gid = tr2gid_dic[tr_id]
+            gid = tr2gid_dic[tr_id]
+            if gid2tid_dic is not None:
+                gid2tid_dic[gid] = tr_id
+            add_gene = False
+            if goa_cooc_mode == 1:
+                add_gene = True
+            elif goa_cooc_mode == 2:
+                # Check if region_rbp_binds_dic[reg_id] list has at least one True value.
+                if any(region_rbp_binds_dic[reg_id]):
+                    add_gene = True
+            elif goa_cooc_mode == 3:
+                # Check if region_rbp_binds_dic[reg_id] list has only True values.
+                if all(region_rbp_binds_dic[reg_id]):
+                    add_gene = True
+
+            if add_gene:
                 if gid not in target_genes_dic:
                     target_genes_dic[gid] = 1
                 else:
@@ -11052,7 +11178,8 @@ by RBPBench (rbpbench %s):
 
     # Upset plot.
     # mdtext += "\n"
-    mdtext += "- [RBP combinations upset plot](#rbp-comb-upset-plot)\n"
+    if not args.disable_upset_plot:
+        mdtext += "- [RBP combinations upset plot](#rbp-comb-upset-plot)\n"
 
     # If --set-rbp-id given.
     if args.set_rbp_id is not None:
@@ -11403,15 +11530,17 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
 
     plot_path = plots_folder + "/" + rbp_reg_occ_upset_plot
 
-    mdtext += """
+    if not args.disable_upset_plot:
+
+        mdtext += """
 ## RBP combinations upset plot ### {#rbp-comb-upset-plot}
 
 """
 
-    if plotted:
-        mdtext += '<img src="' + plot_path + '" alt="RBP region occupancies upset plot"' + "\n"
-        mdtext += 'title="RBP region occupancies upset plot" />' + "\n"
-        mdtext += """
+        if plotted:
+            mdtext += '<img src="' + plot_path + '" alt="RBP region occupancies upset plot"' + "\n"
+            mdtext += 'title="RBP region occupancies upset plot" />' + "\n"
+            mdtext += """
 
 **Figure:** Upset plot of RBP combinations found in the given set of %s regions (# of regions = %i). 
 Intersection size == how often a specific RBP combination is found in the regions dataset.
@@ -11433,11 +11562,11 @@ This is why the more RBPs are selected, the smaller intersection sizes typically
 
 """ %(site_type, c_regions, args.upset_plot_min_subset_size, args.upset_plot_min_degree, args.upset_plot_max_subset_rank, upset_plot_nr_included_rbps, args.upset_plot_min_rbp_count, site_type)
 
-    else:
+        else:
 
-        if reason == "min_degree":
+            if reason == "min_degree":
 
-            mdtext += """
+                mdtext += """
 
 No upset plot generated since set --upset-plot-min-degree > maximum degree found in the RBP combination set. Please use lower number for --upset-plot-min-degree parameter.
 Also NOTE that upsetplot currently (v0.9) only supports distinct mode (no intersect or union modes available). 
@@ -11450,9 +11579,9 @@ This is why the more RBPs are selected, the smaller intersection sizes typically
 
 """
 
-        elif reason == "min_subset_size":
+            elif reason == "min_subset_size":
 
-            mdtext += """
+                mdtext += """
 
 No upset plot generated since set --upset-plot-min-subset-size (%i) > maximum subset size (%i) found in the RBP combination set. Please use lower number for --upset-plot-min-subset-size parameter.
 Also NOTE that upsetplot currently (v0.9) only supports distinct mode (no intersect or union modes available). 
@@ -11465,9 +11594,9 @@ This is why the more RBPs are selected, the smaller intersection sizes typically
 
 """ %(args.upset_plot_min_subset_size, count)
 
-        elif reason == "len(rbp_id_list) == 1":
+            elif reason == "len(rbp_id_list) == 1":
 
-            mdtext += """
+                mdtext += """
 
 No plot generated since number of selected RBPs == 1.
 
@@ -11475,9 +11604,9 @@ No plot generated since number of selected RBPs == 1.
 
 """
 
-        elif reason == "no_region_hits":
+            elif reason == "no_region_hits":
 
-            mdtext += """
+                mdtext += """
 
 No plot generated since no motif hits found in input regions.
 
@@ -11485,9 +11614,9 @@ No plot generated since no motif hits found in input regions.
 
 """
 
-        elif reason == "min_rbp_count":
+            elif reason == "min_rbp_count":
 
-            mdtext += """
+                mdtext += """
 
 No plot generated since set --upset-plot-min-rbp-count results in no RBPs remaining for upset plot.
 
@@ -11495,8 +11624,8 @@ No plot generated since set --upset-plot-min-rbp-count results in no RBPs remain
 
 """
 
-        else:
-            assert False, "invalid reason given for not plotting upset plot"
+            else:
+                assert False, "invalid reason given for not plotting upset plot"
 
 
 
@@ -11838,7 +11967,9 @@ Only motifs with a pair count of >= %i appear in the plot.
         if filter_further_info:
             filter_further_info += " Note that additional filters (children + depth) can result in an empty table. For all significant GO terms (i.e., unfiltered results) check *goa_results.tsv* output table."
         filter_only_cooc_info = ""
-        if args.goa_only_cooc:
+        if args.goa_cooc_mode == 2:
+            filter_only_cooc_info = " Only target genes are considered which contain regions with motif hits from any specified RBP (including regex)."
+        elif args.goa_cooc_mode == 3:
             filter_only_cooc_info = " Only target genes are considered which contain regions with motif hits from all specified RBPs (including regex)."
 
         if c_goa_results > 0:
@@ -13209,8 +13340,11 @@ and respective number of motif hits found in supplied %s regions.
             goa_rna_region_info = "5'UTR regions"
 
         goa_only_cooc_info = ""
-        if args.goa_only_cooc:
-            goa_only_cooc_info = " Only target genes with motif hits from all specified RBPs (including regex) are considered." 
+        if args.goa_cooc_mode == 2:
+            goa_only_cooc_info = " Only target genes with motif hits from any specified RBP (including regex) are considered."
+        elif args.goa_cooc_mode == 3:
+            goa_only_cooc_info = " Only target genes with motif hits from all specified RBPs (including regex) are considered."
+
 
         if c_goa_results > 0:
 

@@ -168,6 +168,17 @@ def setup_argument_parser():
                    nargs='+',
                    default=False,
                    help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions). NOTE that --regex is not affected by filtering")
+
+    p_s.add_argument("--motifs",
+                   dest="motifs_list",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   default=False,
+                   help="Provide IDs for motifs of interest (need to be in database and loaded). All other RBP motifs will be discarded (except --regex)")
+
+
+
     p_s.add_argument("--regex",
                    dest="regex",
                    type=str,
@@ -311,6 +322,15 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Disable input sequence length distribution plot in HTML report (default: False)")
+
+
+    p_s.add_argument("--disable-upset-plot",
+                   dest="disable_upset_plot",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable upset plot in HTML report (default: False)")
+
+
     p_s.add_argument("--upset-plot-min-degree",
                    dest="upset_plot_min_degree",
                    type=int,
@@ -430,11 +450,12 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.05,
                    help="GO enrichment analysis p-value threshold (applied on corrected p-value) (default: 0.05)")
-    p_s.add_argument("--goa-only-cooc",
-                   dest="goa_only_cooc",
-                   default = False,
-                   action = "store_true",
-                   help = "Only look at regions in GO enrichment analysis which contain motifs by all specified RBPs. By default, GO enrichment analysis is performed on all input regions (i.e., their underlying genes) (default: False)")
+    p_s.add_argument("--goa-cooc-mode",
+                   dest="goa_cooc_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help = "Define what input regions to consider in GOA, in relation to motif hit (co-)occurrences. 1: Perform GOA on all input regions (no motif (co-)occurrences required). 2: perform GOA only on input regions with motif hits from ANY specified RBP. 3: perform GOA only on input regions with motif hits from ALL specified RBPs. GOA on input regions translates to GOA on the underlying genes (default: 1)")
     p_s.add_argument("--goa-bg-gene-list",
                    dest="goa_bg_gene_list",
                    type=str,
@@ -1577,6 +1598,13 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Disable input sequence length distribution plot in HTML report (default: False)")
+
+    p_scr.add_argument("--disable-upset-plot",
+                   dest="disable_upset_plot",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable upset plot in HTML report (default: False)")
+
     p_scr.add_argument("--upset-plot-min-degree",
                    dest="upset_plot_min_degree",
                    type=int,
@@ -1660,11 +1688,12 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.05,
                    help="GO enrichment analysis p-value threshold (applied on corrected p-value) (default: 0.05)")
-    p_scr.add_argument("--goa-only-cooc",
-                   dest="goa_only_cooc",
-                   default = False,
-                   action = "store_true",
-                   help = "Only look at regions in GO enrichment analysis which contain motifs by all specified RBPs. By default, GO enrichment analysis is performed on all input regions (i.e., their underlying genes) (default: False)")
+    p_scr.add_argument("--goa-cooc-mode",
+                   dest="goa_cooc_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help = "Define what input regions to consider in GOA, in relation to motif hit (co-)occurrences. 1: Perform GOA on all input regions (no motif (co-)occurrences required). 2: perform GOA only on input regions with motif hits from ANY specified RBP. 3: perform GOA only on input regions with motif hits from ALL specified RBPs. GOA on input regions translates to GOA on the underlying genes (default: 1)")
     p_scr.add_argument("--goa-bg-gene-list",
                    dest="goa_bg_gene_list",
                    type=str,
@@ -3661,8 +3690,72 @@ def main_search(args):
     fid2desc_file = db_path + "/rbp_function_list.32728246.tsv"
     fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
     
+
     """
-    If --functions set, filter loaded_rbps_dic.
+    If --motifs sets, filter loaded_rbps_dic + loaded_motif_ids_dic.
+    
+    AALAMO
+
+    """
+
+    if args.motifs_list:
+
+        print("Filtering loaded motifs by provided --motifs ... ")
+
+        motif_fids_dic = {}
+
+        for motif_id in args.motifs_list:
+            motif_fids_dic[motif_id] = 1
+
+        filtered_rbps_dic = {}
+        filtered_motif_ids_dic = {}
+        filtered_name2ids_dic = {}
+        for motif_id in motif_fids_dic:
+            assert motif_id in id2name_dic, "motif ID \"%s\" provided via --motifs not found in internal motif ID -> RBP ID mapping. Please provide valid motif IDs" %(motif_id)
+            assert motif_id in loaded_motif_ids_dic, "motif ID \"%s\" provided via --motifs not found in loaded motifs (via --rbps). Please provide motif IDs that are part of loaded RBPs" %(motif_id)
+            set_db_str = loaded_motif_ids_dic[motif_id]
+            filtered_motif_ids_dic[motif_id] = set_db_str
+            rbp_id = id2name_dic[motif_id]
+            assert rbp_id in loaded_rbps_dic, "motif ID \"%s\" provided via --motifs not found in loaded RBPs (via --rbps). Please provide motif IDs that are part of loaded RBPs" %(motif_id)
+            set_db_str = loaded_rbps_dic[rbp_id]
+            filtered_rbps_dic[rbp_id] = set_db_str
+            if rbp_id in filtered_name2ids_dic:
+                filtered_name2ids_dic[rbp_id].append(motif_id)
+            else:
+                filtered_name2ids_dic[rbp_id] = [motif_id]
+
+        if args.regex:
+            filtered_rbps_dic[regex_id] = regex_id
+            if args.motif_regex_id:
+                filtered_motif_ids_dic[regex_id] = regex_id
+                filtered_name2ids_dic[regex_id] = [regex_id]
+            else:
+                filtered_motif_ids_dic[regex] = regex_id
+                filtered_name2ids_dic[regex_id] = [regex]
+
+        c_loaded_rbps_pre = len(loaded_rbps_dic)
+        c_loaded_rbps_post = len(filtered_rbps_dic)
+        loaded_rbps_dic = filtered_rbps_dic
+
+        print("# RBPs pre-filtering by --motifs: ", c_loaded_rbps_pre)
+        print("# RBPs post-filtering by --motifs:", c_loaded_rbps_post)
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided motif IDs (via --motifs). Please provide compatible RBPs + motif IDs"
+
+        c_loaded_motif_ids_pre = len(loaded_motif_ids_dic)
+        c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
+        loaded_motif_ids_dic = filtered_motif_ids_dic
+
+        print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
+        print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
+
+        assert loaded_motif_ids_dic, "no remaining motifs after filtering by provided motif IDs (via --motifs). Please provide compatible RBPs + motif IDs"
+
+        name2ids_dic = filtered_name2ids_dic
+
+
+    """
+    If --functions set, filter loaded_rbps_dic + loaded_motif_ids_dic.
 
     """
     rbp_fids_dic = {}
@@ -3687,7 +3780,8 @@ def main_search(args):
                 continue
             for fid in rbp_fids_dic:
                 if fid in name2fids_dic[rbp_id]:
-                    filtered_rbps_dic[rbp_id] = motif_db_str
+                    set_db_str = loaded_rbps_dic[rbp_id]
+                    filtered_rbps_dic[rbp_id] = set_db_str
                     break
 
         c_loaded_rbps_pre = len(loaded_rbps_dic)
@@ -5136,9 +5230,11 @@ def main_search(args):
     """
     reg2annot_dic = {}
     reg_annot_table_file = None
+    target_reg_annot_file = None
     # For GO enrichment analysis.
     target_genes_dic = {}  # Store gene IDs covered by regions -> region count.
     background_genes_dic = {}  # Store all gene IDs in GTF file to use as background genes.
+    gid2tid_dic = {}
 
     if args.in_gtf and c_regions_with_hits:
 
@@ -5257,6 +5353,7 @@ def main_search(args):
                 gene_info = gid2gio_dic[gene_id]
                 tr_biotype = tid2tio_dic[tr_id].tr_biotype
                 gene_name = gene_info.gene_name
+                gid2tid_dic[gene_id] = tr_id
                 if gene_id not in target_genes_dic:
                     target_genes_dic[gene_id] = 1
                 else:
@@ -5267,14 +5364,30 @@ def main_search(args):
         OUTRAN.close()
         
         # If only target genes with RBP motifs hits for all RBPs should be considered.
-        if args.goa_only_cooc:
-            new_target_genes_dic = benchlib.get_target_genes_with_rbp_hits(reg2annot_dic, tr2gid_dic, region_rbp_binds_dic)
+        if args.goa_cooc_mode == 2:
+            gid2tid_dic = {}
+            new_target_genes_dic = benchlib.get_target_genes_with_rbp_hits(reg2annot_dic, tr2gid_dic, region_rbp_binds_dic,
+                                                                           gid2tid_dic=gid2tid_dic,
+                                                                           goa_cooc_mode=args.goa_cooc_mode)
+
+            print("Keep only target genes containing regions with motif hits for any RBP ... ")
+            print("# of target genes before filtering: %i" %(len(target_genes_dic)))
+            print("# of target genes after filtering:  %i" %(len(new_target_genes_dic)))
+
+            target_genes_dic = new_target_genes_dic
+
+        elif args.goa_cooc_mode == 3:
+            gid2tid_dic = {}
+            new_target_genes_dic = benchlib.get_target_genes_with_rbp_hits(reg2annot_dic, tr2gid_dic, region_rbp_binds_dic,
+                                                                           gid2tid_dic=gid2tid_dic,
+                                                                           goa_cooc_mode=args.goa_cooc_mode)
 
             print("Keep only target genes containing regions with motif hits for all RBPs ... ")
             print("# of target genes before filtering: %i" %(len(target_genes_dic)))
             print("# of target genes after filtering:  %i" %(len(new_target_genes_dic)))
 
             target_genes_dic = new_target_genes_dic
+
 
         if args.goa_bg_gene_list:
 
@@ -5337,10 +5450,19 @@ def main_search(args):
         goa_stats_dic["goa_filter_purified"] = args.goa_filter_purified
         goa_stats_dic["goa_max_child"] = args.goa_max_child
         goa_stats_dic["goa_min_depth"] = args.goa_min_depth
-        goa_stats_dic["goa_only_cooc"] = args.goa_only_cooc
+        goa_stats_dic["goa_cooc_mode"] = args.goa_cooc_mode
 
         if target_genes_dic:
-            
+
+            gene_infos_file = benchlib_path + "/content/ensembl_gene_infos.biomart.GRCh38.112.tsv.gz"
+            if os.path.exists(gene_infos_file):
+                print("Output target region annotations ... ")
+                target_reg_annot_file = args.out_folder + "/target_region_annotations.tsv"
+                
+                benchlib.output_target_reg_annot(target_genes_dic, gene_infos_file, target_reg_annot_file,
+                                                 gid2tid_dic=gid2tid_dic,
+                                                 tid2tio_dic=tid2tio_dic)
+
             local_gid2go_file = benchlib_path + "/content/ensembl_gene_id2go_ids.biomart.GRCh38.112.tsv.gz"
             local_obo_file = benchlib_path + "/content/go-basic.obo.gz"
 
@@ -5597,6 +5719,8 @@ def main_search(args):
         print("GO enrichment analysis results .tsv:\n%s" %(goa_results_tsv))
     if reg_annot_table_file is not None:
         print("Region annotations .tsv:\n%s" %(reg_annot_table_file))
+    if target_reg_annot_file is not None:
+        print("Target region annotations .tsv:\n%s" %(target_reg_annot_file))
     if args.plot_motifs:
         print("Motif plots and hit statistics .html:\n%s" %(html_motif_plots_out))
     if args.report:
@@ -7183,6 +7307,8 @@ def main_batch(args):
     2)
     Filter target + background genes and run GOA.
 
+    AALAMO
+
     """
 
     goa_results_df = False
@@ -8024,7 +8150,7 @@ def main_searchseq(args):
     fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
     
     """
-    If --functions set, filter loaded_rbps_dic.
+    If --functions set, filter loaded_rbps_dic + loaded_motif_ids_dic.
 
     """
     rbp_fids_dic = {}
@@ -8046,7 +8172,8 @@ def main_searchseq(args):
                 continue
             for fid in rbp_fids_dic:
                 if fid in name2fids_dic[rbp_id]:
-                    filtered_rbps_dic[rbp_id] = motif_db_str
+                    set_db_str = loaded_rbps_dic[rbp_id]
+                    filtered_rbps_dic[rbp_id] = set_db_str
                     break
 
         c_loaded_rbps_pre = len(loaded_rbps_dic)
@@ -9199,7 +9326,7 @@ def main_searchlong(args):
     fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
     
     """
-    If --functions set, filter loaded_rbps_dic.
+    If --functions set, filter loaded_rbps_dic + loaded_motif_ids_dic.
 
     """
     rbp_fids_dic = {}
@@ -9224,7 +9351,8 @@ def main_searchlong(args):
                 continue
             for fid in rbp_fids_dic:
                 if fid in name2fids_dic[rbp_id]:
-                    filtered_rbps_dic[rbp_id] = motif_db_str
+                    set_db_str = loaded_rbps_dic[rbp_id]
+                    filtered_rbps_dic[rbp_id] = set_db_str
                     break
 
         c_loaded_rbps_pre = len(loaded_rbps_dic)
@@ -10656,7 +10784,7 @@ def main_searchrna(args):
     fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
     
     """
-    If --functions set, filter loaded_rbps_dic.
+    If --functions set, filter loaded_rbps_dic + loaded_motif_ids_dic.
 
     """
     rbp_fids_dic = {}
@@ -10681,7 +10809,8 @@ def main_searchrna(args):
                 continue
             for fid in rbp_fids_dic:
                 if fid in name2fids_dic[rbp_id]:
-                    filtered_rbps_dic[rbp_id] = motif_db_str
+                    set_db_str = loaded_rbps_dic[rbp_id]
+                    filtered_rbps_dic[rbp_id] = set_db_str
                     break
 
         c_loaded_rbps_pre = len(loaded_rbps_dic)
@@ -10867,6 +10996,7 @@ def main_searchrna(args):
     goa_results_df = False
     goa_stats_dic = {}
     propagate_counts = True
+    target_reg_annot_file = None
 
     if args.run_goa:
 
@@ -10877,24 +11007,35 @@ def main_searchrna(args):
         for gene_id in gid2gio_dic:
             background_genes_dic[gene_id] = gid2gio_dic[gene_id].gene_name
 
+        gid2tid_dic = {}
+
         # Get target gene IDs.
         for tid in tr_ids_dic:
             if tid in tr2gid_dic:
                 gene_id = tr2gid_dic[tid]
+                gid2tid_dic[gene_id] = tid
                 target_genes_dic[gene_id] = 1
 
-        # If only target genes with RBP motifs hits for all RBPs should be considered.
-        if args.goa_only_cooc:
 
+        # If only target genes with RBP motifs hits for all RBPs should be considered.
+        if args.goa_cooc_mode == 2 or args.goa_cooc_mode == 3:
+
+            gid2tid_dic = {}
             reg2annot_dic = {}
             for reg_id in region_rbp_binds_dic:
                 # Region ID has format: ENST00000270722:686-752(+). Extract first part of ID.
                 tr_id = reg_id.split(":")[0]
                 reg2annot_dic[reg_id] = [False, tr_id]
             
-            new_target_genes_dic = benchlib.get_target_genes_with_rbp_hits(reg2annot_dic, tr2gid_dic, region_rbp_binds_dic)
+            new_target_genes_dic = benchlib.get_target_genes_with_rbp_hits(reg2annot_dic, tr2gid_dic, region_rbp_binds_dic,
+                                                                           gid2tid_dic=gid2tid_dic,
+                                                                           goa_cooc_mode=args.goa_cooc_mode)
 
-            print("Keep only target genes containing regions with motif hits for all RBPs ... ")
+            if args.goa_cooc_mode == 2:
+                print("Keep only target genes containing regions with motif hits for any RBP ... ")
+            elif args.goa_cooc_mode == 3:
+                print("Keep only target genes containing regions with motif hits for all RBPs ... ")
+            
             print("# of target genes before filtering: %i" %(len(target_genes_dic)))
             print("# of target genes after filtering:  %i" %(len(new_target_genes_dic)))
 
@@ -10949,7 +11090,16 @@ def main_searchrna(args):
         goa_stats_dic["goa_filter_purified"] = args.goa_filter_purified
         goa_stats_dic["goa_max_child"] = args.goa_max_child
         goa_stats_dic["goa_min_depth"] = args.goa_min_depth
-        goa_stats_dic["goa_only_cooc"] = args.goa_only_cooc
+        goa_stats_dic["goa_cooc_mode"] = args.goa_cooc_mode
+
+        gene_infos_file = benchlib_path + "/content/ensembl_gene_infos.biomart.GRCh38.112.tsv.gz"
+        if os.path.exists(gene_infos_file):
+            print("Output target region annotations ... ")
+            target_reg_annot_file = args.out_folder + "/target_region_annotations.tsv"
+            
+            benchlib.output_target_reg_annot(target_genes_dic, gene_infos_file, target_reg_annot_file,
+                                             gid2tid_dic=gid2tid_dic,
+                                             tid2tio_dic=tid2tio_dic)
 
         local_gid2go_file = benchlib_path + "/content/ensembl_gene_id2go_ids.biomart.GRCh38.112.tsv.gz"
         local_obo_file = benchlib_path + "/content/go-basic.obo.gz"
@@ -12245,6 +12395,8 @@ def main_searchrna(args):
     print("RBP region occupancies .tsv:\n%s" %(rbp_reg_occ_table_out))
     print("RBP hit stats .tsv:\n%s" %(rbp_stats_out))
     print("Motif hit stats .tsv:\n%s" %(motif_stats_out))
+    if target_reg_annot_file is not None:
+        print("Target region annotation .tsv:\n%s" %(target_reg_annot_file))
     if args.run_goa:
         print("GO enrichment analysis results .tsv:\n%s" %(goa_results_tsv))
     if args.plot_motifs:
@@ -12633,7 +12785,7 @@ def main_searchlongrna(args):
     fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
     
     """
-    If --functions set, filter loaded_rbps_dic.
+    If --functions set, filter loaded_rbps_dic + loaded_motif_ids_dic.
 
     """
     rbp_fids_dic = {}
@@ -12658,7 +12810,8 @@ def main_searchlongrna(args):
                 continue
             for fid in rbp_fids_dic:
                 if fid in name2fids_dic[rbp_id]:
-                    filtered_rbps_dic[rbp_id] = motif_db_str
+                    set_db_str = loaded_rbps_dic[rbp_id]
+                    filtered_rbps_dic[rbp_id] = set_db_str
                     break
 
         c_loaded_rbps_pre = len(loaded_rbps_dic)
@@ -14374,7 +14527,7 @@ def main_enmo(args):
     fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
     
     """
-    If --functions set, filter loaded_rbps_dic.
+    If --functions set, filter loaded_rbps_dic + loaded_motif_ids_dic.
 
     """
     rbp_fids_dic = {}
@@ -14399,7 +14552,8 @@ def main_enmo(args):
                 continue
             for fid in rbp_fids_dic:
                 if fid in name2fids_dic[rbp_id]:
-                    filtered_rbps_dic[rbp_id] = motif_db_str
+                    set_db_str = loaded_rbps_dic[rbp_id]
+                    filtered_rbps_dic[rbp_id] = set_db_str
                     break
 
         c_loaded_rbps_pre = len(loaded_rbps_dic)
@@ -16662,7 +16816,7 @@ def main_nemo(args):
     fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
     
     """
-    If --functions set, filter loaded_rbps_dic.
+    If --functions set, filter loaded_rbps_dic + loaded_motif_ids_dic.
 
     """
     rbp_fids_dic = {}
@@ -16687,7 +16841,8 @@ def main_nemo(args):
                 continue
             for fid in rbp_fids_dic:
                 if fid in name2fids_dic[rbp_id]:
-                    filtered_rbps_dic[rbp_id] = motif_db_str
+                    set_db_str = loaded_rbps_dic[rbp_id]
+                    filtered_rbps_dic[rbp_id] = set_db_str
                     break
 
         c_loaded_rbps_pre = len(loaded_rbps_dic)
