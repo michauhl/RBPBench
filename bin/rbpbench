@@ -161,14 +161,6 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
-    p_s.add_argument("--functions",
-                   dest="rbp_functions",
-                   type=str,
-                   metavar='str',
-                   nargs='+',
-                   default=False,
-                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions). NOTE that --regex is not affected by filtering")
-
     p_s.add_argument("--motifs",
                    dest="motifs_list",
                    type=str,
@@ -176,9 +168,13 @@ def setup_argument_parser():
                    nargs='+',
                    default=False,
                    help="Provide IDs for motifs of interest (need to be in database and loaded). All other RBP motifs will be discarded (except --regex)")
-
-
-
+    p_s.add_argument("--functions",
+                   dest="rbp_functions",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   default=False,
+                   help="Filter defined RBPs (via --rbps) by their molecular functions (annotations available for most database RBPs). E.g. for RBPs in splicing regulation, set --functions SR, for RBPs in RNA stability & decay plus translation regulation, set --functions RSD TR (see rbpbench info for full function descriptions). NOTE that --regex is not affected by filtering")
     p_s.add_argument("--regex",
                    dest="regex",
                    type=str,
@@ -982,6 +978,13 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
+    p_ss.add_argument("--motifs",
+                   dest="motifs_list",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   default=False,
+                   help="Provide IDs for motifs of interest (need to be in database and loaded). All other RBP motifs will be discarded (except --regex)")
     p_ss.add_argument("--functions",
                    dest="rbp_functions",
                    type=str,
@@ -1233,6 +1236,13 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
+    p_sl.add_argument("--motifs",
+                   dest="motifs_list",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   default=False,
+                   help="Provide IDs for motifs of interest (need to be in database and loaded). All other RBP motifs will be discarded (except --regex)")
     p_sl.add_argument("--functions",
                    dest="rbp_functions",
                    type=str,
@@ -1505,6 +1515,13 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
+    p_scr.add_argument("--motifs",
+                   dest="motifs_list",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   default=False,
+                   help="Provide IDs for motifs of interest (need to be in database and loaded). All other RBP motifs will be discarded (except --regex)")
     p_scr.add_argument("--functions",
                    dest="rbp_functions",
                    type=str,
@@ -1864,6 +1881,13 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
+    p_smr.add_argument("--motifs",
+                   dest="motifs_list",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   default=False,
+                   help="Provide IDs for motifs of interest (need to be in database and loaded). All other RBP motifs will be discarded (except --regex)")
     p_smr.add_argument("--functions",
                    dest="rbp_functions",
                    type=str,
@@ -2149,6 +2173,13 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
+    p_em.add_argument("--motifs",
+                   dest="motifs_list",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   default=False,
+                   help="Provide IDs for motifs of interest (need to be in database and loaded). All other RBP motifs will be discarded (except --regex)")
     p_em.add_argument("--functions",
                    dest="rbp_functions",
                    type=str,
@@ -2495,6 +2526,13 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
+    p_nm.add_argument("--motifs",
+                   dest="motifs_list",
+                   type=str,
+                   metavar='str',
+                   nargs='+',
+                   default=False,
+                   help="Provide IDs for motifs of interest (need to be in database and loaded). All other RBP motifs will be discarded (except --regex)")
     p_nm.add_argument("--functions",
                    dest="rbp_functions",
                    type=str,
@@ -3222,6 +3260,7 @@ def specify_motif_db(motif_db_nr, db_path="./"):
         seq_motifs_db_file = db_path + "/Ray2013_rbp_Homo_sapiens.dna_encoded.meme"
         rbp2ids_file = db_path + "/rbp_motif2name_ids.3.txt"
         motif_db_str = "ray2013_human_rbps_rnacompete"
+        str_motifs_db_file = False
     return seq_motifs_db_file, str_motifs_db_file, rbp2ids_file, motif_db_str
 
 
@@ -3417,11 +3456,11 @@ def main_search(args):
 
     """
     str_motif_blocks_dic = {}
-    if os.path.exists(str_motifs_db_file):
+    if str_motifs_db_file and os.path.exists(str_motifs_db_file):
         str_motif_blocks_dic = benchlib.read_in_cm_blocks(str_motifs_db_file, 
                                                           empty_check=True)
-    for motif_id in str_motif_blocks_dic:
-        assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+        for motif_id in str_motif_blocks_dic:
+            assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
 
     # Remove special chars from run ID.
     args.data_id = benchlib.remove_special_chars_from_str(args.data_id)
@@ -3694,8 +3733,6 @@ def main_search(args):
     """
     If --motifs sets, filter loaded_rbps_dic + loaded_motif_ids_dic.
     
-    AALAMO
-
     """
 
     if args.motifs_list:
@@ -4716,10 +4753,15 @@ def main_search(args):
 
         internal_id = search_rbps_dic[rbp_id].internal_id
 
+        # Get matched sequence.
+        matched_seq = benchlib.get_matched_seq(fh.seq_name, out_seqs_dic, fh.seq_s, fh.seq_e)
+        if not matched_seq:
+            matched_seq = "-"
+
         # Store motif hit as BED.
         hit_id = "%s:%s-%s(%s)%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval))
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), matched_seq)
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -4788,10 +4830,15 @@ def main_search(args):
 
         internal_id = search_rbps_dic[rbp_id].internal_id
 
+        # Get matched sequence.
+        matched_seq = benchlib.get_matched_seq(cmsh.seq_name, out_seqs_dic, cmsh.seq_s, cmsh.seq_e)
+        if not matched_seq:
+            matched_seq = "-"
+
         # Store motif hit as BED.
         hit_id = "%s:%s-%s(%s)%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value))
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), matched_seq)
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -4827,7 +4874,7 @@ def main_search(args):
 
     The motif hits written to motif_hits_bed_out are unique motif hits already. 
     If same hit occurs > 1, this is recorded in BED column 4 with format:
-    rbp_id,motif_id;uniq_count;method_id,data_id
+    rbp_id:motif_id;uniq_count;method_id:data_id
     These also include regex hits, as they are part of fimo hits.
     
     """
@@ -5512,8 +5559,11 @@ def main_search(args):
         print("Overlap annotations with motif hit regions ... ")
 
         params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
+        motif_hits_bed_tmp_out = args.out_folder + "/motif_hits.tmp.bed"
+        benchlib.reformat_to_bed10(motif_hits_bed_out, motif_hits_bed_tmp_out)
+
         overlap_motif_hit_annotations_bed = args.out_folder + "/overlap_motif_hit_annotations.tmp.bed"
-        benchlib.bed_intersect_files(motif_hits_bed_out, intron_exon_out_bed, 
+        benchlib.bed_intersect_files(motif_hits_bed_tmp_out, intron_exon_out_bed, 
                                      overlap_motif_hit_annotations_bed,
                                      params=params)
 
@@ -5536,6 +5586,18 @@ def main_search(args):
                 rbp2motif2annot2c_dic[rbp_id][motif_id][annot] = 1
             else:
                 rbp2motif2annot2c_dic[rbp_id][motif_id][annot] += 1
+
+        # Output motif hits BED again, with motif region annotations.
+        OUTBED = open(motif_hits_bed_out,"w")
+        for hit_id in motif_reg_dic:
+            annot = "-"
+            if hit_id in motif_hit2annot_dic:
+                annot = motif_hit2annot_dic[hit_id][0]
+            cols = motif_reg_dic[hit_id].split("\t")
+            match_seq = cols[11]
+            cols_part1 = "\t".join(cols[0:10]) 
+            OUTBED.write("%s\t%s\t%s\n" %(cols_part1, annot, match_seq))
+        OUTBED.close()
 
     """
     Get annotation to color dictionary, which is needed for region annotation plots in HTML reports.
@@ -5984,11 +6046,11 @@ def main_batch(args):
 
     """
     str_motif_blocks_dic = {}
-    if os.path.exists(str_motifs_db_file):
+    if str_motifs_db_file and os.path.exists(str_motifs_db_file):
         str_motif_blocks_dic = benchlib.read_in_cm_blocks(str_motifs_db_file,
                                                           empty_check=True)
-    for motif_id in str_motif_blocks_dic:
-        assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+        for motif_id in str_motif_blocks_dic:
+            assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
 
     """
     Check if RBP IDs are in database.
@@ -7956,11 +8018,11 @@ def main_searchseq(args):
 
     """
     str_motif_blocks_dic = {}
-    if os.path.exists(str_motifs_db_file):
+    if str_motifs_db_file and os.path.exists(str_motifs_db_file):
         str_motif_blocks_dic = benchlib.read_in_cm_blocks(str_motifs_db_file, 
                                                           empty_check=True)
-    for motif_id in str_motif_blocks_dic:
-        assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+        for motif_id in str_motif_blocks_dic:
+            assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
 
     # Remove special chars from run ID.
     args.data_id = benchlib.remove_special_chars_from_str(args.data_id)
@@ -8148,7 +8210,60 @@ def main_searchseq(args):
     """
     fid2desc_file = db_path + "/rbp_function_list.32728246.tsv"
     fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
+
+
+    """
+    If --motifs sets, filter loaded_rbps_dic + loaded_motif_ids_dic.
     
+    """
+
+    if args.motifs_list:
+
+        print("Filtering loaded motifs by provided --motifs ... ")
+
+        motif_fids_dic = {}
+
+        for motif_id in args.motifs_list:
+            motif_fids_dic[motif_id] = 1
+
+        filtered_rbps_dic = {}
+        filtered_motif_ids_dic = {}
+        filtered_name2ids_dic = {}
+        for motif_id in motif_fids_dic:
+            assert motif_id in id2name_dic, "motif ID \"%s\" provided via --motifs not found in internal motif ID -> RBP ID mapping. Please provide valid motif IDs" %(motif_id)
+            assert motif_id in loaded_motif_ids_dic, "motif ID \"%s\" provided via --motifs not found in loaded motifs (via --rbps). Please provide motif IDs that are part of loaded RBPs" %(motif_id)
+            set_db_str = loaded_motif_ids_dic[motif_id]
+            filtered_motif_ids_dic[motif_id] = set_db_str
+            rbp_id = id2name_dic[motif_id]
+            assert rbp_id in loaded_rbps_dic, "motif ID \"%s\" provided via --motifs not found in loaded RBPs (via --rbps). Please provide motif IDs that are part of loaded RBPs" %(motif_id)
+            set_db_str = loaded_rbps_dic[rbp_id]
+            filtered_rbps_dic[rbp_id] = set_db_str
+            if rbp_id in filtered_name2ids_dic:
+                filtered_name2ids_dic[rbp_id].append(motif_id)
+            else:
+                filtered_name2ids_dic[rbp_id] = [motif_id]
+
+        c_loaded_rbps_pre = len(loaded_rbps_dic)
+        c_loaded_rbps_post = len(filtered_rbps_dic)
+        loaded_rbps_dic = filtered_rbps_dic
+
+        print("# RBPs pre-filtering by --motifs: ", c_loaded_rbps_pre)
+        print("# RBPs post-filtering by --motifs:", c_loaded_rbps_post)
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided motif IDs (via --motifs). Please provide compatible RBPs + motif IDs"
+
+        c_loaded_motif_ids_pre = len(loaded_motif_ids_dic)
+        c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
+        loaded_motif_ids_dic = filtered_motif_ids_dic
+
+        print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
+        print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
+
+        assert loaded_motif_ids_dic, "no remaining motifs after filtering by provided motif IDs (via --motifs). Please provide compatible RBPs + motif IDs"
+
+        name2ids_dic = filtered_name2ids_dic
+
+
     """
     If --functions set, filter loaded_rbps_dic + loaded_motif_ids_dic.
 
@@ -9079,11 +9194,11 @@ def main_searchlong(args):
 
     """
     str_motif_blocks_dic = {}
-    if os.path.exists(str_motifs_db_file):
+    if str_motifs_db_file and os.path.exists(str_motifs_db_file):
         str_motif_blocks_dic = benchlib.read_in_cm_blocks(str_motifs_db_file, 
                                                           empty_check=True)
-    for motif_id in str_motif_blocks_dic:
-        assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+        for motif_id in str_motif_blocks_dic:
+            assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
 
     # Remove special chars from run ID.
     args.data_id = benchlib.remove_special_chars_from_str(args.data_id)
@@ -9324,7 +9439,68 @@ def main_searchlong(args):
     """
     fid2desc_file = db_path + "/rbp_function_list.32728246.tsv"
     fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
+
+    """
+    If --motifs sets, filter loaded_rbps_dic + loaded_motif_ids_dic.
     
+    """
+
+    if args.motifs_list:
+
+        print("Filtering loaded motifs by provided --motifs ... ")
+
+        motif_fids_dic = {}
+
+        for motif_id in args.motifs_list:
+            motif_fids_dic[motif_id] = 1
+
+        filtered_rbps_dic = {}
+        filtered_motif_ids_dic = {}
+        filtered_name2ids_dic = {}
+        for motif_id in motif_fids_dic:
+            assert motif_id in id2name_dic, "motif ID \"%s\" provided via --motifs not found in internal motif ID -> RBP ID mapping. Please provide valid motif IDs" %(motif_id)
+            assert motif_id in loaded_motif_ids_dic, "motif ID \"%s\" provided via --motifs not found in loaded motifs (via --rbps). Please provide motif IDs that are part of loaded RBPs" %(motif_id)
+            set_db_str = loaded_motif_ids_dic[motif_id]
+            filtered_motif_ids_dic[motif_id] = set_db_str
+            rbp_id = id2name_dic[motif_id]
+            assert rbp_id in loaded_rbps_dic, "motif ID \"%s\" provided via --motifs not found in loaded RBPs (via --rbps). Please provide motif IDs that are part of loaded RBPs" %(motif_id)
+            set_db_str = loaded_rbps_dic[rbp_id]
+            filtered_rbps_dic[rbp_id] = set_db_str
+            if rbp_id in filtered_name2ids_dic:
+                filtered_name2ids_dic[rbp_id].append(motif_id)
+            else:
+                filtered_name2ids_dic[rbp_id] = [motif_id]
+
+        if args.regex:
+            filtered_rbps_dic[regex_id] = regex_id
+            if args.motif_regex_id:
+                filtered_motif_ids_dic[regex_id] = regex_id
+                filtered_name2ids_dic[regex_id] = [regex_id]
+            else:
+                filtered_motif_ids_dic[regex] = regex_id
+                filtered_name2ids_dic[regex_id] = [regex]
+
+        c_loaded_rbps_pre = len(loaded_rbps_dic)
+        c_loaded_rbps_post = len(filtered_rbps_dic)
+        loaded_rbps_dic = filtered_rbps_dic
+
+        print("# RBPs pre-filtering by --motifs: ", c_loaded_rbps_pre)
+        print("# RBPs post-filtering by --motifs:", c_loaded_rbps_post)
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided motif IDs (via --motifs). Please provide compatible RBPs + motif IDs"
+
+        c_loaded_motif_ids_pre = len(loaded_motif_ids_dic)
+        c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
+        loaded_motif_ids_dic = filtered_motif_ids_dic
+
+        print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
+        print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
+
+        assert loaded_motif_ids_dic, "no remaining motifs after filtering by provided motif IDs (via --motifs). Please provide compatible RBPs + motif IDs"
+
+        name2ids_dic = filtered_name2ids_dic
+
+
     """
     If --functions set, filter loaded_rbps_dic + loaded_motif_ids_dic.
 
@@ -10166,7 +10342,7 @@ def main_searchlong(args):
 
     The motif hits written to motif_hits_bed_out are unique motif hits already. 
     If same hit occurs > 1, this is recorded in BED column 4 with format:
-    rbp_id,motif_id;uniq_count;method_id,data_id
+    rbp_id:motif_id;uniq_count;method_id:data_id
     These also include regex hits, as they are part of fimo hits.
     
     """
@@ -10507,11 +10683,11 @@ def main_searchrna(args):
 
     """
     str_motif_blocks_dic = {}
-    if os.path.exists(str_motifs_db_file):
+    if str_motifs_db_file and os.path.exists(str_motifs_db_file):
         str_motif_blocks_dic = benchlib.read_in_cm_blocks(str_motifs_db_file, 
                                                           empty_check=True)
-    for motif_id in str_motif_blocks_dic:
-        assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+        for motif_id in str_motif_blocks_dic:
+            assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
 
     # Remove special chars from run ID.
     args.data_id = benchlib.remove_special_chars_from_str(args.data_id)
@@ -10782,7 +10958,68 @@ def main_searchrna(args):
     """
     fid2desc_file = db_path + "/rbp_function_list.32728246.tsv"
     fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
+
+    """
+    If --motifs sets, filter loaded_rbps_dic + loaded_motif_ids_dic.
     
+    """
+
+    if args.motifs_list:
+
+        print("Filtering loaded motifs by provided --motifs ... ")
+
+        motif_fids_dic = {}
+
+        for motif_id in args.motifs_list:
+            motif_fids_dic[motif_id] = 1
+
+        filtered_rbps_dic = {}
+        filtered_motif_ids_dic = {}
+        filtered_name2ids_dic = {}
+        for motif_id in motif_fids_dic:
+            assert motif_id in id2name_dic, "motif ID \"%s\" provided via --motifs not found in internal motif ID -> RBP ID mapping. Please provide valid motif IDs" %(motif_id)
+            assert motif_id in loaded_motif_ids_dic, "motif ID \"%s\" provided via --motifs not found in loaded motifs (via --rbps). Please provide motif IDs that are part of loaded RBPs" %(motif_id)
+            set_db_str = loaded_motif_ids_dic[motif_id]
+            filtered_motif_ids_dic[motif_id] = set_db_str
+            rbp_id = id2name_dic[motif_id]
+            assert rbp_id in loaded_rbps_dic, "motif ID \"%s\" provided via --motifs not found in loaded RBPs (via --rbps). Please provide motif IDs that are part of loaded RBPs" %(motif_id)
+            set_db_str = loaded_rbps_dic[rbp_id]
+            filtered_rbps_dic[rbp_id] = set_db_str
+            if rbp_id in filtered_name2ids_dic:
+                filtered_name2ids_dic[rbp_id].append(motif_id)
+            else:
+                filtered_name2ids_dic[rbp_id] = [motif_id]
+
+        if args.regex:
+            filtered_rbps_dic[regex_id] = regex_id
+            if args.motif_regex_id:
+                filtered_motif_ids_dic[regex_id] = regex_id
+                filtered_name2ids_dic[regex_id] = [regex_id]
+            else:
+                filtered_motif_ids_dic[regex] = regex_id
+                filtered_name2ids_dic[regex_id] = [regex]
+
+        c_loaded_rbps_pre = len(loaded_rbps_dic)
+        c_loaded_rbps_post = len(filtered_rbps_dic)
+        loaded_rbps_dic = filtered_rbps_dic
+
+        print("# RBPs pre-filtering by --motifs: ", c_loaded_rbps_pre)
+        print("# RBPs post-filtering by --motifs:", c_loaded_rbps_post)
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided motif IDs (via --motifs). Please provide compatible RBPs + motif IDs"
+
+        c_loaded_motif_ids_pre = len(loaded_motif_ids_dic)
+        c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
+        loaded_motif_ids_dic = filtered_motif_ids_dic
+
+        print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
+        print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
+
+        assert loaded_motif_ids_dic, "no remaining motifs after filtering by provided motif IDs (via --motifs). Please provide compatible RBPs + motif IDs"
+
+        name2ids_dic = filtered_name2ids_dic
+
+
     """
     If --functions set, filter loaded_rbps_dic + loaded_motif_ids_dic.
 
@@ -11893,7 +12130,7 @@ def main_searchrna(args):
 
     The motif hits written to motif_hits_bed_out are unique motif hits already. 
     If same hit occurs > 1, this is recorded in BED column 4 with format:
-    rbp_id,motif_id;uniq_count;method_id,data_id
+    rbp_id:motif_id;uniq_count;method_id:data_id
     These also include regex hits, as they are part of fimo hits.
     
     """
@@ -12536,11 +12773,11 @@ def main_searchlongrna(args):
 
     """
     str_motif_blocks_dic = {}
-    if os.path.exists(str_motifs_db_file):
+    if str_motifs_db_file and os.path.exists(str_motifs_db_file):
         str_motif_blocks_dic = benchlib.read_in_cm_blocks(str_motifs_db_file, 
                                                           empty_check=True)
-    for motif_id in str_motif_blocks_dic:
-        assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+        for motif_id in str_motif_blocks_dic:
+            assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
 
     # Remove special chars from run ID.
     args.data_id = benchlib.remove_special_chars_from_str(args.data_id)
@@ -12776,7 +13013,6 @@ def main_searchlongrna(args):
     else:
         regex_id = False
 
-
     """
     Get function ID -> function descriptions mapping.
 
@@ -12784,6 +13020,67 @@ def main_searchlongrna(args):
     fid2desc_file = db_path + "/rbp_function_list.32728246.tsv"
     fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
     
+
+    """
+    If --motifs sets, filter loaded_rbps_dic + loaded_motif_ids_dic.
+    
+    """
+
+    if args.motifs_list:
+
+        print("Filtering loaded motifs by provided --motifs ... ")
+
+        motif_fids_dic = {}
+
+        for motif_id in args.motifs_list:
+            motif_fids_dic[motif_id] = 1
+
+        filtered_rbps_dic = {}
+        filtered_motif_ids_dic = {}
+        filtered_name2ids_dic = {}
+        for motif_id in motif_fids_dic:
+            assert motif_id in id2name_dic, "motif ID \"%s\" provided via --motifs not found in internal motif ID -> RBP ID mapping. Please provide valid motif IDs" %(motif_id)
+            assert motif_id in loaded_motif_ids_dic, "motif ID \"%s\" provided via --motifs not found in loaded motifs (via --rbps). Please provide motif IDs that are part of loaded RBPs" %(motif_id)
+            set_db_str = loaded_motif_ids_dic[motif_id]
+            filtered_motif_ids_dic[motif_id] = set_db_str
+            rbp_id = id2name_dic[motif_id]
+            assert rbp_id in loaded_rbps_dic, "motif ID \"%s\" provided via --motifs not found in loaded RBPs (via --rbps). Please provide motif IDs that are part of loaded RBPs" %(motif_id)
+            set_db_str = loaded_rbps_dic[rbp_id]
+            filtered_rbps_dic[rbp_id] = set_db_str
+            if rbp_id in filtered_name2ids_dic:
+                filtered_name2ids_dic[rbp_id].append(motif_id)
+            else:
+                filtered_name2ids_dic[rbp_id] = [motif_id]
+
+        if args.regex:
+            filtered_rbps_dic[regex_id] = regex_id
+            if args.motif_regex_id:
+                filtered_motif_ids_dic[regex_id] = regex_id
+                filtered_name2ids_dic[regex_id] = [regex_id]
+            else:
+                filtered_motif_ids_dic[regex] = regex_id
+                filtered_name2ids_dic[regex_id] = [regex]
+
+        c_loaded_rbps_pre = len(loaded_rbps_dic)
+        c_loaded_rbps_post = len(filtered_rbps_dic)
+        loaded_rbps_dic = filtered_rbps_dic
+
+        print("# RBPs pre-filtering by --motifs: ", c_loaded_rbps_pre)
+        print("# RBPs post-filtering by --motifs:", c_loaded_rbps_post)
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided motif IDs (via --motifs). Please provide compatible RBPs + motif IDs"
+
+        c_loaded_motif_ids_pre = len(loaded_motif_ids_dic)
+        c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
+        loaded_motif_ids_dic = filtered_motif_ids_dic
+
+        print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
+        print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
+
+        assert loaded_motif_ids_dic, "no remaining motifs after filtering by provided motif IDs (via --motifs). Please provide compatible RBPs + motif IDs"
+
+        name2ids_dic = filtered_name2ids_dic
+
     """
     If --functions set, filter loaded_rbps_dic + loaded_motif_ids_dic.
 
@@ -13834,7 +14131,7 @@ def main_searchlongrna(args):
 
     The motif hits written to motif_hits_bed_out are unique motif hits already. 
     If same hit occurs > 1, this is recorded in BED column 4 with format:
-    rbp_id,motif_id;uniq_count;method_id,data_id
+    rbp_id:motif_id;uniq_count;method_id:data_id
     These also include regex hits, as they are part of fimo hits.
     
     """
@@ -14278,11 +14575,11 @@ def main_enmo(args):
 
     """
     str_motif_blocks_dic = {}
-    if os.path.exists(str_motifs_db_file):
+    if str_motifs_db_file and os.path.exists(str_motifs_db_file):
         str_motif_blocks_dic = benchlib.read_in_cm_blocks(str_motifs_db_file, 
                                                           empty_check=True)
-    for motif_id in str_motif_blocks_dic:
-        assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+        for motif_id in str_motif_blocks_dic:
+            assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
 
     """
     Output folders + files.
@@ -14525,7 +14822,69 @@ def main_enmo(args):
     """
     fid2desc_file = db_path + "/rbp_function_list.32728246.tsv"
     fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
-    
+
+
+    """
+    If --motifs sets, filter loaded_rbps_dic + loaded_motif_ids_dic.
+
+    """
+
+    if args.motifs_list:
+
+        print("Filtering loaded motifs by provided --motifs ... ")
+
+        motif_fids_dic = {}
+
+        for motif_id in args.motifs_list:
+            motif_fids_dic[motif_id] = 1
+
+        filtered_rbps_dic = {}
+        filtered_motif_ids_dic = {}
+        filtered_name2ids_dic = {}
+        for motif_id in motif_fids_dic:
+            assert motif_id in id2name_dic, "motif ID \"%s\" provided via --motifs not found in internal motif ID -> RBP ID mapping. Please provide valid motif IDs" %(motif_id)
+            assert motif_id in loaded_motif_ids_dic, "motif ID \"%s\" provided via --motifs not found in loaded motifs (via --rbps). Please provide motif IDs that are part of loaded RBPs" %(motif_id)
+            set_db_str = loaded_motif_ids_dic[motif_id]
+            filtered_motif_ids_dic[motif_id] = set_db_str
+            rbp_id = id2name_dic[motif_id]
+            assert rbp_id in loaded_rbps_dic, "motif ID \"%s\" provided via --motifs not found in loaded RBPs (via --rbps). Please provide motif IDs that are part of loaded RBPs" %(motif_id)
+            set_db_str = loaded_rbps_dic[rbp_id]
+            filtered_rbps_dic[rbp_id] = set_db_str
+            if rbp_id in filtered_name2ids_dic:
+                filtered_name2ids_dic[rbp_id].append(motif_id)
+            else:
+                filtered_name2ids_dic[rbp_id] = [motif_id]
+
+        if args.regex:
+            filtered_rbps_dic[regex_id] = regex_id
+            if args.motif_regex_id:
+                filtered_motif_ids_dic[regex_id] = regex_id
+                filtered_name2ids_dic[regex_id] = [regex_id]
+            else:
+                filtered_motif_ids_dic[regex] = regex_id
+                filtered_name2ids_dic[regex_id] = [regex]
+
+        c_loaded_rbps_pre = len(loaded_rbps_dic)
+        c_loaded_rbps_post = len(filtered_rbps_dic)
+        loaded_rbps_dic = filtered_rbps_dic
+
+        print("# RBPs pre-filtering by --motifs: ", c_loaded_rbps_pre)
+        print("# RBPs post-filtering by --motifs:", c_loaded_rbps_post)
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided motif IDs (via --motifs). Please provide compatible RBPs + motif IDs"
+
+        c_loaded_motif_ids_pre = len(loaded_motif_ids_dic)
+        c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
+        loaded_motif_ids_dic = filtered_motif_ids_dic
+
+        print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
+        print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
+
+        assert loaded_motif_ids_dic, "no remaining motifs after filtering by provided motif IDs (via --motifs). Please provide compatible RBPs + motif IDs"
+
+        name2ids_dic = filtered_name2ids_dic
+
+
     """
     If --functions set, filter loaded_rbps_dic + loaded_motif_ids_dic.
 
@@ -16572,11 +16931,11 @@ def main_nemo(args):
 
     """
     str_motif_blocks_dic = {}
-    if os.path.exists(str_motifs_db_file):
+    if str_motifs_db_file and os.path.exists(str_motifs_db_file):
         str_motif_blocks_dic = benchlib.read_in_cm_blocks(str_motifs_db_file, 
                                                           empty_check=True)
-    for motif_id in str_motif_blocks_dic:
-        assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+        for motif_id in str_motif_blocks_dic:
+            assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
 
     """
     Output folders + files.
@@ -16814,7 +17173,69 @@ def main_nemo(args):
     """
     fid2desc_file = db_path + "/rbp_function_list.32728246.tsv"
     fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
+
+
+    """
+    If --motifs sets, filter loaded_rbps_dic + loaded_motif_ids_dic.
     
+    """
+
+    if args.motifs_list:
+
+        print("Filtering loaded motifs by provided --motifs ... ")
+
+        motif_fids_dic = {}
+
+        for motif_id in args.motifs_list:
+            motif_fids_dic[motif_id] = 1
+
+        filtered_rbps_dic = {}
+        filtered_motif_ids_dic = {}
+        filtered_name2ids_dic = {}
+        for motif_id in motif_fids_dic:
+            assert motif_id in id2name_dic, "motif ID \"%s\" provided via --motifs not found in internal motif ID -> RBP ID mapping. Please provide valid motif IDs" %(motif_id)
+            assert motif_id in loaded_motif_ids_dic, "motif ID \"%s\" provided via --motifs not found in loaded motifs (via --rbps). Please provide motif IDs that are part of loaded RBPs" %(motif_id)
+            set_db_str = loaded_motif_ids_dic[motif_id]
+            filtered_motif_ids_dic[motif_id] = set_db_str
+            rbp_id = id2name_dic[motif_id]
+            assert rbp_id in loaded_rbps_dic, "motif ID \"%s\" provided via --motifs not found in loaded RBPs (via --rbps). Please provide motif IDs that are part of loaded RBPs" %(motif_id)
+            set_db_str = loaded_rbps_dic[rbp_id]
+            filtered_rbps_dic[rbp_id] = set_db_str
+            if rbp_id in filtered_name2ids_dic:
+                filtered_name2ids_dic[rbp_id].append(motif_id)
+            else:
+                filtered_name2ids_dic[rbp_id] = [motif_id]
+
+        if args.regex:
+            filtered_rbps_dic[regex_id] = regex_id
+            if args.motif_regex_id:
+                filtered_motif_ids_dic[regex_id] = regex_id
+                filtered_name2ids_dic[regex_id] = [regex_id]
+            else:
+                filtered_motif_ids_dic[regex] = regex_id
+                filtered_name2ids_dic[regex_id] = [regex]
+
+        c_loaded_rbps_pre = len(loaded_rbps_dic)
+        c_loaded_rbps_post = len(filtered_rbps_dic)
+        loaded_rbps_dic = filtered_rbps_dic
+
+        print("# RBPs pre-filtering by --motifs: ", c_loaded_rbps_pre)
+        print("# RBPs post-filtering by --motifs:", c_loaded_rbps_post)
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by provided motif IDs (via --motifs). Please provide compatible RBPs + motif IDs"
+
+        c_loaded_motif_ids_pre = len(loaded_motif_ids_dic)
+        c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
+        loaded_motif_ids_dic = filtered_motif_ids_dic
+
+        print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
+        print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
+
+        assert loaded_motif_ids_dic, "no remaining motifs after filtering by provided motif IDs (via --motifs). Please provide compatible RBPs + motif IDs"
+
+        name2ids_dic = filtered_name2ids_dic
+
+
     """
     If --functions set, filter loaded_rbps_dic + loaded_motif_ids_dic.
 

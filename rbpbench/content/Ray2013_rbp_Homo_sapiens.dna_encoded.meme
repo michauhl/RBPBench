@@ -320,7 +320,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.969888  0.010037  0.010037  0.010037
 
 
-MOTIF HuR_RNCMPT00112 HuR
+MOTIF ELAVL1_RNCMPT00112 ELAVL1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.058324  0.058324  0.058324  0.825028
@@ -332,7 +332,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.057875  0.057875  0.057875  0.826375
 
 
-MOTIF HuR_RNCMPT00117 HuR
+MOTIF ELAVL1_RNCMPT00117 ELAVL1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.033204  0.033204  0.033204  0.900389
@@ -344,7 +344,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.057362  0.057362  0.145933  0.739343
 
 
-MOTIF HuR_RNCMPT00136 HuR
+MOTIF ELAVL1_RNCMPT00136 ELAVL1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.210756  0.032594  0.032594  0.724055
@@ -356,7 +356,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.032614  0.032614  0.032614  0.902157
 
 
-MOTIF HuR_RNCMPT00032 HuR
+MOTIF ELAVL1_RNCMPT00032 ELAVL1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.006480  0.006480  0.006480  0.980561
@@ -368,7 +368,7 @@ letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.056950  0.143730  0.143650  0.655670
 
 
-MOTIF HuR_RNCMPT00274 HuR
+MOTIF ELAVL1_RNCMPT00274 ELAVL1
 
 letter-probability matrix: alength= 4 w= 7 nsites= 20 E= 0
   0.009890  0.113671  0.107291  0.769148

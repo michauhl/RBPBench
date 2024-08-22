@@ -3571,6 +3571,47 @@ def get_motif_hit_region_annotations(overlap_annotations_bed):
 
 ################################################################################
 
+def reformat_to_bed10(in_bed, out_bed):
+    """
+    Reformat to BED10 format.
+    
+    """
+
+    assert os.path.exists(in_bed), "in_bed file does not exist"
+    OUTBED = open(out_bed, "w")
+
+    with open(in_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            OUTBED.write("%s\t%s\t%s\t%s\t%s\t%s\t-1.0\t-1.0\t-1.0\t-1.0\n" %(cols[0], cols[1], cols[2], cols[3], cols[4], cols[5]))
+    f.closed
+    OUTBED.close()
+
+
+################################################################################
+
+def output_bed6plus_to_bed6_format(in_bed, out_bed):
+    """
+    Output BED file with 6+ columns to BED file with 6 columns.
+
+    Can be necessary for intersectBed to work.
+
+    """
+
+    assert os.path.exists(in_bed), "in_bed file does not exist"
+    OUTBED = open(out_bed, "w")
+
+    with open(in_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            assert len(cols) >= 6, "less than 6 columns in line \"%s\"" %(line)
+            OUTBED.write("%s\t%s\t%s\t%s\t%s\t%s\n" %(cols[0], cols[1], cols[2], cols[3], cols[4], cols[5]))
+    f.closed
+    OUTBED.close()
+
+
+################################################################################
+
 def get_mrna_region_annotations_v2(overlap_annotations_bed,
                                    reg_ids_dic=None):
     """
@@ -5736,6 +5777,7 @@ class FimoHit(GenomicRegion):
         self.pval = pval
         self.qval = qval
         self.matched_seq = matched_seq
+        self.center_dist = center_dist
         self.seq_s = seq_s
         self.seq_e = seq_e
 
@@ -6496,6 +6538,29 @@ def read_in_cmsearch_results(in_tab,
 
 ################################################################################
 
+def get_matched_seq(seq_id, seqs_dic, match_s, match_e):
+    """
+    Get motif hit sequence (matched sequence, subsequence) given:
+    sequence dictionary seqs_dic, sequence name seq_id, 
+    and start+end coordinates (match_s, match_e, both 1-based).
+
+    >>> seqs_dic = {"seq1": "AAAAACGTAAAA"}
+    >>> get_matched_seq("seq1", seqs_dic, 6, 8)
+    'CGT'
+
+    """
+    assert seq_id in seqs_dic, "sequence ID \"%s\" not in seqs_dic" %(seq_id)
+    # assert match_s <= match_e, "match_s > match_e for seq_id %s" %(seq_id)
+    seq = seqs_dic[seq_id]
+    # len_seq = len(seq)
+    # assert match_s <= len_seq, "match_s > len_seq (%i > %i) for seq_id %s" %(seq_id)
+    # assert match_e <= len_seq, "match_e > len_seq (%ifor seq_id %s" %(seq_id)
+    matched_seq = seq[match_s-1:match_e]
+    return matched_seq
+
+
+################################################################################
+
 class CmsearchHit(GenomicRegion):
     """
     cmsearch motif hit class, with 1-based start+end coordinates.
@@ -6510,6 +6575,7 @@ class CmsearchHit(GenomicRegion):
                  seq_s: Optional[int] = None,
                  seq_e: Optional[int] = None,
                  center_dist: Optional[int] = None,  # Distance of motif center position to region center (rbpbench nemo).
+                 matched_seq: Optional[str] = None,
                  genome: Optional[str] = None) -> None:
         super().__init__(chr_id, start, end, strand, score, genome)
         self.motif_id = motif_id
@@ -6520,6 +6586,9 @@ class CmsearchHit(GenomicRegion):
         self.model_e = model_e
         self.seq_s = seq_s
         self.seq_e = seq_e
+        self.query_name = query_name
+        self.center_dist = center_dist
+        self.matched_seq = matched_seq
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, CmsearchHit):
