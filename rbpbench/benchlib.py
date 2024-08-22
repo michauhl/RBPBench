@@ -2426,6 +2426,7 @@ def gtf_read_in_gene_infos(in_gtf,
                            tr_types_dic=None,
                            check_chr_ids_dic=None,
                            chr_style=0,
+                           skip_gene_biotype_dic=None,
                            empty_check=False):
     """
     Read in gene infos into GeneInfo objects, including information on 
@@ -2449,6 +2450,9 @@ def gtf_read_in_gene_infos(in_gtf,
     tr2len_dic = {}
     # Gene info objects dictionary (gene_id -> gene info object).
     gid2gio_dic = {}
+
+    if skip_gene_biotype_dic is None:
+        skip_gene_biotype_dic = {"TEC" : 1}
 
     if re.search(".+\.gz$", in_gtf):
         f = gzip.open(in_gtf, 'rt')
@@ -2496,6 +2500,9 @@ def gtf_read_in_gene_infos(in_gtf,
             # assert m, "gene_biotype / gene_type entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             # gene_biotype = m.group(1)
 
+            if gene_biotype in skip_gene_biotype_dic:
+                continue
+
             gene_infos = GeneInfo(gene_id, gene_name, gene_biotype, chr_id, feat_s, feat_e, feat_pol)
 
             assert gene_id not in gid2gio_dic, "gene feature with gene ID %s already encountered in GTF file \"%s\"" %(gene_id, in_gtf)
@@ -2509,7 +2516,10 @@ def gtf_read_in_gene_infos(in_gtf,
             m = re.search('transcript_id "(.+?)"', infos)
             assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             tr_id = m.group(1)
-            assert gene_id in gid2gio_dic, "gene_id %s belonging to transcript ID %s not (yet) encountered. Gene feature expected to come before transcript and exon features in GTF file \"%s\"" %(gene_id, tr_id, in_gtf)
+
+            # assert gene_id in gid2gio_dic, "gene_id %s belonging to transcript ID %s not (yet) encountered. Gene feature expected to come before transcript and exon features in GTF file \"%s\"" %(gene_id, tr_id, in_gtf)
+            if gene_id not in gid2gio_dic:
+                continue
 
             if tr2gid_dic is not None:
                 tr2gid_dic[tr_id] = gene_id
@@ -2559,6 +2569,11 @@ def gtf_read_in_gene_infos(in_gtf,
             gid2gio_dic[gene_id].tr_lengths.append(tr_length)
 
         elif feature == "exon":
+            m = re.search('gene_id "(.+?)"', infos)
+            assert m, "gene_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
+            gene_id = m.group(1)
+            if gene_id not in gid2gio_dic:
+                continue
             # Extract transcript ID.
             m = re.search('transcript_id "(.+?)"', infos)
             assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)    
@@ -2660,6 +2675,26 @@ def gtf_read_in_transcript_infos(in_gtf,
             if m:
                 tr_biotype = m.group(1)
 
+            # Basic tag.
+            basic_tag = 0
+            m = re.search('tag "basic"', infos)
+            if m:
+                basic_tag = 1
+            # Ensembl canonical.
+            ensembl_canonical = 0
+            m = re.search('tag "Ensembl_canonical"', infos)
+            if m:
+                ensembl_canonical = 1
+            # Transcript support level (TSL).
+            # transcript_support_level "NA (assigned to previous version 1)"
+            m = re.search('transcript_support_level "(.+?)"', infos)
+            tsl_id = "NA"
+            if m:
+                tsl_id = m.group(1)
+                if re.search("assigned to previous", tsl_id):
+                    m = re.search("(.+?) \(", tsl_id)
+                    tsl_id = m.group(1)
+
             if tr_types_dic is not None:
                 if tr_biotype not in tr_types_dic:
                     tr_types_dic[tr_biotype] = 1
@@ -2668,6 +2703,9 @@ def gtf_read_in_transcript_infos(in_gtf,
 
             tr_infos = TranscriptInfo(tr_id, tr_biotype, chr_id, feat_s, feat_e, feat_pol, gene_id,
                                       tr_length=0,
+                                      basic_tag=basic_tag,  # int
+                                      ensembl_canonical=ensembl_canonical,  # str
+                                      tsl_id=tsl_id,  # int
                                       exon_c=0)
             assert tr_id not in tid2tio_dic, "transcript feature with transcript ID %s already encountered in GTF file \"%s\"" %(tr_id, in_gtf)
             tid2tio_dic[tr_id] = tr_infos
@@ -2886,6 +2924,9 @@ class TranscriptInfo:
                  total_intron_len = 0,
                  tr_length: Optional[int] = None,  # spliced transcript length.
                  exon_c: Optional[int] = None,
+                 basic_tag: Optional[int] = None,
+                 ensembl_canonical: Optional[int] = None,
+                 tsl_id: Optional[str] = None,
                  cds_s: Optional[int] = None,
                  cds_e: Optional[int] = None,
                  intron_coords=None,  # intron_coords + exon_coords with 1-based starts and ends.
@@ -2902,6 +2943,11 @@ class TranscriptInfo:
         self.exon_c = exon_c
         self.cds_s = cds_s
         self.cds_e = cds_e
+        self.total_intron_len = total_intron_len
+        self.basic_tag = basic_tag
+        self.ensembl_canonical = ensembl_canonical
+        self.tsl_id = tsl_id
+
         if intron_coords is None:
             self.intron_coords = []
         else:
@@ -3663,6 +3709,7 @@ def get_mrna_region_annotations_v2(overlap_annotations_bed,
 
 def get_region_annotations(overlap_annotations_bed,
                            motif_hits=False,
+                           tid2tio_dic=None,
                            reg_ids_dic=None):
     """
     Get region annotations from overlapping genomic regions with exon / intron 
@@ -3673,7 +3720,11 @@ def get_region_annotations(overlap_annotations_bed,
         has to be reconstructed from the BED region info.
         Format of reg_ids_dic key if motif_hits=True:
         "chr1:10-15(+)motif_id"
-
+    
+    tid2tio_dic:
+        If provided, if two features have same overlap amount with region,
+        choose the more prominent transcript ID (i.e., better annotation).
+        
     reg_ids_dic:
         If set, compare genomic region IDs with IDs in dictionary. If region ID 
         from dictionary not in overlap_annotations_bed, set label "intergenic".
@@ -3726,6 +3777,16 @@ def get_region_annotations(overlap_annotations_bed,
                     reg2maxol_dic[reg_id] = c_overlap_nts
                     reg2annot_dic[reg_id][0] = annot_id
                     reg2annot_dic[reg_id][1] = tr_id
+                elif c_overlap_nts == reg2maxol_dic[reg_id]:  # if region overlaps with > 1 feature by same amount.
+                    if tid2tio_dic is not None:
+                        best_tid = reg2annot_dic[reg_id][1]
+                        new_best_tid = select_more_prominent_tid(tr_id, best_tid, tid2tio_dic)
+                        # If current tr_id has better annotation, update region annotation.
+                        if new_best_tid == tr_id:
+                            reg2maxol_dic[reg_id] = c_overlap_nts
+                            reg2annot_dic[reg_id][0] = annot_id
+                            reg2annot_dic[reg_id][1] = new_best_tid
+
     f.closed
 
     if reg_ids_dic is not None:
@@ -3970,6 +4031,54 @@ def gtf_check_exon_order(in_gtf):
 
     assert check != 6666, "no minus strand exon regions found in GTF file %s" %(in_gtf)
     return check
+
+
+################################################################################
+
+def select_more_prominent_tid(tid1, tid2, tid2tio_dic):
+    """
+    Given two transcript IDs tid1 and tid2, select the more prominent 
+    transcript (i.e., with better experimental evidence).
+
+    Features to compare:
+    tidtio_dic[tid].basic_tag  # 0 or 1
+    tidtio_dic[tid].ensembl_canonical  # 0 or 1
+    tidtio_dic[tid].tsl_id  # 1-5 or "NA"
+
+    """
+    assert tid1 in tid2tio_dic, "tid1 \"%s\" not in tid2tio_dic" %(tid1)
+    assert tid2 in tid2tio_dic, "tid2 \"%s\" not in tid2tio_dic" %(tid2)
+
+    # Comparison dictionary.
+    id2sc = {}
+    for i in range(5):
+        pos = i + 1
+        pos_str = "%i" %(pos)
+        id2sc[pos_str] = pos
+    id2sc["NA"] = 6
+
+    if tid1 == tid2:
+        return tid1
+    if tid2tio_dic[tid1].basic_tag > tid2tio_dic[tid2].basic_tag:
+        return tid1
+    if tid2tio_dic[tid1].basic_tag < tid2tio_dic[tid2].basic_tag:
+        return tid2
+    if tid2tio_dic[tid1].ensembl_canonical > tid2tio_dic[tid2].ensembl_canonical:
+        return tid1
+    if tid2tio_dic[tid1].ensembl_canonical < tid2tio_dic[tid2].ensembl_canonical:
+        return tid2
+    if id2sc[tid2tio_dic[tid1].tsl_id] < id2sc[tid2tio_dic[tid2].tsl_id]:
+        return tid1
+    if id2sc[tid2tio_dic[tid1].tsl_id] > id2sc[tid2tio_dic[tid2].tsl_id]:
+        return tid2
+    # Unspliced transcript lengths.
+    tid1_len = tid2tio_dic[tid1].tr_e - tid2tio_dic[tid1].tr_s + 1
+    tid2_len = tid2tio_dic[tid2].tr_e - tid2tio_dic[tid2].tr_s + 1
+    if tid1_len > tid2_len:
+        return tid1
+    if tid1_len < tid2_len:
+        return tid2
+    return tid1
 
 
 ################################################################################

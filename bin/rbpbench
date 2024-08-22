@@ -5381,6 +5381,7 @@ def main_search(args):
                                         params=params)
         
         reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
+                                                        tid2tio_dic=tid2tio_dic,
                                                         reg_ids_dic=reg_ids_dic)
 
         # Output assignments.
