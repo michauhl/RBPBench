@@ -217,11 +217,6 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.001,
                    help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
-    p_s.add_argument("--fimo-best-hits",
-                   dest="fimo_best_hits",
-                   default = False,
-                   action = "store_true",
-                   help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/site combination). By default, report all hits (default: False)")
     p_s.add_argument("--cmsearch-bs",
                    dest="cmsearch_bs",
                    type=float,
@@ -234,6 +229,11 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help="Set CMSEARCH mode to control strictness of filtering. 1: default setting (CMSEARCH option: --default). 2: max setting (CMSEARCH option: --max), i.e., turn all heuristic filters off, slower and more sensitive / more hits) (default: 1)")
+    p_s.add_argument("--greatest-hits",
+                   dest="greatest_hits",
+                   default = False,
+                   action = "store_true",
+                   help = "Keep only best FIMO/CMSEARCH motif hits (i.e., hit with lowest p-value / highest bit score for each motif sequence/site combination). By default, report all hits (default: False)")
     p_s.add_argument("--bed-score-col",
                    dest="bed_score_col",
                    type=int,
@@ -288,7 +288,7 @@ def setup_argument_parser():
                    dest="add_motif_annot",
                    default = False,
                    action = "store_true",
-                   help = "Add motif hit region annotations to --plot-motifs HTML file. This requires --plot-motifs and --gtf set (default: False)")
+                   help = "Add motif hit region annotations to --plot-motifs HTML file. This requires --gtf set (default: False)")
     p_s.add_argument("--cooc-pval-thr",
                    dest="cooc_pval_thr",
                    type=float,
@@ -651,11 +651,6 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.001,
                    help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
-    p_b.add_argument("--fimo-best-hits",
-                   dest="fimo_best_hits",
-                   default = False,
-                   action = "store_true",
-                   help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/site combination). By default, report all hits (default: False)")
     p_b.add_argument("--cmsearch-bs",
                    dest="cmsearch_bs",
                    type=float,
@@ -668,6 +663,11 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help="Set CMSEARCH mode to control strictness of filtering. 1: default setting (CMSEARCH option: --default). 2: max setting (CMSEARCH option: --max), i.e., turn all heuristic filters off, slower and more sensitive / more hits) (default: 1)")
+    p_b.add_argument("--greatest-hits",
+                   dest="greatest_hits",
+                   default = False,
+                   action = "store_true",
+                   help = "Keep only best FIMO/CMSEARCH motif hits (i.e., hit with lowest p-value / highest bit score for each motif sequence/site combination). By default, report all hits (default: False)")
     p_b.add_argument("--bed-score-col",
                    dest="bed_score_col",
                    type=int,
@@ -1010,11 +1010,6 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.001,
                    help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
-    p_ss.add_argument("--fimo-best-hits",
-                   dest="fimo_best_hits",
-                   default = False,
-                   action = "store_true",
-                   help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence combination). By default, report all hits (default: False)")
     p_ss.add_argument("--cmsearch-bs",
                    dest="cmsearch_bs",
                    type=float,
@@ -1027,6 +1022,11 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help="Set CMSEARCH mode to control strictness of filtering. 1: default setting (CMSEARCH option: --default). 2: max setting (CMSEARCH option: --max), i.e., turn all heuristic filters off, slower and more sensitive / more hits) (default: 1)")
+    p_ss.add_argument("--greatest-hits",
+                   dest="greatest_hits",
+                   default = False,
+                   action = "store_true",
+                   help = "Keep only best FIMO/CMSEARCH motif hits (i.e., hit with lowest p-value / highest bit score for each motif sequence/site combination). By default, report all hits (default: False)")
     p_ss.add_argument("--meme-no-check",
                    dest="meme_disable_check",
                    default = False,
@@ -1291,11 +1291,6 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.001,
                    help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
-    p_sl.add_argument("--fimo-best-hits",
-                   dest="fimo_best_hits",
-                   default = False,
-                   action = "store_true",
-                   help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/region combination). By default, report all hits (default: False)")
     p_sl.add_argument("--cmsearch-bs",
                    dest="cmsearch_bs",
                    type=float,
@@ -1308,6 +1303,11 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help="Set CMSEARCH mode to control strictness of filtering. 1: default setting (CMSEARCH option: --default). 2: max setting (CMSEARCH option: --max), i.e., turn all heuristic filters off, slower and more sensitive / more hits) (default: 1)")
+    p_sl.add_argument("--greatest-hits",
+                   dest="greatest_hits",
+                   default = False,
+                   action = "store_true",
+                   help = "Keep only best FIMO/CMSEARCH motif hits (i.e., hit with lowest p-value / highest bit score for each motif sequence/site combination). By default, report all hits (default: False)")
     p_sl.add_argument("--plot-motifs",
                    dest="plot_motifs",
                    default = False,
@@ -1587,11 +1587,6 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.001,
                    help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
-    p_scr.add_argument("--fimo-best-hits",
-                   dest="fimo_best_hits",
-                   default = False,
-                   action = "store_true",
-                   help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/site combination). By default, report all hits (default: False)")
     p_scr.add_argument("--cmsearch-bs",
                    dest="cmsearch_bs",
                    type=float,
@@ -1604,6 +1599,11 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help="Set CMSEARCH mode to control strictness of filtering. 1: default setting (CMSEARCH option: --default). 2: max setting (CMSEARCH option: --max), i.e., turn all heuristic filters off, slower and more sensitive / more hits) (default: 1)")
+    p_scr.add_argument("--greatest-hits",
+                   dest="greatest_hits",
+                   default = False,
+                   action = "store_true",
+                   help = "Keep only best FIMO/CMSEARCH motif hits (i.e., hit with lowest p-value / highest bit score for each motif sequence/site combination). By default, report all hits (default: False)")
     p_scr.add_argument("--set-rbp-id",
                    dest="set_rbp_id",
                    type=str,
@@ -1936,11 +1936,6 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.001,
                    help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
-    p_smr.add_argument("--fimo-best-hits",
-                   dest="fimo_best_hits",
-                   default = False,
-                   action = "store_true",
-                   help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/transcript combination). By default, report all hits (default: False)")
     p_smr.add_argument("--cmsearch-bs",
                    dest="cmsearch_bs",
                    type=float,
@@ -1953,6 +1948,11 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help="Set CMSEARCH mode to control strictness of filtering. 1: default setting (CMSEARCH option: --default). 2: max setting (CMSEARCH option: --max), i.e., turn all heuristic filters off, slower and more sensitive / more hits) (default: 1)")
+    p_smr.add_argument("--greatest-hits",
+                   dest="greatest_hits",
+                   default = False,
+                   action = "store_true",
+                   help = "Keep only best FIMO/CMSEARCH motif hits (i.e., hit with lowest p-value / highest bit score for each motif sequence/site combination). By default, report all hits (default: False)")
     p_smr.add_argument("--tr-list",
                    dest="tr_list",
                    type=str,
@@ -2310,11 +2310,6 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.0005,
                    help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.0005)")
-    p_em.add_argument("--fimo-best-hits",
-                   dest="fimo_best_hits",
-                   default = False,
-                   action = "store_true",
-                   help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/site combination). By default, report all hits (default: False)")
     p_em.add_argument("--cmsearch-bs",
                    dest="cmsearch_bs",
                    type=float,
@@ -2327,6 +2322,11 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help="Set CMSEARCH mode to control strictness of filtering. 1: default setting (CMSEARCH option: --default). 2: max setting (CMSEARCH option: --max), i.e., turn all heuristic filters off, slower and more sensitive / more hits) (default: 1)")
+    p_em.add_argument("--greatest-hits",
+                   dest="greatest_hits",
+                   default = False,
+                   action = "store_true",
+                   help = "Keep only best FIMO/CMSEARCH motif hits (i.e., hit with lowest p-value / highest bit score for each motif sequence/site combination). By default, report all hits (default: False)")
     p_em.add_argument("--fisher-mode",
                    dest="fisher_mode",
                    type=int,
@@ -2663,11 +2663,6 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.0005,
                    help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.0005)")
-    p_nm.add_argument("--fimo-best-hits",
-                   dest="fimo_best_hits",
-                   default = False,
-                   action = "store_true",
-                   help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/site combination). By default, report all hits (default: False)")
     p_nm.add_argument("--cmsearch-bs",
                    dest="cmsearch_bs",
                    type=float,
@@ -2680,6 +2675,11 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help="Set CMSEARCH mode to control strictness of filtering. 1: default setting (CMSEARCH option: --default). 2: max setting (CMSEARCH option: --max), i.e., turn all heuristic filters off, slower and more sensitive / more hits) (default: 1)")
+    p_nm.add_argument("--greatest-hits",
+                   dest="greatest_hits",
+                   default = False,
+                   action = "store_true",
+                   help = "Keep only best FIMO/CMSEARCH motif hits (i.e., hit with lowest p-value / highest bit score for each motif sequence/site combination). By default, report all hits (default: False)")
     p_nm.add_argument("--fisher-mode",
                    dest="fisher_mode",
                    type=int,
@@ -3100,11 +3100,6 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.001,
                    help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
-    p_oe.add_argument("--fimo-best-hits",
-                   dest="fimo_best_hits",
-                   default = False,
-                   action = "store_true",
-                   help = "Keep only best FIMO hits (i.e., hit with lowest p-value for each motif sequence/site combination). By default, report all hits (default: False)")
     p_oe.add_argument("--cmsearch-bs",
                    dest="cmsearch_bs",
                    type=float,
@@ -3117,6 +3112,11 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help="Set CMSEARCH mode to control strictness of filtering. 1: default setting (CMSEARCH option: --default). 2: max setting (CMSEARCH option: --max), i.e., turn all heuristic filters off, slower and more sensitive / more hits) (default: 1)")
+    p_oe.add_argument("--greatest-hits",
+                   dest="greatest_hits",
+                   default = False,
+                   action = "store_true",
+                   help = "Keep only best FIMO/CMSEARCH motif hits (i.e., hit with lowest p-value / highest bit score for each motif sequence/site combination). By default, report all hits (default: False)")
     p_oe.add_argument("--bed-score-col",
                    dest="bed_score_col",
                    type=int,
@@ -3335,7 +3335,6 @@ def main_search(args):
     assert args.upset_plot_min_rbp_count >= 0, "set --upset-plot-min-rbp-count needs to be >= 0"
     if args.add_motif_annot:
         assert args.in_gtf, "set --add-motif-annot requires --gtf GTF file"
-        assert args.plot_motifs, "set --add-motif-annot requires --plot-motifs"
     if args.run_goa:
         assert args.in_gtf, "set --goa requires --gtf GTF file"
         if args.goa_obo_mode == 3:
@@ -3783,8 +3782,8 @@ def main_search(args):
         c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
         loaded_motif_ids_dic = filtered_motif_ids_dic
 
-        print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
-        print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
+        print("# motif IDs pre-filtering by --motifs: ", c_loaded_motif_ids_pre)
+        print("# motif IDs post-filtering by --motifs:", c_loaded_motif_ids_post)
 
         assert loaded_motif_ids_dic, "no remaining motifs after filtering by provided motif IDs (via --motifs). Please provide compatible RBPs + motif IDs"
 
@@ -4089,7 +4088,7 @@ def main_search(args):
 
         print("Read in FIMO results ... ")
         fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
-                                                       only_best_hits=args.fimo_best_hits)
+                                                       only_best_hits=args.greatest_hits)
 
         c_fimo_hits = len(fimo_hits_list)
         print("# of FIMO motif hits:", c_fimo_hits)
@@ -4149,7 +4148,8 @@ def main_search(args):
                         params=cmsh_params) # or add --anytrunc and remove --g
         # Read in hits.
         print("Read in cmsearch results ... ")
-        cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt, 
+        cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt,
+                                                                           only_best_hits=args.greatest_hits,
                                                                            check=True)
 
         print("# of cmsearch motif hits:", c_cms_hits)
@@ -4701,7 +4701,7 @@ def main_search(args):
     OUTSTATS = open(motif_stats_out,"w")
 
     motif_stats_header = "data_id\tmethod_id\trun_id\tmotif_db\tregion_id\trbp_id\tmotif_id\tchr_id\tgen_s\tgen_e\tstrand\tregion_s\tregion_e\tregion_len\t"
-    motif_stats_header += "uniq_count\tfimo_score\tfimo_pval\tcms_score\tcms_eval\tinternal_id\n"
+    motif_stats_header += "uniq_count\tfimo_score\tfimo_pval\tcms_score\tcms_eval\tmatched_seq\tinternal_id\n"
     OUTSTATS.write(motif_stats_header)
 
     # Unique motif regions BED.
@@ -4783,6 +4783,7 @@ def main_search(args):
         row_str += str(fh.pval) + "\t"
         row_str += "-\t"
         row_str += "-\t"
+        row_str += matched_seq + "\t"
         row_str += internal_id + "\n"
 
         OUTSTATS.write(row_str)
@@ -4860,6 +4861,7 @@ def main_search(args):
         row_str += "-\t"
         row_str += str(cmsh.score) + "\t"
         row_str += str(cmsh.e_value) + "\t"
+        row_str += matched_seq + "\t"
         row_str += internal_id + "\n"
         #print("region_id:", region_id)
         #print("evalue:", cmsh.e_value)
@@ -5282,6 +5284,7 @@ def main_search(args):
     target_genes_dic = {}  # Store gene IDs covered by regions -> region count.
     background_genes_dic = {}  # Store all gene IDs in GTF file to use as background genes.
     gid2tid_dic = {}
+    tid2tio_dic = {}
 
     if args.in_gtf and c_regions_with_hits:
 
@@ -5311,7 +5314,7 @@ def main_search(args):
                                                     check_dic=False)
             assert tr_ids_dic, "no IDs read in from provided --tr-list file. Please provide a valid IDs file (one ID per row)"
             for tr_id in tr_ids_dic:
-                assert tr_id in tr2gid_dic, "transcript ID \"%s\" from provided --tr-list file does not appear in --gtf file. Please provide compatible files" %(tr_id)
+                assert tr_id in tr2gid_dic, "transcript ID \"%s\" from provided --tr-list file does not appear in --gtf file. Please provide compatible IDs + files" %(tr_id)
                 tr_ids_dic[tr_id] = tr2gid_dic[tr_id]
             print("# of transcript IDs (read in from --tr-list): ", len(tr_ids_dic))
         else:
@@ -5554,7 +5557,7 @@ def main_search(args):
 
     rbp2motif2annot2c_dic = {}  # rbp_id -> motif_id -> annot -> count
 
-    if args.plot_motifs and args.in_gtf and c_regions_with_hits and args.add_motif_annot:
+    if args.in_gtf and c_regions_with_hits and args.add_motif_annot:
 
         # Overlap motif hit BED with genomic annotation regions.
         print("Overlap annotations with motif hit regions ... ")
@@ -5571,6 +5574,7 @@ def main_search(args):
         motif_hit2annot_dic = benchlib.get_region_annotations(
                                             overlap_motif_hit_annotations_bed,
                                             motif_hits=True,
+                                            tid2tio_dic=tid2tio_dic,
                                             reg_ids_dic=motif_reg_dic)
 
         for motif_hit in motif_hit2annot_dic:
@@ -6190,6 +6194,7 @@ def main_batch(args):
     id2occ_tr_ids_dic = {}  # internal ID -> transcript ID -> occupancy value.
     id2occ_hits_tr_ids_dic = {}  # internal ID -> transcript ID -> occupancy value (only sites with motif hits considered here).
     background_genes_dic = {}  # Store all gene IDs in GTF file to use as background genes.
+    tid2tio_dic = {}
 
     if args.in_gtf:
     
@@ -6217,7 +6222,7 @@ def main_batch(args):
                                                     check_dic=False)
             assert tr_ids_dic, "no IDs read in from provided --tr-list file. Please provide a valid IDs file (one ID per row)"
             for tr_id in tr_ids_dic:
-                assert tr_id in tr2gid_dic, "transcript ID \"%s\" from provided --tr-list file does not appear in --gtf file. Please provide compatible files" %(tr_id)
+                assert tr_id in tr2gid_dic, "transcript ID \"%s\" from provided --tr-list file does not appear in --gtf file. Please provide compatible IDs + files" %(tr_id)
                 tr_ids_dic[tr_id] = tr2gid_dic[tr_id]
             print("# of transcript IDs (read in from --tr-list): ", len(tr_ids_dic))
         else:
@@ -6315,7 +6320,7 @@ def main_batch(args):
     # Motif batch stats file.
     OUTMTFSTATS = open(motif_stats_out,"w")
     motif_stats_header = "data_id\tmethod_id\trun_id\tmotif_db\tregion_id\trbp_id\tmotif_id\tchr_id\tgen_s\tgen_e\tstrand\tregion_s\tregion_e\tregion_len\t"
-    motif_stats_header += "uniq_count\tfimo_score\tfimo_pval\tcms_score\tcms_eval\tinternal_id\n"
+    motif_stats_header += "uniq_count\tfimo_score\tfimo_pval\tcms_score\tcms_eval\tmatched_seq\tinternal_id\n"
     OUTMTFSTATS.write(motif_stats_header)
 
     args.internal_id = []
@@ -6557,7 +6562,7 @@ def main_batch(args):
 
             print("Read in FIMO results ... ")
             fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
-                                                           only_best_hits=args.fimo_best_hits)
+                                                           only_best_hits=args.greatest_hits)
 
             c_fimo_hits = len(fimo_hits_list)
             print("# of FIMO motif hits:", c_fimo_hits)
@@ -6593,7 +6598,8 @@ def main_batch(args):
                                   params=cmsh_params)
             # Read in hits.
             print("Read in cmsearch results ... ")
-            cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt)
+            cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt,
+                                                                               only_best_hits=args.greatest_hits)
 
             print("# of cmsearch motif hits:", c_cms_hits)
 
@@ -7071,10 +7077,15 @@ def main_batch(args):
             fh_str = repr(fh) 
             uniq_count = unique_motifs_dic[fh_str]
 
+            # Get matched sequence.
+            matched_seq = benchlib.get_matched_seq(fh.seq_name, out_seqs_dic, fh.seq_s, fh.seq_e)
+            if not matched_seq:
+                matched_seq = "-"
+
             # Store motif hit as BED.
             hit_id = "%s:%s-%s(%s)%s;%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id, internal_id)
             if hit_id not in motif_reg_dic:
-                bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, method_id, data_id, fh.strand, str(fh.score), str(fh.pval))
+                bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, method_id, data_id, fh.strand, str(fh.score), str(fh.pval), matched_seq)
                 motif_reg_dic[hit_id] = bed_row
 
             row_str = data_id + "\t"
@@ -7096,6 +7107,7 @@ def main_batch(args):
             row_str += str(fh.pval) + "\t"
             row_str += "-\t"
             row_str += "-\t"
+            row_str += matched_seq + "\t"
             row_str += internal_id + "\n"
 
             OUTMTFSTATS.write(row_str)
@@ -7105,13 +7117,18 @@ def main_batch(args):
             region_id = cmsh.seq_name
             region_len = benchlib.get_length_from_seq_name(cmsh.seq_name)
             # Genomic motif region string.
-            cmsh_str = repr(cmsh) 
+            cmsh_str = repr(cmsh)
             uniq_count = unique_motifs_dic[cmsh_str]
+
+            # Get matched sequence.
+            matched_seq = benchlib.get_matched_seq(cmsh.seq_name, out_seqs_dic, cmsh.seq_s, cmsh.seq_e)
+            if not matched_seq:
+                matched_seq = "-"
 
             # Store motif hit as BED.
             hit_id = "%s:%s-%s(%s)%s;%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id, internal_id)
             if hit_id not in motif_reg_dic:
-                bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, cmsh.strand, method_id, data_id, str(cmsh.score), str(cmsh.e_value))
+                bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, cmsh.strand, method_id, data_id, str(cmsh.score), str(cmsh.e_value), matched_seq)
                 motif_reg_dic[hit_id] = bed_row
 
             row_str = data_id + "\t"
@@ -7133,6 +7150,7 @@ def main_batch(args):
             row_str += "-\t"
             row_str += str(cmsh.score) + "\t"
             row_str += str(cmsh.e_value) + "\t"
+            row_str += matched_seq + "\t"
             row_str += internal_id + "\n"
 
             OUTMTFSTATS.write(row_str)
@@ -7165,6 +7183,7 @@ def main_batch(args):
                                          params=params)
             
             reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
+                                                            tid2tio_dic=tid2tio_dic,
                                                             reg_ids_dic=reg_ids_dic)
 
             # reg2annot_dic = {'chr22:30971326-30971352(+)': ['other (nc)RNA', 'ENST00000614234'], ...
@@ -8257,8 +8276,8 @@ def main_searchseq(args):
         c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
         loaded_motif_ids_dic = filtered_motif_ids_dic
 
-        print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
-        print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
+        print("# motif IDs pre-filtering by --motifs: ", c_loaded_motif_ids_pre)
+        print("# motif IDs post-filtering by --motifs:", c_loaded_motif_ids_post)
 
         assert loaded_motif_ids_dic, "no remaining motifs after filtering by provided motif IDs (via --motifs). Please provide compatible RBPs + motif IDs"
 
@@ -8383,6 +8402,7 @@ def main_searchseq(args):
                                        new_header_id=args.header_id,
                                        make_uniq_headers=args.make_uniq_headers,
                                        report=1,
+                                       remove_regex="[ :\(\)]",
                                        skip_n_seqs=False)
 
     assert in_seqs_dic, "no sequences read in from --in FASTA file. Make sure to provide a FASTA formatted file with DNA or RNA sequences"
@@ -8455,7 +8475,7 @@ def main_searchseq(args):
 
         print("Read in FIMO results ... ")
         fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
-                                                       only_best_hits=args.fimo_best_hits,
+                                                       only_best_hits=args.greatest_hits,
                                                        seq_based=True)
 
         c_fimo_hits = len(fimo_hits_list)
@@ -8494,6 +8514,7 @@ def main_searchseq(args):
         print("Read in cmsearch results ... ")
         cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt,
                                                                            seq_based=True,
+                                                                           only_best_hits=args.greatest_hits,
                                                                            check=True)
 
         print("# of cmsearch motif hits:", c_cms_hits)
@@ -8867,7 +8888,7 @@ def main_searchseq(args):
     OUTSTATS = open(motif_stats_out,"w")
 
     motif_stats_header = "data_id\tmethod_id\trun_id\tmotif_db\tregion_id\trbp_id\tmotif_id\tchr_id\tgen_s\tgen_e\tstrand\tregion_s\tregion_e\tregion_len\t"
-    motif_stats_header += "uniq_count\tfimo_score\tfimo_pval\tcms_score\tcms_eval\tinternal_id\n"
+    motif_stats_header += "uniq_count\tfimo_score\tfimo_pval\tcms_score\tcms_eval\tmatched_seq\tinternal_id\n"
     OUTSTATS.write(motif_stats_header)
 
     # Unique motif regions BED.
@@ -8900,10 +8921,15 @@ def main_searchseq(args):
 
         internal_id = search_rbps_dic[rbp_id].internal_id
 
+        # Get matched sequence.
+        matched_seq = benchlib.get_matched_seq(fh.seq_name, in_seqs_dic, fh.seq_s, fh.seq_e)
+        if not matched_seq:
+            matched_seq = "-"
+
         # Store motif hit as BED.
         hit_id = "%s:%s-%s(%s)%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval))
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), matched_seq)
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -8925,6 +8951,7 @@ def main_searchseq(args):
         row_str += str(fh.pval) + "\t"
         row_str += "-\t"
         row_str += "-\t"
+        row_str += matched_seq + "\t"
         row_str += internal_id + "\n"
 
         OUTSTATS.write(row_str)
@@ -8954,10 +8981,15 @@ def main_searchseq(args):
 
         internal_id = search_rbps_dic[rbp_id].internal_id
 
+        # Get matched sequence.
+        matched_seq = benchlib.get_matched_seq(cmsh.seq_name, in_seqs_dic, cmsh.seq_s, cmsh.seq_e)
+        if not matched_seq:
+            matched_seq = "-"
+
         # Store motif hit as BED.
         hit_id = "%s:%s-%s(%s)%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value))
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), matched_seq)
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -8979,6 +9011,7 @@ def main_searchseq(args):
         row_str += "-\t"
         row_str += str(cmsh.score) + "\t"
         row_str += str(cmsh.e_value) + "\t"
+        row_str += matched_seq + "\t"
         row_str += internal_id + "\n"
         #print("region_id:", region_id)
         #print("evalue:", cmsh.e_value)
@@ -9012,6 +9045,13 @@ def main_searchseq(args):
         
         plots_subfolder = "html_motif_plots"
         benchlib_path = os.path.dirname(benchlib.__file__)
+
+        args.run_goa = False
+        args.bed_sc_thr = None
+        args.c_regions = c_regions
+        args.ext_up = None
+        args.ext_down = None
+        args.regex_id = False
 
         benchlib.search_generate_html_motif_plots(args,
                                          search_rbps_dic, seq_motif_blocks_dic, 
@@ -9494,8 +9534,8 @@ def main_searchlong(args):
         c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
         loaded_motif_ids_dic = filtered_motif_ids_dic
 
-        print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
-        print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
+        print("# motif IDs pre-filtering by --motifs: ", c_loaded_motif_ids_pre)
+        print("# motif IDs post-filtering by --motifs:", c_loaded_motif_ids_post)
 
         assert loaded_motif_ids_dic, "no remaining motifs after filtering by provided motif IDs (via --motifs). Please provide compatible RBPs + motif IDs"
 
@@ -9690,7 +9730,7 @@ def main_searchlong(args):
                                                     check_dic=False)
             assert tr_ids_dic, "no IDs read in from provided --tr-list file. Please provide a valid IDs file (one ID per row)"
             for tr_id in tr_ids_dic:
-                assert tr_id in tr2gid_dic, "transcript ID \"%s\" from provided --tr-list file does not appear in --gtf file. Please provide compatible files" %(tr_id)
+                assert tr_id in tr2gid_dic, "transcript ID \"%s\" from provided --tr-list file does not appear in --gtf file. Please provide compatible IDs + files" %(tr_id)
                 tr_ids_dic[tr_id] = tr2gid_dic[tr_id]
             print("# of transcript IDs (read in from --tr-list): ", len(tr_ids_dic))
         else:
@@ -9883,7 +9923,7 @@ def main_searchlong(args):
 
         print("Read in FIMO results ... ")
         fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
-                                                       only_best_hits=args.fimo_best_hits)
+                                                       only_best_hits=args.greatest_hits)
 
         c_fimo_hits = len(fimo_hits_list)
         print("# of FIMO motif hits:", c_fimo_hits)
@@ -9944,7 +9984,8 @@ def main_searchlong(args):
                         params=cmsh_params) # or add --anytrunc and remove --g
         # Read in hits.
         print("Read in cmsearch results ... ")
-        cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt, 
+        cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt,
+                                                                           only_best_hits=args.greatest_hits,
                                                                            check=True)
 
         print("# of cmsearch motif hits:", c_cms_hits)
@@ -10242,7 +10283,7 @@ def main_searchlong(args):
     OUTSTATS = open(motif_stats_out,"w")
 
     motif_stats_header = "data_id\tmethod_id\trun_id\tmotif_db\tregion_id\trbp_id\tmotif_id\tchr_id\tgen_s\tgen_e\tstrand\tregion_s\tregion_e\tregion_len\t"
-    motif_stats_header += "uniq_count\tfimo_score\tfimo_pval\tcms_score\tcms_eval\tinternal_id\n"
+    motif_stats_header += "uniq_count\tfimo_score\tfimo_pval\tcms_score\tcms_eval\tmatched_seq\tinternal_id\n"
     OUTSTATS.write(motif_stats_header)
 
     # Unique motif regions BED.
@@ -10262,10 +10303,15 @@ def main_searchlong(args):
 
         internal_id = search_rbps_dic[rbp_id].internal_id
 
+        # Get matched sequence.
+        matched_seq = benchlib.get_matched_seq(fh.seq_name, out_seqs_dic, fh.seq_s, fh.seq_e)
+        if not matched_seq:
+            matched_seq = "-"
+
         # Store motif hit as BED.
         hit_id = "%s:%s-%s(%s)%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval))
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), matched_seq)
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -10287,6 +10333,7 @@ def main_searchlong(args):
         row_str += str(fh.pval) + "\t"
         row_str += "-\t"
         row_str += "-\t"
+        row_str += matched_seq + "\t"
         row_str += internal_id + "\n"
 
         OUTSTATS.write(row_str)
@@ -10304,10 +10351,15 @@ def main_searchlong(args):
 
         internal_id = search_rbps_dic[rbp_id].internal_id
 
+        # Get matched sequence.
+        matched_seq = benchlib.get_matched_seq(cmsh.seq_name, out_seqs_dic, cmsh.seq_s, cmsh.seq_e)
+        if not matched_seq:
+            matched_seq = "-"
+
         # Store motif hit as BED.
         hit_id = "%s:%s-%s(%s)%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value))
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), matched_seq)
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -10329,6 +10381,7 @@ def main_searchlong(args):
         row_str += "-\t"
         row_str += str(cmsh.score) + "\t"
         row_str += str(cmsh.e_value) + "\t"
+        row_str += matched_seq + "\t"
         row_str += internal_id + "\n"
         #print("region_id:", region_id)
         #print("evalue:", cmsh.e_value)
@@ -11013,8 +11066,8 @@ def main_searchrna(args):
         c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
         loaded_motif_ids_dic = filtered_motif_ids_dic
 
-        print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
-        print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
+        print("# motif IDs pre-filtering by --motifs: ", c_loaded_motif_ids_pre)
+        print("# motif IDs post-filtering by --motifs:", c_loaded_motif_ids_post)
 
         assert loaded_motif_ids_dic, "no remaining motifs after filtering by provided motif IDs (via --motifs). Please provide compatible RBPs + motif IDs"
 
@@ -11542,7 +11595,7 @@ def main_searchrna(args):
 
         print("Read in FIMO results ... ")
         fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
-                                                       only_best_hits=args.fimo_best_hits)
+                                                       only_best_hits=args.greatest_hits)
 
         c_fimo_hits = len(fimo_hits_list)
         print("# of FIMO motif hits:", c_fimo_hits)
@@ -11603,7 +11656,8 @@ def main_searchrna(args):
                         params=cmsh_params) # or add --anytrunc and remove --g
         # Read in hits.
         print("Read in cmsearch results ... ")
-        cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt, 
+        cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt,
+                                                                           only_best_hits=args.greatest_hits,
                                                                            check=True)
 
         print("# of cmsearch motif hits:", c_cms_hits)
@@ -11989,7 +12043,7 @@ def main_searchrna(args):
     OUTSTATS = open(motif_stats_out,"w")
 
     motif_stats_header = "data_id\tmethod_id\trun_id\tmotif_db\tregion_id\trbp_id\tmotif_id\tchr_id\tgen_s\tgen_e\tstrand\tregion_s\tregion_e\tregion_len\t"
-    motif_stats_header += "uniq_count\tfimo_score\tfimo_pval\tcms_score\tcms_eval\tinternal_id\n"
+    motif_stats_header += "uniq_count\tfimo_score\tfimo_pval\tcms_score\tcms_eval\tmatched_seq\tinternal_id\n"
     OUTSTATS.write(motif_stats_header)
 
     # Unique motif regions BED.
@@ -12030,10 +12084,15 @@ def main_searchrna(args):
 
         internal_id = search_rbps_dic[rbp_id].internal_id
 
+        # Get matched sequence.
+        matched_seq = benchlib.get_matched_seq(fh.seq_name, out_seqs_dic, fh.seq_s, fh.seq_e)
+        if not matched_seq:
+            matched_seq = "-"
+
         # Store motif hit as BED.
         hit_id = "%s:%s-%s(%s)%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval))
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), matched_seq)
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -12055,6 +12114,7 @@ def main_searchrna(args):
         row_str += str(fh.pval) + "\t"
         row_str += "-\t"
         row_str += "-\t"
+        row_str += matched_seq + "\t"
         row_str += internal_id + "\n"
 
         OUTSTATS.write(row_str)
@@ -12092,10 +12152,15 @@ def main_searchrna(args):
 
         internal_id = search_rbps_dic[rbp_id].internal_id
 
+        # Get matched sequence.
+        matched_seq = benchlib.get_matched_seq(cmsh.seq_name, out_seqs_dic, cmsh.seq_s, cmsh.seq_e)
+        if not matched_seq:
+            matched_seq = "-"
+
         # Store motif hit as BED.
         hit_id = "%s:%s-%s(%s)%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value))
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), matched_seq)
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -12117,6 +12182,7 @@ def main_searchrna(args):
         row_str += "-\t"
         row_str += str(cmsh.score) + "\t"
         row_str += str(cmsh.e_value) + "\t"
+        row_str += matched_seq + "\t"
         row_str += internal_id + "\n"
         #print("region_id:", region_id)
         #print("evalue:", cmsh.e_value)
@@ -13075,8 +13141,8 @@ def main_searchlongrna(args):
         c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
         loaded_motif_ids_dic = filtered_motif_ids_dic
 
-        print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
-        print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
+        print("# motif IDs pre-filtering by --motifs: ", c_loaded_motif_ids_pre)
+        print("# motif IDs post-filtering by --motifs:", c_loaded_motif_ids_post)
 
         assert loaded_motif_ids_dic, "no remaining motifs after filtering by provided motif IDs (via --motifs). Please provide compatible RBPs + motif IDs"
 
@@ -13241,7 +13307,7 @@ def main_searchlongrna(args):
                                                 check_dic=False)
         assert tr_ids_dic, "no IDs read in from provided --tr-list file. Please provide a valid IDs file (one ID per row)"
         for tr_id in tr_ids_dic:
-            assert tr_id in tr2gid_dic, "transcript ID \"%s\" from provided --tr-list file does not appear in --gtf file. Please provide compatible files" %(tr_id)
+            assert tr_id in tr2gid_dic, "transcript ID \"%s\" from provided --tr-list file does not appear in --gtf file. Please provide compatible IDs + files" %(tr_id)
             tr_ids_dic[tr_id] = tr2gid_dic[tr_id]
         print("# of transcript IDs (read in from --tr-list): ", len(tr_ids_dic))
     else:
@@ -13453,7 +13519,7 @@ def main_searchlongrna(args):
 
         print("Read in FIMO results ... ")
         fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
-                                                       only_best_hits=args.fimo_best_hits,
+                                                       only_best_hits=args.greatest_hits,
                                                        seq_based=True)
 
         c_fimo_hits = len(fimo_hits_list)
@@ -13518,6 +13584,7 @@ def main_searchlongrna(args):
         print("Read in cmsearch results ... ")
         cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt,
                                                                            seq_based=True,
+                                                                           only_best_hits=args.greatest_hits,
                                                                            check=True)
 
         print("# of cmsearch motif hits:", c_cms_hits)
@@ -13823,7 +13890,7 @@ def main_searchlongrna(args):
     OUTSTATS = open(motif_stats_out,"w")
 
     motif_stats_header = "data_id\tmethod_id\trun_id\tmotif_db\tregion_id\trbp_id\tmotif_id\tchr_id\tgen_s\tgen_e\tstrand\tregion_s\tregion_e\tregion_len\t"
-    motif_stats_header += "uniq_count\tfimo_score\tfimo_pval\tcms_score\tcms_eval\tinternal_id\n"
+    motif_stats_header += "uniq_count\tfimo_score\tfimo_pval\tcms_score\tcms_eval\tmatched_seq\tinternal_id\n"
     OUTSTATS.write(motif_stats_header)
 
     # Unique motif regions BED.
@@ -13948,12 +14015,17 @@ def main_searchlongrna(args):
                 else:
                     rbp2tr_id_dic[rbp_id][tr_id] = 1
 
+        # Get matched sequence.
+        matched_seq = benchlib.get_matched_seq(fh.seq_name, tr_seqs_dic, fh.seq_s, fh.seq_e)
+        if not matched_seq:
+            matched_seq = "-"
+
         # Store motif hit as BED.
         if hit_id not in motif_reg_dic:
             annot_str = "-"
             if annot:
                 annot_str = annot[0]
-            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), annot_str)
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t%s\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), annot_str, matched_seq)
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -13975,6 +14047,7 @@ def main_searchlongrna(args):
         row_str += str(fh.pval) + "\t"
         row_str += "-\t"
         row_str += "-\t"
+        row_str += matched_seq + "\t"
         row_str += internal_id + "\n"
 
         OUTSTATS.write(row_str)
@@ -14091,12 +14164,17 @@ def main_searchlongrna(args):
                 else:
                     rbp2tr_id_dic[rbp_id][tr_id] = 1
 
+        # Get matched sequence.
+        matched_seq = benchlib.get_matched_seq(cmsh.seq_name, tr_seqs_dic, cmsh.seq_s, cmsh.seq_e)
+        if not matched_seq:
+            matched_seq = "-"
+
         # Store motif hit as BED.
         if hit_id not in motif_reg_dic:
             annot_str = "-"
             if annot:
                 annot_str = annot[0]
-            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), annot_str)
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t%s\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), annot_str, matched_seq)
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -14118,6 +14196,7 @@ def main_searchlongrna(args):
         row_str += "-\t"
         row_str += str(cmsh.score) + "\t"
         row_str += str(cmsh.e_value) + "\t"
+        row_str += matched_seq + "\t"
         row_str += internal_id + "\n"
         #print("region_id:", region_id)
         #print("evalue:", cmsh.e_value)
@@ -14878,8 +14957,8 @@ def main_enmo(args):
         c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
         loaded_motif_ids_dic = filtered_motif_ids_dic
 
-        print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
-        print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
+        print("# motif IDs pre-filtering by --motifs: ", c_loaded_motif_ids_pre)
+        print("# motif IDs post-filtering by --motifs:", c_loaded_motif_ids_post)
 
         assert loaded_motif_ids_dic, "no remaining motifs after filtering by provided motif IDs (via --motifs). Please provide compatible RBPs + motif IDs"
 
@@ -15077,7 +15156,7 @@ def main_enmo(args):
                                                 check_dic=False)
         assert tr_ids_dic, "no IDs read in from provided --tr-list file. Please provide a valid IDs file (one ID per row)"
         for tr_id in tr_ids_dic:
-            assert tr_id in tr2gid_dic, "transcript ID \"%s\" from provided --tr-list file does not appear in --gtf file. Please provide compatible files" %(tr_id)
+            assert tr_id in tr2gid_dic, "transcript ID \"%s\" from provided --tr-list file does not appear in --gtf file. Please provide compatible IDs + files" %(tr_id)
             tr_ids_dic[tr_id] = tr2gid_dic[tr_id]
         print("# of transcript IDs (read in from --tr-list): ", len(tr_ids_dic))
     else:
@@ -15341,6 +15420,7 @@ def main_enmo(args):
                                         overlap_annotations_bed,
                                         params=params)
             pos_reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
+                                                                tid2tio_dic=tid2tio_dic,
                                                                 reg_ids_dic=pos_reg_ids_dic)
 
         else:
@@ -15657,6 +15737,7 @@ def main_enmo(args):
                                      overlap_annotations_bed,
                                      params=params)
         neg_reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
+                                                            tid2tio_dic=tid2tio_dic,
                                                             reg_ids_dic=neg_reg_ids_dic)
 
 
@@ -15770,7 +15851,7 @@ def main_enmo(args):
         assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
 
         pos_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
-                                                           only_best_hits=args.fimo_best_hits)
+                                                           only_best_hits=args.greatest_hits)
 
         c_pos_fimo_hits = len(pos_fimo_hits_list)
         print("# of FIMO motif hits in input regions:", c_pos_fimo_hits)
@@ -15786,7 +15867,7 @@ def main_enmo(args):
 
         neg_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv, 
                                                            seq_based=seq_based,
-                                                           only_best_hits=args.fimo_best_hits)
+                                                           only_best_hits=args.greatest_hits)
 
         c_neg_fimo_hits = len(neg_fimo_hits_list)
         print("# of FIMO motif hits in background regions:", c_neg_fimo_hits)
@@ -15852,8 +15933,9 @@ def main_enmo(args):
                         call_dic=call_dic,
                         params=cmsh_params)
 
-        pos_cmsearch_hits_list, c_pos_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt, 
-                                                                           check=True)
+        pos_cmsearch_hits_list, c_pos_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt,
+                                                                            only_best_hits=args.greatest_hits,
+                                                                            check=True)
 
         print("# of cmsearch motif hits in input regions:", c_pos_cms_hits)
 
@@ -15864,6 +15946,7 @@ def main_enmo(args):
 
         neg_cmsearch_hits_list, c_neg_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt, 
                                                                             seq_based=seq_based,
+                                                                            only_best_hits=args.greatest_hits,
                                                                             check=True)
 
         print("# of cmsearch motif hits in background regions:", c_neg_cms_hits)
@@ -17229,8 +17312,8 @@ def main_nemo(args):
         c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
         loaded_motif_ids_dic = filtered_motif_ids_dic
 
-        print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
-        print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
+        print("# motif IDs pre-filtering by --motifs: ", c_loaded_motif_ids_pre)
+        print("# motif IDs post-filtering by --motifs:", c_loaded_motif_ids_post)
 
         assert loaded_motif_ids_dic, "no remaining motifs after filtering by provided motif IDs (via --motifs). Please provide compatible RBPs + motif IDs"
 
@@ -17429,7 +17512,7 @@ def main_nemo(args):
                                                 check_dic=False)
         assert tr_ids_dic, "no IDs read in from provided --tr-list file. Please provide a valid IDs file (one ID per row)"
         for tr_id in tr_ids_dic:
-            assert tr_id in tr2gid_dic, "transcript ID \"%s\" from provided --tr-list file does not appear in --gtf file. Please provide compatible files" %(tr_id)
+            assert tr_id in tr2gid_dic, "transcript ID \"%s\" from provided --tr-list file does not appear in --gtf file. Please provide compatible IDs + files" %(tr_id)
             tr_ids_dic[tr_id] = tr2gid_dic[tr_id]
         print("# of transcript IDs (read in from --tr-list): ", len(tr_ids_dic))
     else:
@@ -17755,6 +17838,7 @@ def main_nemo(args):
                                          overlap_annotations_bed,
                                          params=params)
             pos_reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
+                                                                tid2tio_dic=tid2tio_dic,
                                                                 reg_ids_dic=pos_reg_ids_dic)
 
         else:
@@ -18120,6 +18204,7 @@ def main_nemo(args):
                                      overlap_annotations_bed,
                                      params=params)
         neg_reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
+                                                            tid2tio_dic=tid2tio_dic,
                                                             reg_ids_dic=neg_reg_ids_dic)
 
 
@@ -18231,7 +18316,7 @@ def main_nemo(args):
         assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
 
         pos_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
-                                                           only_best_hits=args.fimo_best_hits,
+                                                           only_best_hits=args.greatest_hits,
                                                            reg_dic=pos_reg_dic)
 
         c_pos_fimo_hits = len(pos_fimo_hits_list)
@@ -18248,7 +18333,7 @@ def main_nemo(args):
 
         neg_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
                                                            reg_dic=neg_reg_dic,  # only applies if seq_based False.
-                                                           only_best_hits=args.fimo_best_hits,
+                                                           only_best_hits=args.greatest_hits,
                                                            seq_based=seq_based)
 
         c_neg_fimo_hits = len(neg_fimo_hits_list)
@@ -18331,6 +18416,7 @@ def main_nemo(args):
 
         pos_cmsearch_hits_list, c_pos_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt,
                                                                             reg_dic=pos_reg_dic,
+                                                                            only_best_hits=args.greatest_hits,
                                                                             check=True)
 
         print("# of cmsearch motif hits in input regions:", c_pos_cms_hits)
@@ -18343,6 +18429,7 @@ def main_nemo(args):
         neg_cmsearch_hits_list, c_neg_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt,
                                                                             reg_dic=neg_reg_dic,
                                                                             seq_based=seq_based,
+                                                                            only_best_hits=args.greatest_hits,
                                                                             check=True)
 
         print("# of cmsearch motif hits in background regions:", c_neg_cms_hits)
@@ -20162,7 +20249,7 @@ def main_optex(args):
 
             # print("Read in FIMO results ... ")
             fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
-                                                           only_best_hits=args.fimo_best_hits)
+                                                           only_best_hits=args.greatest_hits)
 
             # c_fimo_hits = len(fimo_hits_list)
             # print("# of FIMO motif hits:", c_fimo_hits)
@@ -20195,7 +20282,8 @@ def main_optex(args):
                             params=cmsh_params)
             # Read in hits.
             # print("Read in cmsearch results ... ")
-            cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt)
+            cmsearch_hits_list, c_cms_hits = benchlib.read_in_cmsearch_results(cmsearch_res_txt,
+                                                                               only_best_hits=args.greatest_hits)
 
             # print("# of cmsearch motif hits:", c_cms_hits)
 

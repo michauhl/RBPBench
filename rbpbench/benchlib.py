@@ -1971,12 +1971,17 @@ def read_fasta_into_dic(fasta_file,
                         id_check=True,
                         skip_data_id="set",
                         new_header_id="site",
+                        remove_regex=False,
                         make_uniq_headers=False,
                         skip_n_seqs=True):
     """
+
     Read in FASTA sequences, store in dictionary and return dictionary.
     FASTA file can be plain text or gzipped (watch out for .gz ending).
 
+    remove_regex:
+        If regex given, use this to remove special characters from the header ID.
+        E.g. "[ :\(\)]"
     full_header:
         If true, use whole header (after >) as ID. By default, use ID up to 
         first space character.
@@ -1992,7 +1997,7 @@ def read_fasta_into_dic(fasta_file,
     header_idx = 0
 
     # Compile regex patterns.
-    header_pattern = re.compile(r">(.+)" if full_header else r">(\S+)")
+    header_pattern = re.compile(r">(.+)" if full_header else r">(\S+)")  # \S any non-whitespaces match.
     bed_pattern = re.compile(r"^(.+)::")
     seq_pattern = re.compile(r"[ACGTUN]+", re.I)
     n_pattern = re.compile(r"N", re.I)
@@ -2010,6 +2015,10 @@ def read_fasta_into_dic(fasta_file,
             m = header_pattern.search(line)
             assert m, f'header ID extraction failed for FASTA header line "{line}"'
             seq_id = m.group(1)
+
+            if remove_regex:
+                seq_id = re.sub(remove_regex, "", seq_id)
+                assert seq_id, "filtering FASTA sequence header ID \"%s\" by regex \"%s\" resulted in string" %(seq_id, remove_regex)
 
             # If name_bed, get first part of ID (before "::").
             if name_bed:
@@ -4303,33 +4312,42 @@ def get_rbp_id_mappings(rbp2ids_file):
 
     with open(rbp2ids_file) as f:
         for line in f:
-            if re.search("^RBP_motif_ID", line) or re.search("^#", line):
+            if line.startswith("RBP_motif_ID") or line.startswith("#"):
                 continue
+
             cols = line.strip().split("\t")
             motif_id = cols[0]
             rbp_name = cols[1]
             motif_type = cols[2]
-            organism = cols[3]            
-            # if organism != "human":
-            #     rbp_name = rbp_name + "_" + organism
-            # id2org_dic[motif_id] = organism
-            gene_id = cols[4]
-            function_ids = cols[5]
-
-            fids_list = []
-            if function_ids != "-":
-                fids_list = function_ids.split(";")
-    
-            fids_list.sort()
-
-            name2gid_dic[rbp_name] = gene_id
-            name2fids_dic[rbp_name] = fids_list
 
             id2type_dic[motif_id] = motif_type
+
             if rbp_name in name2ids_dic:
                 name2ids_dic[rbp_name].append(motif_id)
             else:
                 name2ids_dic[rbp_name] = [motif_id]
+
+            name2gid_dic[rbp_name] = "-"
+            name2fids_dic[rbp_name] = []
+
+            if len(cols) > 3:
+
+                # organism = cols[3]
+                # if organism != "human":
+                #     rbp_name = rbp_name + "_" + organism
+                # id2org_dic[motif_id] = organism
+                gene_id = cols[4]
+                function_ids = cols[5]
+
+                fids_list = []
+                if function_ids != "-":
+                    fids_list = function_ids.split(";")
+        
+                fids_list.sort()
+
+                name2gid_dic[rbp_name] = gene_id
+                name2fids_dic[rbp_name] = fids_list
+
     f.closed
 
     assert name2ids_dic, "no RBP IDs read in from %s" %(rbp2ids_file)
@@ -6340,11 +6358,11 @@ def read_in_fimo_results(fimo_tsv,
 
     f.closed
 
-    if only_best_hits:
-        print("--fimo-best-hits enabled. Keep only best motif hits ... ")
+    if only_best_hits and fimo_hits_list:
+        print("--greatest-hits enabled. Keep only best FIMO motif hits ... ")
         print("# of FIMO motif hits before best hit filtering: %i" %(len(fimo_hits_list)))
         fimo_hits_list = get_best_fimo_hits(fimo_hits_list)
-        print("# of FIMO motif hits after best hit filtering: %i" %(len(fimo_hits_list)))
+        print("# of FIMO motif hits after best hit filtering:  %i" %(len(fimo_hits_list)))
 
     return fimo_hits_list
 
@@ -6354,12 +6372,13 @@ def read_in_fimo_results(fimo_tsv,
 def get_best_fimo_hits(fimo_hits_list):
     """
     Filter FIMO hits list, keep only best hit for each motif ID and sequence combination.
-
+    Best hit is hit with lowest p-value.
+    
     """
     assert fimo_hits_list, "fimo_hits_list is empty"
 
     filt_fimo_hits_list = []
-    best_list_idx_dic = {}  # "motif_id,seq_name" -> best list indexs.
+    best_list_idx_dic = {}  # "motif_id,seq_name" -> best list index.
 
     for idx, fimo_hit in enumerate(fimo_hits_list):
         seq_name = fimo_hit.seq_name
@@ -6378,6 +6397,38 @@ def get_best_fimo_hits(fimo_hits_list):
         filt_fimo_hits_list.append(fimo_hits_list[best_idx])
 
     return filt_fimo_hits_list
+
+
+################################################################################
+
+def get_best_cmsearch_hits(cmsearch_hits_list):
+    """
+    Filter CMSEARCH hits list, keep only best hit for each motif ID and sequence combination.
+    Best hit is hit with highest bit score.
+    
+    """
+    assert cmsearch_hits_list, "cmsearch_hits_list is empty"
+
+    filt_cmsearch_hits_list = []
+    best_list_idx_dic = {}  # "motif_id,seq_name" -> best list index.
+
+    for idx, cmsh_hit in enumerate(cmsearch_hits_list):
+        seq_name = cmsh_hit.seq_name
+        motif_id = cmsh_hit.motif_id
+        score = cmsh_hit.score  # compare cmsearch bit score (the higher the better).
+        comb_id = "%s,%s" %(motif_id, seq_name)
+        if comb_id not in best_list_idx_dic:
+            best_list_idx_dic[comb_id] = idx
+        else:
+            best_idx = best_list_idx_dic[comb_id]
+            if cmsearch_hits_list[best_idx].score < score:
+                best_list_idx_dic[comb_id] = idx
+
+    for comb_id in best_list_idx_dic:
+        best_idx = best_list_idx_dic[comb_id]
+        filt_cmsearch_hits_list.append(cmsearch_hits_list[best_idx])
+
+    return filt_cmsearch_hits_list
 
 
 ################################################################################
@@ -6456,7 +6507,7 @@ def output_motif_hits_to_bed(rbp_id, unique_motifs_dic, out_bed,
     OUTMRBED = open(out_bed, "w")
 
     # pattern_check = re.compile(r"\w+:\d+-\d+\([+|-]\).+")
-    pattern_extract = re.compile(r"^(\w+):(\d+)-(\d+)\(([+|-])\)(.+)")
+    pattern_extract = re.compile(r"^(.+):(\d+)-(\d+)\(([+|-])\)(.+)")
 
     for fh_str in unique_motifs_dic[rbp_id]:
         # if re.search("\w+:\d+-\d+\([+|-]\).+", fh_str):
@@ -6525,6 +6576,7 @@ def read_in_cmsearch_results(in_tab,
                              check=True,
                              seq_based=False,
                              reg_dic=None,
+                             only_best_hits=False,
                              hits_list=None):
     """
     Read in cmsearch motif finding results file.
@@ -6641,6 +6693,13 @@ def read_in_cmsearch_results(in_tab,
             hits_list.append(cmsearch_hit)
 
     f.closed
+
+    if only_best_hits and hits_list:
+        print("--greatest-hits enabled. Keep only best CMSEARCH hits ... ")
+        print("# of CMSEARCH hits before best hit filtering: %i" %(len(hits_list)))
+        hits_list = get_best_cmsearch_hits(hits_list)
+        print("# of CMSEARCH hits after best hit filtering:  %i" %(len(hits_list)))
+        c_hits = len(hits_list)
 
     return hits_list, c_hits
 
@@ -6788,6 +6847,8 @@ def get_motif_id_from_str_repr(hit_str_repr):
     chr1:100-200(-)motif_id
     return motif_id
 
+    ENST00000561978.1:1242-1248(+)PUM1_1
+
     >>> hit_str_repr = "chr6:66-666(-)satan6666"
     >>> get_motif_id_from_str_repr(hit_str_repr)
     'satan6666'
@@ -6797,7 +6858,7 @@ def get_motif_id_from_str_repr(hit_str_repr):
 
     """
 
-    if re.search("^\w+?:\d+-\d+\([+|-]\).+", hit_str_repr):
+    if re.search("^.+:\d+-\d+\([+|-]\).+", hit_str_repr):
         m = re.search("^.+?\)(.+)", hit_str_repr)
         motif_id = m.group(1)
         return motif_id
