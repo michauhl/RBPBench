@@ -3557,16 +3557,96 @@ IG_pseudogene	1
 
 """
 
+
 ################################################################################
 
-def get_motif_hit_region_annotations(overlap_annotations_bed):
+def get_regex_hit_region_annotations(overlap_annotations_bed,
+                                     tid2tio_dic=None):
+    """
+    Given a BED file (overlap_annotations_bed) with format:
+    chr12	57586611	57586617	AATAAA	0	+	chr12	57584217	57586633	3'UTR;ENST00000455537	0	+	6
+    chr4	73075045	73075051	AATAAA	0	-	.	-1	-1	.	-1	.	0
+    ...
+    extract the region annotations and return a dictionary with region ID as key.
+    Note that regex regions without overlapping annotation are expected to have
+    "." in the annotation field, and will get the annotation "intergenic".
+    
+    Format reg2annot_dic:
+    chr1:101-120(+) -> ["exon", "ENST00000455537"]
+
+    tid2tio_dic:
+        If provided, if two features have same overlap amount with region,
+        choose the more prominent transcript ID (i.e., better annotation).
+
+    """
+
+    assert os.path.exists(overlap_annotations_bed), "file %s does not exist" %(overlap_annotations_bed)
+
+    reg2maxol_dic = {}
+    reg2annot_dic = {}
+    annot_col = 9
+    c_ol_nt_col = 12
+
+    with open(overlap_annotations_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+
+            chr_id = cols[0]
+            reg_s = str(int(cols[1]) + 1)
+            reg_e = cols[2]
+            regex = cols[3]
+            reg_strand = cols[5]
+
+            reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + reg_strand + ")"
+            annot_id = "intergenic"
+            tr_id = False
+
+            if cols[annot_col] != ".":
+                annot_ids = cols[annot_col].split(";")
+                assert len(annot_ids) == 2, "len(annot_ids) != 2 (expected ; separated string, but got: \"%s\")" %(cols[9])
+                annot_id = annot_ids[0]
+                tr_id = annot_ids[1]
+
+            c_overlap_nts = cols[c_ol_nt_col]
+
+            if reg_id not in reg2maxol_dic:
+                reg2maxol_dic[reg_id] = c_overlap_nts
+                reg2annot_dic[reg_id] = [annot_id, tr_id]
+            else:
+                if c_overlap_nts > reg2maxol_dic[reg_id]:
+                    reg2maxol_dic[reg_id] = c_overlap_nts
+                    reg2annot_dic[reg_id][0] = annot_id
+                    reg2annot_dic[reg_id][1] = tr_id
+                elif c_overlap_nts == reg2maxol_dic[reg_id]:  # if region overlaps with > 1 feature by same amount.
+                    if tid2tio_dic is not None:
+                        best_tid = reg2annot_dic[reg_id][1]
+                        new_best_tid = select_more_prominent_tid(tr_id, best_tid, tid2tio_dic)
+                        # If current tr_id has better annotation, update region annotation.
+                        if new_best_tid == tr_id:
+                            reg2maxol_dic[reg_id] = c_overlap_nts
+                            reg2annot_dic[reg_id][0] = annot_id
+                            reg2annot_dic[reg_id][1] = new_best_tid
+
+    f.closed
+
+    return reg2annot_dic
+
+
+################################################################################
+
+def get_motif_hit_region_annotations(overlap_annotations_bed,
+                                     tid2tio_dic=None):
     """
     Get motif hit region annotations from overlap_annotations_bed. This file 
     was produced using intersectBed -wao, so also motif hit regions that do not
     overlap with genomic regions are present in the file.
-    motif hit region id format: HNRNPL,HNRNPL_1;1;method_id,data_id
+    motif hit region id format: HNRNPL:HNRNPL_1;1;method_id:data_id
     genomic annotation region id format: intron;ENST00000434296
-    
+
+    tid2tio_dic:
+        If provided, if two features have same overlap amount with region,
+        choose the more prominent transcript ID (i.e., better annotation).
+
     """
 
     assert os.path.exists(overlap_annotations_bed), "file %s does not exist" %(overlap_annotations_bed)
@@ -3619,6 +3699,17 @@ def get_motif_hit_region_annotations(overlap_annotations_bed):
                     reg2maxol_dic[reg_id] = c_overlap_nts
                     reg2annot_dic[reg_id][0] = annot_id
                     reg2annot_dic[reg_id][1] = tr_id
+
+                elif c_overlap_nts == reg2maxol_dic[reg_id]:  # if region overlaps with > 1 feature by same amount.
+                    if tid2tio_dic is not None:
+                        best_tid = reg2annot_dic[reg_id][1]
+                        new_best_tid = select_more_prominent_tid(tr_id, best_tid, tid2tio_dic)
+                        # If current tr_id has better annotation, update region annotation.
+                        if new_best_tid == tr_id:
+                            reg2maxol_dic[reg_id] = c_overlap_nts
+                            reg2annot_dic[reg_id][0] = annot_id
+                            reg2annot_dic[reg_id][1] = new_best_tid
+
     f.closed
 
     return reg2annot_dic
@@ -4480,8 +4571,8 @@ def check_report_in_file(in_file):
             if len(cols) == 27: # RBP stats.
                 if cols[0] == "data_id" and cols[26] == "internal_id":
                     type = "rbp_stats"
-            elif len(cols) == 20:
-                if cols[0] == "data_id" and cols[19] == "internal_id":
+            elif len(cols) == 21:
+                if cols[0] == "data_id" and cols[20] == "internal_id":
                     type = "motif_stats"
             break
     f.closed
@@ -5552,6 +5643,7 @@ class MotifStats:
                  region_e = 0,
                  region_len = 0,
                  uniq_count = 0,
+                 matched_seq: Optional[str] = None,
                  fimo_score: Optional[float] = None,
                  fimo_pval: Optional[float] = None,
                  cms_score: Optional[float] = None,
@@ -5569,6 +5661,7 @@ class MotifStats:
         self.region_e = region_e
         self.region_len = region_len
         self.uniq_count = uniq_count
+        self.matched_seq = matched_seq
         self.fimo_score = fimo_score
         self.fimo_pval = fimo_pval
         self.cms_score = cms_score
@@ -5597,7 +5690,7 @@ def read_in_motif_stats(in_file,
     with open(in_file) as f:
         for line in f:
             cols = line.strip().split("\t")
-            internal_id = cols[19]
+            internal_id = cols[20]
             if internal_id == "internal_id":
                 continue
             hit_id = "%s:%s-%s(%s)%s" %(cols[7], cols[8], cols[9], cols[10], cols[6])
@@ -5621,6 +5714,7 @@ def read_in_motif_stats(in_file,
             motif_stats.region_e = int(cols[12])
             motif_stats.region_len = int(cols[13])
             motif_stats.uniq_count = int(cols[14])
+            motif_stats.matched_seq = cols[19]
             fimo_score = cols[15]
             fimo_pval = cols[16]
             cms_score = cols[17]
@@ -7905,7 +7999,8 @@ def batch_generate_html_report(args,
                                seq_len_stats_ll,
                                html_report_out="report.rbpbench_batch.html",
                                id2motif_enrich_stats_dic=False,
-                               id2regex_stats_dic=None,
+                               id2regex_stats_dic=False,
+                               regex_annot_dic=False,
                                id2occ_list_dic=False,
                                gene_occ_cooc_plot=False,
                                plotly_full_html=False,
@@ -8682,6 +8777,12 @@ resulting in a vector of 1s and 0s for each RBP, which is then used to construct
 ## Input datasets genomic region annotations comparative plot ### {#annot-comp-plot}
 
 """
+        # If --regex + --gtf given, regex_annot_dic contains regex hit region annotations.
+        regex_info = ""
+        if regex_annot_dic:
+            for annot in regex_annot_dic:
+                if annot not in annot_dic:
+                    annot_dic[annot] = 1
 
         annot_ids_list = []
         for annot in sorted(annot_dic, reverse=True):
@@ -8709,6 +8810,24 @@ resulting in a vector of 1s and 0s for each RBP, which is then used to construct
             # Normalize counts in list by sum.
             annot_freqs_list = [x/sum_annot for x in annot_freqs_list]
             # Append to list of lists.
+            annot_freqs_ll.append(annot_freqs_list)
+            annot_dataset_ids_list.append(dataset_id)
+
+        if regex_annot_dic:
+            dataset_id = "regex:" + args.regex
+            regex_info = " Genomic region annotations for regex hit regions (regex:%s) in all input datasets are also included." %(args.regex)
+
+            annot_freqs_list = []
+            sum_annot = 0
+
+            for annot in sorted(annot_dic, reverse=True):
+                c_annot = 0
+                if annot in regex_annot_dic:
+                    c_annot = regex_annot_dic[annot]
+                annot_freqs_list.append(c_annot)
+                sum_annot += c_annot
+            
+            annot_freqs_list = [x/sum_annot for x in annot_freqs_list]
             annot_freqs_ll.append(annot_freqs_list)
             annot_dataset_ids_list.append(dataset_id)
 
@@ -8745,11 +8864,11 @@ resulting in a vector of 1s and 0s for each RBP, which is then used to construct
 
 **Figure:** Comparison of input datasets, using genomic region annotations from GTF file of input regions as features, 
 to show similarities between input datasets based on similar genomic region occupancy (see detailed annotations for each input dataset below).
-Input dataset IDs (show via hovering over data points) have following format: %s.
+Input dataset IDs (show via hovering over data points) have following format: %s.%s
 
 &nbsp;
 
-""" %(dataset_id_format)
+""" %(dataset_id_format, regex_info)
 
         else:
             mdtext += """
@@ -14119,7 +14238,7 @@ by RBPBench (rbpbench compare):
             assert False, "two many methods to compare (comp_id: %s). Please use less methods for plotting (current limit: 24)" %(comp_id)
 
         mdtext += '<img src="' + plot_path + '" alt="' + "dataset comparison plot %s" %(comp_id) + "\n"
-        mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="700" />' + "\n"
+        mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="650" />' + "\n"
         mdtext += """
 
 **Figure:** Venn diagram of motif hit occurrences for the %i different methods (%s) with identical combined ID "%s" + corresponding percentages 
@@ -14232,7 +14351,7 @@ Any given motif hit can either be found only by one method, or be identified by 
         method_id = comp_id.split(",")[0]
 
         mdtext += '<img src="' + plot_path + '" alt="' + "dataset comparison plot %s" %(comp_id) + "\n"
-        mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="700" />' + "\n"
+        mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="650" />' + "\n"
         mdtext += """
 
 **Figure:** Venn diagram of motif hit occurrences for the %i different datasets (%s) with identical combined ID "%s" + corresponding percentages 
@@ -14308,7 +14427,7 @@ def create_venn2_diagram(int_id1, int_id2,
     venn2([set1, set2], #set_colors=('skyblue', 'salmon'), 
           alpha=alpha, set_labels = (set1_label, set2_label),
           subset_label_formatter=lambda x: str(x) + "\n(" + f"{(x/total):1.0%}" + ")")
-    plt.savefig(out_plot, dpi=150)
+    plt.savefig(out_plot, dpi=150, bbox_inches='tight')
     plt.clf()
 
 
@@ -14358,7 +14477,7 @@ def create_venn3_diagram(int_id1, int_id2, int_id3,
     venn3([set1, set2, set3], # set_colors=('#36e6e6', '#ee2a9a', '#f8e318'), 
           alpha=alpha, set_labels = (set1_label, set2_label, set3_label),
           subset_label_formatter=lambda x: str(x) + "\n(" + f"{(x/total):1.0%}" + ")")
-    plt.savefig(out_plot, dpi=150)
+    plt.savefig(out_plot, dpi=150, bbox_inches='tight')
     plt.clf()
 
 
@@ -14394,7 +14513,7 @@ def create_vennx_diagram(int_ids, set_labels,
          cmap=cmap,
          # alpha=0.6,
          fmt="{size}"+"\n"+"{percentage:.1f}%")
-    plt.savefig(out_plot, dpi=100)
+    plt.savefig(out_plot, dpi=150, bbox_inches='tight')
     plt.clf()
 
 

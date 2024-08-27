@@ -87,6 +87,23 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.001,
                    help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
+    p.add_argument("--cmsearch-bs",
+                   dest="cmsearch_bs",
+                   type=float,
+                   metavar='float',
+                   default=1.0,
+                   help="CMSEARCH bit score threshold (CMSEARCH options: -T --incT). The higher the more strict (default: 1.0)")
+    p.add_argument("--cmsearch-mode",
+                   dest="cmsearch_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set CMSEARCH mode to control strictness of filtering. 1: default setting (CMSEARCH option: --default). 2: max setting (CMSEARCH option: --max), i.e., turn all heuristic filters off, slower and more sensitive / more hits) (default: 1)")
+    p.add_argument("--greatest-hits",
+                   dest="greatest_hits",
+                   default = False,
+                   action = "store_true",
+                   help = "Keep only best FIMO/CMSEARCH motif hits (i.e., hit with lowest p-value / highest bit score for each motif sequence/site combination). By default, report all hits (default: False)")
     p.add_argument("--bed-score-col",
                    dest="bed_score_col",
                    type=int,
@@ -138,11 +155,6 @@ def setup_argument_parser():
                    choices=[1, 2, 3],
                    help="Defines Fisher exact test alternative hypothesis for testing co-occurrences of RBP motifs. 1: greater, 2: two-sided, 3: less (default: 1)")
     # Report.
-    p.add_argument("--report",
-                   dest="report",
-                   default = False,
-                   action = "store_true",
-                   help = "Generate an .html report containing various plots to compare input datasets (default: False)")
     p.add_argument("--kmer-size",
                    dest="kmer_size",
                    type=int,
@@ -427,6 +439,10 @@ if __name__ == '__main__':
         batch_call += " --fimo-ntf-file %s" % (args.fimo_user_ntf_file)
     batch_call += " --fimo-ntf-mode %i" % (args.fimo_ntf_mode)
     batch_call += " --fimo-pval %s" % (str(args.fimo_pval))
+    batch_call += " --cmsearch-bs %s" % (str(args.cmsearch_bs))
+    batch_call += " --cmsearch-mode %i" % (args.cmsearch_mode)
+    if args.greatest_hits:
+        batch_call += " --greatest-hits"
     batch_call += " --bed-score-col %i" % (args.bed_score_col)
     if args.bed_sc_thr is not None:
         batch_call += " --bed-sc-thr %s" % (str(args.bed_sc_thr))
@@ -440,13 +456,10 @@ if __name__ == '__main__':
         batch_call += " --meme-no-check"
     if args.meme_no_pgc:
         batch_call += " --meme-no-pgc"
-    if args.report:
-        batch_call += " --report"
+
     batch_call += " --kmer-size %i" % (args.kmer_size)
     if args.in_gtf:
         batch_call += " --gtf %s" % (args.in_gtf)
-        if not args.report:
-            batch_call += " --report"
         if args.tr_list:
             batch_call += " --tr-list %s" % (args.tr_list)
         if args.tr_types_list:

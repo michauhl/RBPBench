@@ -31,7 +31,7 @@ def setup_argument_parser():
     help_description = """
 
     Evaluate CLIP-seq and other genomic region data using a comprehensive collection of known RBP binding motifs (RNA sequence + structure).
-    RBPBench can be used for a variety of purposes, from RBP motif search in genomic regions, over motif co-occurrence analysis, 
+    RBPBench can be used for a variety of purposes, from RBP motif search in genomic regions, over motif enrichment and co-occurrence analysis, 
     to benchmarking CLIP-seq peak callers, as well as comparisons across cell types and CLIP-seq protocols.
 
     """
@@ -707,11 +707,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Count each --in region twice for RBP hit statistics when --unstranded is enabled. By default, two strands of one region are counted as one region for RBP hit statistics")
-    p_b.add_argument("--report",
-                   dest="report",
-                   default = False,
-                   action = "store_true",
-                   help = "Generate an .html report containing various plots to compare input datasets (default: False)")
     p_b.add_argument("--kmer-size",
                    dest="kmer_size",
                    type=int,
@@ -1308,11 +1303,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Keep only best FIMO/CMSEARCH motif hits (i.e., hit with lowest p-value / highest bit score for each motif sequence/site combination). By default, report all hits (default: False)")
-    p_sl.add_argument("--plot-motifs",
-                   dest="plot_motifs",
-                   default = False,
-                   action = "store_true",
-                   help = "Visualize selected sequence motifs, by outputting sequence logos and motif hit statistics into a separate .html file (default: False)")
     p_sl.add_argument("--gtf",
                    dest="in_gtf",
                    type=str,
@@ -5284,7 +5274,7 @@ def main_search(args):
     target_genes_dic = {}  # Store gene IDs covered by regions -> region count.
     background_genes_dic = {}  # Store all gene IDs in GTF file to use as background genes.
     gid2tid_dic = {}
-    tid2tio_dic = {}
+    tid2tio_dic = None
 
     if args.in_gtf and c_regions_with_hits:
 
@@ -5872,7 +5862,6 @@ def main_batch(args):
     assert benchlib.boundary_check(args.gtf_feat_min_overlap, 1E-9, 1.0), "set --gtf-feat-min-overlap expected to be >= 1E-9 and <= 1.0"
     if args.in_gtf:
         assert os.path.exists(args.in_gtf), "set --gtf file not found"
-        assert args.report, "--gtf set but not --report. --report needed to generate region annotation plots"
     assert benchlib.boundary_check(args.kmer_size, 1, 6), "set --kmer-size expected to be >= 1 and <= 6"
 
     # Regex check.
@@ -6114,6 +6103,8 @@ def main_batch(args):
 
     # Output unique motif hits.
     motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_batch.bed"
+    # Unique regex hits over all input datasets.
+    regex_hits_bed_out = args.out_folder + "/regex_hits.rbpbench_batch.bed"
 
     # GOA results.
     goa_results_tsv = args.out_folder + "/goa_results.tsv"
@@ -6194,7 +6185,7 @@ def main_batch(args):
     id2occ_tr_ids_dic = {}  # internal ID -> transcript ID -> occupancy value.
     id2occ_hits_tr_ids_dic = {}  # internal ID -> transcript ID -> occupancy value (only sites with motif hits considered here).
     background_genes_dic = {}  # Store all gene IDs in GTF file to use as background genes.
-    tid2tio_dic = {}
+    tid2tio_dic = None
 
     if args.in_gtf:
     
@@ -6279,8 +6270,8 @@ def main_batch(args):
         # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.
         print("Output exon annotations to BED ... ")
         benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
-                                            custom_annot_dic=custom_annot_dic,
-                                            append=True)
+                                         custom_annot_dic=custom_annot_dic,
+                                         append=True)
 
         if args.goa_bg_gene_list:
 
@@ -6327,6 +6318,8 @@ def main_batch(args):
 
     # Unique motif regions BED.
     motif_reg_dic = {}
+    # Unique regex regions BED.
+    regex_reg_dic = {}
 
     # Unstranded option.
     if args.unstranded:
@@ -6632,6 +6625,8 @@ def main_batch(args):
             else:
                 assert False, "invalid --regex-search-mode %i set" %(args.regex_search_mode)
 
+            # AALAMO
+
             print("Run search for --regex \"%s\" ... " %(regex))
             regex_hits_list = benchlib.get_regex_hits(regex, regex, out_seqs_dic,
                                                       step_size_one=step_size_one,
@@ -6651,6 +6646,12 @@ def main_batch(args):
                     unique_regex_dic[rh_str] += 1
                 else:
                     unique_regex_dic[rh_str] = 1
+
+                # Store regex hit as BED.
+                hit_id = "%s:%s-%s(%s)" %(rh.chr_id, str(rh.start), str(rh.end), rh.strand)
+                if hit_id not in regex_reg_dic:
+                    bed_row = "%s\t%i\t%i\t%s\t0\t%s" %(rh.chr_id, rh.start-1, rh.end, regex, rh.strand)
+                    regex_reg_dic[hit_id] = bed_row
 
             # Init dictionaries for Fisher test.
             for reg_id in out_seqs_dic:
@@ -7275,50 +7276,82 @@ def main_batch(args):
         dataset_ids_list.append(dataset_id)
         internal_ids_list.append(internal_id)
 
-        if args.report:
+        # Get k-mer frequencies for all regions.
+        print("Calculate k-mer frequencies ... ")
 
-            # Get k-mer frequencies for all regions.
-            print("Calculate k-mer frequencies ... ")
+        # k-mer frequencies unaffected by --unstranded options.
+        kmer_dic = benchlib.seqs_dic_count_kmer_freqs(out_seqs_dic, args.kmer_size, 
+                                                        rna=False,
+                                                        convert_to_uc=True,
+                                                        skip_non_dic_keys=True,  # skip k-mers containing N-bases.
+                                                        return_ratios=True)
 
-            # k-mer frequencies unaffected by --unstranded options.
-            kmer_dic = benchlib.seqs_dic_count_kmer_freqs(out_seqs_dic, args.kmer_size, 
-                                                          rna=False,
-                                                          convert_to_uc=True,
-                                                          skip_non_dic_keys=True,  # skip k-mers containing N-bases.
-                                                          return_ratios=True)
-
-            # Populate k-mers list.
-            if not kmer_list:
-                for kmer in sorted(kmer_dic):
-                    kmer_list.append(kmer)
-
-            # Store the k-mer frequencies for later comparison plot in a list, sorted by key.
-            kmer_freqs_list = []
+        # Populate k-mers list.
+        if not kmer_list:
             for kmer in sorted(kmer_dic):
-                kmer_freqs_list.append(kmer_dic[kmer])
-            kmer_freqs_ll.append(kmer_freqs_list)
+                kmer_list.append(kmer)
 
-            print("Get sequence length statistics ... ")
+        # Store the k-mer frequencies for later comparison plot in a list, sorted by key.
+        kmer_freqs_list = []
+        for kmer in sorted(kmer_dic):
+            kmer_freqs_list.append(kmer_dic[kmer])
+        kmer_freqs_ll.append(kmer_freqs_list)
 
-            # Sequence length statistics for out_seqs_dic.
-            unstranded_len_stats = False
-            if args.unstranded and not args.unstranded_ct:
-                # In this case we want to count the two strands of a region as one region.
-                unstranded_len_stats = True
-            seq_len_stats_l = benchlib.get_sequence_length_statistics(out_seqs_dic,
-                                                                      unstranded=unstranded_len_stats)
-            # Add dataset ID to seq_len_stats_l.
-            seq_len_stats_l.insert(0, dataset_id)
-            seq_len_stats_ll.append(seq_len_stats_l)
+        print("Get sequence length statistics ... ")
+
+        # Sequence length statistics for out_seqs_dic.
+        unstranded_len_stats = False
+        if args.unstranded and not args.unstranded_ct:
+            # In this case we want to count the two strands of a region as one region.
+            unstranded_len_stats = True
+        seq_len_stats_l = benchlib.get_sequence_length_statistics(out_seqs_dic,
+                                                                    unstranded=unstranded_len_stats)
+        # Add dataset ID to seq_len_stats_l.
+        seq_len_stats_l.insert(0, dataset_id)
+        seq_len_stats_ll.append(seq_len_stats_l)
 
 
     OUTRBPSTATS.close()
     OUTMTFSTATS.close()
 
+    print("Output motif hits ... ")
     OUTBED = open(motif_hits_bed_out,"w")
     for hit_id in motif_reg_dic:
         OUTBED.write("%s\n" %(motif_reg_dic[hit_id]))
     OUTBED.close()
+
+    # format: {'CDS': 66, 'intron': 8, "3'UTR": 7, "5'UTR": 2, .. }
+    regex_annot_dic = {}
+
+    if args.regex:
+        print("Output regex motif hits ... ")
+        OUTREGEX = open(regex_hits_bed_out,"w")
+        for hit_id in regex_reg_dic:
+            OUTREGEX.write("%s\n" %(regex_reg_dic[hit_id]))
+        OUTREGEX.close()
+
+        # AALAMO
+
+        # Get regex hit region annotations.
+        if args.in_gtf:
+
+            print("Get regex hit region annotations ... ")
+
+            params = "-s -wao -f %s" %(str(args.gtf_feat_min_overlap))
+            overlap_regex_hit_annotations_bed = args.out_folder + "/overlap_regex_hit_annotations.tmp.bed"
+            benchlib.bed_intersect_files(regex_hits_bed_out, intron_exon_out_bed, 
+                                         overlap_regex_hit_annotations_bed,
+                                         params=params)
+
+            regex2annot_dic = benchlib.get_regex_hit_region_annotations(overlap_regex_hit_annotations_bed,
+                                                                        tid2tio_dic=tid2tio_dic)
+
+            for reg_id in regex2annot_dic:
+                annot = regex2annot_dic[reg_id][0]
+                if annot in regex_annot_dic:
+                    regex_annot_dic[annot] += 1
+                else:
+                    regex_annot_dic[annot] = 1
 
     """
     Gene region occupancy stats only for genes occupied by input datasets.
@@ -7534,40 +7567,39 @@ def main_batch(args):
     if args.plot_abs_paths:
         html_report_out = os.path.abspath(args.out_folder) + "/" + "report.rbpbench_batch.html"
 
-    if args.report:  # create report also if no hits ?
+    assert dataset_ids_list, "no dataset IDs found for report creation"
+    assert kmer_freqs_ll, "no k-mer frequencies found for report creation"
+    assert kmer_list, "no k-mers found for report creation"
 
-        assert dataset_ids_list, "no dataset IDs found for report creation"
-        assert kmer_freqs_ll, "no k-mer frequencies found for report creation"
-        assert kmer_list, "no k-mers found for report creation"
+    plots_subfolder = "html_report_plots"
+    benchlib_path = os.path.dirname(benchlib.__file__)
 
-        plots_subfolder = "html_report_plots"
-        benchlib_path = os.path.dirname(benchlib.__file__)
+    gene_occ_cooc_plot = True
+    if args.no_occ_heatmap:
+        gene_occ_cooc_plot = False
+    heatmap_cluster_olo = True
+    if args.disable_heatmap_cluster_olo:
+        heatmap_cluster_olo = False
 
-        gene_occ_cooc_plot = True
-        if args.no_occ_heatmap:
-            gene_occ_cooc_plot = False
-        heatmap_cluster_olo = True
-        if args.disable_heatmap_cluster_olo:
-            heatmap_cluster_olo = False
-
-        print("Create HTML report ... ")
-        benchlib.batch_generate_html_report(args, dataset_ids_list, kmer_list,
-                                            kmer_freqs_ll,
-                                            id2infos_dic, 
-                                            id2reg_annot_dic, 
-                                            id2hit_reg_annot_dic,
-                                            benchlib_path,
-                                            seq_len_stats_ll,
-                                            html_report_out=html_report_out,
-                                            id2motif_enrich_stats_dic=id2motif_enrich_stats_dic,
-                                            id2regex_stats_dic=id2regex_stats_dic,
-                                            id2occ_list_dic=id2occ_list_dic,
-                                            gene_occ_cooc_plot=gene_occ_cooc_plot,
-                                            add_motif_db_info=add_motif_db_info,
-                                            heatmap_cluster_olo=heatmap_cluster_olo,
-                                            goa_results_df=goa_results_df,
-                                            goa_stats_dic=goa_stats_dic,
-                                            plots_subfolder=plots_subfolder)
+    print("Create HTML report ... ")
+    benchlib.batch_generate_html_report(args, dataset_ids_list, kmer_list,
+                                        kmer_freqs_ll,
+                                        id2infos_dic, 
+                                        id2reg_annot_dic, 
+                                        id2hit_reg_annot_dic,
+                                        benchlib_path,
+                                        seq_len_stats_ll,
+                                        html_report_out=html_report_out,
+                                        id2motif_enrich_stats_dic=id2motif_enrich_stats_dic,
+                                        id2regex_stats_dic=id2regex_stats_dic,
+                                        regex_annot_dic=regex_annot_dic,
+                                        id2occ_list_dic=id2occ_list_dic,
+                                        gene_occ_cooc_plot=gene_occ_cooc_plot,
+                                        add_motif_db_info=add_motif_db_info,
+                                        heatmap_cluster_olo=heatmap_cluster_olo,
+                                        goa_results_df=goa_results_df,
+                                        goa_stats_dic=goa_stats_dic,
+                                        plots_subfolder=plots_subfolder)
 
     """
     All annot:
@@ -7692,8 +7724,7 @@ def main_batch(args):
         print("All region annotation stats .tsv:\n%s" %(all_annot_out))
         print("Gene region occupancies .tsv:\n%s" %(gene_occ_table_out))
 
-    if args.report:
-        print("Comparative plots report .html:\n%s" %(html_report_out))
+    print("Batch report .html:\n%s" %(html_report_out))
     print("")
 
 
@@ -9697,7 +9728,7 @@ def main_searchlong(args):
 
     """
 
-    tid2tio_dic = {}
+    tid2tio_dic = None
     tr2gid_dic = {}
     tr_types_dic = {}  # Store transcript biotypes in GTF file.
 
@@ -10438,6 +10469,9 @@ def main_searchlong(args):
                                          custom_annot_dic=custom_annot_dic,
                                          append=True)
 
+        motif_hits_bed_tmp_out = args.out_folder + "/motif_hits.tmp.bed"
+        benchlib.reformat_to_bed10(motif_hits_bed_out, motif_hits_bed_tmp_out)
+
         # Overlap motif hit BED with genomic annotation regions.
         print("Overlap annotations with motif hit regions ... ")
 
@@ -10445,29 +10479,42 @@ def main_searchlong(args):
         # use compatible function get_motif_hit_region_annotations().
         params = "-s -wao -f %s" %(str(args.gtf_feat_min_overlap))
         overlap_motif_hit_annotations_bed = args.out_folder + "/overlap_motif_hit_annotations.tmp.bed"
-        benchlib.bed_intersect_files(motif_hits_bed_out, intron_exon_out_bed, 
+        benchlib.bed_intersect_files(motif_hits_bed_tmp_out, intron_exon_out_bed, 
                                      overlap_motif_hit_annotations_bed,
                                      params=params)
 
-        motif_hit2annot_dic = benchlib.get_motif_hit_region_annotations(overlap_motif_hit_annotations_bed)
+        motif_hit2annot_dic = benchlib.get_motif_hit_region_annotations(overlap_motif_hit_annotations_bed,
+                                                                        tid2tio_dic=tid2tio_dic)
         # motif_hit2annot_dic = benchlib.get_region_annotations(
         #                                     overlap_motif_hit_annotations_bed,
         #                                     motif_hits=True,
         #                                     reg_ids_dic=motif_reg_dic)
 
-        # Overwrite motif_hits_bed_out, adding annotation column.
-        OUTBED = open(motif_hits_bed_out,"w")
-        with open(overlap_motif_hit_annotations_bed) as f:
-            for line in f:
-                cols = line.strip().split("\t")
-                annot_str = cols[13]
-                annot = "intergenic"
-                if annot_str != ".":
-                    annot = annot_str.split(";")[0]
+        # # Overwrite motif_hits_bed_out, adding annotation column.
+        # OUTBED = open(motif_hits_bed_out,"w")
+        # with open(overlap_motif_hit_annotations_bed) as f:
+        #     for line in f:
+        #         cols = line.strip().split("\t")
+        #         annot_str = cols[13]
+        #         annot = "intergenic"
+        #         if annot_str != ".":
+        #             annot = annot_str.split(";")[0]
                 
-                OUTBED.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" %(cols[0], cols[1], cols[2], cols[3], cols[4], cols[5], cols[6], cols[7], cols[8], cols[9], annot))
+        #         OUTBED.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" %(cols[0], cols[1], cols[2], cols[3], cols[4], cols[5], cols[6], cols[7], cols[8], cols[9], annot))
 
-        f.closed
+        # f.closed
+        # OUTBED.close()
+
+        # Output motif hits BED again, with motif region annotations.
+        OUTBED = open(motif_hits_bed_out,"w")
+        for hit_id in motif_reg_dic:
+            annot = "-"
+            if hit_id in motif_hit2annot_dic:
+                annot = motif_hit2annot_dic[hit_id][0]
+            cols = motif_reg_dic[hit_id].split("\t")
+            match_seq = cols[11]
+            cols_part1 = "\t".join(cols[0:10]) 
+            OUTBED.write("%s\t%s\t%s\n" %(cols_part1, annot, match_seq))
         OUTBED.close()
 
         for motif_hit in motif_hit2annot_dic:
@@ -10533,6 +10580,12 @@ def main_searchlong(args):
     
     plots_subfolder = "html_motif_plots"
     benchlib_path = os.path.dirname(benchlib.__file__)
+
+    args.run_goa = False
+    args.bed_sc_thr = None
+    args.c_regions = c_regions
+    args.ext_up = None
+    args.ext_down = None
 
     benchlib.search_generate_html_motif_plots(args,
                                         search_rbps_dic, seq_motif_blocks_dic, 
