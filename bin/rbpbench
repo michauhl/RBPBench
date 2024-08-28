@@ -387,6 +387,18 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.1,
                    help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\") (default: 0.1)")
+    p_s.add_argument("--gtf-min-mrna-overlap",
+                   dest="gtf_min_mrna_overlap",
+                   type=float,
+                   metavar='float',
+                   default=0.5,
+                   help="Minimum amount of overlap required for a region to be considered in mRNA region site coverage profile (i.e., overlap with mRNA exons) (default: 0.5)")
+    p_s.add_argument("--mrna-norm-mode",
+                   dest="mrna_norm_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help = "Define whether to use median or mean mRNA region lengths for plotting. 1: median. 2: mean (default: 1)")
     p_s.add_argument("--add-all-reg-bar",
                    dest="add_all_reg_bar",
                    default = False,
@@ -3319,6 +3331,7 @@ def main_search(args):
     if args.tr_list:
         assert args.in_gtf, "set --tr-list requires --gtf GTF file"
     assert benchlib.boundary_check(args.gtf_feat_min_overlap, 1E-9, 1.0), "set --gtf-feat-min-overlap expected to be >= 1E-9 and <= 1.0"
+    assert benchlib.boundary_check(args.gtf_min_mrna_overlap, 1E-9, 1.0), "set --gtf-min-mrna-overlap expected to be >= 1E-9 and <= 1.0"
     assert benchlib.boundary_check(args.min_motif_dist, 0, 1000), "set --min-motif-dist expected to be >= 0 and <= 1000"
     # if args.in_gtf:
     #     assert args.report, "set --gtf requires --report to be effective"
@@ -5187,70 +5200,68 @@ def main_search(args):
     # benchlib.output_con_table_results(con_res_out_tsv, pval_ll, rbp_list)
 
     """
-    If --report set, calcuate correlations.
+    Calcuate correlations.
 
     Setting add_count = True changes correlations a bit (use motif hit counts 
     instead of 1 for any number of hits)
 
     """
 
-    if args.report:
+    print("Calculate correlations ... ")
+    # Correlation between RBPs dataframe.
+    df = DataFrame(reg_hits_dic, columns=rbp_list)
+    df_corr = df.corr(method='pearson')
 
-        print("Calculate correlations ... ")
-        # Correlation between RBPs dataframe.
-        df = DataFrame(reg_hits_dic, columns=rbp_list)
-        df_corr = df.corr(method='pearson')
+    for i,rbp_i in enumerate(rbp_list):
+        for j,rbp_j in enumerate(rbp_list):
+            if j > i:
+                pval_ll[i][j] = None
 
-        for i,rbp_i in enumerate(rbp_list):
-            for j,rbp_j in enumerate(rbp_list):
-                if j > i:
-                    pval_ll[i][j] = None
+    # Fisher p-value dataframe.
+    df_pval = DataFrame(pval_ll, columns=rbp_list, index=rbp_list)
 
-        # Fisher p-value dataframe.
-        df_pval = DataFrame(pval_ll, columns=rbp_list, index=rbp_list)
-
-        # Write None to upper-diagonal entries.
-        for i,rbp_i in enumerate(rbp_list):
-            for j,rbp_j in enumerate(rbp_list):
-                if j > i:
-                    # df_corr.loc[rbp_i][rbp_j] = None  # FutureWarning: ChainedAssignmentError: behaviour will change in pandas 3.0!
-                    df_corr.loc[rbp_i, rbp_j] = None
+    # Write None to upper-diagonal entries.
+    for i,rbp_i in enumerate(rbp_list):
+        for j,rbp_j in enumerate(rbp_list):
+            if j > i:
+                # df_corr.loc[rbp_i][rbp_j] = None  # FutureWarning: ChainedAssignmentError: behaviour will change in pandas 3.0!
+                df_corr.loc[rbp_i, rbp_j] = None
+            else:
+                # Round correlation values if != 1.0.
+                if df_corr.loc[rbp_i][rbp_j] == 1.0:
+                    pval_cont_lll[i][j][6] = str(df_corr.loc[rbp_i][rbp_j])
                 else:
-                    # Round correlation values if != 1.0.
-                    if df_corr.loc[rbp_i][rbp_j] == 1.0:
-                        pval_cont_lll[i][j][6] = str(df_corr.loc[rbp_i][rbp_j])
-                    else:
-                        pval_cont_lll[i][j][6] = "{:.8f}".format(df_corr.loc[rbp_i][rbp_j])
+                    pval_cont_lll[i][j][6] = "{:.8f}".format(df_corr.loc[rbp_i][rbp_j])
 
-        for i,rbp_i in enumerate(rbp_list):
-            for j,rbp_j in enumerate(rbp_list):
-                if j > i:
-                    df_pval.loc[rbp_i, rbp_j] = None
+    for i,rbp_i in enumerate(rbp_list):
+        for j,rbp_j in enumerate(rbp_list):
+            if j > i:
+                df_pval.loc[rbp_i, rbp_j] = None
 
-        # for i in range(len(rbp_list)):
-        #     for j in range(len(rbp_list)):
-        #         if j > i:
-        #             df_corr.iloc[i][j] = None
+    # for i in range(len(rbp_list)):
+    #     for j in range(len(rbp_list)):
+    #         if j > i:
+    #             df_corr.iloc[i][j] = None
 
-        # for i in range(len(rbp_list)):
-        #     for j in range(len(rbp_list)):
-        #         if j > i:
-        #             df_pval.iloc[i][j] = None
+    # for i in range(len(rbp_list)):
+    #     for j in range(len(rbp_list)):
+    #         if j > i:
+    #             df_pval.iloc[i][j] = None
 
-        # print("df_pval:", df_pval)
-        # Log transform p-values.
-        benchlib.log_tf_df(df_pval, convert_zero_pv=True, rbp_list=rbp_list)
-        # print("df_pval:", df_pval)
+    # print("df_pval:", df_pval)
+    # Log transform p-values.
+    benchlib.log_tf_df(df_pval, convert_zero_pv=True, rbp_list=rbp_list)
+    # print("df_pval:", df_pval)
 
-        # print("df:", df)
-        # print("df.corr():", df.corr(method='pearson'))
-        # print("reg_hits_dic[SLBP]:", reg_hits_dic["SLBP"])
+    # print("df:", df)
+    # print("df.corr():", df.corr(method='pearson'))
+    # print("reg_hits_dic[SLBP]:", reg_hits_dic["SLBP"])
 
-        # Plot correlations.
-        # motif_db
-        # import plotly.express as px
-        # fig = px.imshow(df_corr)
-        # fig.show()
+    # Plot correlations.
+    # motif_db
+    # import plotly.express as px
+    # fig = px.imshow(df_corr)
+    # fig.show()
 
 
     """
@@ -5276,7 +5287,7 @@ def main_search(args):
     gid2tid_dic = {}
     tid2tio_dic = None
 
-    if args.in_gtf and c_regions_with_hits:
+    if args.in_gtf:  # and c_regions_with_hits:
 
         reg_annot_table_file = args.out_folder + "/" + "region_annotations.tsv"
 
@@ -5463,8 +5474,182 @@ def main_search(args):
 
             target_genes_dic = new_target_genes_dic
 
-    elif args.in_gtf and not c_regions_with_hits:
-        print("No need to read in --gtf since no motif hits found .. ")
+        """
+        Output exon regions for mRNA region site occupancy plot.
+
+        AALAMO
+
+        1) Get mRNA exons.
+        {'ENST01': [15, 21, 4], 'ENST02': [14, 11, 15]}
+        
+        1) Get sites overlapping with mRNA exons, and transcript IDs overlapping with them.
+
+filtered_sites_bed
+
+$ bedtools intersect -a sites.bed -b intron_exon_regions.tmp.bed -s -wb
+chr1	1080	1085	s1	0	-	chr1	1080	1100	exon;1;ENST01	0	-
+chr2	1010	1020	s2	0	+	chr2	1000	1020	exon;1;ENST02	0	+
+chr2	1015	1020	s3	0	+	chr2	1000	1020	exon;1;ENST02	0	+
+
+
+bedtools intersect -a sites.bed -b intron_exon_regions.tmp.bed -s -wb -f 0.5
+chr1	1080	1085	s1	0	-	chr1	1080	1100	exon;1;ENST01	0	-
+chr2	1010	1020	s2	0	+	chr2	1000	1020	exon;1;ENST02	0	+
+chr2	1015	1020	s3	0	+	chr2	1000	1020	exon;1;ENST02	0	+
+
+
+bedtools intersect -a sites.bed -b intron_exon_regions.tmp.bed -s -wb -f 0.5
+
+
+bedtools intersect -a sites.bed -b intron_exon_regions.tmp.bed -s
+chr1	1080	1085	s1	0	-
+chr2	1010	1020	s2	0	+
+chr2	1015	1020	s3	0	+
+
+bedtools intersect -b sites.bed -a intron_exon_regions.tmp.bed -s -wb
+
+
+chr1	1080	1100	exon;1;ENST01	0	-
+chr1	1040	1050	exon;2;ENST01	0	-
+chr1	1000	1010	exon;3;ENST01	0	-
+chr2	1000	1020	exon;1;ENST02	0	+
+chr2	1050	1060	exon;2;ENST02	0	+
+chr2	1090	1100	exon;3;ENST02	0	+
+
+bedtools intersect -b sites.bed -a intron_exon_regions.tmp.bed -s -wb
+chr1	1080	1085	exon;1;ENST01	0	-	chr1	1070	1085	s1	0	-
+chr2	1010	1020	exon;1;ENST02	0	+	chr2	1010	1030	s2	0	+
+chr2	1015	1020	exon;1;ENST02	0	+	chr2	1015	1030	s3	0	+
+
+
+bedtools intersect -b sites.bed -a intron_exon_regions.tmp.bed -s
+chr1	1080	1085	exon;1;ENST01	0	-
+chr2	1010	1020	exon;1;ENST02	0	+
+chr2	1015	1020	exon;1;ENST02	0	+
+
+filtered_sites_bed
+
+        AALAMO
+
+        """
+
+    mrna_prof_dic = {}
+
+    if args.in_gtf:
+
+        # Get mRNA transcripts, with 5'UTR,CDS,3'UTR lengths list.
+        tid2regl_dic = benchlib.get_mrna_region_lengths(tid2tio_dic)
+
+        mrna_exon_out_bed = args.out_folder + "/mrna_exon_regions.tmp.bed"
+        print("Output mRNA exon regions ... ")
+        benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, mrna_exon_out_bed,
+                                            tr_ids_dic=tid2regl_dic,
+                                            output_mode=2,  # only exon regions.
+                                            report_counts=False,
+                                            add_tr_id=True,
+                                            add_numbers=True,
+                                            empty_check=False)
+
+        mrna_exon_sites_overlap_bed = args.out_folder + "/mrna_exon_regions.filtered_sites.overlap.tmp.bed"
+        print("Overlap mRNA exon regions with input sites ... ")
+        # Fraction of B, so -F instead of -f.
+        benchlib.bed_intersect_files(mrna_exon_out_bed, filtered_sites_bed, mrna_exon_sites_overlap_bed, params="-s -wb -F %s" %(str(args.gtf_min_mrna_overlap)))
+
+        c_ol_mrna_sites, ol_mrna_tids_dic = benchlib.get_mrna_tids_and_sites(mrna_exon_sites_overlap_bed)
+
+        if c_ol_mrna_sites:
+            exon2pcl_dic = benchlib.get_exon_pos_count_list_dic(tid2tio_dic, tr_ids_dic=ol_mrna_tids_dic)
+            benchlib.fill_exon_pos_count_lists(mrna_exon_sites_overlap_bed, tid2tio_dic, exon2pcl_dic)
+
+            tr2pcl_dic = {}
+            tid2ol_regl_dic = {}
+            for tid in ol_mrna_tids_dic:
+                assert tid in tid2regl_dic, "transcript ID %s not in tid2regl_dic"
+                # Get exon number.
+                exon_c = tid2tio_dic[tid].exon_c
+                tr2pcl_dic[tid] = []
+                for exon_i in range(1, exon_c+1):
+                    exon_id = "exon;%i;%s" %(exon_i, tid)
+                    tr2pcl_dic[tid] += exon2pcl_dic[exon_id]
+                
+                tr_len = tid2tio_dic[tid].tr_length  # spliced transcript length.
+                assert tr_len == len(tr2pcl_dic[tid]), "transcript length %i != position count list length %i for transcript ID %s" %(tr_len, len(tr2pcl_dic[tid]), tid)
+                tid2ol_regl_dic[tid] = tid2regl_dic[tid]
+
+            c_ol_mrnas = len(tid2ol_regl_dic)
+            c_mrnas = len(tid2regl_dic)
+            print("# of mRNA transcripts:            %i" %(c_mrnas))
+            print("# of mRNA transcripts with sites: %i" %(c_ol_mrnas))
+
+            utr5_len_norm, cds_len_norm, utr3_len_norm, norm_mode = benchlib.get_mrna_reg_norm_len(
+                                                        tid2ol_regl_dic,
+                                                        mrna_norm_mode=args.mrna_norm_mode)
+
+            print("5'UTR = ", utr5_len_norm)
+            print("CDS   = ", cds_len_norm)
+            print("3'UTR = ", utr3_len_norm)
+
+            utr5_pc_list = [0] * round(utr5_len_norm)
+            cds_pc_list = [0] * round(cds_len_norm)
+            utr3_pc_list = [0] * round(utr3_len_norm)
+
+            for tid in tr2pcl_dic:
+
+                tr_len = tid2tio_dic[tid].tr_length  # spliced transcript length.
+
+                utr5_len = tid2regl_dic[tid][0]
+                cds_len = tid2regl_dic[tid][1]
+                utr3_len = tid2regl_dic[tid][2]
+
+                utr5_e = utr5_len
+                cds_s = utr5_e
+                cds_e = cds_s + cds_len
+                utr3_s = cds_e
+                utr3_e = utr3_s + utr3_len
+
+                for pos, pc in enumerate(tr2pcl_dic[tid]):
+
+                    center_pos = pos + 1  # make 1-based.
+
+                    if center_pos <= utr5_e:  # In 5'UTR.
+
+                        occ_pos = round((center_pos / utr5_len) * utr5_len_norm)
+                        if occ_pos > 0:
+                            occ_pos -= 1
+                        utr5_pc_list[occ_pos] += 1
+
+                    elif center_pos > utr5_e and center_pos <= cds_e:  # In CDS.
+
+                        occ_pos = round(((center_pos - utr5_e) / cds_len) * cds_len_norm)
+                        if occ_pos > 0:
+                            occ_pos -= 1
+                        cds_pc_list[occ_pos] += 1
+
+                    elif center_pos > cds_e and center_pos <= utr3_e:  # In 3'UTR.
+
+                        occ_pos = round(((center_pos - cds_e) / utr3_len) * utr3_len_norm)
+                        if occ_pos > 0:
+                            occ_pos -= 1
+                        utr3_pc_list[occ_pos] += 1
+
+                    else:
+                        assert False, "center position %i not in 5'UTR, CDS or 3'UTR of transcript ID %s (transcript length: %i)" %(center_pos, tid, tr_len)
+
+
+            mrna_profile = benchlib.MrnaRegionProfile("mrna_profile", utr5_len_norm, cds_len_norm, 
+                                                      utr3_len_norm, norm_mode,
+                                                      c_ol_sites=c_ol_mrna_sites,
+                                                      c_all_sites=reg_stats_dic["c_out"],
+                                                      c_ol_mrnas=c_ol_mrnas,
+                                                      utr5_pc_list=utr5_pc_list, 
+                                                      cds_pc_list=cds_pc_list,
+                                                      utr3_pc_list=utr3_pc_list)
+
+            mrna_prof_dic["mrna_profile"] = mrna_profile
+
+
+    # elif args.in_gtf and not c_regions_with_hits:
+    #     print("No need to read in --gtf since no motif hits found .. ")
 
     """
     GO enrichment analysis.
@@ -5646,60 +5831,59 @@ def main_search(args):
     if os.path.exists(html_report_out):
         os.remove(html_report_out)
 
-    if args.report:
+    seq_len_df = None
+    if not args.disable_len_dist_plot:
 
-        seq_len_df = None
-        if not args.disable_len_dist_plot:
+        # Sequences dataframe for plotting sequence lengths violin plot.
+        sequences = []
+        seq_ids = []
+        for seq_id in out_seqs_dic:
+            seq_ids.append(seq_id)
+            sequences.append(out_seqs_dic[seq_id])
 
-            # Sequences dataframe for plotting sequence lengths violin plot.
-            sequences = []
-            seq_ids = []
-            for seq_id in out_seqs_dic:
-                seq_ids.append(seq_id)
-                sequences.append(out_seqs_dic[seq_id])
+        motif_hits = []
+        for seq_id in seq_ids:
+            # region2motif_hits_dic[seq_id].sort()
+            # If list empty, append "-".
+            if not region2motif_hits_dic[seq_id]:
+                motif_hits.append("-")
+            else:
+                motif_hits.append(benchlib.join_motif_hits(
+                                region2motif_hits_dic[seq_id],
+                                motifs_per_line=4,
+                                line_break_char="<br>"))
+                # motif_hits.append("\n".join(region2motif_hits_dic[seq_id]))
 
-            motif_hits = []
-            for seq_id in seq_ids:
-                # region2motif_hits_dic[seq_id].sort()
-                # If list empty, append "-".
-                if not region2motif_hits_dic[seq_id]:
-                    motif_hits.append("-")
-                else:
-                    motif_hits.append(benchlib.join_motif_hits(
-                                    region2motif_hits_dic[seq_id],
-                                    motifs_per_line=4,
-                                    line_break_char="<br>"))
-                    # motif_hits.append("\n".join(region2motif_hits_dic[seq_id]))
+        seq_len_df = DataFrame({
+            'Sequence ID': seq_ids,
+            'Sequence Length': [len(seq) for seq in sequences],
+            'Sequence': [benchlib.insert_line_breaks(seq, line_len=60) for seq in sequences],
+            'Motif hits': motif_hits
+        })
 
-            seq_len_df = DataFrame({
-                'Sequence ID': seq_ids,
-                'Sequence Length': [len(seq) for seq in sequences],
-                'Sequence': [benchlib.insert_line_breaks(seq, line_len=60) for seq in sequences],
-                'Motif hits': motif_hits
-            })
+    plots_subfolder = "html_report_plots"
+    benchlib_path = os.path.dirname(benchlib.__file__)
 
-        plots_subfolder = "html_report_plots"
-        benchlib_path = os.path.dirname(benchlib.__file__)
-
-        print("Create report ... ")
-        benchlib.search_generate_html_report(args,
-                                         df_pval, pval_cont_lll,
-                                         search_rbps_dic,
-                                         id2name_dic, name2ids_dic,
-                                         region_rbp_motif_pos_dic,
-                                         reg2pol_dic,
-                                         benchlib_path,
-                                         rbp2regidx_dic,
-                                         reg_ids_list,
-                                         seq_len_df=seq_len_df,
-                                         seq_motif_blocks_dic=seq_motif_blocks_dic,
-                                         reg2annot_dic=reg2annot_dic,
-                                         annot2color_dic=annot2color_dic,
-                                         goa_results_df=goa_results_df,
-                                         goa_stats_dic=goa_stats_dic,
-                                         html_report_out=html_report_out,
-                                         reg_seq_str="regions",
-                                         plots_subfolder=plots_subfolder)
+    print("Create report ... ")
+    benchlib.search_generate_html_report(args,
+                                        df_pval, pval_cont_lll,
+                                        search_rbps_dic,
+                                        id2name_dic, name2ids_dic,
+                                        region_rbp_motif_pos_dic,
+                                        reg2pol_dic,
+                                        benchlib_path,
+                                        rbp2regidx_dic,
+                                        reg_ids_list,
+                                        seq_len_df=seq_len_df,
+                                        mrna_prof_dic=mrna_prof_dic,
+                                        seq_motif_blocks_dic=seq_motif_blocks_dic,
+                                        reg2annot_dic=reg2annot_dic,
+                                        annot2color_dic=annot2color_dic,
+                                        goa_results_df=goa_results_df,
+                                        goa_stats_dic=goa_stats_dic,
+                                        html_report_out=html_report_out,
+                                        reg_seq_str="regions",
+                                        plots_subfolder=plots_subfolder)
 
 
     """
@@ -5780,8 +5964,7 @@ def main_search(args):
         print("Target region annotations .tsv:\n%s" %(target_reg_annot_file))
     if args.plot_motifs:
         print("Motif plots and hit statistics .html:\n%s" %(html_motif_plots_out))
-    if args.report:
-        print("Search report .html:\n%s" %(html_report_out))
+    print("Search report .html:\n%s" %(html_report_out))
     print("")
 
 
@@ -13442,38 +13625,9 @@ def main_searchlongrna(args):
 
     if args.only_mrna:
 
-        # Get mean / median UTR CDS lengths.
-        utr5_len_list = []
-        cds_len_list = []
-        utr3_len_list = []
-        for tr_id in tid2regl_dic:
-            utr5_len_list.append(tid2regl_dic[tr_id][0])
-            cds_len_list.append(tid2regl_dic[tr_id][1])
-            utr3_len_list.append(tid2regl_dic[tr_id][2])
-        
-        utr5_len_norm = 100
-        cds_len_norm = 100
-        utr3_len_norm = 100
-        norm_mode = "uniform"
-
-        if args.mrna_norm_mode == 1:
-            # Median.
-            utr5_len_norm = statistics.median(utr5_len_list)
-            cds_len_norm = statistics.median(cds_len_list)
-            utr3_len_norm = statistics.median(utr3_len_list)
-            norm_mode = "median"
-            print("Median lengths of mRNA regions:")
-
-        elif args.mrna_norm_mode == 2:
-            # Mean.
-            utr5_len_norm = statistics.mean(utr5_len_list)
-            cds_len_norm = statistics.mean(cds_len_list)
-            utr3_len_norm = statistics.mean(utr3_len_list)
-            norm_mode = "mean"
-            print("Mean lengths of mRNA regions:")
-
-        else:
-            assert False, "invalid --mrna-norm-mode %i set" %(args.mrna_norm_mode)
+        utr5_len_norm, cds_len_norm, utr3_len_norm, norm_mode = benchlib.get_mrna_reg_norm_len(
+                                                    tid2regl_dic,
+                                                    mrna_norm_mode=args.mrna_norm_mode)
 
         print("5'UTR = ", utr5_len_norm)
         print("CDS   = ", cds_len_norm)

@@ -5,6 +5,7 @@ import re
 import subprocess
 import gzip
 import shutil
+import statistics
 import matplotlib.pyplot as plt
 from matplotlib_venn import venn2, venn3
 from itertools import combinations
@@ -2811,10 +2812,47 @@ def gtf_read_in_transcript_infos(in_gtf,
 
 ################################################################################
 
+def get_exon_pos_count_list_dic(tid2tio_dic,
+                                tr_ids_dic=None):
+    """
+    Get exon ID -> exon position count list dictionary.
+
+    Expects exon_coords in correct order (i.e. exon 1 on - most downstream, 
+    exon 1 on + most upstream).
+    
+    tr_ids_dic:
+        If set, only consider transcript IDs in tr_ids_dic.
+    
+    """
+
+    exon2pcl_dic = {}
+
+    for tr_id in tid2tio_dic:
+        
+        if tr_ids_dic is not None:
+            if tr_id not in tr_ids_dic:
+                continue
+
+        exon_coords = tid2tio_dic[tr_id].exon_coords
+        assert exon_coords is not None, "exon coordinates list not set for transcript ID %s" %(tr_id)
+    
+        for idx, exon in enumerate(exon_coords):
+
+            exon_len = exon[1] - exon[0] + 1
+            exon_id = "exon;%i;%s" %(idx+1, tr_id)
+            exon2pcl_dic[exon_id] = [0] * exon_len
+
+    return exon2pcl_dic
+
+
+################################################################################
+
 def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
                                               output_mode=1,
+                                              tr_ids_dic=None,
                                               report_counts=True,
                                               add_tr_id=True,
+                                              add_numbers=False,
                                               empty_check=False):
     """
     Output exon and/or intron regions to BED given a dictionary of TranscriptInfo 
@@ -2827,6 +2865,8 @@ def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
     add_tr_id:
         If True, add transcript ID after exon intron label (BED column 4), 
         format: intron;tr_id
+    add_numbers:
+        If True, add exon + intron numbers.
         
     """
     assert tid2tio_dic, "given tid2tio_dic empty"
@@ -2837,7 +2877,11 @@ def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
     c_intron_out = 0
 
     for tr_id in tid2tio_dic:
-        
+
+        if tr_ids_dic is not None:
+            if tr_id not in tr_ids_dic:
+                continue
+
         chr_id = tid2tio_dic[tr_id].chr_id
         tr_pol = tid2tio_dic[tr_id].tr_pol
         exon_coords = tid2tio_dic[tr_id].exon_coords
@@ -2855,32 +2899,43 @@ def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
             assert False, "invalid strand given (%s) for transcript ID %s" %(tr_pol, tr_id)
 
         if output_mode == 1:
-            for exon in exon_coords:
+            for idx, exon in enumerate(exon_coords):
                 c_exon_out += 1
+                exon_id = "exon"
+                if add_numbers:
+                    exon_id += ";%i" %(idx+1)
                 if add_tr_id:
-                    OUTBED.write("%s\t%i\t%i\texon;%s\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], tr_id, tr_pol))
-                else:
-                    OUTBED.write("%s\t%i\t%i\texon\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], tr_pol))
-            for intron in intron_coords:
+                    exon_id += ";" + tr_id
+                OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], exon_id, tr_pol))
+
+            for idx, intron in enumerate(intron_coords):
                 c_intron_out += 1
+                intron_id = "intron"
+                if add_numbers:
+                    intron_id += ";%i" %(idx+1)
                 if add_tr_id:
-                    OUTBED.write("%s\t%i\t%i\tintron;%s\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], tr_id, tr_pol))
-                else:
-                    OUTBED.write("%s\t%i\t%i\tintron\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], tr_pol))
+                    intron_id += ";" + tr_id
+                OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], intron_id, tr_pol))
+
         elif output_mode == 2:
-            for exon in exon_coords:
+            for idx, exon in enumerate(exon_coords):
                 c_exon_out += 1
+                exon_id = "exon"
+                if add_numbers:
+                    exon_id += ";%i" %(idx+1)
                 if add_tr_id:
-                    OUTBED.write("%s\t%i\t%i\texon;%s\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], tr_id, tr_pol))
-                else:
-                    OUTBED.write("%s\t%i\t%i\texon\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], tr_pol))
+                    exon_id += ";" + tr_id
+                OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], exon_id, tr_pol))
+
         elif output_mode == 3:
-            for intron in intron_coords:
+            for idx, intron in enumerate(intron_coords):
                 c_intron_out += 1
+                intron_id = "intron"
+                if add_numbers:
+                    intron_id += ";%i" %(idx+1)
                 if add_tr_id:
-                    OUTBED.write("%s\t%i\t%i\tintron;%s\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], tr_id, tr_pol))
-                else:
-                    OUTBED.write("%s\t%i\t%i\tintron\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], tr_pol))
+                    intron_id += ";" + tr_id
+                OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], intron_id, tr_pol))
 
     OUTBED.close()
 
@@ -2889,6 +2944,134 @@ def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
         print("# of intron features output to BED: ", c_intron_out)
     if empty_check:
         assert (c_exon_out+c_intron_out) > 0, "no exon/intron features output to BED"
+
+
+################################################################################
+
+def get_mrna_tids_and_sites(in_bed):
+    """
+    Given BED file with format:
+    chr1	1080	1085	exon;1;ENST01	0	-	chr1	1070	1085	s1	0	-
+    chr2	1010	1020	exon;1;ENST02	0	+	chr2	1010	1030	s2	0	+
+    chr2	1015	1020	exon;1;ENST02	0	+	chr2	1015	1030	s3	0	+
+
+    Extract transcript IDs (ENST01,..) and count site IDs (s1,...).
+    
+    """
+
+    c_ol_mrna_sites = 0
+    ol_mrna_tids_dic = {}
+    seen_site_ids_dic = {}
+
+    with open(in_bed, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            cols = line.split("\t")
+            exon_id = cols[3]
+            tr_id = exon_id.split(";")[2]
+            site_id = cols[9]
+            ol_mrna_tids_dic[tr_id] = 1
+            seen_site_ids_dic[site_id] = 1
+
+    c_ol_mrna_sites = len(seen_site_ids_dic)
+
+    return c_ol_mrna_sites, ol_mrna_tids_dic
+
+
+################################################################################
+
+def fill_exon_pos_count_lists(exon_cov_bed, tid2tio_dic, exon2pcl_dic):
+    """
+    Fill position count lists for exons in exon2pcl_dic.
+
+    exon_cov_bed has following format:
+    chr1	1080	1085	exon;1;ENST01	0	-
+    chr2	1010	1020	exon;1;ENST02	0	+
+    chr2	1010	1020	exon;1;ENST02	0	+
+
+    tid2tio_dic["ENST01"].exon_coords format (e1, e2, e3 order):
+    ENST01 exon_coords: [[1081, 1100], [1041, 1050], [1001, 1010]]
+    exon2pcl_dic format:
+    {..., 'exon;2;ENST01': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], ...}
+
+    test.exon_cov.bed:
+    chr1	1050	1055	exon;2;ENST01	0	-
+    chr1	1050	1054	exon;2;ENST01	0	-
+    chr1	1050	1053	exon;2;ENST01	0	-
+    chr1	1050	1052	exon;2;ENST01	0	-
+    chr1	1050	1051	exon;2;ENST01	0	-
+    chr2	1005	1010	exon;1;ENST02	0	+
+    chr2	1007	1010	exon;1;ENST02	0	+
+    chr2	1050	1053	exon;2;ENST02	0	+
+
+    >>> exon_cov_bed = "test_data/test.exon_cov.bed"
+    >>> tid2tio_dic = {}
+    >>> tid2tio_dic["ENST02"] = TranscriptInfoExonTest("ENST02", "+", [[1001, 1010], [1051, 1055]])
+    >>> exon2pcl_dic = {'exon;1;ENST02': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'exon;2;ENST02': [0, 0, 0, 0, 0], 'exon;1;666': [0]}
+    >>> fill_exon_pos_count_lists(exon_cov_bed, tid2tio_dic, exon2pcl_dic)
+    >>> exon2pcl_dic
+    {'exon;1;ENST02': [0, 0, 0, 0, 0, 1, 1, 2, 2, 2], 'exon;2;ENST02': [1, 1, 1, 0, 0], 'exon;1;666': [0]}
+    >>> tid2tio_dic = {}
+    >>> tid2tio_dic["ENST01"] = TranscriptInfoExonTest("ENST01", "-", [[1096, 1100], [1051, 1060]])
+    >>> exon2pcl_dic = {'exon;1;ENST01': [0, 0, 0, 0, 0], 'exon;2;ENST01': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}
+    >>> fill_exon_pos_count_lists(exon_cov_bed, tid2tio_dic, exon2pcl_dic)
+    >>> exon2pcl_dic
+    {'exon;1;ENST01': [0, 0, 0, 0, 0], 'exon;2;ENST01': [0, 0, 0, 0, 0, 1, 2, 3, 4, 5]}
+
+    """
+
+    assert exon2pcl_dic, "exon2pcl_dic is empty"
+    assert tid2tio_dic, "tid2tio_dic is empty"
+    assert os.path.exists(exon_cov_bed), "exon_cov_bed does not exist"
+
+    with open(exon_cov_bed, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            cols = line.split("\t")
+            chr_id = cols[0]
+            hit_s = int(cols[1])  # 0-based.
+            hit_e = int(cols[2])  # 1-based.
+            ex_id = cols[3]
+            ex_strand = cols[5]
+
+            tr_id = ex_id.split(";")[2]
+            if tr_id not in tid2tio_dic:
+                continue
+            ex_nr = int(ex_id.split(";")[1])
+            ex_s = tid2tio_dic[tr_id].exon_coords[ex_nr-1][0]
+            ex_e = tid2tio_dic[tr_id].exon_coords[ex_nr-1][1]
+
+            if ex_id not in exon2pcl_dic:
+                continue
+
+            for i in range(hit_s, hit_e):
+                if ex_strand == "+":
+                    exon2pcl_dic[ex_id][i - ex_s + 1] += 1
+                else:
+                    exon2pcl_dic[ex_id][ex_e - i - 1] += 1
+
+
+################################################################################
+
+def count_lines_in_file(file_path):
+    """
+    Count number of lines in file.
+
+    >>> file_path = "test_data/file1"
+    >>> count_lines_in_file(file_path)
+    9
+    >>> file_path = "test_data/empty_file"
+    >>> count_lines_in_file(file_path)
+    0
+
+    """
+    with open(file_path, 'r') as file:
+        line_count = sum(1 for line in file)
+    return line_count
 
 
 ################################################################################
@@ -2909,6 +3092,121 @@ def bed_intersect_files(a_bed, b_bed, out_bed,
     if output:
         error = True
     assert error == False, "intersectBed has problems with your input:\n%s\n%s" %(check_cmd, output)
+
+
+
+################################################################################
+
+class TranscriptInfoExonTest:
+    """
+    Transcript infos exon coordinates test class.
+
+    """
+    def __init__(self,
+                 tr_id: str,
+                 chr_id: str,
+                 exon_coords=None) -> None:
+
+        self.tr_id = tr_id
+        self.chr_id = chr_id
+        if exon_coords is None:
+            self.exon_coords = []
+        else:
+            self.exon_coords = exon_coords
+
+
+
+################################################################################
+
+class MrnaRegionProfile:
+    """
+    mRNA input region coverage profile class. 
+
+    """
+    def __init__(self,
+                 dataset_id: str,
+                 utr5_len_norm: float,
+                 cds_len_norm: float,
+                 utr3_len_norm: float,
+                 norm_mode: str,
+                 c_ol_sites: Optional[int] = None,
+                 c_all_sites: Optional[int] = None,
+                 c_ol_mrnas: Optional[int] = None,
+                 utr5_pc_list=None,
+                 cds_pc_list=None,
+                 utr3_pc_list=None) -> None:
+
+        self.dataset_id = dataset_id
+        self.utr5_len_norm = utr5_len_norm
+        self.cds_len_norm = cds_len_norm
+        self.utr3_len_norm = utr3_len_norm
+        self.norm_mode = norm_mode
+        self.c_ol_sites = c_ol_sites
+        self.c_all_sites = c_all_sites
+        self.c_ol_mrnas = c_ol_mrnas
+        if utr5_pc_list is None:
+            self.utr5_pc_list = []
+        else:
+            self.utr5_pc_list = utr5_pc_list
+        if cds_pc_list is None:
+            self.cds_pc_list = []
+        else:
+            self.cds_pc_list = cds_pc_list
+        if utr3_pc_list is None:
+            self.utr3_pc_list = []
+        else:
+            self.utr3_pc_list = utr3_pc_list
+
+
+################################################################################
+
+def get_mrna_reg_norm_len(tid2regl_dic,
+                          mrna_norm_mode=1):
+    """
+    Get normalized mRNA region lengths.
+
+    mrna_norm_mode:
+        1: median
+        2: mean
+    
+    """
+
+    assert tid2regl_dic, "given tid2regl_dic empty"
+
+    # Get mean / median UTR CDS lengths.
+    utr5_len_list = []
+    cds_len_list = []
+    utr3_len_list = []
+    for tr_id in tid2regl_dic:
+        utr5_len_list.append(tid2regl_dic[tr_id][0])
+        cds_len_list.append(tid2regl_dic[tr_id][1])
+        utr3_len_list.append(tid2regl_dic[tr_id][2])
+    
+    utr5_len_norm = 100
+    cds_len_norm = 100
+    utr3_len_norm = 100
+    norm_mode = "uniform"
+
+    if mrna_norm_mode == 1:
+        # Median.
+        utr5_len_norm = statistics.median(utr5_len_list)
+        cds_len_norm = statistics.median(cds_len_list)
+        utr3_len_norm = statistics.median(utr3_len_list)
+        norm_mode = "median"
+        print("Median lengths of mRNA regions:")
+
+    elif mrna_norm_mode == 2:
+        # Mean.
+        utr5_len_norm = statistics.mean(utr5_len_list)
+        cds_len_norm = statistics.mean(cds_len_list)
+        utr3_len_norm = statistics.mean(utr3_len_list)
+        norm_mode = "mean"
+        print("Mean lengths of mRNA regions:")
+
+    else:
+        assert False, "invalid --mrna-norm-mode %i set" %(mrna_norm_mode)
+
+    return utr5_len_norm, cds_len_norm, utr3_len_norm, norm_mode
 
 
 ################################################################################
@@ -11355,6 +11653,7 @@ def search_generate_html_report(args,
                                 rbp2regidx_dic,
                                 reg_ids_list,
                                 seq_len_df=None,
+                                mrna_prof_dic=False,
                                 seq_motif_blocks_dic=None,
                                 reg2annot_dic=False,
                                 annot2color_dic=False,
@@ -11533,6 +11832,9 @@ by RBPBench (rbpbench %s):
     # Additional plot if GTF annotations given.
     if reg2annot_dic:
         mdtext += "- [Region annotations per RBP](#annot-rbp-plot)\n"
+
+    if mrna_prof_dic:
+        mdtext += "- [mRNA region coverage profile](#mrna-prof-plot)\n"
 
     # Upset plot.
     # mdtext += "\n"
@@ -11860,6 +12162,117 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
 &nbsp;
 
 """ %(more_infos)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    """
+    mRNA region coverage plot.
+
+    if mrna_prof_dic:
+        mdtext += "- [mRNA region coverage profile](#mrna-prof-plot)\n"
+    
+    AALAMO
+
+def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic, 
+                                annot2color_dic, plot_out,
+                                same_y_scale=True,
+
+    Create mRNA region occupancy stacked line plot for rbp_id and associated 
+    motif IDs.
+    
+    mrna_reg_occ_dic:
+        mRNA region occupancy dictionary for rbp_id and motif IDs.
+        rbp_id/motif_id -> mrna_region -> positional counts list
+
+    motif_ids_list:
+        List of motif IDs to plot mRNA occupancy profiles for.
+
+
+            mrna_profile = benchlib.MrnaRegionProfile("mrna_profile", utr5_len_norm, cds_len_norm, 
+                                                      utr3_len_norm, norm_mode,
+                                                      c_ol_sites=c_ol_mrna_sites,
+                                                      c_all_sites=reg_stats_dic["c_out"],
+                                                      utr5_pc_list=utr5_pc_list, 
+                                                      cds_pc_list=cds_pc_list,
+                                                      utr3_pc_list=utr3_pc_list)
+
+    """
+
+    if mrna_prof_dic:
+
+        mdtext += """
+## mRNA region coverage profile ### {#mrna-prof-plot}
+
+"""
+        mrna_prof_plot =  "mRNA_region_plot.png"
+        mrna_prof_plot_out = plots_out_folder + "/" + mrna_prof_plot
+
+        prof_id = "mrna_profile"
+        mrna_reg_occ_dic = {}
+        mrna_reg_occ_dic[prof_id] = {}
+        mrna_reg_occ_dic[prof_id]["5'UTR"] = mrna_prof_dic[prof_id].utr5_pc_list
+        mrna_reg_occ_dic[prof_id]["CDS"] = mrna_prof_dic[prof_id].cds_pc_list
+        mrna_reg_occ_dic[prof_id]["3'UTR"] = mrna_prof_dic[prof_id].utr3_pc_list
+        c_ol_sites = mrna_prof_dic[prof_id].c_ol_sites
+        c_all_sites = mrna_prof_dic[prof_id].c_all_sites
+        utr5_len_norm = mrna_prof_dic[prof_id].utr5_len_norm  # AALAMO
+        cds_len_norm = mrna_prof_dic[prof_id].cds_len_norm
+        utr3_len_norm = mrna_prof_dic[prof_id].utr3_len_norm
+        norm_mode = mrna_prof_dic[prof_id].norm_mode
+        c_ol_mrnas = mrna_prof_dic[prof_id].c_ol_mrnas
+
+        create_mrna_region_occ_plot([prof_id], mrna_reg_occ_dic,
+                                    annot2color_dic, mrna_prof_plot_out,
+                                    rbp_id=False)
+
+        plots_path = plots_folder + "/" + mrna_prof_plot
+
+        mdtext += '<img src="' + plots_path + '" alt="mRNA region occupancy plot"' + "\n"
+        mdtext += 'title="mRNA region occupancy plot" />' + "\n"
+        mdtext += """
+**Figure:** mRNA region motif hit coverage profile. c_ol_sites: %i, c_all_sites: %i. 
+utr5_len_norm = %s, cds_len_norm = %s, utr3_len_norm = %s, norm_mode = %s.
+c_ol_mrnas = %i.
+
+&nbsp;
+
+""" %(c_ol_sites, c_all_sites, str(utr5_len_norm), str(cds_len_norm), str(utr3_len_norm), norm_mode, c_ol_mrnas)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     """

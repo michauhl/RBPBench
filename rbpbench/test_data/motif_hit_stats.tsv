@@ -1,18 +1,18 @@
-data_id	method_id	run_id	motif_db	region_id	rbp_id	motif_id	chr_id	gen_s	gen_e	strand	region_s	region_e	region_len	uniq_count	fimo_score	fimo_pval	cms_score	cms_eval	internal_id
-data_id	method_id	run_id	human_v0.1	chr7:74691069-74691143(+)	PUM1	PUM1_2	chr7	74691120	74691128	+	51	59	74	1	-2.26263	0.000514	-	-	vhniMDOH
-data_id	method_id	run_id	human_v0.1	chr7:74691069-74691143(+)	PUM1	PUM1_2	chr7	74691125	74691133	+	56	64	74	1	-2.24242	0.000428	-	-	vhniMDOH
-data_id	method_id	run_id	human_v0.1	chr7:74732448-74732580(+)	PUM1	PUM1_2	chr7	74732532	74732540	+	84	92	132	1	-2.26263	0.000514	-	-	vhniMDOH
-data_id	method_id	run_id	human_v0.1	chr7:75972414-75972492(+)	PUM1	PUM1_2	chr7	75972480	75972488	+	66	74	78	1	-2.24242	0.000428	-	-	vhniMDOH
-data_id	method_id	run_id	human_v0.1	chr7:73469589-73469678(-)	PUM1	PUM1_3	chr7	73469648	73469655	-	24	31	89	1	12.8182	4.87e-05	-	-	vhniMDOH
-data_id	method_id	run_id	human_v0.1	chr7:77749430-77749548(+)	PUM1	PUM1_3	chr7	77749532	77749539	+	102	109	118	2	7.48485	0.000316	-	-	vhniMDOH
-data_id	method_id	run_id	human_v0.1	chr7:77749488-77749671(+)	PUM1	PUM1_3	chr7	77749532	77749539	+	44	51	183	2	7.48485	0.000316	-	-	vhniMDOH
-data_id	method_id	run_id	human_v0.1	chr7:73469589-73469678(-)	PUM2	PUM2_1	chr7	73469648	73469655	-	24	31	89	1	10.404	0.000113	-	-	9O-7K9_w
-data_id	method_id	run_id	human_v0.1	chr7:74730219-74730325(+)	PUM2	PUM2_1	chr7	74730300	74730307	+	81	88	106	1	4.56566	0.00063	-	-	9O-7K9_w
-data_id	method_id	run_id	human_v0.1	chr7:73469589-73469678(-)	PUM2	PUM2_3	chr7	73469648	73469655	-	24	31	89	1	6.20202	0.000212	-	-	9O-7K9_w
-data_id	method_id	run_id	human_v0.1	chr7:74730219-74730325(+)	PUM2	PUM2_3	chr7	74730300	74730307	+	81	88	106	1	6.13131	0.000264	-	-	9O-7K9_w
-data_id	method_id	run_id	human_v0.1	chr7:73469589-73469678(-)	PUM2	PUM2_4	chr7	73469648	73469655	-	24	31	89	1	15.8485	1.64e-05	-	-	9O-7K9_w
-data_id	method_id	run_id	human_v0.1	chr7:73469589-73469678(-)	PUM2	PUM2_5	chr7	73469648	73469657	-	22	31	89	1	10.8788	0.000113	-	-	9O-7K9_w
-data_id	method_id	run_id	human_v0.1	chr7:74691069-74691143(+)	PUM2	PUM2_5	chr7	74691099	74691108	+	30	39	74	1	10.4444	0.000147	-	-	9O-7K9_w
-data_id	method_id	run_id	human_v0.1	chr7:74691069-74691143(+)	PUM2	PUM2_5	chr7	74691118	74691127	+	49	58	74	1	9.27273	0.000299	-	-	9O-7K9_w
-data_id	method_id	run_id	human_v0.1	chr7:77749430-77749548(+)	PUM2	PUM2_5	chr7	77749530	77749539	+	100	109	118	2	7.93939	0.000609	-	-	9O-7K9_w
-data_id	method_id	run_id	human_v0.1	chr7:77749488-77749671(+)	PUM2	PUM2_5	chr7	77749530	77749539	+	42	51	183	2	7.93939	0.000609	-	-	9O-7K9_w
+data_id	method_id	run_id	motif_db	region_id	rbp_id	motif_id	chr_id	gen_s	gen_e	strand	region_s	region_e	region_len	uniq_count	fimo_score	fimo_pval	cms_score	cms_eval	matched_seq	internal_id
+data_id	method_id	run_id	human_v0.1	chr7:74691069-74691143(+)	PUM1	PUM1_2	chr7	74691120	74691128	+	51	59	74	1	-2.26263	0.000514	-	-	-	vhniMDOH
+data_id	method_id	run_id	human_v0.1	chr7:74691069-74691143(+)	PUM1	PUM1_2	chr7	74691125	74691133	+	56	64	74	1	-2.24242	0.000428	-	-	-	vhniMDOH
+data_id	method_id	run_id	human_v0.1	chr7:74732448-74732580(+)	PUM1	PUM1_2	chr7	74732532	74732540	+	84	92	132	1	-2.26263	0.000514	-	-	-	vhniMDOH
+data_id	method_id	run_id	human_v0.1	chr7:75972414-75972492(+)	PUM1	PUM1_2	chr7	75972480	75972488	+	66	74	78	1	-2.24242	0.000428	-	-	-	vhniMDOH
+data_id	method_id	run_id	human_v0.1	chr7:73469589-73469678(-)	PUM1	PUM1_3	chr7	73469648	73469655	-	24	31	89	1	12.8182	0.0000487	-	-	-	vhniMDOH
+data_id	method_id	run_id	human_v0.1	chr7:77749430-77749548(+)	PUM1	PUM1_3	chr7	77749532	77749539	+	102	109	118	2	7.48485	0.000316	-	-	-	vhniMDOH
+data_id	method_id	run_id	human_v0.1	chr7:77749488-77749671(+)	PUM1	PUM1_3	chr7	77749532	77749539	+	44	51	183	2	7.48485	0.000316	-	-	-	vhniMDOH
+data_id	method_id	run_id	human_v0.1	chr7:73469589-73469678(-)	PUM2	PUM2_1	chr7	73469648	73469655	-	24	31	89	1	10.404	0.000113	-	-	-	9O-7K9_w
+data_id	method_id	run_id	human_v0.1	chr7:74730219-74730325(+)	PUM2	PUM2_1	chr7	74730300	74730307	+	81	88	106	1	4.56566	0.00063	-	-	-	9O-7K9_w
+data_id	method_id	run_id	human_v0.1	chr7:73469589-73469678(-)	PUM2	PUM2_3	chr7	73469648	73469655	-	24	31	89	1	6.20202	0.000212	-	-	-	9O-7K9_w
+data_id	method_id	run_id	human_v0.1	chr7:74730219-74730325(+)	PUM2	PUM2_3	chr7	74730300	74730307	+	81	88	106	1	6.13131	0.000264	-	-	-	9O-7K9_w
+data_id	method_id	run_id	human_v0.1	chr7:73469589-73469678(-)	PUM2	PUM2_4	chr7	73469648	73469655	-	24	31	89	1	15.8485	0.0000164	-	-	-	9O-7K9_w
+data_id	method_id	run_id	human_v0.1	chr7:73469589-73469678(-)	PUM2	PUM2_5	chr7	73469648	73469657	-	22	31	89	1	10.8788	0.000113	-	-	-	9O-7K9_w
+data_id	method_id	run_id	human_v0.1	chr7:74691069-74691143(+)	PUM2	PUM2_5	chr7	74691099	74691108	+	30	39	74	1	10.4444	0.000147	-	-	-	9O-7K9_w
+data_id	method_id	run_id	human_v0.1	chr7:74691069-74691143(+)	PUM2	PUM2_5	chr7	74691118	74691127	+	49	58	74	1	9.27273	0.000299	-	-	-	9O-7K9_w
+data_id	method_id	run_id	human_v0.1	chr7:77749430-77749548(+)	PUM2	PUM2_5	chr7	77749530	77749539	+	100	109	118	2	7.93939	0.000609	-	-	-	9O-7K9_w
+data_id	method_id	run_id	human_v0.1	chr7:77749488-77749671(+)	PUM2	PUM2_5	chr7	77749530	77749539	+	42	51	183	2	7.93939	0.000609	-	-	-	9O-7K9_w
