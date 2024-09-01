@@ -12506,7 +12506,7 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
 Percentage of input regions overlapping with mRNA exons = %s%%. 
 NOTE that if this percentage is low, it likely means that the input regions (if derived from CLIP-seq or similar protocols) 
 originate from an intron binding RBP, making the plot less informative (since the RBP is typically not binding to spliced mRNAs).
-Minimum overlap amount with mRNA exons for input region to be counted as overlapping = %s%% (set via --gtf-min-mrna-overlap).
+Minimum overlap amount with mRNA exons required for input region to be counted as overlapping = %s%% (set via --gtf-min-mrna-overlap).
 All overlapping input region positions are used for the coverage calculation.
 Only mRNA regions overlapping with input regions are used for plot generation (# mRNAs with input regions = %i).
 mRNA region lengths used for plotting are derived from the %i mRNA regions, using their  %s region lengths (5'UTR = %s, CDS = %s, 3'UTR = %s).
