@@ -2845,6 +2845,283 @@ def get_exon_pos_count_list_dic(tid2tio_dic,
     return exon2pcl_dic
 
 
+
+################################################################################
+
+class ExonIntronOverlap:
+    """
+    Exon intron overlap stats class.
+
+    AALAMO
+
+    """
+    def __init__(self,
+                 dataset_id: str,
+                 c_input_sites: int,
+                 c_exon_sites = 0,
+                 c_intron_sites = 0,
+                 c_us_ib_sites = 0,
+                 c_ds_ib_sites = 0,
+                 c_eib_sites = 0,
+                 min_overlap = 0.9,
+                 intron_border_len = 250,
+                 ei_border_len = 50,
+                 c_tr_ids = 0,
+                 c_tr_ids_with_sites = 0) -> None:
+
+        self.dataset_id = dataset_id
+        self.c_input_sites = c_input_sites
+        self.c_exon_sites = c_exon_sites
+        self.c_intron_sites = c_intron_sites
+        self.c_us_ib_sites = c_us_ib_sites
+        self.c_ds_ib_sites = c_ds_ib_sites
+        self.c_eib_sites = c_eib_sites
+        self.min_overlap = min_overlap
+        self.intron_border_len = intron_border_len
+        self.ei_border_len = ei_border_len
+        self.c_tr_ids = c_tr_ids
+        self.c_tr_ids_with_sites = c_tr_ids_with_sites
+
+
+################################################################################
+
+def get_intron_exon_ol_counts(overlap_ei_regions_bed):
+    """
+    Get exon + intron overlap counts
+
+    overlap_ei_regions_bed format:
+    chr1	3385286	3396490	intron;ENST00000270722	0	+
+    chr1	3396593	3402790	intron;ENST00000270722	0	+
+        
+    """
+
+    assert os.path.exists(overlap_ei_regions_bed), "file \"%s\" does not exist" %(overlap_ei_regions_bed)
+
+    c_exon_ol = 0
+    c_intron_ol = 0
+
+    with open(overlap_ei_regions_bed, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            cols = line.split("\t")
+            reg_tr_id = cols[3]
+            reg_id = reg_tr_id.split(";")[0]
+            if reg_id == "intron":
+                c_intron_ol += 1
+            else:
+                c_exon_ol += 1
+
+    return c_exon_ol, c_intron_ol
+
+
+################################################################################
+
+def get_eib_ol_counts(overlap_eib_regions_bed):
+    """
+    Get exon-intron border overlap counts.
+
+    """
+
+    assert os.path.exists(overlap_eib_regions_bed), "file \"%s\" does not exist" %(overlap_eib_regions_bed)
+
+    c_eib_ol = 0
+    c_us_ib_ol = 0
+    c_ds_ib_ol = 0
+
+    with open(overlap_eib_regions_bed, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            cols = line.split("\t")
+            reg_id = cols[3]
+            if reg_id == "eib":
+                c_eib_ol += 1
+            elif reg_id == "us_ib":
+                c_us_ib_ol += 1
+            elif reg_id == "ds_ib":
+                c_ds_ib_ol += 1
+            else:
+                assert False, "invalid region ID \"%s\" found in line \"%s\"" %(reg_id, line)
+
+    return c_eib_ol, c_us_ib_ol, c_ds_ib_ol
+
+
+################################################################################
+
+def exon_intron_border_regions_to_bed(tid2tio_dic, out_bed,
+                                      tr_ids_dic=None,
+                                      intron_border_len=250,
+                                      ei_border_len=50):
+    """
+    Output border regions (intron border regions, and exon-intron border regions)
+    to out_bed. 
+    and exon border regions to BED.
+
+    These can then be used to determin what regions are covered by
+    input sites.
+
+    AALAMO
+    Correct exon_coords order expected (i.e. exon 1 on - most downstream, and most upstream on +).
+
+    Based on:
+    chr1	3000	3100	exon	0	-
+    chr1	2000	2100	exon	0	-
+    chr1	1000	1100	exon	0	-
+    chr1	2100	3000	intron	0	-
+    chr1	1100	2000	intron	0	-
+    chr1	1000	1100	exon	0	+
+    chr1	2000	2100	exon	0	+
+    chr1	3000	3100	exon	0	+
+    chr1	1100	2000	intron	0	+
+    chr1	2100	3000	intron	0	+
+
+    Generate this:
+    chr1	1100	1350	us_ib	0	+
+    chr1	1750	2000	ds_ib	0	+
+    chr1	2100	2350	us_ib	0	+
+    chr1	2750	3000	ds_ib	0	+
+    chr1	1050	1150	eib	0	+
+    chr1	1950	2050	eib	0	+
+    chr1	2050	2150	eib	0	+
+    chr1	2950	3050	eib	0	+
+    chr1	2750	3000	us_ib	0	-
+    chr1	2100	2350	ds_ib	0	-
+    chr1	1750	2000	us_ib	0	-
+    chr1	1100	1350	ds_ib	0	-
+    chr1	2050	2150	W	0	-
+    chr1	2950	3050	eib	0	-
+    chr1	1050	1150	eib	0	-
+    chr1	1950	2050	eib	0	-
+    
+    >>> out_bed = "test_data/test.exon_intron_border_reg.tmp.bed"
+    >>> exp_bed = "test_data/test.exon_intron_border_reg.exp.bed"
+    >>> tid2tio_dic = {}
+    >>> tid2tio_dic["ENST1"] = TranscriptInfoExonTest("ENST1", "chr1", "+", [[1001, 1100], [2001, 2100], [3001, 3100]])
+    >>> tid2tio_dic["ENST2"] = TranscriptInfoExonTest("ENST2", "chr1", "-", [[3001, 3100], [2001, 2100], [1001, 1100]])
+
+    >>> exon_intron_border_regions_to_bed(tid2tio_dic, out_bed)
+    >>> diff_two_files_identical(out_bed, exp_bed)
+    True
+
+
+    """
+
+    assert tid2tio_dic, "given tid2tio_dic empty"
+
+    OUTBED = open(out_bed, "w")
+
+    min_intron_len = intron_border_len * 2
+
+    for tr_id in tid2tio_dic:
+
+        if tr_ids_dic is not None:
+            if tr_id not in tr_ids_dic:
+                continue
+
+        chr_id = tid2tio_dic[tr_id].chr_id
+        tr_pol = tid2tio_dic[tr_id].tr_pol
+        exon_coords = tid2tio_dic[tr_id].exon_coords
+        assert exon_coords is not None, "exon coordinates list not set for transcript ID %s" %(tr_id)
+    
+        # Get intron coordinates.
+        intron_coords = []
+        if tr_pol == "+":
+            for i in range(len(exon_coords) - 1):
+                intron_coords.append([exon_coords[i][1]+1, exon_coords[i+1][0]-1])
+        elif tr_pol == "-":
+            for i in range(len(exon_coords) - 1):
+                intron_coords.append([exon_coords[i+1][1]+1, exon_coords[i][0]-1])
+        else:
+            assert False, "invalid strand given (%s) for transcript ID %s" %(tr_pol, tr_id)
+
+        # # Output exon regions.
+        # for idx, exon in enumerate(exon_coords):
+        #     c_exon_out += 1
+        #     exon_id = "exon"
+        #     OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], exon_id, tr_pol))
+
+        for idx, intron in enumerate(intron_coords):
+            # intron_id = "intron"
+            intron_s = intron[0]-1
+            intron_e = intron[1]
+            # # Output intron regions.
+            # OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, intron_s, intron_e, intron_id, tr_pol))
+            # Intron border regions.
+            intron_len = intron_e - intron_s
+            if intron_len >= min_intron_len:
+                # + case.
+                us_intron_s = intron_s
+                us_intron_e = intron_s + intron_border_len
+                ds_intron_s = intron_e - intron_border_len
+                ds_intron_e = intron_e
+                us_intron_id = "us_ib"  # upstream intron border region.
+                ds_intron_id = "ds_ib"  # downstream intron border region.
+                if tr_pol == "-":
+                    us_intron_s = intron_e - intron_border_len
+                    us_intron_e = intron_e
+                    ds_intron_s = intron_s
+                    ds_intron_e = intron_s + intron_border_len
+                OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, us_intron_s, us_intron_e, us_intron_id, tr_pol))
+                OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, ds_intron_s, ds_intron_e, ds_intron_id, tr_pol))
+
+            # Exon-intron-border regions.
+            us_exon_s = exon_coords[idx][0] - 1
+            if tr_pol == "-":
+                us_exon_s = exon_coords[idx+1][0] - 1            
+            us_exon_e = intron_s
+            us_exon_len = us_exon_e - us_exon_s
+            ds_exon_s = intron_e
+            ds_exon_e = exon_coords[idx+1][1]
+            if tr_pol == "-":
+                ds_exon_e = exon_coords[idx][1]
+            ds_exon_len = ds_exon_e - ds_exon_s
+            us_eib_s = intron_s - ei_border_len
+            if us_exon_len < ei_border_len:
+                us_eib_s = us_exon_s
+            us_eib_e = intron_s + ei_border_len
+            if intron_len < ei_border_len:
+                us_eib_e = intron_e
+            ds_eib_s = intron_e - ei_border_len
+            if intron_len < ei_border_len:
+                ds_eib_s = intron_s
+            ds_eib_e = intron_e + ei_border_len
+            if ds_exon_len < ei_border_len:
+                ds_eib_e = ds_exon_e
+            eib_id = "eib"
+            OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, us_eib_s, us_eib_e, eib_id, tr_pol))
+            OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, ds_eib_s, ds_eib_e, eib_id, tr_pol))
+
+    OUTBED.close()
+
+
+"""
+	-f	Minimum overlap required as a fraction of A.
+		- Default is 1E-9 (i.e., 1bp).
+		- FLOAT (e.g. 0.50)
+
+	-F	Minimum overlap required as a fraction of B.
+		- Default is 1E-9 (i.e., 1bp).
+		- FLOAT (e.g. 0.50)
+
+	-r	Require that the fraction overlap be reciprocal for A AND B.
+		- In other words, if -f is 0.90 and -r is used, this requires
+		  that B overlap 90% of A and A _also_ overlaps 90% of B.
+
+	-e	Require that the minimum fraction be satisfied for A OR B.
+		- In other words, if -e is used with -f 0.90 and -F 0.10 this requires
+		  that either 90% of A is covered OR 10% of  B is covered.
+		  Without -e, both fractions would have to be satisfied.
+
+
+
+"""
+
+
+
+
 ################################################################################
 
 def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
@@ -3008,13 +3285,13 @@ def fill_exon_pos_count_lists(exon_cov_bed, tid2tio_dic, exon2pcl_dic):
 
     >>> exon_cov_bed = "test_data/test.exon_cov.bed"
     >>> tid2tio_dic = {}
-    >>> tid2tio_dic["ENST02"] = TranscriptInfoExonTest("ENST02", "+", [[1001, 1010], [1051, 1055]])
+    >>> tid2tio_dic["ENST02"] = TranscriptInfoExonTest("ENST02", "chr2", "+", [[1001, 1010], [1051, 1055]])
     >>> exon2pcl_dic = {'exon;1;ENST02': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'exon;2;ENST02': [0, 0, 0, 0, 0], 'exon;1;666': [0]}
     >>> fill_exon_pos_count_lists(exon_cov_bed, tid2tio_dic, exon2pcl_dic)
     >>> exon2pcl_dic
     {'exon;1;ENST02': [0, 0, 0, 0, 0, 1, 1, 2, 2, 2], 'exon;2;ENST02': [1, 1, 1, 0, 0], 'exon;1;666': [0]}
     >>> tid2tio_dic = {}
-    >>> tid2tio_dic["ENST01"] = TranscriptInfoExonTest("ENST01", "-", [[1096, 1100], [1051, 1060]])
+    >>> tid2tio_dic["ENST01"] = TranscriptInfoExonTest("ENST01", "chr1", "-", [[1096, 1100], [1051, 1060]])
     >>> exon2pcl_dic = {'exon;1;ENST01': [0, 0, 0, 0, 0], 'exon;2;ENST01': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}
     >>> fill_exon_pos_count_lists(exon_cov_bed, tid2tio_dic, exon2pcl_dic)
     >>> exon2pcl_dic
@@ -3039,8 +3316,10 @@ def fill_exon_pos_count_lists(exon_cov_bed, tid2tio_dic, exon2pcl_dic):
             ex_strand = cols[5]
 
             tr_id = ex_id.split(";")[2]
+            
             if tr_id not in tid2tio_dic:
                 continue
+
             ex_nr = int(ex_id.split(";")[1])
             ex_s = tid2tio_dic[tr_id].exon_coords[ex_nr-1][0]
             ex_e = tid2tio_dic[tr_id].exon_coords[ex_nr-1][1]
@@ -3105,10 +3384,12 @@ class TranscriptInfoExonTest:
     def __init__(self,
                  tr_id: str,
                  chr_id: str,
+                 tr_pol: str,
                  exon_coords=None) -> None:
 
         self.tr_id = tr_id
         self.chr_id = chr_id
+        self.tr_pol = tr_pol
         if exon_coords is None:
             self.exon_coords = []
         else:
@@ -3205,6 +3486,10 @@ def get_mrna_reg_norm_len(tid2regl_dic,
 
     else:
         assert False, "invalid --mrna-norm-mode %i set" %(mrna_norm_mode)
+
+    print("5'UTR = ", utr5_len_norm)
+    print("CDS   = ", cds_len_norm)
+    print("3'UTR = ", utr3_len_norm)
 
     return utr5_len_norm, cds_len_norm, utr3_len_norm, norm_mode
 
@@ -9492,7 +9777,7 @@ def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic,
     # # Show plot
     # plt.show()
 
-    plt.savefig(plot_out, dpi=110, bbox_inches='tight')
+    plt.savefig(plot_out, dpi=110, bbox_inches='tight')  # 110
     plt.close()
 
 
@@ -11654,6 +11939,7 @@ def search_generate_html_report(args,
                                 reg_ids_list,
                                 seq_len_df=None,
                                 mrna_prof_dic=False,
+                                ei_ol_stats_dic=False,
                                 seq_motif_blocks_dic=None,
                                 reg2annot_dic=False,
                                 annot2color_dic=False,
@@ -11821,7 +12107,7 @@ List of available statistics and plots generated
 by RBPBench (rbpbench %s):
 
 %s
-- [RBP co-occurrences heat map](#cooc-heat-map)""" %(report_header_info, rbpbench_mode, motif_enrich_info)
+- [RBP motif co-occurrences heat map](#cooc-heat-map)""" %(report_header_info, rbpbench_mode, motif_enrich_info)
 
     mdtext += "\n"
 
@@ -11835,6 +12121,9 @@ by RBPBench (rbpbench %s):
 
     if mrna_prof_dic:
         mdtext += "- [mRNA region coverage profile](#mrna-prof-plot)\n"
+
+    if ei_ol_stats_dic:
+        mdtext += "- [Exon-intron overlap statistics](#ei-ol-stats)\n"
 
     # Upset plot.
     # mdtext += "\n"
@@ -11984,7 +12273,7 @@ By default, BED genomic regions input file column 5 is used as the score column 
     plot_path = plots_folder + "/" + cooc_plot_plotly
 
     mdtext += """
-## RBP co-occurrences heat map ### {#cooc-heat-map}
+## RBP motif co-occurrences heat map ### {#cooc-heat-map}
 
 """
     if args.plotly_js_mode in [5, 6, 7]:
@@ -12029,8 +12318,8 @@ By default, BED genomic regions input file column 5 is used as the score column 
 
     mdtext += """
 
-**Figure:** Heat map of co-occurrences (Fisher's exact test p-values) between RBPs. 
-RBP co-occurrences that are not significant are colored white, while
+**Figure:** Heat map of motif hit co-occurrences (Fisher's exact test p-values) between RBPs. 
+RBP motif hit co-occurrences that are not significant are colored white, while
 significant co-occurrences are colored according to their -log10 p-value (used as legend color, i.e., the higher the more significant).
 %s
 %s
@@ -12168,48 +12457,12 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
 
 
 
-
-
-
-
-
-
-
-
-
-
-
     """
     mRNA region coverage plot.
 
     if mrna_prof_dic:
         mdtext += "- [mRNA region coverage profile](#mrna-prof-plot)\n"
     
-    AALAMO
-
-def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic, 
-                                annot2color_dic, plot_out,
-                                same_y_scale=True,
-
-    Create mRNA region occupancy stacked line plot for rbp_id and associated 
-    motif IDs.
-    
-    mrna_reg_occ_dic:
-        mRNA region occupancy dictionary for rbp_id and motif IDs.
-        rbp_id/motif_id -> mrna_region -> positional counts list
-
-    motif_ids_list:
-        List of motif IDs to plot mRNA occupancy profiles for.
-
-
-            mrna_profile = benchlib.MrnaRegionProfile("mrna_profile", utr5_len_norm, cds_len_norm, 
-                                                      utr3_len_norm, norm_mode,
-                                                      c_ol_sites=c_ol_mrna_sites,
-                                                      c_all_sites=reg_stats_dic["c_out"],
-                                                      utr5_pc_list=utr5_pc_list, 
-                                                      cds_pc_list=cds_pc_list,
-                                                      utr3_pc_list=utr3_pc_list)
-
     """
 
     if mrna_prof_dic:
@@ -12221,51 +12474,132 @@ def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic,
         mrna_prof_plot =  "mRNA_region_plot.png"
         mrna_prof_plot_out = plots_out_folder + "/" + mrna_prof_plot
 
-        prof_id = "mrna_profile"
+        dataset_id = "rbpbench_search"
+        plot_id = "Input region coverage"
         mrna_reg_occ_dic = {}
-        mrna_reg_occ_dic[prof_id] = {}
-        mrna_reg_occ_dic[prof_id]["5'UTR"] = mrna_prof_dic[prof_id].utr5_pc_list
-        mrna_reg_occ_dic[prof_id]["CDS"] = mrna_prof_dic[prof_id].cds_pc_list
-        mrna_reg_occ_dic[prof_id]["3'UTR"] = mrna_prof_dic[prof_id].utr3_pc_list
-        c_ol_sites = mrna_prof_dic[prof_id].c_ol_sites
-        c_all_sites = mrna_prof_dic[prof_id].c_all_sites
-        utr5_len_norm = mrna_prof_dic[prof_id].utr5_len_norm  # AALAMO
-        cds_len_norm = mrna_prof_dic[prof_id].cds_len_norm
-        utr3_len_norm = mrna_prof_dic[prof_id].utr3_len_norm
-        norm_mode = mrna_prof_dic[prof_id].norm_mode
-        c_ol_mrnas = mrna_prof_dic[prof_id].c_ol_mrnas
+        mrna_reg_occ_dic[plot_id] = {}
+        mrna_reg_occ_dic[plot_id]["5'UTR"] = mrna_prof_dic[dataset_id].utr5_pc_list
+        mrna_reg_occ_dic[plot_id]["CDS"] = mrna_prof_dic[dataset_id].cds_pc_list
+        mrna_reg_occ_dic[plot_id]["3'UTR"] = mrna_prof_dic[dataset_id].utr3_pc_list
+        c_ol_sites = mrna_prof_dic[dataset_id].c_ol_sites
+        c_all_sites = mrna_prof_dic[dataset_id].c_all_sites
+        utr5_len_norm = mrna_prof_dic[dataset_id].utr5_len_norm  # AALAMO
+        cds_len_norm = mrna_prof_dic[dataset_id].cds_len_norm
+        utr3_len_norm = mrna_prof_dic[dataset_id].utr3_len_norm
+        norm_mode = mrna_prof_dic[dataset_id].norm_mode
+        c_ol_mrnas = mrna_prof_dic[dataset_id].c_ol_mrnas
+        perc_ol_sites = 0.0
+        if c_ol_sites and c_all_sites:
+            perc_ol_sites = round(c_ol_sites / c_all_sites * 100, 1)
+        perc_min_overlap = round(args.gtf_min_mrna_overlap * 100, 1)
 
-        create_mrna_region_occ_plot([prof_id], mrna_reg_occ_dic,
+        create_mrna_region_occ_plot([plot_id], mrna_reg_occ_dic,
                                     annot2color_dic, mrna_prof_plot_out,
                                     rbp_id=False)
 
         plots_path = plots_folder + "/" + mrna_prof_plot
 
-        mdtext += '<img src="' + plots_path + '" alt="mRNA region occupancy plot"' + "\n"
-        mdtext += 'title="mRNA region occupancy plot" />' + "\n"
+        mdtext += '<img src="' + plots_path + '" alt="mRNA region coverage plot"' + "\n"
+        mdtext += 'title="mRNA region coverage plot" />' + "\n"
         mdtext += """
-**Figure:** mRNA region motif hit coverage profile. c_ol_sites: %i, c_all_sites: %i. 
-utr5_len_norm = %s, cds_len_norm = %s, utr3_len_norm = %s, norm_mode = %s.
-c_ol_mrnas = %i.
+**Figure:** mRNA region coverage profile for provided input regions (# input regions = %i, # of input regions overlapping with mRNAs = %i). 
+Percentage of input regions overlapping with mRNA exons = %s%%. 
+NOTE that if this percentage is low, it likely means that the input regions (if derived from CLIP-seq or similar protocols) 
+originate from an intron binding RBP, making the plot less informative (since the RBP is typically not binding to spliced mRNAs).
+Minimum overlap amount with mRNA exons for input region to be counted as overlapping = %s%% (set via --gtf-min-mrna-overlap).
+All overlapping input region positions are used for the coverage calculation.
+Only mRNA regions overlapping with input regions are used for plot generation (# mRNAs with input regions = %i).
+mRNA region lengths used for plotting are derived from the %i mRNA regions, using their  %s region lengths (5'UTR = %s, CDS = %s, 3'UTR = %s).
 
 &nbsp;
 
-""" %(c_ol_sites, c_all_sites, str(utr5_len_norm), str(cds_len_norm), str(utr3_len_norm), norm_mode, c_ol_mrnas)
+""" %(c_all_sites, c_ol_sites, str(perc_ol_sites), str(perc_min_overlap), c_ol_mrnas, c_ol_mrnas, norm_mode, str(utr5_len_norm), str(cds_len_norm), str(utr3_len_norm))
 
 
 
+    """
+    Exon-intron overlap statistics
 
+    AALAMO
 
+        # AALAMO
+        exon_intron_ol_stats = benchlib.ExonIntronOverlap("rbpbench_search", c_regions,
+                                                          c_exon_sites=c_exon_ol,
+                                                          c_intron_sites=c_intron_ol,
+                                                          c_us_ib_sites=c_us_ib_ol,
+                                                          c_ds_ib_sites=c_ds_ib_ol,
+                                                          c_eib_sites=c_eib_ol,
+                                                          min_overlap=args.gtf_eib_min_overlap,
+                                                          intron_border_len=intron_border_len,
+                                                          ei_border_len=ei_border_len,
+                                                          c_tr_ids=len(tid2tio_dic),
+                                                          c_tr_ids_with_sites=len(tids_with_sites_dic))
+        
+        ei_ol_stats_dic["rbpbench_search"] = exon_intron_ol_stats
 
+    
+    """
 
+    if ei_ol_stats_dic:
 
+        mdtext += """
+## Exon-intron overlap statistics ### {#ei-ol-stats}
 
+"""
 
+        ei_ol_stats = ei_ol_stats_dic["rbpbench_search"]
+        exon_sites_perc = 0.0
+        if ei_ol_stats.c_exon_sites and ei_ol_stats.c_input_sites:
+            exon_sites_perc = round(ei_ol_stats.c_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
+        intron_sites_perc = 0.0
+        if ei_ol_stats.c_intron_sites and ei_ol_stats.c_input_sites:
+            intron_sites_perc = round(ei_ol_stats.c_intron_sites / ei_ol_stats.c_input_sites * 100, 1)
+        us_ib_sites_perc = 0.0
+        if ei_ol_stats.c_us_ib_sites and ei_ol_stats.c_input_sites:
+            us_ib_sites_perc = round(ei_ol_stats.c_us_ib_sites / ei_ol_stats.c_input_sites * 100, 1)
+        ds_ib_sites_perc = 0.0
+        if ei_ol_stats.c_ds_ib_sites and ei_ol_stats.c_input_sites:
+            ds_ib_sites_perc = round(ei_ol_stats.c_ds_ib_sites / ei_ol_stats.c_input_sites * 100, 1)
+        eib_sites_perc = 0.0
+        if ei_ol_stats.c_eib_sites and ei_ol_stats.c_input_sites:
+            eib_sites_perc = round(ei_ol_stats.c_eib_sites / ei_ol_stats.c_input_sites * 100, 1)
+        perc_min_overlap = round(args.gtf_eib_min_overlap * 100, 1)
 
+        # Make bar plot.
+        categories = ['Exon\nregions', 'Intron\nregions', '250 nt us\nintron regions', '250 nt ds\nintron regions', '+/- 50 nt exon\nintron borders']
+        percentages = [exon_sites_perc, intron_sites_perc, us_ib_sites_perc, ds_ib_sites_perc, eib_sites_perc]
 
+        fig, ax = plt.subplots(figsize=(8, 4))
 
+        ax.bar(categories, percentages, color='lightgray', zorder=2)
 
+        ax.set_ylabel('Input regions overlapping with %')
 
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+
+        ax.grid(axis='y', color='lightgray', linestyle='-', alpha=0.7, linewidth=0.7, zorder=1)
+
+        # plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.25)
+
+        eib_stats_plot = "eib_ol_stats.bar_plot.png"
+        eib_stats_plot_out = plots_out_folder + "/" + eib_stats_plot
+        plot_path = plots_folder + "/" + eib_stats_plot
+
+        plt.savefig(eib_stats_plot_out)
+        plt.close()
+        mdtext += '<image src = "' + plot_path + '" width="900px"></image>'  + "\n"
+        # mdtext += '<img src="' + plots_path + '" alt="Exon intron overlap plot"' + "\n"
+        # mdtext += 'title="mRNA region occupancy plot" />' + "\n"
+
+        mdtext += """
+**Figure:** exon intron + border region overlap statistics.
+
+&nbsp;
+
+"""
+        # Add more infos here: Input regions overlapping with %
 
 
 
@@ -14293,13 +14627,14 @@ RBP "%s" only contains structure motifs, which are currently not available for p
             mdtext += """
 **Figure:** mRNA region motif hit coverage profiles for RBP "%s" motif hits.
 Motif hit coverage profiles are shown for all motifs of RBP "%s" combined, as well as single motifs (unless there is only one motif), over 5'UTR, CDS, and 3'UTR regions of mRNA.
-x-axis is the motif hit coverage, i.e., how many motif hits found over the mRNA regions. 
-mRNA region lengths used for plotting are the %s region lengths obtained from the GTF file (5'UTR = %i, CDS = %i, 3'UTR = %i).
+x-axis is the motif hit coverage, i.e., how many motif hits found over the mRNA regions.
+Only motif hit center positions are used for annotation.
+mRNA region lengths used for plotting are the %s region lengths obtained from the GTF file (5'UTR = %s, CDS = %s, 3'UTR = %s).
 Number of mRNA sequences used for prediction and plot generation: %i.
 
 &nbsp;
 
-""" %(rbp_id, rbp_id, norm_mrna_reg_dic["mode"], norm_mrna_reg_dic["5'UTR"], norm_mrna_reg_dic["CDS"], norm_mrna_reg_dic["3'UTR"], norm_mrna_reg_dic["c_mrna_seqs"])
+""" %(rbp_id, rbp_id, norm_mrna_reg_dic["mode"], str(norm_mrna_reg_dic["5'UTR"]), str(norm_mrna_reg_dic["CDS"]), str(norm_mrna_reg_dic["3'UTR"]), norm_mrna_reg_dic["c_mrna_seqs"])
 
         # If there are motif hit region annotations and hits for the RBP.
         if rbp2motif2annot2c_dic and c_total_rbp_hits:
@@ -14314,9 +14649,9 @@ Number of mRNA sequences used for prediction and plot generation: %i.
 
             plot_path = plots_folder + "/" + annot_stacked_bars_plot
 
-            mdtext += '<img src="' + plot_path + '" alt="Annotation stacked bars plot"' + "\n"
+            mdtext += '<img src="' + plot_path + '" alt="Region annotations plot"' + "\n"
             # mdtext += 'title="Annotation stacked bars plot" width="800" />' + "\n"
-            mdtext += 'title="Annotation stacked bars plot" />' + "\n"
+            mdtext += 'title="Region annotations plot" />' + "\n"
             mdtext += """
 **Figure:** Genomic region annotations for RBP "%s" motif hits.
 %s motif hit regions are overlapped with genomic regions from GTF file and genomic region feature with highest overlap

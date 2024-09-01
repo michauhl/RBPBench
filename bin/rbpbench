@@ -387,6 +387,12 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.1,
                    help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\") (default: 0.1)")
+    p_s.add_argument("--gtf-eib-min-overlap",
+                   dest="gtf_eib_min_overlap",
+                   type=float,
+                   metavar='float',
+                   default=0.9,
+                   help="Minimum amount input region has to overlap with exon (e), intron (i), i + ei borders to be counted as overlapping with these (note that the amount is reciprocal, i.e., one of the overlapping parts meeting the minimum amount is enough) (default: 0.9)")
     p_s.add_argument("--gtf-min-mrna-overlap",
                    dest="gtf_min_mrna_overlap",
                    type=float,
@@ -3965,7 +3971,7 @@ def main_search(args):
         2: 1, 2, ... , X, MT
 
     """
-    chr_style = 0  # no changes to chromosome IDs in GTF files.
+    chr_style = 1  # no changes to chromosome IDs in GTF files. AALAMO Change back to 0 !!!
     
     if "1" in chr_ids_dic:
         assert "chr1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
@@ -5286,6 +5292,7 @@ def main_search(args):
     background_genes_dic = {}  # Store all gene IDs in GTF file to use as background genes.
     gid2tid_dic = {}
     tid2tio_dic = None
+    ei_ol_stats_dic = {}
 
     if args.in_gtf:  # and c_regions_with_hits:
 
@@ -5394,6 +5401,8 @@ def main_search(args):
         OUTRAN = open(reg_annot_table_file, "w")
         OUTRAN.write("region_id\tgene_id\tgene_name\ttranscript_id\tregion_annotation\ttranscript_biotype\n")
 
+        tids_with_sites_dic = {}  # transcript IDs with sites.
+
         for reg_id in reg2annot_dic:
             annot = reg2annot_dic[reg_id][0]
             tr_id = reg2annot_dic[reg_id][1]
@@ -5413,8 +5422,69 @@ def main_search(args):
             else:
                 tr_id = "-"
             OUTRAN.write("%s\t%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot, tr_biotype))
+
+            if tr_id not in tids_with_sites_dic:
+                tids_with_sites_dic[tr_id] = 1
+            else:
+                tids_with_sites_dic[tr_id] += 1
+            
         OUTRAN.close()
+
+
+        """
+        Get exon+intron+eib overlap counts.
+
+        """
+
+        intron_border_len = 250
+        ei_border_len = 50
+
+        print("Output exon + intron border regions ... ")
+        intron_exon_border_out_bed = args.out_folder + "/intron_exon_border_regions.tmp.bed"
+        benchlib.exon_intron_border_regions_to_bed(tid2tio_dic, intron_exon_border_out_bed,
+                                            tr_ids_dic=None,
+                                            intron_border_len=250,
+                                            ei_border_len=50)
+
+        # Overlap with input regions.
+        print("Overlap exon + intron regions with input regions ... ")
+        params = "-s -f %s -F %s -e " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
+        overlap_ei_regions_bed = args.out_folder + "/overlap_ei_regions.tmp.bed"
+        benchlib.bed_intersect_files(intron_exon_out_bed, filtered_sites_bed,
+                                     overlap_ei_regions_bed,
+                                     params=params)
+
+        # Get exon + intron overlap counts, and also transcript IDs (?) or better from here: reg2annot_dic
+        c_exon_ol, c_intron_ol = benchlib.get_intron_exon_ol_counts(overlap_ei_regions_bed)
+        print("# exon overlap regions:   %i" %(c_exon_ol))
+        print("# intron overlap regions: %i" %(c_intron_ol))
+
+        print("Overlap exon + intron border regions with input regions ... ")
+        params = "-s -f %s -F %s -e " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
+        overlap_eib_regions_bed = args.out_folder + "/overlap_eib_regions.tmp.bed"
+        benchlib.bed_intersect_files(intron_exon_border_out_bed, filtered_sites_bed,
+                                     overlap_eib_regions_bed,
+                                     params=params)
+
+        # Get other overlap counts.
+        c_eib_ol, c_us_ib_ol, c_ds_ib_ol = benchlib.get_eib_ol_counts(overlap_eib_regions_bed)
+
+        # AALAMO
+        exon_intron_ol_stats = benchlib.ExonIntronOverlap("rbpbench_search", c_regions,
+                                                          c_exon_sites=c_exon_ol,
+                                                          c_intron_sites=c_intron_ol,
+                                                          c_us_ib_sites=c_us_ib_ol,
+                                                          c_ds_ib_sites=c_ds_ib_ol,
+                                                          c_eib_sites=c_eib_ol,
+                                                          min_overlap=args.gtf_eib_min_overlap,
+                                                          intron_border_len=intron_border_len,
+                                                          ei_border_len=ei_border_len,
+                                                          c_tr_ids=len(tid2tio_dic),
+                                                          c_tr_ids_with_sites=len(tids_with_sites_dic))
         
+        ei_ol_stats_dic["rbpbench_search"] = exon_intron_ol_stats
+
+
         # If only target genes with RBP motifs hits for all RBPs should be considered.
         if args.goa_cooc_mode == 2:
             gid2tid_dic = {}
@@ -5474,64 +5544,10 @@ def main_search(args):
 
             target_genes_dic = new_target_genes_dic
 
-        """
-        Output exon regions for mRNA region site occupancy plot.
+    """
+    Get data for mRNA region site occupancy plot.
 
-        AALAMO
-
-        1) Get mRNA exons.
-        {'ENST01': [15, 21, 4], 'ENST02': [14, 11, 15]}
-        
-        1) Get sites overlapping with mRNA exons, and transcript IDs overlapping with them.
-
-filtered_sites_bed
-
-$ bedtools intersect -a sites.bed -b intron_exon_regions.tmp.bed -s -wb
-chr1	1080	1085	s1	0	-	chr1	1080	1100	exon;1;ENST01	0	-
-chr2	1010	1020	s2	0	+	chr2	1000	1020	exon;1;ENST02	0	+
-chr2	1015	1020	s3	0	+	chr2	1000	1020	exon;1;ENST02	0	+
-
-
-bedtools intersect -a sites.bed -b intron_exon_regions.tmp.bed -s -wb -f 0.5
-chr1	1080	1085	s1	0	-	chr1	1080	1100	exon;1;ENST01	0	-
-chr2	1010	1020	s2	0	+	chr2	1000	1020	exon;1;ENST02	0	+
-chr2	1015	1020	s3	0	+	chr2	1000	1020	exon;1;ENST02	0	+
-
-
-bedtools intersect -a sites.bed -b intron_exon_regions.tmp.bed -s -wb -f 0.5
-
-
-bedtools intersect -a sites.bed -b intron_exon_regions.tmp.bed -s
-chr1	1080	1085	s1	0	-
-chr2	1010	1020	s2	0	+
-chr2	1015	1020	s3	0	+
-
-bedtools intersect -b sites.bed -a intron_exon_regions.tmp.bed -s -wb
-
-
-chr1	1080	1100	exon;1;ENST01	0	-
-chr1	1040	1050	exon;2;ENST01	0	-
-chr1	1000	1010	exon;3;ENST01	0	-
-chr2	1000	1020	exon;1;ENST02	0	+
-chr2	1050	1060	exon;2;ENST02	0	+
-chr2	1090	1100	exon;3;ENST02	0	+
-
-bedtools intersect -b sites.bed -a intron_exon_regions.tmp.bed -s -wb
-chr1	1080	1085	exon;1;ENST01	0	-	chr1	1070	1085	s1	0	-
-chr2	1010	1020	exon;1;ENST02	0	+	chr2	1010	1030	s2	0	+
-chr2	1015	1020	exon;1;ENST02	0	+	chr2	1015	1030	s3	0	+
-
-
-bedtools intersect -b sites.bed -a intron_exon_regions.tmp.bed -s
-chr1	1080	1085	exon;1;ENST01	0	-
-chr2	1010	1020	exon;1;ENST02	0	+
-chr2	1015	1020	exon;1;ENST02	0	+
-
-filtered_sites_bed
-
-        AALAMO
-
-        """
+    """
 
     mrna_prof_dic = {}
 
@@ -5560,6 +5576,7 @@ filtered_sites_bed
         if c_ol_mrna_sites:
             exon2pcl_dic = benchlib.get_exon_pos_count_list_dic(tid2tio_dic, tr_ids_dic=ol_mrna_tids_dic)
             benchlib.fill_exon_pos_count_lists(mrna_exon_sites_overlap_bed, tid2tio_dic, exon2pcl_dic)
+            # print("exon2pcl_dic:", exon2pcl_dic)
 
             tr2pcl_dic = {}
             tid2ol_regl_dic = {}
@@ -5567,6 +5584,7 @@ filtered_sites_bed
                 assert tid in tid2regl_dic, "transcript ID %s not in tid2regl_dic"
                 # Get exon number.
                 exon_c = tid2tio_dic[tid].exon_c
+                # print(tid, "exon_c:", exon_c)
                 tr2pcl_dic[tid] = []
                 for exon_i in range(1, exon_c+1):
                     exon_id = "exon;%i;%s" %(exon_i, tid)
@@ -5575,6 +5593,10 @@ filtered_sites_bed
                 tr_len = tid2tio_dic[tid].tr_length  # spliced transcript length.
                 assert tr_len == len(tr2pcl_dic[tid]), "transcript length %i != position count list length %i for transcript ID %s" %(tr_len, len(tr2pcl_dic[tid]), tid)
                 tid2ol_regl_dic[tid] = tid2regl_dic[tid]
+
+                # print(tid, tid2ol_regl_dic[tid])
+
+            # print("tr2pcl_dic:", tr2pcl_dic)
 
             c_ol_mrnas = len(tid2ol_regl_dic)
             c_mrnas = len(tid2regl_dic)
@@ -5585,9 +5607,7 @@ filtered_sites_bed
                                                         tid2ol_regl_dic,
                                                         mrna_norm_mode=args.mrna_norm_mode)
 
-            print("5'UTR = ", utr5_len_norm)
-            print("CDS   = ", cds_len_norm)
-            print("3'UTR = ", utr3_len_norm)
+
 
             utr5_pc_list = [0] * round(utr5_len_norm)
             cds_pc_list = [0] * round(cds_len_norm)
@@ -5616,36 +5636,46 @@ filtered_sites_bed
                         occ_pos = round((center_pos / utr5_len) * utr5_len_norm)
                         if occ_pos > 0:
                             occ_pos -= 1
-                        utr5_pc_list[occ_pos] += 1
+                        utr5_pc_list[occ_pos] += pc
 
                     elif center_pos > utr5_e and center_pos <= cds_e:  # In CDS.
 
                         occ_pos = round(((center_pos - utr5_e) / cds_len) * cds_len_norm)
                         if occ_pos > 0:
                             occ_pos -= 1
-                        cds_pc_list[occ_pos] += 1
+                        cds_pc_list[occ_pos] += pc
 
                     elif center_pos > cds_e and center_pos <= utr3_e:  # In 3'UTR.
 
                         occ_pos = round(((center_pos - cds_e) / utr3_len) * utr3_len_norm)
                         if occ_pos > 0:
                             occ_pos -= 1
-                        utr3_pc_list[occ_pos] += 1
+                        utr3_pc_list[occ_pos] += pc
 
                     else:
                         assert False, "center position %i not in 5'UTR, CDS or 3'UTR of transcript ID %s (transcript length: %i)" %(center_pos, tid, tr_len)
 
+            c_ol_sites = c_ol_mrna_sites
+            c_all_sites = reg_stats_dic["c_out"]
 
-            mrna_profile = benchlib.MrnaRegionProfile("mrna_profile", utr5_len_norm, cds_len_norm, 
+            perc_ol_sites = 0.0
+            if c_ol_sites and c_all_sites:
+                perc_ol_sites = round(c_ol_sites / c_all_sites * 100, 1)
+
+            print("# of input regions on mRNAs: %i" %(c_ol_sites))
+            print("# of all input regions:      %i" %(c_all_sites))
+            print("%% of input regions on mRNAs: %s" %(str(perc_ol_sites)))
+
+            mrna_profile = benchlib.MrnaRegionProfile("rbpbench_search", utr5_len_norm, cds_len_norm, 
                                                       utr3_len_norm, norm_mode,
-                                                      c_ol_sites=c_ol_mrna_sites,
-                                                      c_all_sites=reg_stats_dic["c_out"],
+                                                      c_ol_sites=c_ol_sites,
+                                                      c_all_sites=c_all_sites,
                                                       c_ol_mrnas=c_ol_mrnas,
                                                       utr5_pc_list=utr5_pc_list, 
                                                       cds_pc_list=cds_pc_list,
                                                       utr3_pc_list=utr3_pc_list)
 
-            mrna_prof_dic["mrna_profile"] = mrna_profile
+            mrna_prof_dic["rbpbench_search"] = mrna_profile
 
 
     # elif args.in_gtf and not c_regions_with_hits:
@@ -5807,6 +5837,11 @@ filtered_sites_bed
                         else:
                             annot_dic[annot] += 1
 
+        if mrna_prof_dic:
+            annot_dic["5'UTR"] = 1
+            annot_dic["CDS"] = 1
+            annot_dic["3'UTR"] = 1
+
         # hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
         hex_colors = benchlib.get_hex_colors_list(min_len=len(annot_dic))
 
@@ -5876,6 +5911,7 @@ filtered_sites_bed
                                         reg_ids_list,
                                         seq_len_df=seq_len_df,
                                         mrna_prof_dic=mrna_prof_dic,
+                                        ei_ol_stats_dic=ei_ol_stats_dic,
                                         seq_motif_blocks_dic=seq_motif_blocks_dic,
                                         reg2annot_dic=reg2annot_dic,
                                         annot2color_dic=annot2color_dic,
@@ -13639,21 +13675,21 @@ def main_searchlongrna(args):
 
             mrna_reg_occ_dic[rbp_id] = {}
             # List of length utr5_len_median with 0s.
-            mrna_reg_occ_dic[rbp_id]["5'UTR"] = [0] * int(utr5_len_norm)
-            mrna_reg_occ_dic[rbp_id]["CDS"] = [0] * int(cds_len_norm)
-            mrna_reg_occ_dic[rbp_id]["3'UTR"] = [0] * int(utr3_len_norm)
+            mrna_reg_occ_dic[rbp_id]["5'UTR"] = [0] * round(utr5_len_norm)  # AALAMO
+            mrna_reg_occ_dic[rbp_id]["CDS"] = [0] * round(cds_len_norm)
+            mrna_reg_occ_dic[rbp_id]["3'UTR"] = [0] * round(utr3_len_norm)
 
             for motif_id in rbp.seq_motif_ids:
                 mrna_reg_occ_dic[motif_id] = {}
-                mrna_reg_occ_dic[motif_id]["5'UTR"] = [0] * int(utr5_len_norm)
-                mrna_reg_occ_dic[motif_id]["CDS"] = [0] * int(cds_len_norm)
-                mrna_reg_occ_dic[motif_id]["3'UTR"] = [0] * int(utr3_len_norm)
+                mrna_reg_occ_dic[motif_id]["5'UTR"] = [0] * round(utr5_len_norm)
+                mrna_reg_occ_dic[motif_id]["CDS"] = [0] * round(cds_len_norm)
+                mrna_reg_occ_dic[motif_id]["3'UTR"] = [0] * round(utr3_len_norm)
 
             for motif_id in rbp.str_motif_ids:
                 mrna_reg_occ_dic[motif_id] = {}
-                mrna_reg_occ_dic[motif_id]["5'UTR"] = [0] * int(utr5_len_norm)
-                mrna_reg_occ_dic[motif_id]["CDS"] = [0] * int(cds_len_norm)
-                mrna_reg_occ_dic[motif_id]["3'UTR"] = [0] * int(utr3_len_norm)
+                mrna_reg_occ_dic[motif_id]["5'UTR"] = [0] * round(utr5_len_norm)
+                mrna_reg_occ_dic[motif_id]["CDS"] = [0] * round(cds_len_norm)
+                mrna_reg_occ_dic[motif_id]["3'UTR"] = [0] * round(utr3_len_norm)
 
 
     # Output sequences to FASTA.
