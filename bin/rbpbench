@@ -2929,6 +2929,12 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help = "If --in is regex/sequence with format e.g. AC[AT]A, define whether to split regex into single motifs (ACAA, ACTA), or to make one motif out of it. 1: convert to one motif. 2: convert to multiple single motifs (default: 1)")
+    p_to.add_argument("--func-pval",
+                   dest="func_pval_thr",
+                   type=float,
+                   metavar='float',
+                   default=0.5,
+                   help="RBP function enrichment p-value threshold (default: 0.5)")
 
     # TOMTOM options.
     p_to.add_argument("--tomtom-bfile",
@@ -3422,6 +3428,7 @@ def main_search(args):
 
     """
     Motif database.
+
     """
     seq_motifs_db_file, str_motifs_db_file, rbp2ids_file, motif_db_str = specify_motif_db(args.motif_db, 
                                                                             db_path=db_path)
@@ -19897,6 +19904,7 @@ def main_tomtom(args):
     tomtom_out_xml = args.out_folder + "/tomtom.xml"
     tomtom_out_html = args.out_folder + "/tomtom.html"
 
+
     """
     Motif database.
 
@@ -19908,8 +19916,48 @@ def main_tomtom(args):
     if args.custom_db_meme_xml:
         seq_motifs_db_file = args.custom_db_meme_xml
         motif_db_str = args.custom_db_id
+        rbp2ids_file = False
 
     args.motif_db_str = motif_db_str
+
+    """
+    Get ID mappings (if internal motif db used)
+
+    name2ids_dic:
+    RBP name -> motif IDs mapping
+    id2type_dic:
+    motif ID -> motif type (cm, meme_xml)
+    id2org_dic (ignore for now):
+    motif ID -> organism ID (so far only "human")
+    name2fids_dic:
+    RBP name -> annotated function IDs list, e.g.
+    "A1CF" -> ["RM", "RSD", "RE"]
+
+    """
+
+    name2ids_dic = False
+    id2type_dic = False
+    name2gid_dic = False
+    name2fids_dic = False
+    fid2desc_dic = False
+    desc2fid_dic = False
+    id2name_dic = {}
+
+    if rbp2ids_file:
+        name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file,
+                                                                                              only_meme_xml=True)
+        # Motif ID -> RBP name (== RBP ID) mapping.
+        for rbp_id in name2ids_dic:
+            for motif_id in name2ids_dic[rbp_id]:
+                id2name_dic[motif_id] = rbp_id
+
+        """
+        Get function ID -> function descriptions mapping.
+
+        """
+        fid2desc_file = db_path + "/rbp_function_list.32728246.tsv"
+        fid2desc_dic, desc2fid_dic = benchlib.get_fid2desc_mapping(fid2desc_file)
+
 
     """
     Check set motifs file.
@@ -20017,6 +20065,122 @@ def main_tomtom(args):
                         error_check=False)
 
     """
+    Check for significantly enriched functions in targets, 
+    for each query.
+
+    Motif ID -> RBP name (== RBP ID):
+    id2name_dic
+    RBP name -> Motif IDs:
+    name2ids_dic
+    name2fids_dic
+    fid2desc_dic
+    desc2fid_dic
+    name2gid_dic
+
+    tomtom_out_tsv format:
+
+    Query_ID	Target_ID	Optimal_offset	p-value	E-value	q-value	Overlap	Query_consensus	Target_consensus	Orientation
+    RNCMPT00001	TBRG4_1	2	0.000171464	0.103564	0.103564	7	ATAATTG	ACGTAATTTT	+
+                                        
+    # Tomtom (Motif Comparison Tool): Version 5.5.5 compiled on Jan 16 2024 at 00:57:42									
+    # The format of this file is described at https://meme-suite.org/meme/doc/tomtom-output-format.html.									
+    # tomtom -norc -png -oc tomtom_out q2.meme catRAPID_omics_v2.1_6plus_motifs.weak_rounded.meme									
+
+    """
+
+    enriched_rbp_func_stats = args.out_folder + "/enriched_rbp_functions.tsv"
+
+    if rbp2ids_file:
+
+        print("Test for significantly enriched RBP functions in target IDs ... ")
+
+        RESOUT = open(enriched_rbp_func_stats, "w")
+        RESOUT.write("query_id\tfunction_id\tp_value\tc_tar_f\tc_tar_not_f\tc_db_f\tc_db_not_f\tfunction_description\n")
+
+        c_db_hits = 0
+        c_sig_f = 0
+        c_db_rbps = len(name2ids_dic)
+
+        # # Motif ID -> function IDs mapping.
+        # mid2fids_dic = {}
+        # c_db_motifs = 0  # Total number of motif IDs.
+        # for rbp_id in name2ids_dic:
+        #     for motif_id in name2ids_dic[rbp_id]:
+        #         c_db_motifs += 1
+        #         mid2fids_dic[motif_id] = name2fids_dic[rbp_id]
+
+        fid2dbc_dic = benchlib.get_fid_db_counts(name2ids_dic, name2fids_dic,
+                                                 motif_level=False)
+
+        query2targets_dic = {}
+        targets_dic = {}
+
+        with open(tomtom_out_tsv, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                if line.startswith("#") or line.startswith("Query_ID"):
+                    continue
+                cols = line.split("\t")
+                query_id = cols[0]
+                target_id = cols[1]
+                targets_dic[target_id] = 1
+                c_db_hits += 1
+                if query_id in query2targets_dic:
+                    query2targets_dic[query_id].append(target_id)
+                else:
+                    query2targets_dic[query_id] = [target_id]
+
+        print("# of TOMTOM database hits:          %i" %(c_db_hits))
+        print("# of query IDs with hits:           %i" %(len(query2targets_dic)))
+        print("# of target (motif) IDs with hits:  %i" %(len(targets_dic)))
+
+        query2rbps_dic = {}
+        for qid in query2targets_dic:
+            query2rbps_dic[qid] = []
+            for tid in query2targets_dic[qid]:
+                rbp_id = id2name_dic[tid]
+                if rbp_id not in query2rbps_dic[qid]:
+                    query2rbps_dic[qid].append(rbp_id)
+
+        if query2rbps_dic:
+            for qid in query2rbps_dic:
+                fid2c_dic = {}
+                for rbp_id in query2rbps_dic[qid]:
+                    fids_list = name2fids_dic[rbp_id]
+                    for fid in fids_list:
+                        if fid in fid2c_dic:
+                            fid2c_dic[fid] += 1
+                        else:
+                            fid2c_dic[fid] = 1
+                rbp_c = len(query2rbps_dic[qid])
+                # One Fisher test for each function ID in targets.
+                for fid in fid2c_dic:
+                    fid_c = fid2c_dic[fid]  # number of target RBPs with function ID fid.
+                    assert fid_c <= rbp_c, "function ID count (%i) exceeds target RBP count (%i)" %(fid_c, rbp_c)
+                    a_fisher = fid_c
+                    b_fisher = rbp_c - fid_c
+                    c_fisher = fid2dbc_dic[fid]
+                    d_fisher = c_db_rbps - c_fisher
+
+                    con_table = [[a_fisher, b_fisher], [c_fisher, d_fisher]]
+                    fisher_alt_hypo = "greater"
+
+                    odds_ratio, p_value = fisher_exact(con_table, alternative=fisher_alt_hypo)
+
+                    if p_value <= args.func_pval_thr:
+                        desc = fid2desc_dic[fid]
+                        c_sig_f += 1
+                        RESOUT.write("%s\t%s\t%s\t%i\t%i\t%i\t%i\t%s\n" %(qid, fid, str(p_value), a_fisher, b_fisher, c_fisher, d_fisher, desc))
+
+        RESOUT.close()
+
+        print("# significantly enriched functions: %i" %(c_sig_f))
+
+
+
+    """
     Output parameter settings.
 
     """
@@ -20043,6 +20207,8 @@ def main_tomtom(args):
     print("TOMTOM results .tsv:\n%s" %(tomtom_out_tsv))
     print("TOMTOM results .xml:\n%s" %(tomtom_out_xml))
     print("TOMTOM results .html:\n%s" %(tomtom_out_html))
+    if rbp2ids_file:
+        print("Enriched RBP functions .tsv:\n%s" %(enriched_rbp_func_stats))
     print("")
 
 

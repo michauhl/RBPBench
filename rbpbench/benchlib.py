@@ -4949,7 +4949,46 @@ def get_fid2desc_mapping(fid2desc_file):
 
 ################################################################################
 
-def get_rbp_id_mappings(rbp2ids_file):
+def get_fid_db_counts(name2ids_dic, name2fids_dic,
+                      motif_level=False):
+    """
+    Get function ID database counts (i.e. number of their appearances 
+    over all RBPs, so count appearance for every motif of an RBP!).
+
+    >>> name2ids_dic = {'A1CF': ['A1CF_1', 'A1CF_2'], 'ACIN1': ['ACIN1_1']}
+    >>> name2fids_dic = {'A1CF': ['RM', 'RSD', 'RE'], 'ACIN1': ['RSD']}
+    >>> get_fid_db_counts(name2ids_dic, name2fids_dic, motif_level=True)
+    {'RM': 2, 'RSD': 3, 'RE': 2}
+    >>> get_fid_db_counts(name2ids_dic, name2fids_dic, motif_level=False)
+    {'RM': 1, 'RSD': 2, 'RE': 1}
+    
+    """
+    fid2dbc_dic = {}
+
+    for rbp_name in name2ids_dic:
+        if motif_level:
+            for motif_id in name2ids_dic[rbp_name]:
+                fids_list = name2fids_dic[rbp_name]
+                for fid in fids_list:
+                    if fid in fid2dbc_dic:
+                        fid2dbc_dic[fid] += 1
+                    else:
+                        fid2dbc_dic[fid] = 1
+        else:
+            fids_list = name2fids_dic[rbp_name]
+            for fid in fids_list:
+                if fid in fid2dbc_dic:
+                    fid2dbc_dic[fid] += 1
+                else:
+                    fid2dbc_dic[fid] = 1
+
+    return fid2dbc_dic
+
+
+################################################################################
+
+def get_rbp_id_mappings(rbp2ids_file,
+                        only_meme_xml=False):
     """
     Read in file mapping RBP names to motif IDs and motif types.
     Return dictionaries with:
@@ -4994,6 +5033,9 @@ def get_rbp_id_mappings(rbp2ids_file):
             motif_type = cols[2]
 
             id2type_dic[motif_id] = motif_type
+            if only_meme_xml:
+                if motif_type != "meme_xml":
+                    continue
 
             if rbp_name in name2ids_dic:
                 name2ids_dic[rbp_name].append(motif_id)
