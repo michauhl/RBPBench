@@ -3001,7 +3001,6 @@ def exon_intron_border_regions_to_bed(tid2tio_dic, out_bed,
     >>> tid2tio_dic = {}
     >>> tid2tio_dic["ENST1"] = TranscriptInfoExonTest("ENST1", "chr1", "+", [[1001, 1100], [2001, 2100], [3001, 3100]])
     >>> tid2tio_dic["ENST2"] = TranscriptInfoExonTest("ENST2", "chr1", "-", [[3001, 3100], [2001, 2100], [1001, 1100]])
-
     >>> exon_intron_border_regions_to_bed(tid2tio_dic, out_bed)
     >>> diff_two_files_identical(out_bed, exp_bed)
     True
@@ -8586,6 +8585,7 @@ def batch_generate_html_report(args,
                                regex_annot_dic=False,
                                id2occ_list_dic=False,
                                gene_occ_cooc_plot=False,
+                               ei_ol_stats_dic=False,
                                plotly_full_html=False,
                                plotly_embed_style=1,
                                add_motif_db_info=False,
@@ -8749,6 +8749,9 @@ by RBPBench (rbpbench batch --report):
 - [Input datasets sequence length statistics](#seq-len-stats)""" %(report_header_info)
     mdtext += "\n"
 
+    if ei_ol_stats_dic:
+        mdtext += "- [Input datasets exon-intron overlap statistics](#ei-ol-stats)\n"
+
     if id2motif_enrich_stats_dic: # if not empty.
         mdtext += "- [Input datasets RBP region score motif enrichment statistics](#motif-enrich-stats)\n"
 
@@ -8810,6 +8813,7 @@ by RBPBench (rbpbench batch --report):
         seq_stats_info = "--unstranded option selected, i.e., both strands of a region are included in the length statistics, but the two strands are counted as one region."
     elif args.unstranded and args.unstranded_ct:
         seq_stats_info = "--unstranded and --unstranded-ct options selected, i.e., both strands of a region are included in the length statistics, and each strand counts as separate region."
+
 
     mdtext += """
 ## Input datasets sequence length statistics ### {#seq-len-stats}
@@ -8874,6 +8878,109 @@ Input dataset ID format: %s. %s
     # mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
     # mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
     # mdtext += "\n&nbsp;\n"
+
+
+
+    # AALAMO
+    if ei_ol_stats_dic:
+
+        perc_min_overlap = round(args.gtf_eib_min_overlap * 100, 1)
+        ib_len =  args.gtf_intron_border_len
+        eib_len = args.ei_border_len
+
+        mdtext += """
+## Input datasets exon-intron overlap statistics ### {#ei-ol-stats}
+
+**Table:** Exon, intron + border region overlap statistics for each input dataset.
+Minimum overlap with exon/intron region for input region to be counted as overlapping = %s%%.
+Considered intron border region length = %i nt. Considered exon-intron border region = +/- %i nt relative to border.
+%s
+
+""" %(str(perc_min_overlap), ib_len, eib_len, seq_stats_info)
+
+
+        mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>Dataset ID</th>\n"
+        mdtext += "<th># input regions</th>\n"
+        mdtext += "<th>% exon regions</th>\n"
+        mdtext += "<th>% intron regions</th>\n"
+        mdtext += "<th>% upstream intron border regions</th>\n"
+        mdtext += "<th>% downstream intron border regions</th>\n"
+        mdtext += "<th>% exon-intron border regions</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
+
+        # OUTEIB = open(eib_ol_table_out,"w")
+        # OUTEIB.write("dataset_id\tperc_exons\tperc_introns\tperc_us_ib\tperc_ds_ib\tperc_eib\tc_regions\tc_exon_sites\tc_intron_sites\tc_us_ib_sites\tc_ds_ib_sites\tc_eib_sites\tc_tr_ids\tc_tr_ids_with_sites\n")
+
+        for internal_id in ei_ol_stats_dic:
+            combined_id = internal_id
+            rbp_id = id2infos_dic[internal_id][0]
+            data_id = id2infos_dic[internal_id][1]
+            method_id = id2infos_dic[internal_id][2]
+            database_id = id2infos_dic[internal_id][3]
+            if add_motif_db_info:
+                combined_id = rbp_id + "," + database_id + "," + method_id + "," + data_id
+            else:
+                combined_id = rbp_id + "," + method_id + "," + data_id
+
+            ei_ol_stats = ei_ol_stats_dic[internal_id]
+            exon_sites_perc = 0.0
+            if ei_ol_stats.c_exon_sites and ei_ol_stats.c_input_sites:
+                exon_sites_perc = round(ei_ol_stats.c_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
+            intron_sites_perc = 0.0
+            if ei_ol_stats.c_intron_sites and ei_ol_stats.c_input_sites:
+                intron_sites_perc = round(ei_ol_stats.c_intron_sites / ei_ol_stats.c_input_sites * 100, 1)
+            us_ib_sites_perc = 0.0
+            if ei_ol_stats.c_us_ib_sites and ei_ol_stats.c_input_sites:
+                us_ib_sites_perc = round(ei_ol_stats.c_us_ib_sites / ei_ol_stats.c_input_sites * 100, 1)
+            ds_ib_sites_perc = 0.0
+            if ei_ol_stats.c_ds_ib_sites and ei_ol_stats.c_input_sites:
+                ds_ib_sites_perc = round(ei_ol_stats.c_ds_ib_sites / ei_ol_stats.c_input_sites * 100, 1)
+            eib_sites_perc = 0.0
+            if ei_ol_stats.c_eib_sites and ei_ol_stats.c_input_sites:
+                eib_sites_perc = round(ei_ol_stats.c_eib_sites / ei_ol_stats.c_input_sites * 100, 1)
+        
+            mdtext += "<tr>\n"
+            mdtext += "<td>%s</td>\n" %(combined_id)
+            mdtext += "<td>%i</td>\n" %(ei_ol_stats.c_input_sites)
+            mdtext += "<td>%.1f</td>\n" %(exon_sites_perc)
+            mdtext += "<td>%.1f</td>\n" %(intron_sites_perc)
+            mdtext += "<td>%.1f</td>\n" %(us_ib_sites_perc)
+            mdtext += "<td>%.1f</td>\n" %(ds_ib_sites_perc)
+            mdtext += "<td>%.1f</td>\n" %(eib_sites_perc)
+            mdtext += "</tr>\n"
+
+        mdtext += "</tbody>\n"
+        mdtext += "</table>\n"
+
+        mdtext += "\n&nbsp;\n&nbsp;\n"
+        mdtext += "\nColumn IDs have the following meanings: "
+        mdtext += "**Dataset ID** -> Dataset ID for input dataset with following format: %s, " %(dataset_id_format)
+        mdtext += '**# input regions** -> number of considered input regions from input dataset, '
+        mdtext += '**% exon regions** -> % of input regions overlapping with exon regions, '
+        mdtext += '**% intron regions** -> % of input regions overlapping with intron regions, '
+        mdtext += '**%% upstream intron border regions** -> %% of input regions overlapping with upstream ends of intron regions (first %i nt), ' %(ib_len)
+        mdtext += '**%% downstream intron border regions** -> %% of input regions overlapping with downstream ends of intron regions (last %i nt), ' %(ib_len)
+        mdtext += '**%% exon-intron border regions** -> %% of input regions overlapping with exon-intron borders (+/- %i nt of exon-intron borders). ' %(eib_len)
+        mdtext += "Note that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered.\n" %(2*ib_len, ib_len)
+        mdtext += "\n&nbsp;\n"
+
+        # AALAMO
+
+
+
+
+
+
+
+
+
+
+
 
 
     """
@@ -12565,8 +12672,10 @@ mRNA region lengths used for plotting are derived from the %i mRNA regions, usin
             eib_sites_perc = round(ei_ol_stats.c_eib_sites / ei_ol_stats.c_input_sites * 100, 1)
         perc_min_overlap = round(args.gtf_eib_min_overlap * 100, 1)
 
+        intron_bl =  args.gtf_intron_border_len
+
         # Make bar plot.
-        categories = ['Exon\nregions', 'Intron\nregions', '250 nt us\nintron regions', '250 nt ds\nintron regions', '+/- 50 nt exon\nintron borders']
+        categories = ['Exon\nregions', 'Intron\nregions', '%i nt us\nintron regions' %(intron_bl), '%i nt ds\nintron regions' %(intron_bl), '+/- 50 nt exon\nintron borders']
         percentages = [exon_sites_perc, intron_sites_perc, us_ib_sites_perc, ds_ib_sites_perc, eib_sites_perc]
 
         fig, ax = plt.subplots(figsize=(8, 4))
@@ -12574,6 +12683,8 @@ mRNA region lengths used for plotting are derived from the %i mRNA regions, usin
         ax.bar(categories, percentages, color='lightgray', zorder=2)
 
         ax.set_ylabel('Input regions overlapping with %')
+
+        ax.set_yticks(range(0, 101, 10))
 
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
@@ -12587,22 +12698,29 @@ mRNA region lengths used for plotting are derived from the %i mRNA regions, usin
         eib_stats_plot_out = plots_out_folder + "/" + eib_stats_plot
         plot_path = plots_folder + "/" + eib_stats_plot
 
-        plt.savefig(eib_stats_plot_out)
+        plt.savefig(eib_stats_plot_out, dpi=125)
         plt.close()
         mdtext += '<image src = "' + plot_path + '" width="900px"></image>'  + "\n"
         # mdtext += '<img src="' + plots_path + '" alt="Exon intron overlap plot"' + "\n"
         # mdtext += 'title="mRNA region occupancy plot" />' + "\n"
 
         mdtext += """
-**Figure:** exon intron + border region overlap statistics.
+**Figure:** Exon, intron + border region overlap statistics. \# input regions = %i. 
+\# input regions overlapping with exon regions = %i.
+\# input regions overlapping with intron regions = %i.
+Minimum overlap with exon/intron region for input region to be counted as overlapping = %s%%.
+Categories:
+**Exon regions** -> %% of input regions overlapping with exon regions.
+**Intron regions** -> %% of input regions overlapping with intron regions.
+**%i nt us intron regions** -> %% of input regions overlapping with upstream ends of intron regions (first %i nt) (\# %i).
+**%i nt ds intron regions** -> %% of input regions overlapping with downstream ends of intron regions (last %i nt) (\# %i).
+**+/- 50 nt exon intron borders** -> %% of input regions overlapping with exon-intron borders 
+(50 nt upstream and downstream of exon-intron borders) (\# %i).
+Note that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered. 
 
 &nbsp;
 
-"""
-        # Add more infos here: Input regions overlapping with %
-
-
-
+""" %(ei_ol_stats.c_input_sites, ei_ol_stats.c_exon_sites, ei_ol_stats.c_intron_sites, str(perc_min_overlap), intron_bl, intron_bl, ei_ol_stats.c_us_ib_sites, intron_bl, intron_bl, ei_ol_stats.c_ds_ib_sites, ei_ol_stats.c_eib_sites, 2*intron_bl, intron_bl)
 
 
 
