@@ -9,7 +9,7 @@ import statistics
 import sys
 from itertools import combinations
 
-from pandas import DataFrame
+from pandas import DataFrame, read_csv
 from rbpbench import benchlib
 from scipy.stats import fisher_exact
 from scipy.stats import mannwhitneyu
@@ -2929,12 +2929,18 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help = "If --in is regex/sequence with format e.g. AC[AT]A, define whether to split regex into single motifs (ACAA, ACTA), or to make one motif out of it. 1: convert to one motif. 2: convert to multiple single motifs (default: 1)")
-    p_to.add_argument("--func-pval",
-                   dest="func_pval_thr",
+    p_to.add_argument("--fe-pval",
+                   dest="fe_pval_thr",
                    type=float,
                    metavar='float',
                    default=0.5,
                    help="RBP function enrichment p-value threshold (default: 0.5)")
+    p_to.add_argument("--fe-mode",
+                   dest="fe_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help = "Define whether to calculate function enrichment on RBP or single motif level. 1) RBP level 2) single motif level (default: 1)")
 
     # TOMTOM options.
     p_to.add_argument("--tomtom-bfile",
@@ -4001,16 +4007,9 @@ def main_search(args):
         2: 1, 2, ... , X, MT
 
     """
-    chr_style = 1  # no changes to chromosome IDs in GTF files. AALAMO Change back to 0 !!!
+    print("Guess chromosome ID style (based on --genome FASTA headers) ... ")
+    chr_style = benchlib.guess_chr_id_style(chr_ids_dic)
     
-    if "1" in chr_ids_dic:
-        assert "chr1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
-    if "chr1" in chr_ids_dic:
-        assert "1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
-    if "chr1" in chr_ids_dic:
-        chr_style = 1
-    if "1" in chr_ids_dic:
-        chr_style = 2
 
     """
     Calculate effective size of genomic regions.
@@ -5499,7 +5498,6 @@ def main_search(args):
         # Get other overlap counts.
         c_eib_ol, c_us_ib_ol, c_ds_ib_ol = benchlib.get_eib_ol_counts(overlap_eib_regions_bed)
 
-        # AALAMO
         exon_intron_ol_stats = benchlib.ExonIntronOverlap("rbpbench_search", c_regions,
                                                           c_exon_sites=c_exon_ol,
                                                           c_intron_sites=c_intron_ol,
@@ -6387,17 +6385,8 @@ def main_batch(args):
         2: 1, 2, ... , X, MT
 
     """
-    chr_style = 0  # no changes to chromosome IDs in GTF files.
-    
-    if "1" in chr_ids_dic:
-        assert "chr1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
-    if "chr1" in chr_ids_dic:
-        assert "1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
-    if "chr1" in chr_ids_dic:
-        chr_style = 1
-    if "1" in chr_ids_dic:
-        chr_style = 2
-
+    print("Guess chromosome ID style (based on --genome FASTA headers) ... ")
+    chr_style = benchlib.guess_chr_id_style(chr_ids_dic)
 
     """
     Region extensions.
@@ -6883,8 +6872,6 @@ def main_batch(args):
                 step_size_one = False
             else:
                 assert False, "invalid --regex-search-mode %i set" %(args.regex_search_mode)
-
-            # AALAMO
 
             print("Run search for --regex \"%s\" ... " %(regex))
             regex_hits_list = benchlib.get_regex_hits(regex, regex, out_seqs_dic,
@@ -7630,8 +7617,6 @@ def main_batch(args):
             OUTREGEX.write("%s\n" %(regex_reg_dic[hit_id]))
         OUTREGEX.close()
 
-        # AALAMO
-
         # Get regex hit region annotations.
         if args.in_gtf:
 
@@ -7711,8 +7696,6 @@ def main_batch(args):
     """
     Ouput exon + intron overlap stats.
     
-    AALAMO
-
     """
     eib_ol_table_out = args.out_folder + "/exon_intron_overlap_stats.tsv"
     if ei_ol_stats_dic:
@@ -7780,8 +7763,6 @@ def main_batch(args):
 
     2)
     Filter target + background genes and run GOA.
-
-    AALAMO
 
     """
 
@@ -10055,16 +10036,8 @@ def main_searchlong(args):
         2: 1, 2, ... , X, MT
 
     """
-    chr_style = 0  # no changes to chromosome IDs in GTF files.
-    
-    if "1" in chr_ids_dic:
-        assert "chr1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
-    if "chr1" in chr_ids_dic:
-        assert "1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
-    if "chr1" in chr_ids_dic:
-        chr_style = 1
-    if "1" in chr_ids_dic:
-        chr_style = 2
+    print("Guess chromosome ID style (based on --genome FASTA headers) ... ")
+    chr_style = benchlib.guess_chr_id_style(chr_ids_dic)
 
     """
     Find out what --in file is: BED or transcript IDs list.
@@ -11611,18 +11584,9 @@ def main_searchrna(args):
         2: 1, 2, ... , X, MT
 
     """
-    chr_style = 0  # no changes to chromosome IDs in GTF files.
+    print("Guess chromosome ID style (based on --genome FASTA headers) ... ")
+    chr_style = benchlib.guess_chr_id_style(chr_ids_dic)
     
-    if "1" in chr_ids_dic:
-        assert "chr1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
-    if "chr1" in chr_ids_dic:
-        assert "1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
-    if "chr1" in chr_ids_dic:
-        chr_style = 1
-    if "1" in chr_ids_dic:
-        chr_style = 2
-
-
     """
     Get transcript IDs from --in transcript sites (column 1).
     
@@ -13683,16 +13647,8 @@ def main_searchlongrna(args):
         2: 1, 2, ... , X, MT
 
     """
-    chr_style = 0  # no changes to chromosome IDs in GTF files.
-    
-    if "1" in chr_ids_dic:
-        assert "chr1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
-    if "chr1" in chr_ids_dic:
-        assert "1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
-    if "chr1" in chr_ids_dic:
-        chr_style = 1
-    if "1" in chr_ids_dic:
-        chr_style = 2
+    print("Guess chromosome ID style (based on --genome FASTA headers) ... ")
+    chr_style = benchlib.guess_chr_id_style(chr_ids_dic)
 
 
     """
@@ -13808,6 +13764,11 @@ def main_searchlongrna(args):
                                                     tid2regl_dic,
                                                     mrna_norm_mode=args.mrna_norm_mode)
 
+        if args.mrna_norm_mode == 1:
+            print("Median lengths of mRNA regions:")
+        elif args.mrna_norm_mode == 2:
+            print("Mean lengths of mRNA regions:")
+
         print("5'UTR = ", utr5_len_norm)
         print("CDS   = ", cds_len_norm)
         print("3'UTR = ", utr3_len_norm)
@@ -13818,7 +13779,7 @@ def main_searchlongrna(args):
 
             mrna_reg_occ_dic[rbp_id] = {}
             # List of length utr5_len_median with 0s.
-            mrna_reg_occ_dic[rbp_id]["5'UTR"] = [0] * round(utr5_len_norm)  # AALAMO
+            mrna_reg_occ_dic[rbp_id]["5'UTR"] = [0] * round(utr5_len_norm)
             mrna_reg_occ_dic[rbp_id]["CDS"] = [0] * round(cds_len_norm)
             mrna_reg_occ_dic[rbp_id]["3'UTR"] = [0] * round(utr3_len_norm)
 
@@ -15479,16 +15440,8 @@ def main_enmo(args):
         2: 1, 2, ... , X, MT
 
     """
-    chr_style = 1
-    
-    if "1" in chr_ids_dic:
-        assert "chr1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
-    if "chr1" in chr_ids_dic:
-        assert "1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
-    if "chr1" in chr_ids_dic:
-        chr_style = 1
-    if "1" in chr_ids_dic:
-        chr_style = 2
+    print("Guess chromosome ID style (based on --genome FASTA headers) ... ")
+    chr_style = benchlib.guess_chr_id_style(chr_ids_dic)
 
     """
     Get chromosome or transcript IDs from --in sites (column 1).
@@ -16504,7 +16457,7 @@ def main_enmo(args):
 
     if not found_motif_ids_dic:
         print("No motifs found in any regions (input or background). Exiting ... ")
-        sys.exit()  # AALAMO
+        sys.exit()
 
     for motif_id in sorted(found_motif_ids_dic.keys()):
 
@@ -17835,16 +17788,8 @@ def main_nemo(args):
         2: 1, 2, ... , X, MT
 
     """
-    chr_style = 1
-    
-    if "1" in chr_ids_dic:
-        assert "chr1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
-    if "chr1" in chr_ids_dic:
-        assert "1" not in chr_ids_dic, "inconsistent chromosome IDs in --genome FASTA file (both chr1 and 1)"
-    if "chr1" in chr_ids_dic:
-        chr_style = 1
-    if "1" in chr_ids_dic:
-        chr_style = 2
+    print("Guess chromosome ID style (based on --genome FASTA headers) ... ")
+    chr_style = benchlib.guess_chr_id_style(chr_ids_dic)
 
     """
     Get chromosome or transcript IDs from --in sites (column 1).
@@ -19055,7 +19000,7 @@ def main_nemo(args):
 
     if not found_motif_ids_dic:
         print("No motifs found in any regions (input or background). Exiting ... ")
-        sys.exit()  # AALAMO
+        sys.exit()
 
     for motif_id in sorted(found_motif_ids_dic.keys()):
 
@@ -20088,6 +20033,10 @@ def main_tomtom(args):
 
     """
 
+    motif_level = False
+    if args.fe_mode == 2:
+        motif_level = True
+
     enriched_rbp_func_stats = args.out_folder + "/enriched_rbp_functions.tsv"
 
     if rbp2ids_file:
@@ -20095,22 +20044,22 @@ def main_tomtom(args):
         print("Test for significantly enriched RBP functions in target IDs ... ")
 
         RESOUT = open(enriched_rbp_func_stats, "w")
-        RESOUT.write("query_id\tfunction_id\tp_value\tc_tar_f\tc_tar_not_f\tc_db_f\tc_db_not_f\tfunction_description\n")
+        RESOUT.write("query_id\tfunction_id\tenrich_score\tp_value\tc_tar_f\tc_tar_not_f\tc_db_f\tc_db_not_f\tfunction_description\n")
 
         c_db_hits = 0
         c_sig_f = 0
-        c_db_rbps = len(name2ids_dic)
+        c_db_rbps = len(name2ids_dic)  # total number of RBPs in database.
 
-        # # Motif ID -> function IDs mapping.
-        # mid2fids_dic = {}
-        # c_db_motifs = 0  # Total number of motif IDs.
-        # for rbp_id in name2ids_dic:
-        #     for motif_id in name2ids_dic[rbp_id]:
-        #         c_db_motifs += 1
-        #         mid2fids_dic[motif_id] = name2fids_dic[rbp_id]
+        # Motif ID -> function IDs mapping.
+        mid2fids_dic = {}
+        c_db_motifs = 0  # Total number of motif IDs in database.
+        for rbp_id in name2ids_dic:
+            for motif_id in name2ids_dic[rbp_id]:
+                c_db_motifs += 1
+                mid2fids_dic[motif_id] = name2fids_dic[rbp_id]
 
         fid2dbc_dic = benchlib.get_fid_db_counts(name2ids_dic, name2fids_dic,
-                                                 motif_level=False)
+                                                 motif_level=motif_level)
 
         query2targets_dic = {}
         targets_dic = {}
@@ -20136,48 +20085,112 @@ def main_tomtom(args):
         print("# of query IDs with hits:           %i" %(len(query2targets_dic)))
         print("# of target (motif) IDs with hits:  %i" %(len(targets_dic)))
 
-        query2rbps_dic = {}
-        for qid in query2targets_dic:
-            query2rbps_dic[qid] = []
-            for tid in query2targets_dic[qid]:
-                rbp_id = id2name_dic[tid]
-                if rbp_id not in query2rbps_dic[qid]:
-                    query2rbps_dic[qid].append(rbp_id)
+        fisher_alt_hypo = "greater"
+        min_pv = 2.2e-308
 
-        if query2rbps_dic:
-            for qid in query2rbps_dic:
-                fid2c_dic = {}
-                for rbp_id in query2rbps_dic[qid]:
-                    fids_list = name2fids_dic[rbp_id]
-                    for fid in fids_list:
-                        if fid in fid2c_dic:
-                            fid2c_dic[fid] += 1
-                        else:
-                            fid2c_dic[fid] = 1
-                rbp_c = len(query2rbps_dic[qid])
-                # One Fisher test for each function ID in targets.
-                for fid in fid2c_dic:
-                    fid_c = fid2c_dic[fid]  # number of target RBPs with function ID fid.
-                    assert fid_c <= rbp_c, "function ID count (%i) exceeds target RBP count (%i)" %(fid_c, rbp_c)
-                    a_fisher = fid_c
-                    b_fisher = rbp_c - fid_c
-                    c_fisher = fid2dbc_dic[fid]
-                    d_fisher = c_db_rbps - c_fisher
+        if motif_level:
 
-                    con_table = [[a_fisher, b_fisher], [c_fisher, d_fisher]]
-                    fisher_alt_hypo = "greater"
+            # Check function enrichment on single motif level.
+            print("Check function enrichment on motif level ... ")
 
-                    odds_ratio, p_value = fisher_exact(con_table, alternative=fisher_alt_hypo)
+            # If there are any database hits.
+            if query2targets_dic:
+                for qid in query2targets_dic:
+                    fid2c_dic = {}
+                    for tid in query2targets_dic[qid]:
+                        fids_list = mid2fids_dic[tid]
+                        for fid in fids_list:
+                            if fid in fid2c_dic:
+                                fid2c_dic[fid] += 1
+                            else:
+                                fid2c_dic[fid] = 1
+                    tid_c = len(query2targets_dic[qid])
+                    # One Fisher test for each function ID in targets.
+                    for fid in fid2c_dic:
+                        fid_c = fid2c_dic[fid]
+                        assert fid_c <= tid_c, "function ID count (%i) exceeds target count (%i)" %(fid_c, tid_c)
+                        a_fisher = fid_c
+                        b_fisher = tid_c - fid_c
+                        c_fisher = fid2dbc_dic[fid]
+                        d_fisher = c_db_motifs - c_fisher
 
-                    if p_value <= args.func_pval_thr:
-                        desc = fid2desc_dic[fid]
-                        c_sig_f += 1
-                        RESOUT.write("%s\t%s\t%s\t%i\t%i\t%i\t%i\t%s\n" %(qid, fid, str(p_value), a_fisher, b_fisher, c_fisher, d_fisher, desc))
+                        con_table = [[a_fisher, b_fisher], [c_fisher, d_fisher]]
+                        fisher_alt_hypo = "greater"
+
+                        odds_ratio, p_value = fisher_exact(con_table, alternative=fisher_alt_hypo)
+
+                        p_value = benchlib.round_to_n_significant_digits_v2(p_value, 4,
+                                                                            min_val=1e-304)
+                        
+                        min_log10_pval = benchlib.log_tf_pval(p_value)
+
+                        min_log10_pval = benchlib.round_to_n_significant_digits_v2(min_log10_pval, 4,
+                                                                                   min_val=0)
+
+                        if p_value <= args.fe_pval_thr:
+                            desc = fid2desc_dic[fid]
+                            c_sig_f += 1
+                            RESOUT.write("%s\t%s\t%s\t%s\t%i\t%i\t%i\t%i\t%s\n" %(qid, fid, str(min_log10_pval), str(p_value), a_fisher, b_fisher, c_fisher, d_fisher, desc))
+
+        else:
+
+            # Check function enrichment on RBP level.
+            print("Check function enrichment on RBP level ... ")
+
+            query2rbps_dic = {}
+            for qid in query2targets_dic:
+                query2rbps_dic[qid] = []
+                for tid in query2targets_dic[qid]:
+                    rbp_id = id2name_dic[tid]
+                    if rbp_id not in query2rbps_dic[qid]:
+                        query2rbps_dic[qid].append(rbp_id)
+
+            if query2rbps_dic:
+                for qid in query2rbps_dic:
+                    fid2c_dic = {}
+                    for rbp_id in query2rbps_dic[qid]:
+                        fids_list = name2fids_dic[rbp_id]
+                        for fid in fids_list:
+                            if fid in fid2c_dic:
+                                fid2c_dic[fid] += 1
+                            else:
+                                fid2c_dic[fid] = 1
+                    rbp_c = len(query2rbps_dic[qid])
+
+                    # One Fisher test for each function ID in targets.
+                    for fid in fid2c_dic:
+                        fid_c = fid2c_dic[fid]  # number of target RBPs with function ID fid.
+                        assert fid_c <= rbp_c, "function ID count (%i) exceeds target RBP count (%i)" %(fid_c, rbp_c)
+                        a_fisher = fid_c
+                        b_fisher = rbp_c - fid_c
+                        c_fisher = fid2dbc_dic[fid]
+                        d_fisher = c_db_rbps - c_fisher
+
+                        con_table = [[a_fisher, b_fisher], [c_fisher, d_fisher]]
+
+                        odds_ratio, p_value = fisher_exact(con_table, alternative=fisher_alt_hypo)
+
+                        p_value = benchlib.round_to_n_significant_digits_v2(p_value, 4,
+                                                                            min_val=1e-304)
+                        
+                        min_log10_pval = benchlib.log_tf_pval(p_value)
+
+                        min_log10_pval = benchlib.round_to_n_significant_digits_v2(min_log10_pval, 4,
+                                                                                   min_val=0)
+
+                        if p_value <= args.fe_pval_thr:
+                            desc = fid2desc_dic[fid]
+                            c_sig_f += 1
+                            RESOUT.write("%s\t%s\t%s\t%s\t%i\t%i\t%i\t%i\t%s\n" %(qid, fid, str(min_log10_pval), str(p_value), a_fisher, b_fisher, c_fisher, d_fisher, desc))
 
         RESOUT.close()
 
-        print("# significantly enriched functions: %i" %(c_sig_f))
+        # Sort table by enrich_score.
+        df = read_csv(enriched_rbp_func_stats, sep='\t')
+        df_sorted = df.sort_values(by='enrich_score', ascending=False)
+        df_sorted.to_csv(enriched_rbp_func_stats, sep='\t', index=False)
 
+        print("# significantly enriched functions: %i" %(c_sig_f))
 
 
     """

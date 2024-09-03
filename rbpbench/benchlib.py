@@ -2852,8 +2852,6 @@ class ExonIntronOverlap:
     """
     Exon intron overlap stats class.
 
-    AALAMO
-
     """
     def __init__(self,
                  dataset_id: str,
@@ -2963,7 +2961,6 @@ def exon_intron_border_regions_to_bed(tid2tio_dic, out_bed,
     These can then be used to determin what regions are covered by
     input sites.
 
-    AALAMO
     Correct exon_coords order expected (i.e. exon 1 on - most downstream, and most upstream on +).
 
     Based on:
@@ -3473,7 +3470,7 @@ def get_mrna_reg_norm_len(tid2regl_dic,
         cds_len_norm = statistics.median(cds_len_list)
         utr3_len_norm = statistics.median(utr3_len_list)
         norm_mode = "median"
-        print("Median lengths of mRNA regions:")
+        # print("Median lengths of mRNA regions:")
 
     elif mrna_norm_mode == 2:
         # Mean.
@@ -3481,14 +3478,14 @@ def get_mrna_reg_norm_len(tid2regl_dic,
         cds_len_norm = statistics.mean(cds_len_list)
         utr3_len_norm = statistics.mean(utr3_len_list)
         norm_mode = "mean"
-        print("Mean lengths of mRNA regions:")
+        # print("Mean lengths of mRNA regions:")
 
     else:
         assert False, "invalid --mrna-norm-mode %i set" %(mrna_norm_mode)
 
-    print("5'UTR = ", utr5_len_norm)
-    print("CDS   = ", cds_len_norm)
-    print("3'UTR = ", utr3_len_norm)
+    # print("5'UTR = ", utr5_len_norm)
+    # print("CDS   = ", cds_len_norm)
+    # print("3'UTR = ", utr3_len_norm)
 
     return utr5_len_norm, cds_len_norm, utr3_len_norm, norm_mode
 
@@ -8608,6 +8605,44 @@ No significant GO terms found due to no GO IDs associated with target genes. # o
     OUTHTML.close()
 
 
+################################################################################
+
+def guess_chr_id_style(chr_ids_dic):
+    """
+    Guess chromosome style present in chr_ids_dic.
+
+    chr_style:
+        1: chr1, chr2, ..., chrX, chrM
+        2: 1, 2, ... , X, MT
+
+    >>> chr_ids_dic = {"chr1": 1, "chr2": 1, "chrX": 1, "chrM": 1, "chr11_KI270721v1_random": 1}
+    >>> guess_chr_id_style(chr_ids_dic)
+    1
+    >>> chr_ids_dic = {"1": 1, "2": 1, "X": 1, "MT": 1}
+    >>> guess_chr_id_style(chr_ids_dic)
+    2
+    
+    """
+    assert chr_ids_dic, "chr_ids_dic empty (no chromosome IDs found in --genome FASTA file?)"
+
+    chr_style = 1
+    
+    for chr_id in chr_ids_dic:
+        if chr_id.startswith("chr"):
+            chr_style = 1
+            break
+        else:
+            chr_style = 2
+            break
+
+    if chr_style == 1:
+        for chr_id in chr_ids_dic:
+            assert chr_id.startswith("chr"), "inconsistent chromosome IDs in --genome FASTA file (chr prefix expected but not present for ID %s)" %(chr_id)
+    else:
+        for chr_id in chr_ids_dic:
+            assert not chr_id.startswith("chr"), "inconsistent chromosome IDs in --genome FASTA file (both chr prefix and no chr prefix present)"
+
+    return chr_style
 
 
 ################################################################################
@@ -8921,9 +8956,6 @@ Input dataset ID format: %s. %s
     # mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
     # mdtext += "\n&nbsp;\n"
 
-
-
-    # AALAMO
     if ei_ol_stats_dic:
 
         perc_min_overlap = round(args.gtf_eib_min_overlap * 100, 1)
@@ -9010,18 +9042,6 @@ Considered intron border region length = %i nt. Considered exon-intron border re
         mdtext += '**%% exon-intron border regions** -> %% of input regions overlapping with exon-intron borders (+/- %i nt of exon-intron borders). ' %(eib_len)
         mdtext += "Note that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered.\n" %(2*ib_len, ib_len)
         mdtext += "\n&nbsp;\n"
-
-        # AALAMO
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -9487,15 +9507,6 @@ resulting in a vector of 1s and 0s for each RBP, which is then used to construct
 
 
 
-
-
-
-
-
-
-
-
-
     """
     Input datasets region annotations comparative plot.
 
@@ -9547,7 +9558,7 @@ resulting in a vector of 1s and 0s for each RBP, which is then used to construct
 
         if regex_annot_dic:
             dataset_id = "regex:" + args.regex
-            regex_info = " Genomic region annotations for regex hit regions (regex:%s) in all input datasets are also included." %(args.regex)
+            regex_info = " Genomic region annotations for regex hit regions (regex: %s) in all input datasets are also included." %(args.regex)
 
             annot_freqs_list = []
             sum_annot = 0
@@ -12632,7 +12643,7 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
         mrna_reg_occ_dic[plot_id]["3'UTR"] = mrna_prof_dic[dataset_id].utr3_pc_list
         c_ol_sites = mrna_prof_dic[dataset_id].c_ol_sites
         c_all_sites = mrna_prof_dic[dataset_id].c_all_sites
-        utr5_len_norm = mrna_prof_dic[dataset_id].utr5_len_norm  # AALAMO
+        utr5_len_norm = mrna_prof_dic[dataset_id].utr5_len_norm
         cds_len_norm = mrna_prof_dic[dataset_id].cds_len_norm
         utr3_len_norm = mrna_prof_dic[dataset_id].utr3_len_norm
         norm_mode = mrna_prof_dic[dataset_id].norm_mode
@@ -12669,24 +12680,6 @@ mRNA region lengths used for plotting are derived from the %i mRNA regions, usin
     """
     Exon-intron overlap statistics
 
-    AALAMO
-
-        # AALAMO
-        exon_intron_ol_stats = benchlib.ExonIntronOverlap("rbpbench_search", c_regions,
-                                                          c_exon_sites=c_exon_ol,
-                                                          c_intron_sites=c_intron_ol,
-                                                          c_us_ib_sites=c_us_ib_ol,
-                                                          c_ds_ib_sites=c_ds_ib_ol,
-                                                          c_eib_sites=c_eib_ol,
-                                                          min_overlap=args.gtf_eib_min_overlap,
-                                                          intron_border_len=intron_border_len,
-                                                          ei_border_len=ei_border_len,
-                                                          c_tr_ids=len(tid2tio_dic),
-                                                          c_tr_ids_with_sites=len(tids_with_sites_dic))
-        
-        ei_ol_stats_dic["rbpbench_search"] = exon_intron_ol_stats
-
-    
     """
 
     if ei_ol_stats_dic:
