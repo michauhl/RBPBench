@@ -44,7 +44,6 @@ python3 -m doctest benchlib.py
 python3 -m doctest -v benchlib.py
 
 
-
 """
 
 
@@ -520,7 +519,7 @@ def run_go_analysis(target_genes_dic, background_genes_dic,
 
     """
     Run GO enrichment analysis for target genes, using goatools:
-    conda install goatools.
+    conda install goatools
     
     pval_thr:
         BH corrected p-value threshold.

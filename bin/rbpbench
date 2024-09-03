@@ -15,10 +15,6 @@ from scipy.stats import fisher_exact
 from scipy.stats import mannwhitneyu
 from scipy.stats import false_discovery_control  # Benjamini-Hochberg correction.
 
-# from distutils.spawn import find_executable
-# from typing import Optional
-# from scipy.stats import ks_2samp
-# from scipy.stats import wilcoxon
 
 __version__ = "1.0"
 
@@ -50,6 +46,7 @@ def setup_argument_parser():
 
     """
     Search motifs mode.
+
     """
     p_s = subparsers.add_parser('search',
                                 help='Search motifs in genomic sites')
@@ -198,7 +195,6 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
-
     p_s.add_argument("--fimo-ntf-file",
                    dest="fimo_user_ntf_file",
                    type=str,
@@ -251,7 +247,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. for p-values) (default: False)")
-
     p_s.add_argument("--wrs-mode",
                    dest="wrs_mode",
                    type=int,
@@ -534,6 +529,7 @@ def setup_argument_parser():
 
     """
     Batch mode.
+
     """
     p_b = subparsers.add_parser('batch',
                                 help='Search motifs on > 1 dataset')
@@ -1158,7 +1154,6 @@ def setup_argument_parser():
                    action = "store_true",
                    help = "Also add regions with 0 hits to output BED file (hit count in column 5) (default: False)")
 
-
     """
     Search motifs in long genomic regions mode.
     
@@ -1389,7 +1384,6 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3],
                    help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to plots output folder. 3: include .js code in HTML (default: 1)")
-
 
     """
     Search motifs in spliced transcript sites, and check co-occurrence.
@@ -1798,7 +1792,6 @@ def setup_argument_parser():
                    choices=[1, 2, 3],
                    help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to plots output folder. 3: include .js code in HTML (default: 1)")
 
-
     """
     Search motifs in spliced full transcripts.
 
@@ -2086,16 +2079,6 @@ def setup_argument_parser():
                    choices=[1, 2, 3],
                    help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to plots output folder. 3: include .js code in HTML (default: 1)")
 
-
-
-
-
-
-
-
-
-
-
     """
     Check for enriched motifs mode.
     
@@ -2137,7 +2120,6 @@ def setup_argument_parser():
                    metavar='str',
                    required=True,
                    help="Results output folder")
-
     # Optional arguments for enmo.
     p_em.add_argument("--user-rbp-id",
                    dest="user_rbp_id",
@@ -2253,7 +2235,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. for p-values) (default: False)")
-
     # Background set options.
     p_em.add_argument("--bg-mode",
                    dest="bg_mode",
@@ -2446,9 +2427,6 @@ def setup_argument_parser():
                    choices=[1, 2, 3],
                    help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to plots output folder. 3: include .js code in HTML (default: 1)")
 
-
-
-
     """
     Check for neighboring motifs mode.
 
@@ -2490,7 +2468,6 @@ def setup_argument_parser():
                    metavar='str',
                    required=True,
                    help="Results output folder")
-
     # Optional arguments for nemo.
     p_nm.add_argument("--user-rbp-id",
                    dest="user_rbp_id",
@@ -2606,7 +2583,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. for p-values) (default: False)")
-
     # Background set options.
     p_nm.add_argument("--bg-mode",
                    dest="bg_mode",
@@ -2881,7 +2857,6 @@ def setup_argument_parser():
                    action = "store_true",
                    help = "Use E-value threshold instead of p-value (STREME option: --evalue) (default: False)")
 
-
     """
     Check if input motif is similar to database motifs using TOMTOM.
 
@@ -2979,9 +2954,6 @@ def setup_argument_parser():
                    default=1,
                    help="Minimum overlap between query and target (TOMTOM option: -min-overlap) (default: 1)")
 
-
-
-
     """
     Run GO enrichment analysis on gene list.
 
@@ -3069,9 +3041,6 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3],
                    help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to plots output folder. 3: include .js code in HTML (default: 1)")
-
-
-
 
     """
     Optimal extension mode.
@@ -3172,8 +3141,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. for p-values) (default: False)")
-
-
     p_oe.add_argument("--ext-pval",
                    dest="ext_pval",
                    type=float,
@@ -3199,6 +3166,7 @@ def setup_argument_parser():
 
     """
     Dist mode.
+
     """
     p_d = subparsers.add_parser('dist',
                                   help='Plot nt distribution at genomic positions')
@@ -3245,9 +3213,10 @@ def setup_argument_parser():
 
     """
     Info mode.
+
     """
     p_i = subparsers.add_parser('info',
-                                  help='Print out RBP IDs in database')
+                                  help='Inform about motif database content')
     p_i.set_defaults(which='info')
     # Optional arguments.
     p_i.add_argument("--motif-db",
