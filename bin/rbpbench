@@ -269,21 +269,16 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Count each --in region twice for RBP hit statistics when --unstranded is enabled. By default, two strands of one region are counted as one region for RBP hit statistics")
-    p_s.add_argument("--report",
-                   dest="report",
-                   default = False,
-                   action = "store_true",
-                   help = "Generate an .html report containing RBP co-occurrence / correlation statistics and plots (default: False)")
     p_s.add_argument("--plot-motifs",
                    dest="plot_motifs",
                    default = False,
                    action = "store_true",
                    help = "Visualize selected sequence motifs, by outputting sequence logos and motif hit statistics into a separate .html file (default: False)")
-    p_s.add_argument("--add-motif-annot",
-                   dest="add_motif_annot",
-                   default = False,
-                   action = "store_true",
-                   help = "Add motif hit region annotations to --plot-motifs HTML file. This requires --gtf set (default: False)")
+    # p_s.add_argument("--add-motif-annot",
+    #                dest="add_motif_annot",
+    #                default = False,
+    #                action = "store_true",
+    #                help = "Add motif hit region annotations to --plot-motifs HTML file. This requires --gtf set (default: False)")
     p_s.add_argument("--cooc-pval-thr",
                    dest="cooc_pval_thr",
                    type=float,
@@ -313,15 +308,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Disable input sequence length distribution plot in HTML report (default: False)")
-
-
-    p_s.add_argument("--disable-upset-plot",
-                   dest="disable_upset_plot",
+    p_s.add_argument("--enable-upset-plot",
+                   dest="enable_upset_plot",
                    default = False,
                    action = "store_true",
-                   help = "Disable upset plot in HTML report (default: False)")
-
-
+                   help = "Enable upset plot in HTML report (default: False)")
     p_s.add_argument("--upset-plot-min-degree",
                    dest="upset_plot_min_degree",
                    type=int,
@@ -1635,13 +1626,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Disable input sequence length distribution plot in HTML report (default: False)")
-
-    p_scr.add_argument("--disable-upset-plot",
-                   dest="disable_upset_plot",
+    p_scr.add_argument("--enable-upset-plot",
+                   dest="enable_upset_plot",
                    default = False,
                    action = "store_true",
-                   help = "Disable upset plot in HTML report (default: False)")
-
+                   help = "Enable upset plot in HTML report (default: False)")
     p_scr.add_argument("--upset-plot-min-degree",
                    dest="upset_plot_min_degree",
                    type=int,
@@ -3343,8 +3332,8 @@ def main_search(args):
     # if args.in_gtf:
     #     assert args.report, "set --gtf requires --report to be effective"
     assert args.upset_plot_min_rbp_count >= 0, "set --upset-plot-min-rbp-count needs to be >= 0"
-    if args.add_motif_annot:
-        assert args.in_gtf, "set --add-motif-annot requires --gtf GTF file"
+    # if args.add_motif_annot:
+    #     assert args.in_gtf, "set --add-motif-annot requires --gtf GTF file"
     if args.run_goa:
         assert args.in_gtf, "set --goa requires --gtf GTF file"
         if args.goa_obo_mode == 3:
@@ -4846,7 +4835,7 @@ def main_search(args):
         # Store motif hit as BED.
         hit_id = "%s:%s-%s(%s)%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), matched_seq)
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t-1.0\t-1.0\t%s\t%s\t-\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), matched_seq)
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -5759,7 +5748,7 @@ def main_search(args):
 
     rbp2motif2annot2c_dic = {}  # rbp_id -> motif_id -> annot -> count
 
-    if args.in_gtf and c_regions_with_hits and args.add_motif_annot:
+    if args.in_gtf and c_regions_with_hits:
 
         # Overlap motif hit BED with genomic annotation regions.
         print("Overlap annotations with motif hit regions ... ")
@@ -5795,6 +5784,7 @@ def main_search(args):
                 rbp2motif2annot2c_dic[rbp_id][motif_id][annot] += 1
 
         # Output motif hits BED again, with motif region annotations.
+        print("Add motif hit annotations ... ")
         OUTBED = open(motif_hits_bed_out,"w")
         for hit_id in motif_reg_dic:
             annot = "-"
@@ -7344,7 +7334,7 @@ def main_batch(args):
             # Store motif hit as BED.
             hit_id = "%s:%s-%s(%s)%s;%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id, internal_id)
             if hit_id not in motif_reg_dic:
-                bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, cmsh.strand, method_id, data_id, str(cmsh.score), str(cmsh.e_value), matched_seq)
+                bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t-1.0\t-1.0\t%s\t%s\t-\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, cmsh.strand, method_id, data_id, str(cmsh.score), str(cmsh.e_value), matched_seq)
                 motif_reg_dic[hit_id] = bed_row
 
             row_str = data_id + "\t"
@@ -9332,7 +9322,7 @@ def main_searchseq(args):
         # Store motif hit as BED.
         hit_id = "%s:%s-%s(%s)%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), matched_seq)
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t-1.0\t-1.0\t%s\t%s\t-\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), matched_seq)
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -10694,7 +10684,7 @@ def main_searchlong(args):
         # Store motif hit as BED.
         hit_id = "%s:%s-%s(%s)%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), matched_seq)
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t-1.0\t-1.0\t%s\t%s\t-\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), matched_seq)
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -12508,7 +12498,7 @@ def main_searchrna(args):
         # Store motif hit as BED.
         hit_id = "%s:%s-%s(%s)%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), matched_seq)
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t-1.0\t-1.0\t%s\t%s\t-\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), matched_seq)
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -14490,7 +14480,7 @@ def main_searchlongrna(args):
             annot_str = "-"
             if annot:
                 annot_str = annot[0]
-            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t%s\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), annot_str, matched_seq)
+            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t-1.0\t-1.0\t%s\t%s\t%s\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), annot_str, matched_seq)
             motif_reg_dic[hit_id] = bed_row
 
         row_str = args.data_id + "\t"
@@ -16143,7 +16133,6 @@ def main_enmo(args):
         seq_based = True
 
     if seq_rbps_dic:
-
 
         out_str, c_added_motifs = benchlib.blocks_to_xml_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
         benchlib.output_string_to_file(out_str, seq_motifs_xml)

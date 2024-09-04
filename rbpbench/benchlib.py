@@ -6686,11 +6686,11 @@ def get_regex_hits(regex, regex_id, seqs_dic,
                                 start=start+1, 
                                 end=end,
                                 strand="+", 
-                                score=0.0, 
+                                score=-1.0, 
                                 motif_id=motif_id, 
                                 seq_name=seq_name, 
-                                pval=0.0, 
-                                qval=0.0,
+                                pval=-1.0, 
+                                qval=-1.0,
                                 seq_s=start+1,
                                 seq_e=end,
                                 matched_seq=matched_seq)
@@ -6709,11 +6709,11 @@ def get_regex_hits(regex, regex_id, seqs_dic,
                                 start=gen_motif_coords[1], 
                                 end=gen_motif_coords[2],
                                 strand=gen_motif_coords[3], 
-                                score=0.0, 
+                                score=-1.0, 
                                 motif_id=motif_id, 
                                 seq_name=seq_name, 
-                                pval=0.0, 
-                                qval=0.0,
+                                pval=-1.0, 
+                                qval=-1.0,
                                 seq_s=start+1,
                                 seq_e=end,
                                 matched_seq=matched_seq)
@@ -12286,7 +12286,7 @@ by RBPBench (rbpbench %s):
 
     # Upset plot.
     # mdtext += "\n"
-    if not args.disable_upset_plot:
+    if args.enable_upset_plot:
         mdtext += "- [RBP combinations upset plot](#rbp-comb-upset-plot)\n"
 
     # If --set-rbp-id given.
@@ -12787,7 +12787,7 @@ Note that for upstream/downstream intron region overlaps, only introns >= %i (2*
 
     plot_path = plots_folder + "/" + rbp_reg_occ_upset_plot
 
-    if not args.disable_upset_plot:
+    if args.enable_upset_plot:
 
         mdtext += """
 ## RBP combinations upset plot ### {#rbp-comb-upset-plot}
