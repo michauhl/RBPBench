@@ -461,6 +461,9 @@ def output_target_reg_annot(target_genes_dic, gene_infos_file, target_reg_annot_
 
     """
     Output target region annotations (target regions used in GOA).
+
+    Note that if internal gene_infos_file is outdated compared to given GOA/GTF files, 
+    this could result in missing gene descriptions for some genes.
                               
     """
 

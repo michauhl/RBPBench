@@ -8048,7 +8048,7 @@ def main_searchregex(args):
         os.makedirs(args.out_folder)
     in_seqs_fa = args.out_folder + "/in_sequences.fa"
     in_reg_bed = args.out_folder + "/in_regions.bed"
-    motif_hits_bed_out = args.out_folder + "/motif_hits.bed"
+    motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_searchregex.bed"
     regions_with_hit_counts_bed_out = args.out_folder + "/regions_with_hit_counts.bed"
 
     """
@@ -10940,18 +10940,6 @@ def main_searchlong(args):
     # if args.report:
     #     print("Search report .html:\n%s" %(html_report_out))
     print("")
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 ################################################################################
@@ -14779,14 +14767,6 @@ def main_searchlongrna(args):
     # if args.report:
     #     print("Search report .html:\n%s" %(html_report_out))
     print("")
-
-
-
-
-
-
-
-
 
 
 ################################################################################
@@ -19641,7 +19621,7 @@ def main_nemo(args):
     print("============")
     print("")
     print("Run parameter settings:\n%s" %(settings_file))
-    print("Motif enrichment stats .tsv:\n%s" %(nemo_stats_out))
+    print("Neighboring motif enrichment stats .tsv:\n%s" %(nemo_stats_out))
     print("Motif co-occurrence stats .tsv:\n%s" %(cooc_stats_out))
 
     print("Filtered input regions .bed:\n%s" %(filtered_sites_bed))
@@ -19651,7 +19631,7 @@ def main_nemo(args):
 
     if reg_annot_table_file:
         print("Input region annotations .tsv:\n%s" %(reg_annot_table_file))
-    print("Motif enrichment report .html:\n%s" %(html_report_out))
+    print("Neighboring motif enrichment report .html:\n%s" %(html_report_out))
     print("")
 
 
@@ -20002,7 +19982,7 @@ def main_tomtom(args):
         print("Test for significantly enriched RBP functions in target IDs ... ")
 
         RESOUT = open(enriched_rbp_func_stats, "w")
-        RESOUT.write("query_id\tfunction_id\tenrich_score\tp_value\tc_tar_f\tc_tar_not_f\tc_db_f\tc_db_not_f\tfunction_description\n")
+        RESOUT.write("query_id\tfunction_id\tenrich_score\tp_value\tc_tar_f\tc_tar_not_f\tc_db_f\tc_db_not_f\tfunction_description\ttarget_rbps_with_func\n")
 
         c_db_hits = 0
         c_sig_f = 0
@@ -20055,18 +20035,26 @@ def main_tomtom(args):
             if query2targets_dic:
                 for qid in query2targets_dic:
                     fid2c_dic = {}
+                    fid2rbps_dic = {}
                     for tid in query2targets_dic[qid]:
+                        rbp_id = id2name_dic[tid]
                         fids_list = mid2fids_dic[tid]
                         for fid in fids_list:
                             if fid in fid2c_dic:
+                                if rbp_id not in fid2rbps_dic[fid]:
+                                    fid2rbps_dic[fid].append(rbp_id)
                                 fid2c_dic[fid] += 1
                             else:
+                                fid2rbps_dic[fid] = [rbp_id]
                                 fid2c_dic[fid] = 1
                     tid_c = len(query2targets_dic[qid])
                     # One Fisher test for each function ID in targets.
                     for fid in fid2c_dic:
                         fid_c = fid2c_dic[fid]
                         assert fid_c <= tid_c, "function ID count (%i) exceeds target count (%i)" %(fid_c, tid_c)
+                        rbps_list = fid2rbps_dic[fid]
+                        rbps_list.sort()
+                        rbps_str = ",".join(rbps_list)
                         a_fisher = fid_c
                         b_fisher = tid_c - fid_c
                         c_fisher = fid2dbc_dic[fid]
@@ -20088,7 +20076,7 @@ def main_tomtom(args):
                         if p_value <= args.fe_pval_thr:
                             desc = fid2desc_dic[fid]
                             c_sig_f += 1
-                            RESOUT.write("%s\t%s\t%s\t%s\t%i\t%i\t%i\t%i\t%s\n" %(qid, fid, str(min_log10_pval), str(p_value), a_fisher, b_fisher, c_fisher, d_fisher, desc))
+                            RESOUT.write("%s\t%s\t%s\t%s\t%i\t%i\t%i\t%i\t%s\t%s\n" %(qid, fid, str(min_log10_pval), str(p_value), a_fisher, b_fisher, c_fisher, d_fisher, desc, rbps_str))
 
         else:
 
@@ -20106,12 +20094,16 @@ def main_tomtom(args):
             if query2rbps_dic:
                 for qid in query2rbps_dic:
                     fid2c_dic = {}
+                    fid2rbps_dic = {}
                     for rbp_id in query2rbps_dic[qid]:
                         fids_list = name2fids_dic[rbp_id]
                         for fid in fids_list:
                             if fid in fid2c_dic:
+                                if rbp_id not in fid2rbps_dic[fid]:
+                                    fid2rbps_dic[fid].append(rbp_id)
                                 fid2c_dic[fid] += 1
                             else:
+                                fid2rbps_dic[fid] = [rbp_id]
                                 fid2c_dic[fid] = 1
                     rbp_c = len(query2rbps_dic[qid])
 
@@ -20119,6 +20111,9 @@ def main_tomtom(args):
                     for fid in fid2c_dic:
                         fid_c = fid2c_dic[fid]  # number of target RBPs with function ID fid.
                         assert fid_c <= rbp_c, "function ID count (%i) exceeds target RBP count (%i)" %(fid_c, rbp_c)
+                        rbps_list = fid2rbps_dic[fid]
+                        rbps_list.sort()
+                        rbps_str = ",".join(rbps_list)
                         a_fisher = fid_c
                         b_fisher = rbp_c - fid_c
                         c_fisher = fid2dbc_dic[fid]
@@ -20139,7 +20134,7 @@ def main_tomtom(args):
                         if p_value <= args.fe_pval_thr:
                             desc = fid2desc_dic[fid]
                             c_sig_f += 1
-                            RESOUT.write("%s\t%s\t%s\t%s\t%i\t%i\t%i\t%i\t%s\n" %(qid, fid, str(min_log10_pval), str(p_value), a_fisher, b_fisher, c_fisher, d_fisher, desc))
+                            RESOUT.write("%s\t%s\t%s\t%s\t%i\t%i\t%i\t%i\t%s\t%s\n" %(qid, fid, str(min_log10_pval), str(p_value), a_fisher, b_fisher, c_fisher, d_fisher, desc, rbps_str))
 
         RESOUT.close()
 
