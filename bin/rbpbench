@@ -211,8 +211,8 @@ def setup_argument_parser():
                    dest="fimo_pval",
                    type=float,
                    metavar='float',
-                   default=0.001,
-                   help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
+                   default=0.0005,
+                   help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.0005)")
     p_s.add_argument("--cmsearch-bs",
                    dest="cmsearch_bs",
                    type=float,
@@ -660,8 +660,8 @@ def setup_argument_parser():
                    dest="fimo_pval",
                    type=float,
                    metavar='float',
-                   default=0.001,
-                   help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
+                   default=0.0005,
+                   help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.0005)")
     p_b.add_argument("--cmsearch-bs",
                    dest="cmsearch_bs",
                    type=float,
@@ -1026,8 +1026,8 @@ def setup_argument_parser():
                    dest="fimo_pval",
                    type=float,
                    metavar='float',
-                   default=0.001,
-                   help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
+                   default=0.0005,
+                   help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.0005)")
     p_ss.add_argument("--cmsearch-bs",
                    dest="cmsearch_bs",
                    type=float,
@@ -1306,8 +1306,8 @@ def setup_argument_parser():
                    dest="fimo_pval",
                    type=float,
                    metavar='float',
-                   default=0.001,
-                   help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
+                   default=0.0005,
+                   help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.0005)")
     p_sl.add_argument("--cmsearch-bs",
                    dest="cmsearch_bs",
                    type=float,
@@ -1596,8 +1596,8 @@ def setup_argument_parser():
                    dest="fimo_pval",
                    type=float,
                    metavar='float',
-                   default=0.001,
-                   help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
+                   default=0.0005,
+                   help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.0005)")
     p_scr.add_argument("--cmsearch-bs",
                    dest="cmsearch_bs",
                    type=float,
@@ -1942,8 +1942,8 @@ def setup_argument_parser():
                    dest="fimo_pval",
                    type=float,
                    metavar='float',
-                   default=0.001,
-                   help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
+                   default=0.0005,
+                   help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.0005)")
     p_smr.add_argument("--cmsearch-bs",
                    dest="cmsearch_bs",
                    type=float,
@@ -3094,8 +3094,8 @@ def setup_argument_parser():
                    dest="fimo_pval",
                    type=float,
                    metavar='float',
-                   default=0.001,
-                   help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.001)")
+                   default=0.0005,
+                   help="FIMO p-value threshold (FIMO option: --thresh) (default: 0.0005)")
     p_oe.add_argument("--cmsearch-bs",
                    dest="cmsearch_bs",
                    type=float,
