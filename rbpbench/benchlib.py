@@ -12761,34 +12761,12 @@ Note that for upstream/downstream intron region overlaps, only introns >= %i (2*
 
 
 
-
-
-
     """
     RBP region occupancies upset plot.
 
+    AALAMO
+
     """
-
-    rbp_reg_occ_upset_plot =  "rbp_region_occupancies.upset_plot.png"
-    rbp_reg_occ_upset_plot_out = plots_out_folder + "/" + rbp_reg_occ_upset_plot
-
-    upset_plot_nr_included_rbps = len(rbp2regidx_dic)
-    if args.upset_plot_max_rbp_rank is not None:
-        if args.upset_plot_max_rbp_rank < upset_plot_nr_included_rbps:
-            upset_plot_nr_included_rbps = args.upset_plot_max_rbp_rank
-
-    plotted, reason, count = create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list, 
-                                  reg2annot_dic=reg2annot_dic,
-                                  min_degree=args.upset_plot_min_degree,
-                                  max_degree=args.upset_plot_max_degree,
-                                  min_subset_size=args.upset_plot_min_subset_size,
-                                  max_subset_rank=args.upset_plot_max_subset_rank,
-                                  min_rbp_count=args.upset_plot_min_rbp_count,
-                                  max_rbp_rank=args.upset_plot_max_rbp_rank,
-                                  plot_out=rbp_reg_occ_upset_plot_out)
-
-
-    plot_path = plots_folder + "/" + rbp_reg_occ_upset_plot
 
     if args.enable_upset_plot:
 
@@ -12796,6 +12774,27 @@ Note that for upstream/downstream intron region overlaps, only introns >= %i (2*
 ## RBP combinations upset plot ### {#rbp-comb-upset-plot}
 
 """
+
+        rbp_reg_occ_upset_plot =  "rbp_region_occupancies.upset_plot.png"
+        rbp_reg_occ_upset_plot_out = plots_out_folder + "/" + rbp_reg_occ_upset_plot
+
+        upset_plot_nr_included_rbps = len(rbp2regidx_dic)
+        if args.upset_plot_max_rbp_rank is not None:
+            if args.upset_plot_max_rbp_rank < upset_plot_nr_included_rbps:
+                upset_plot_nr_included_rbps = args.upset_plot_max_rbp_rank
+
+        plotted, reason, count = create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list, 
+                                    reg2annot_dic=reg2annot_dic,
+                                    min_degree=args.upset_plot_min_degree,
+                                    max_degree=args.upset_plot_max_degree,
+                                    min_subset_size=args.upset_plot_min_subset_size,
+                                    max_subset_rank=args.upset_plot_max_subset_rank,
+                                    min_rbp_count=args.upset_plot_min_rbp_count,
+                                    max_rbp_rank=args.upset_plot_max_rbp_rank,
+                                    plot_out=rbp_reg_occ_upset_plot_out)
+
+
+        plot_path = plots_folder + "/" + rbp_reg_occ_upset_plot
 
         if plotted:
             mdtext += '<img src="' + plot_path + '" alt="RBP region occupancies upset plot"' + "\n"
@@ -12970,9 +12969,9 @@ In case of an empty table, try to lower --rbp-min-pair-count (current value: %i)
         mdtext += "\nColumn IDs have the following meanings: "
         mdtext += "**Set RBP ID** -> set RBP ID (specified via --set-rbp-id), "
         mdtext += "**Other RBP ID** -> other RBP ID that set RBP ID is compared to, "
-        mdtext += "**Pair count** -> number of input regions with motif hits from both RBP IDs (minimum pair count to be reported: %i (set by --rbp-min-pair-count)), " %(rbp_min_pair_count)
-        mdtext += '**# near motifs** -> ' + "number of other RBP ID motifs within specified distance (--motif-distance-plot-range %i) of the centered set RBP ID motifs, " %(motif_distance_plot_range)
-        mdtext += '**# distant motifs** -> ' + "number of other RBP ID motifs outside specified distance (--motif-distance-plot-range %i) of the centered set RBP ID motifs." %(motif_distance_plot_range)
+        mdtext += "**Pair count** -> number of input regions with motif hits from both RBP IDs (minimum pair count to be reported: %i (set by --rbp-min-pair-count)), " %(args.rbp_min_pair_count)
+        mdtext += '**# near motifs** -> ' + "number of other RBP ID motifs within specified distance (--motif-distance-plot-range %i) of the centered set RBP ID motifs, " %(args.motif_distance_plot_range)
+        mdtext += '**# distant motifs** -> ' + "number of other RBP ID motifs outside specified distance (--motif-distance-plot-range %i) of the centered set RBP ID motifs." %(args.motif_distance_plot_range)
         # mdtext += "\n"
         mdtext += "\n&nbsp;\n"
 
@@ -13151,9 +13150,9 @@ In case of an empty table, try to lower --motif-min-pair-count (current value: %
             mdtext += "**Motif ID** -> motif ID (motif belonging to set RBP), "
             mdtext += "**Other motif ID** -> other motif ID that set RBP motif ID is compared to, "
             mdtext += "**Other motif ID plot** -> other motif ID sequence motif plot (if motif is sequence motif), "
-            mdtext += "**Pair count** -> number of input regions containing hits for both motifs (minimum pair count to be reported: %i (set by --motif-min-pair-count)), " %(motif_min_pair_count)
-            mdtext += '**# near motifs** -> ' + "number of other motifs within specified distance (--motif-distance-plot-range %i) of the centered motif belonging to set RBP, " %(motif_distance_plot_range)
-            mdtext += '**# distant motifs** -> ' + "number of other motifs outside specified distance (--motif-distance-plot-range %i) of the centered motif belonging to set RBP." %(motif_distance_plot_range)
+            mdtext += "**Pair count** -> number of input regions containing hits for both motifs (minimum pair count to be reported: %i (set by --motif-min-pair-count)), " %(args.motif_min_pair_count)
+            mdtext += '**# near motifs** -> ' + "number of other motifs within specified distance (--motif-distance-plot-range %i) of the centered motif belonging to set RBP, " %(args.motif_distance_plot_range)
+            mdtext += '**# distant motifs** -> ' + "number of other motifs outside specified distance (--motif-distance-plot-range %i) of the centered motif belonging to set RBP." %(args.motif_distance_plot_range)
             # mdtext += "\n"
             mdtext += "\n&nbsp;\n"
 

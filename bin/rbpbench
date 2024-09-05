@@ -13666,7 +13666,7 @@ def main_searchlongrna(args):
     c_tr_infos = len(tid2tio_dic)
     print("# transcript features read in from --gtf:", c_tr_infos)
 
-    # If --only-mrna, only select mRNAs, which also triggers mRNA region occupancy plots generation.
+    # If --mrna-only, only select mRNAs, which also triggers mRNA region occupancy plots generation.
     tid2regl_dic = {}
     if args.only_mrna:
         # Get mRNA region lengths (from transcript IDs with CDS feature).
@@ -13680,7 +13680,7 @@ def main_searchlongrna(args):
         else:
             print("# mRNA transcripts (containing CDS, out of MPT selected set):", c_mrna_tids)
 
-        assert c_mrna_tids, "no mRNA transcripts (containing CDS) found in --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE). Alternatively, if --tr-list was given, make sure that the list contains mRNA transcripts, or do not set --only-mrna"
+        assert c_mrna_tids, "no mRNA transcripts (containing CDS) found in --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE). Alternatively, if --tr-list was given, make sure that the list contains mRNA transcripts, or do not set --mrna-only"
 
         # Output mRNA regions (5'UTR CDS 3'UTR) to BED.
         print("Output mRNA regions to BED ... ")
@@ -15688,7 +15688,7 @@ def main_enmo(args):
             # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.
             print("Output exon annotations to BED ... ")
             benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
-                                            append=True)
+                                             append=True)
 
             # Overlap with input regions.
             print("Overlap annotations with input regions ... ")
