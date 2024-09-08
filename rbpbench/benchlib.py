@@ -3094,7 +3094,6 @@ def exon_intron_border_regions_to_bed(tid2tio_dic, out_bed,
 
     OUTBED.close()
 
-
 """
 	-f	Minimum overlap required as a fraction of A.
 		- Default is 1E-9 (i.e., 1bp).
@@ -3113,11 +3112,111 @@ def exon_intron_border_regions_to_bed(tid2tio_dic, out_bed,
 		  that either 90% of A is covered OR 10% of  B is covered.
 		  Without -e, both fractions would have to be satisfied.
 
-
-
 """
 
+################################################################################
 
+def output_eib_pos_to_bed(tid2tio_dic, out_bed,
+                          min_intron_len=False,
+                          min_exon_len=False,
+                          border_mode=1):
+
+    """
+    Output exon-intron border positions (first or last intron positions) 
+    to out_bed.
+
+    border_mode:
+        1: upstream borders
+        2: downstream borders
+
+    Correct exon_coords order expected (i.e. exon 1 on - most downstream, and most upstream on +).
+
+    >>> out_bed = "test_data/test.exon_intron_border_pos.tmp.bed"
+    >>> exp_bed = "test_data/test.exon_intron_border_pos.exp.bed"
+    >>> tid2tio_dic = {}
+    >>> tid2tio_dic["ENST1"] = TranscriptInfoExonTest("ENST1", "chr1", "+", [[1001, 1100], [2001, 2100], [3001, 3100]])
+    >>> tid2tio_dic["ENST2"] = TranscriptInfoExonTest("ENST2", "chr1", "-", [[3001, 3100], [2001, 2100], [1001, 1100]])
+    >>> output_eib_pos_to_bed(tid2tio_dic, out_bed)
+    >>> diff_two_files_identical(out_bed, exp_bed)
+    True
+    >>> exp_bed = "test_data/test.exon_intron_border_pos2.exp.bed"
+    >>> output_eib_pos_to_bed(tid2tio_dic, out_bed, border_mode=2)
+    >>> diff_two_files_identical(out_bed, exp_bed)
+    True
+
+    
+    """
+
+    assert tid2tio_dic, "given tid2tio_dic empty"
+
+    OUTBED = open(out_bed, "w")
+
+    for tr_id in tid2tio_dic:
+
+        chr_id = tid2tio_dic[tr_id].chr_id
+        tr_pol = tid2tio_dic[tr_id].tr_pol
+        exon_coords = tid2tio_dic[tr_id].exon_coords
+        assert exon_coords is not None, "exon coordinates list not set for transcript ID %s" %(tr_id)
+    
+        # Get intron coordinates.
+        intron_coords = []
+        if tr_pol == "+":
+            for i in range(len(exon_coords) - 1):
+                intron_coords.append([exon_coords[i][1]+1, exon_coords[i+1][0]-1])
+        elif tr_pol == "-":
+            for i in range(len(exon_coords) - 1):
+                intron_coords.append([exon_coords[i+1][1]+1, exon_coords[i][0]-1])
+        else:
+            assert False, "invalid strand given (%s) for transcript ID %s" %(tr_pol, tr_id)
+
+        for idx, intron in enumerate(intron_coords):
+
+            intron_s = intron[0]-1
+            intron_e = intron[1]
+            eib_id = "eib"
+
+            intron_len = intron_e - intron_s
+            if min_intron_len:
+                if intron_len < min_intron_len:
+                    continue
+
+            # Exon lengths.
+            us_exon_s = exon_coords[idx][0] - 1
+            if tr_pol == "-":
+                us_exon_s = exon_coords[idx+1][0] - 1            
+            us_exon_e = intron_s
+            us_exon_len = us_exon_e - us_exon_s
+            ds_exon_s = intron_e
+            ds_exon_e = exon_coords[idx+1][1]
+            if tr_pol == "-":
+                ds_exon_e = exon_coords[idx][1]
+            ds_exon_len = ds_exon_e - ds_exon_s
+
+            us_eib_s = intron_s
+            us_eib_e = intron_s + 1
+            ds_eib_s = intron_e - 1
+            ds_eib_e = intron_e
+
+            if tr_pol == "-":
+                us_eib_s = intron_e - 1
+                us_eib_e = intron_e
+                ds_eib_s = intron_s
+                ds_eib_e = intron_s + 1
+
+            if border_mode == 1:
+                if min_exon_len:
+                    if us_exon_len < min_exon_len:
+                        continue
+                eib_id += ";us;%i;%s" %(idx+1, tr_id)
+                OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, us_eib_s, us_eib_e, eib_id, tr_pol))
+            elif border_mode == 2:
+                if min_exon_len:
+                    if ds_exon_len < min_exon_len:
+                        continue
+                eib_id += ";ds;%i;%s" %(idx+1, tr_id)
+                OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, ds_eib_s, ds_eib_e, eib_id, tr_pol))
+
+    OUTBED.close()
 
 
 ################################################################################
@@ -4215,6 +4314,209 @@ def get_regex_hit_region_annotations(overlap_annotations_bed,
 
 ################################################################################
 
+def get_normnalized_annot_counts(filtered_sites_bed, intron_exon_out_bed,
+                                 rbp2motif2annot2c_dic, reg2pol_dic, out_folder):
+
+    """
+    Get normalized annotation counts, i.e., counts normalized by the 
+    total length of input regions with the given annotations.
+
+    filtered_sites_bed:
+    chr8	126557892	127292862	chr8:126557892-127292862(+)	0.0	+
+    chr2	20248736	20350844	chr2:20248736-20350844(-)	0.0	-
+
+    intron_exon_out_bed:
+    chr8	126713674	126877671	intron;ENST00000645463	0	+
+    chr8	126877790	127006554	intron;ENST00000645463	0	+
+    chr8	127006618	127292811	intron;ENST00000645463	0	+
+    chr2	20350596	20350844	5'UTR;ENST00000361078	0	-
+    chr2	20327309	20327360	CDS;ENST00000361078	0	-
+    chr2	20327360	20327378	5'UTR;ENST00000361078	0	-
+    chr2	20318536	20318645	CDS;ENST00000361078	0	-
+    ...
+    chr2	20256032	20256170	CDS;ENST00000361078	0	-
+    chr2	20255215	20255341	CDS;ENST00000361078	0	-
+    chr2	20254862	20254984	CDS;ENST00000361078	0	-
+    chr2	20253821	20254014	CDS;ENST00000361078	0	-
+    chr2	20251587	20251716	CDS;ENST00000361078	0	-
+    chr2	20248736	20251587	3'UTR;ENST00000361078	0	-
+    chr8	126557892	126557931	lncRNA;ENST00000645463	0	+
+    chr8	126589191	126589290	lncRNA;ENST00000645463	0	+
+
+    rbp2motif2annot2c_dic:
+        rbp_id -> motif_id -> annot -> annot_c.
+    
+    $ intersectBed -a test_reg.bed -b test_annot.bed -s -wb
+    chr1	1000	1100	s1	0	+	chr1	900	1100	5'UTR	0	+
+    chr1	1100	1300	s1	0	+	chr1	1100	1300	intron	0	+
+    chr1	1300	1500	s1	0	+	chr1	1300	1500	CDS	0	+
+    chr1	1500	1700	s1	0	+	chr1	1500	1700	intron	0	+
+    chr1	1700	1900	s1	0	+	chr1	1700	1900	3'UTR	0	+
+    chr1	1600	1650	s1	0	+	chr1	1600	1650	lncRNA	0	+
+
+    AALAMO:
+    overlap intron_exon_out_bed effective regions, not with all regions 
+    inside filtered_sites_bed.
+
+     
+    """
+
+    assert os.path.exists(filtered_sites_bed), "filtered_sites_bed does not exist"
+    assert os.path.exists(intron_exon_out_bed), "intron_exon_out_bed does not exist"
+    assert rbp2motif2annot2c_dic, "rbp2motif2annot2c_dic empty"
+    
+    rbp2motif2annot2normc_dic = {}
+
+    in_bed = out_folder + "/in_sites.filtered.eff_regs.tmp.bed"
+    reg_len_dic = {}
+    bed_get_effective_reg_bed(filtered_sites_bed, in_bed, reg2pol_dic,
+                              reg_len_dic=reg_len_dic)
+                              
+    eff_reg_size = 0
+    for reg_id in reg_len_dic:
+        reg_len = reg_len_dic[reg_id]
+        eff_reg_size += reg_len
+
+    # # Get effective total input regions length.
+    # eff_reg_size = get_uniq_gen_size(filtered_sites_bed)
+
+    out_bed = out_folder + "/in_sites.filtered.annot_overlap.tmp.bed"
+
+    bed_intersect_files(in_bed, intron_exon_out_bed, out_bed, params="-s -wb")
+
+    annot_len_dic = {}
+
+    with open(out_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            reg_s = int(cols[1])
+            reg_e = int(cols[2])
+            reg_id = cols[3]
+            reg_len = reg_e - reg_s
+            annot_info = cols[9]
+            annot_id = annot_info.split(";")[0]
+            tr_id = annot_info.split(";")[1]
+            if annot_id not in annot_len_dic:
+                annot_len_dic[annot_id] = reg_len
+            else:
+                annot_len_dic[annot_id] += reg_len
+
+    f.closed
+
+    # Get effective region length of of regions overlapping with annotations.
+    eff_ol_reg_size = get_uniq_gen_size(out_bed)
+    assert eff_ol_reg_size <= eff_reg_size, "eff_ol_reg_size > eff_reg_size"
+    len_intergenic = eff_reg_size - eff_ol_reg_size
+    annot_len_dic["intergenic"] = len_intergenic
+
+    for rbp_id in rbp2motif2annot2c_dic:
+        rbp2motif2annot2normc_dic[rbp_id] = {}
+        for motif_id in rbp2motif2annot2c_dic[rbp_id]:
+            rbp2motif2annot2normc_dic[rbp_id][motif_id] = {}
+            for annot_id in rbp2motif2annot2c_dic[rbp_id][motif_id]:
+                assert annot_id in annot_len_dic, "annot_id \"%s\" not in annot_len_dic" %(annot_id)
+                annot_c = rbp2motif2annot2c_dic[rbp_id][motif_id][annot_id]
+                annot_len_1000 = annot_len_dic[annot_id] / 1000
+                norm_c = annot_c / annot_len_1000
+                rbp2motif2annot2normc_dic[rbp_id][motif_id][annot_id] = norm_c
+    
+    return rbp2motif2annot2normc_dic
+
+
+################################################################################
+
+def bed_get_effective_reg_bed(in_bed, out_bed, reg2pol_dic,
+                              reg_len_dic=None):
+    """
+    Convert regions BED file into effective regions BED file.
+    Effective regions are unique regions, i.e., overlapping regions are merged.
+
+    reg2pol_dic:
+        region ID -> region polarity / strand. Needed since merge operation does not 
+        store region polarity/ strand.
+
+    >>> in_bed = "test_data/test.eff_reg.in.bed"
+    >>> out_bed = "test_data/test.eff_reg.tmp.bed"
+    >>> exp_bed = "test_data/test.eff_reg.exp.bed"
+    >>> reg2pol_dic = {"s1":"+", "s2":"+", "s3":"+", "s4":"-", "s5":"-"}
+    >>> bed_get_effective_reg_bed(in_bed, out_bed, reg2pol_dic)
+    >>> diff_two_files_identical(out_bed, exp_bed)
+    True
+         
+    """
+
+    params_str = '-s -c 4 -o distinct -delim ";"'
+    check_cmd = "sort -k1,1 -k2,2n " + in_bed + " | mergeBed -i stdin " + params_str
+    output = subprocess.getoutput(check_cmd)
+
+    BEDOUT = open(out_bed, "w")
+    c_out = 0
+
+    for line in output.split('\n'):
+        cols = line.strip().split("\t")
+        chr_id = cols[0]
+        reg_s = int(cols[1])
+        reg_e = int(cols[2])
+        reg_ids_str = cols[3]
+        reg_ids_list = reg_ids_str.split(";")
+        reg_id_0 = reg_ids_list[0]
+        assert reg_id_0 in reg2pol_dic, "region ID \"%s\" not in reg2pol_dic" %(reg_id_0)
+        reg_strand = reg2pol_dic[reg_id_0]
+        reg_len = reg_e - reg_s
+        if reg_len_dic is not None:
+            reg_len_dic[reg_ids_str] = reg_len
+        c_out += 1
+        BEDOUT.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, reg_s, reg_e, reg_ids_str, reg_strand))
+
+    BEDOUT.close()
+
+    assert c_out, "mergeBed on in_bed %s to produce out_bed %s failed (in_bed empty?)" %(in_bed, out_bed)
+
+
+################################################################################
+
+
+def bed_sort_file(in_bed, out_bed, 
+                  params="-k1,1 -k2,2n"):
+    """
+    Sort BED file (necessary for some bedtools operations).
+
+    """
+
+    assert os.path.exists(in_bed), "in_bed does not exist"
+
+    check_cmd = "sort " + params + " " + in_bed + " > " + out_bed
+    output = subprocess.getoutput(check_cmd)
+    error = False
+    if output:
+        error = True
+    assert error == False, "sort has problems with your input:\n%s\n%s" %(check_cmd, output)
+
+
+# ################################################################################
+
+# def bed_merge_entries(in_bed, out_bed, 
+#                       params="-k1,1 -k2,2n"):
+
+#     """
+#     Merge entries in in_bed file. Output is 3-col BED:
+#     chr1	1000	1900
+
+#     """
+
+#     assert os.path.exists(in_bed), "in_bed does not exist"
+
+#     check_cmd = "sort " + params + " " + in_bed + " > " + out_bed
+#     output = subprocess.getoutput(check_cmd)
+#     error = False
+#     if output:
+#         error = True
+#     assert error == False, "sort has problems with your input:\n%s\n%s" %(check_cmd, output)
+
+
+
+################################################################################
+
 def get_motif_hit_region_annotations(overlap_annotations_bed,
                                      tid2tio_dic=None):
     """
@@ -5076,11 +5378,15 @@ def get_uniq_gen_size(gen_sites_bed):
     Get unique genomic space size, which the genomic sites inside
     gen_sites_bed cover.
 
+    sort -k1,1 -k2,2n in_sites.filtered.bed | mergeBed -i stdin -s -c 4 -o distinct -delim ";"
+
     >>> gen_sites_bed = "test_data/test_gen_size.bed"
     >>> get_uniq_gen_size(gen_sites_bed)
     2500
+    >>> in_bed = "test_data/test_ol.sorted.bed"    
+    >>> get_uniq_gen_size(in_bed)
+    2100
 
-    sort -k1,1 -k2,2n in_sites.filtered.bed | mergeBed -i stdin -s -c 4 -o distinct -delim ";"
     """
 
     params_str = '-s -c 4 -o distinct -delim ";"'
@@ -5831,6 +6137,7 @@ def bed_filter_extend_bed(in_bed, out_bed,
                           ext_down=0,
                           remove_dupl=True,
                           reg2sc_dic=None,
+                          reg2pol_dic=None,
                           score_col=5,
                           score_thr=None,
                           score_rev_filter=False,
@@ -5857,6 +6164,8 @@ def bed_filter_extend_bed(in_bed, out_bed,
         input region, two output regions are generated.
     reg2sc_dic:
         region ID -> column score_col BED score
+    reg2sc_dic:
+        region ID -> polarity/strand of region
     transcript_sites:
         If transcript sites, just use first three columns.
     chr_len_dic:
@@ -5926,6 +6235,9 @@ def bed_filter_extend_bed(in_bed, out_bed,
             # Record present IDs.
             if bed_chr_ids_dic is not None:
                 bed_chr_ids_dic[chr_id] = 1
+
+            if reg2pol_dic is not None:
+                reg2pol_dic[reg_id] = reg_pol
 
             # Use "chr20:62139082-62139128(-)" style.
             # if use_region_ids:
@@ -9042,12 +9354,21 @@ Considered intron border region length = %i nt. Considered exon-intron border re
         mdtext += '**%% upstream intron border regions** -> %% of input regions overlapping with upstream ends of intron regions (first %i nt), ' %(ib_len)
         mdtext += '**%% downstream intron border regions** -> %% of input regions overlapping with downstream ends of intron regions (last %i nt), ' %(ib_len)
         mdtext += '**%% exon-intron border regions** -> %% of input regions overlapping with exon-intron borders (+/- %i nt of exon-intron borders). ' %(eib_len)
-        mdtext += "Note that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered.\n" %(2*ib_len, ib_len)
+        mdtext += "Note that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered. " %(2*ib_len, ib_len)
+        mdtext += "Also note that the overlap is calculated between (optionally extended) input regions and transcript regions (one representative transcript, i.e., transcript with highest experimental support, chosen for each gene region, unless --tr-list provided). "
+        mdtext += "Thus, depending on set parameters (minimum overlap amount etc.) and characteristics of input dataset, exon/intron overlap can vary or even be relatively low.\n"
         mdtext += "\n&nbsp;\n"
 
 
 
     """
+
+Also note that the overlap is calculated between (optionally extended) input regions and transcript regions 
+(one representative transcript, i.e., transcript with highest experimental support, chosen for each gene region, unless --tr-list provided). 
+Thus, depending on set parameters (minimum overlap amount etc.) and characteristics of input dataset, 
+exon/intron overlap can vary or even be relatively low.
+
+
     Input datasets RBP region score motif enrichment statistics.
 
     Format:
@@ -9945,8 +10266,10 @@ def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic,
 
 ################################################################################
 
-def create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, annot2color_dic,
-                                        plot_out):
+def create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, 
+                                        annot2color_dic, plot_out,
+                                        x_label="Annotation overlap",
+                                        y_label=""):
     """
     Do the motif hit genomic region annotations stacked bars plot.
     Plot all bars in one plot, one for all rbp_id hits, and one for each motif_id hits. 
@@ -10004,8 +10327,8 @@ def create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, annot2col
 
     ax = df.set_index('rbp_id').plot(kind='barh', stacked=True, legend=False, color=annot2color_dic, edgecolor="none", figsize=(fwidth, fheight))
 
-    plt.xlabel('Annotation overlap')
-    ax.set_ylabel('')
+    plt.xlabel(x_label)
+    ax.set_ylabel(y_label)
     ax.yaxis.grid(False)
     ax.xaxis.grid(True)
     ax.set_axisbelow(True)
@@ -12754,6 +13077,10 @@ Categories:
 **+/- 50 nt exon intron borders** -> %% of input regions overlapping with exon-intron borders 
 (50 nt upstream and downstream of exon-intron borders) (\# %i).
 Note that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered. 
+Also note that the overlap is calculated between (optionally extended) input regions and transcript regions 
+(one representative transcript, i.e., transcript with highest experimental support, chosen for each gene region, unless --tr-list provided). 
+Thus, depending on set parameters (minimum overlap amount etc.) and characteristics of input dataset, 
+exon/intron overlap can vary or even be relatively low.
 
 &nbsp;
 
@@ -12763,8 +13090,6 @@ Note that for upstream/downstream intron region overlaps, only introns >= %i (2*
 
     """
     RBP region occupancies upset plot.
-
-    AALAMO
 
     """
 
@@ -14363,6 +14688,7 @@ def search_generate_html_motif_plots(args, search_rbps_dic,
                                      seq_motif_blocks_dic, str_motif_blocks_dic,
                                      benchlib_path, motif2db_dic,
                                      rbp2motif2annot2c_dic=False,
+                                     rbp2motif2annot2normc_dic=False,
                                      annot2color_dic=False,
                                      mrna_reg_occ_dic=False,
                                      norm_mrna_reg_dic=False,
@@ -14799,13 +15125,14 @@ Number of mRNA sequences used for prediction and plot generation: %i.
             annot_stacked_bars_plot_out = plots_out_folder + "/" + annot_stacked_bars_plot
 
             create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, annot2color_dic,
-                                                annot_stacked_bars_plot_out)
+                                                annot_stacked_bars_plot_out,
+                                                x_label="Annotation overlap")
 
             plot_path = plots_folder + "/" + annot_stacked_bars_plot
 
             mdtext += '<img src="' + plot_path + '" alt="Region annotations plot"' + "\n"
             # mdtext += 'title="Annotation stacked bars plot" width="800" />' + "\n"
-            mdtext += 'title="Region annotations plot" />' + "\n"
+            mdtext += 'title="Region annotations plot" width="1050" />' + "\n"
             mdtext += """
 **Figure:** Genomic region annotations for RBP "%s" motif hits.
 %s motif hit regions are overlapped with genomic regions from GTF file and genomic region feature with highest overlap
@@ -14815,6 +15142,35 @@ Genomic annotations are shown for all motifs of RBP "%s" combined, as well as fo
 &nbsp;
 
 """ %(rbp_id, site_type_uc, rbp_id)
+
+
+        # If there are motif hit region annotations and hits for the RBP.
+        if rbp2motif2annot2normc_dic and c_total_rbp_hits:
+
+            assert annot2color_dic, "given rbp2motif2annot2normc_dic but annot2color_dic is empty"
+
+            annot_stacked_bars_plot =  "annotation_stacked_bars_plo.normc.%s.png" %(rbp_id)
+            annot_stacked_bars_plot_out = plots_out_folder + "/" + annot_stacked_bars_plot
+
+            create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2normc_dic, annot2color_dic,
+                                                annot_stacked_bars_plot_out,
+                                                x_label="Normalized annotation overlap")
+
+            plot_path = plots_folder + "/" + annot_stacked_bars_plot
+
+            mdtext += '<img src="' + plot_path + '" alt="Region annotations normalized counts plot"' + "\n"
+            # mdtext += 'title="Annotation stacked bars plot" width="800" />' + "\n"
+            mdtext += 'title="Region annotations normalized counts plot"  width="1050" />' + "\n"
+            mdtext += """
+**Figure:** Genomic region annotations for RBP "%s" motif hits, normalized by annotation region lengths in input regions.
+I.e., annotation counts from the above figure are normalized depending on how much the annoation covers the input regions.
+This removes annotation region length biases introduced in long genomic input regions and can give a better idea of 
+motif prevalences (given a reasonably large input size/number) in certain genomic regions (e.g. intron, 3'UTR etc.).
+
+&nbsp;
+
+""" %(rbp_id)
+
 
         if rbp_id == args.regex_id:
             continue

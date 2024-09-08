@@ -5305,6 +5305,7 @@ def main_search(args):
         # If --tr-list given.
         tr_ids_dic = {}
         if args.tr_list:
+            assert os.path.exists(args.tr_list), "given --tr-list file \"%s\" not found" % (args.tr_list)
             tr_ids_dic = benchlib.read_ids_into_dic(args.tr_list,
                                                     check_dic=False)
             assert tr_ids_dic, "no IDs read in from provided --tr-list file. Please provide a valid IDs file (one ID per row)"
@@ -6409,6 +6410,7 @@ def main_batch(args):
 
         # If --tr-list given.
         if args.tr_list:
+            assert os.path.exists(args.tr_list), "given --tr-list file \"%s\" not found" % (args.tr_list)
             tr_ids_dic = benchlib.read_ids_into_dic(args.tr_list,
                                                     check_dic=False)
             assert tr_ids_dic, "no IDs read in from provided --tr-list file. Please provide a valid IDs file (one ID per row)"
@@ -7879,6 +7881,9 @@ def main_batch(args):
     heatmap_cluster_olo = True
     if args.disable_heatmap_cluster_olo:
         heatmap_cluster_olo = False
+    if len(dataset_ids_list) < 2:
+        print("Only one input dataset. Disable gene regions similarity heat map ... ")
+        gene_occ_cooc_plot = False
 
     print("Create HTML report ... ")
     benchlib.batch_generate_html_report(args, dataset_ids_list, kmer_list,
@@ -10051,6 +10056,7 @@ def main_searchlong(args):
         # If --tr-list given.
         tr_ids_dic = {}
         if args.tr_list:
+            assert os.path.exists(args.tr_list), "given --tr-list file \"%s\" not found" % (args.tr_list)
             tr_ids_dic = benchlib.read_ids_into_dic(args.tr_list,
                                                     check_dic=False)
             assert tr_ids_dic, "no IDs read in from provided --tr-list file. Please provide a valid IDs file (one ID per row)"
@@ -10124,12 +10130,14 @@ def main_searchlong(args):
     # Filter / extend --in BED.
     print("Preprocess --in sites ... ")
     reg2sc_dic = {}  # Used to store region scores for Wilcoxon rank-sum test.
+    reg2pol_dic = {}
     bed_chr_ids_dic = {}
     reg_stats_dic = benchlib.bed_filter_extend_bed(in_bed_file, filtered_sites_bed,
                                           ext_up=ext_up,
                                           ext_down=ext_down,
                                           remove_dupl=True,
                                           reg2sc_dic=reg2sc_dic,
+                                          reg2pol_dic=reg2pol_dic,
                                           score_col=bed_score_col,
                                           chr_ids_dic=chr_ids_dic,
                                           bed_chr_ids_dic=bed_chr_ids_dic,
@@ -10738,6 +10746,7 @@ def main_searchlong(args):
     """
 
     rbp2motif2annot2c_dic = {}  # rbp_id -> motif_id -> annot -> count
+    rbp2motif2annot2normc_dic = {}  # rbp_id -> motif_id -> annot -> norm_count
 
     if args.in_gtf:
 
@@ -10826,6 +10835,26 @@ def main_searchlong(args):
             else:
                 rbp2motif2annot2c_dic[rbp_id][motif_id][annot] += 1
 
+        """
+        Get normalized rbp2motif2annot2c_dic (rbp2motif2annot2normc_dic)
+        I.e., the count gets normalized by the total annot region length in the 
+        filtered_sites_bed. This way we can better see whether motifs tend to occur
+        more often in certain annotated regions.
+        Note that overlap is done with filtered_sites_bed vs intron_exon_out_bed,
+        counting all feature overlaps, whereas in rbp2motif2annot2c_dic the best 
+        overlapping annotation is determined inside get_motif_hit_region_annotations.
+        So a motif hit can only overlap with one annotation for the rbp2motif2annot2c_dic
+        counts, whereas the filtered_sites_bed can overlap with different annotations
+        (all the annotations in intron_exon_out_bed).
+
+        """
+
+        print("Get normalized annotation counts ... ")
+        rbp2motif2annot2normc_dic = benchlib.get_normnalized_annot_counts(
+                                        filtered_sites_bed, intron_exon_out_bed,
+                                        rbp2motif2annot2c_dic, reg2pol_dic, 
+                                        args.out_folder)
+
     """
     Get annotation to color dictionary, which is needed for region annotation plots in HTML reports.
 
@@ -10886,6 +10915,7 @@ def main_searchlong(args):
                                         str_motif_blocks_dic,
                                         benchlib_path, loaded_motif_ids_dic,
                                         rbp2motif2annot2c_dic=rbp2motif2annot2c_dic,
+                                        rbp2motif2annot2normc_dic=rbp2motif2annot2normc_dic,
                                         annot2color_dic=annot2color_dic,
                                         html_report_out=html_motif_plots_out,
                                         rbpbench_mode="searchlong --plot-motifs",
@@ -13621,6 +13651,7 @@ def main_searchlongrna(args):
     # Get most prominent transcripts or if --tr-list is set, read in transcript IDs.
     tr_ids_dic = {}
     if args.tr_list:
+        assert os.path.exists(args.tr_list), "given --tr-list file \"%s\" not found" % (args.tr_list)
         tr_ids_dic = benchlib.read_ids_into_dic(args.tr_list,
                                                 check_dic=False)
         assert tr_ids_dic, "no IDs read in from provided --tr-list file. Please provide a valid IDs file (one ID per row)"
@@ -15430,6 +15461,7 @@ def main_enmo(args):
     # Get most prominent transcripts or if --tr-list is set, read in transcript IDs.
     tr_ids_dic = {}
     if args.tr_list:
+        assert os.path.exists(args.tr_list), "given --tr-list file \"%s\" not found" % (args.tr_list)
         tr_ids_dic = benchlib.read_ids_into_dic(args.tr_list,
                                                 check_dic=False)
         assert tr_ids_dic, "no IDs read in from provided --tr-list file. Please provide a valid IDs file (one ID per row)"
@@ -17777,6 +17809,7 @@ def main_nemo(args):
     # Get most prominent transcripts or if --tr-list is set, read in transcript IDs.
     tr_ids_dic = {}
     if args.tr_list:
+        assert os.path.exists(args.tr_list), "given --tr-list file \"%s\" not found" % (args.tr_list)
         tr_ids_dic = benchlib.read_ids_into_dic(args.tr_list,
                                                 check_dic=False)
         assert tr_ids_dic, "no IDs read in from provided --tr-list file. Please provide a valid IDs file (one ID per row)"
