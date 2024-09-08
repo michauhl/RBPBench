@@ -22,7 +22,8 @@ setup(
              'bin/bed_shift_regions.py', 
              'bin/gtf_extract_mpt_region_bed.py', 
              'bin/bed_print_first_n_pos.py', 
-             'bin/bed_print_last_n_pos.py'
+             'bin/bed_print_last_n_pos.py',
+             'gtf_extract_exon_intron_border_bed.py'
              ],
     packages=['rbpbench'],
     package_data={'rbpbench': ['content/*', 'content/motif_plots/*']},
