@@ -4354,11 +4354,6 @@ def get_normnalized_annot_counts(filtered_sites_bed, intron_exon_out_bed,
     chr1	1700	1900	s1	0	+	chr1	1700	1900	3'UTR	0	+
     chr1	1600	1650	s1	0	+	chr1	1600	1650	lncRNA	0	+
 
-    AALAMO:
-    overlap intron_exon_out_bed effective regions, not with all regions 
-    inside filtered_sites_bed.
-
-     
     """
 
     assert os.path.exists(filtered_sites_bed), "filtered_sites_bed does not exist"
@@ -15163,9 +15158,10 @@ Genomic annotations are shown for all motifs of RBP "%s" combined, as well as fo
             mdtext += 'title="Region annotations normalized counts plot"  width="1050" />' + "\n"
             mdtext += """
 **Figure:** Genomic region annotations for RBP "%s" motif hits, normalized by annotation region lengths in input regions.
-I.e., annotation counts from the above figure are normalized depending on how much the annoation covers the input regions.
+I.e., annotation counts from the above figure are normalized depending on how much the annotation covers the input regions.
 This removes annotation region length biases introduced in long genomic input regions and can give a better idea of 
-motif prevalences (given a reasonably large input size/number) in certain genomic regions (e.g. intron, 3'UTR etc.).
+motif prevalences (given a reasonably large input size/number) in certain genomic regions (e.g. the motif tends to occur 
+more often in intron, 3'UTR etc.).
 
 &nbsp;
 
