@@ -3,7 +3,7 @@
 import argparse
 import os
 import re
-import subprocess
+import gzip
 
 
 ###############################################################################
@@ -48,7 +48,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Define to which chromosome ID style to convert chromosomes to. 1: do not change chromosome IDs. 2: convert to chr1,chr2,...,chrM style. 3: convert to 1,2,...,MT style (default: 1)")
+                   help="Define to which chromosome ID style to convert chromosome IDs to. 1: do not change chromosome IDs. 2: convert to chr1,chr2,...,chrM style. 3: convert to 1,2,...,MT style (default: 1)")
     return p
 
 
@@ -241,5 +241,6 @@ if __name__ == '__main__':
                                    bed_col6_infos=args.bed_col4_infos,
                                    chr_id_style=args.chr_id_style)
     print("Done.")
+
 
 ################################################################################

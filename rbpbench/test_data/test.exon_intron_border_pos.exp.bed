@@ -1,0 +1,4 @@
+chr1	1100	1101	eib;us;1;ENST1	0	+
+chr1	2100	2101	eib;us;2;ENST1	0	+
+chr1	2999	3000	eib;us;1;ENST2	0	-
+chr1	1999	2000	eib;us;2;ENST2	0	-

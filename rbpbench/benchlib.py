@@ -5,24 +5,28 @@ import re
 import subprocess
 import gzip
 import shutil
+import statistics
 import matplotlib.pyplot as plt
 from matplotlib_venn import venn2, venn3
+from itertools import combinations
 from venn import venn
 from logomaker import Logo
 from markdown import markdown
 import pandas as pd
 import plotly.express as px
-from math import log10
-from math import floor
+from math import floor, log10, ceil
 import textdistance
 import numpy as np
 from upsetplot import UpSet
 from packaging import version
 from sklearn.decomposition import PCA
-from sklearn.decomposition import SparsePCA
-from itertools import combinations
+# from sklearn.decomposition import SparsePCA
+from itertools import product
 from scipy.stats import fisher_exact
 from scipy.stats import false_discovery_control  # Benjamini-Hochberg correction.
+from goatools.obo_parser import GODag
+from goatools.goea.go_enrichment_ns import GOEnrichmentStudy
+from decimal import Decimal, getcontext
 
 
 """
@@ -38,7 +42,6 @@ Run doctests
 
 python3 -m doctest benchlib.py
 python3 -m doctest -v benchlib.py
-
 
 
 """
@@ -120,6 +123,652 @@ def is_valid_regex(regex):
 
 ################################################################################
 
+def get_seqs_from_regex(regex):
+    """
+    Given a regex, e.g., A[CG]T[AG], return all possible sequences 
+    that match the regex.
+
+    >>> get_seqs_from_regex("A[CG]T[AG]")
+    ['ACTA', 'ACTG', 'AGTA', 'AGTG']
+    
+    """
+
+    assert regex, "given regex empty"
+    assert is_valid_regex(regex), "Regex \"%s\" is not a valid regex" %(regex)
+
+    # Extract fixed parts and variable parts.
+    fixed_parts = re.split(r'\[.*?\]', regex)
+    variable_parts = re.findall(r'\[(.*?)\]', regex)
+
+    # Generate all combinations of the variable parts.
+    combinations = list(product(*variable_parts))
+
+    # Assemble all sequences matched by the regex.
+    seqs_list = []
+    for combo in combinations:
+        seq = ''.join([fixed_part + combo_part for fixed_part, combo_part in zip(fixed_parts, combo + ('',))])
+        seqs_list.append(seq)
+
+    assert seqs_list, "no matching sequences extracted from regex \"%s\"" %(regex)
+
+    return seqs_list
+
+
+################################################################################
+
+def get_seq_parts_from_regex(regex):
+    """
+    Split a regex into single sequence parts, e.g.
+    'A[CG]AT[AG][CT]C' -> ['A', 'CG', 'AT', 'AG', 'CT', 'C']
+
+    >>> get_seq_parts_from_regex('A[CG]AT[AG]AA')
+    ['A', 'CG', 'A', 'T', 'AG', 'A', 'A']
+    >>> get_seq_parts_from_regex('ACGT')
+    ['A', 'C', 'G', 'T']
+    >>> get_seq_parts_from_regex('[ACGT]')
+    ['ACGT']
+    
+    """
+    assert regex, "given regex empty"
+    assert is_valid_regex(regex), "Regex \"%s\" is not a valid regex" %(regex)
+
+    search_regex = r'[A-Z]+|\[[A-Z]+\]'
+
+    parts = re.findall(search_regex, regex)
+
+    split_parts = []
+    for part in parts:
+        if part.startswith('[') and part.endswith(']'):
+            split_parts.append(part)
+        else:
+            split_parts.extend(list(part))
+
+    # Remove brackets from variable parts.
+    final_parts = [part.strip('[]') for part in split_parts]
+
+    assert final_parts, "no sequence parts extracted from regex \"%s\"" %(regex)
+
+    return final_parts
+
+
+################################################################################
+
+def seq_check_alphabet(seq, 
+                       alphabet=["A", "C", "G", "T"]):
+    """
+    Check if sequence uses only characters from given alphabet.
+
+    >>> seq_check_alphabet("ACGT", alphabet=["A", "C", "G", "T"])
+    True
+    >>> seq_check_alphabet("ACGT", alphabet=["A", "C", "G"])
+    False
+
+    """
+
+    assert seq, "given seq empty"
+
+    for nt in seq:
+        if nt not in alphabet:
+            return False
+    
+    return True
+
+
+################################################################################
+
+def seq_parts_to_motif_block(seq_parts_list,
+                             alphabet=["A", "C", "G", "T"]):
+    """
+    Convert sequence parts lists with format:
+    ['A', 'CG', 'A', 'T', 'AG', 'A', 'A']
+    to motif block format.
+
+    >>> seq_parts_to_motif_block(["A"], alphabet=["A", "C", "G", "T"])
+    ['letter-probability matrix: alength= 4 w= 1 nsites= 20 E= 0', '1.00000  0.00000  0.00000  0.00000']
+    >>> seq_parts_to_motif_block(["ACG"], alphabet=["A", "C", "G", "T"])
+    ['letter-probability matrix: alength= 4 w= 1 nsites= 20 E= 0', '0.33333  0.33333  0.33333  0.00000']
+    
+    """
+
+    assert seq_parts_list, "given seq_parts_list empty"
+
+    l_ab = len(alphabet)
+    matrix_head = "letter-probability matrix: alength= %i w= %i nsites= 20 E= 0" %(l_ab, len(seq_parts_list))
+    seq_motif_block = [matrix_head]
+    for part in seq_parts_list:
+        # part can be single nt or multiple nts string.
+        nts = set(list(part))
+        single_prob = 1.0 / len(nts)
+        line = ""
+        for i in range(l_ab):
+            if alphabet[i] in nts:
+                # Make single_prob 5 decimal places format, so always print 5 decimal places.
+                line += f"{single_prob:.5f}" + "  "
+            else:
+                line += "0.00000  "
+
+        seq_motif_block.append(line.strip())
+
+    return seq_motif_block
+
+
+################################################################################
+
+def seq_to_motif_block(seq,
+                       alphabet=["A", "C", "G", "T"]):
+    """
+    Convert sequence to motif block format.
+    
+    >>> seq_to_motif_block("A", alphabet=["A", "C", "G", "T"])
+    ['letter-probability matrix: alength= 4 w= 1 nsites= 20 E= 0', '1.00000  0.00000  0.00000  0.00000']
+
+    """
+
+    assert seq, "given seq empty"
+
+    l_seq = len(seq)
+    l_ab = len(alphabet)
+    matrix_head = "letter-probability matrix: alength= %i w= %i nsites= 20 E= 0" %(l_ab, l_seq)
+    seq_motif_block = [matrix_head]
+    for nt in seq:
+        line = ""
+        for i in range(l_ab):
+            if alphabet[i] == nt:
+                line += "1.00000  "
+            else:
+                line += "0.00000  "
+
+        seq_motif_block.append(line.strip())
+
+    return seq_motif_block
+
+    """
+    seq_motif_block:
+    ['letter-probability matrix: alength= 4 w= 6 nsites= 20 E= 0', ' 0.054545  0.636364  0.145455  0.163636 ', ' 0.814815  0.055555  0.000000  0.129630 ', ' 0.168381  0.000000  0.831619  0.000000 ', ' 0.163636  0.072727  0.181818  0.581819 ', ' 0.200000  0.127273  0.636363  0.036364 ', ' 0.290909  0.400000  0.090909  0.218182 ']
+
+    MOTIF XRN2_1 
+    letter-probability matrix: alength= 4 w= 9 nsites= 20 E= 0
+    0.034700  0.046200  0.855500  0.063600 
+    0.041100  0.057800  0.862900  0.038200 
+    0.051200  0.048900  0.822700  0.077200 
+    0.069107  0.053105  0.827683  0.050105 
+    0.026900  0.130200  0.812900  0.030000 
+    0.025900  0.527700  0.350300  0.096100 
+    0.033500  0.823800  0.099300  0.043400 
+    0.083192  0.575342  0.241976  0.099490 
+    0.058200  0.577800  0.297300  0.066700 
+    """
+
+
+################################################################################
+
+def get_godag_obo_file_online(godag_obo_file,
+                              godag_obo_url="https://purl.obolibrary.org/obo/go/go-basic.obo"):
+    """
+    Try to download godag obo file via given godag_obo_url. Store file in path:
+    godag_obo_file
+
+    """
+
+    import requests
+    from requests.exceptions import RequestException
+
+    # Check if file is available via given URL.
+    try:
+        response = requests.head(godag_obo_url)
+        # if response.status_code == 200:
+        #     print("go-basic.obo file is available.")
+        # else:
+        #     print("go-basic.obo File is not available.")
+    except RequestException as e:
+        print("Internet connection for downloading go-basic.obo file not available")
+        print(f"Error details: {e}")
+
+    # Download the file.
+    try:
+        response = requests.get(godag_obo_url)
+        with open(godag_obo_file, 'wb') as f:
+            f.write(response.content)
+    except RequestException as e:
+        print(f"Error downloading go-basic.obo file: {e}")
+
+
+################################################################################
+
+def get_godag_obo_file_local(godag_obo_gz_file, godag_obo_file):
+    """
+    Extract godag obo file from godag obo gz file.
+
+    """
+
+    with gzip.open(godag_obo_gz_file, 'rb') as f_in:
+        with open(godag_obo_file, 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
+
+
+################################################################################
+
+def get_gid2go_mapping(gid2go_file,
+                       go_dag=False,
+                       remove_version_numbers=False,
+                       list2set=True):
+    """
+    Given an (Ensembl) gene ID to GO ID mapping file, read the file and return a 
+    dictionary with gene IDs as keys and GO ID list as values.
+    Gene ID to GO mapping file format:
+    gene_id<tab>go_id1,go_id2,go_id3,...
+    gid2go_file format:
+    {gene_id: [go_id1, go_id2, ...]}
+
+    list2set:
+        If True, convert GO ID lists to sets.
+    go_dag:
+        If go_dag (get via: go_dag = GODag(godag_obo_file)) provided, only 
+        keep GO IDs that are present in the GO DAG.
+
+    """
+
+    # Gene ID -> GO IDs list mapping.
+    gid2go_dic = {}
+    with gzip.open(gid2go_file, 'rt') as f:
+        for line in f:
+            if line.startswith("gene_id"):
+                continue
+            columns = line.strip().split('\t')
+            gene_id = columns[0]
+            if remove_version_numbers:
+                gene_id = re.sub("\.\d+$", "", gene_id)
+
+            go_ids = columns[1].split(",")
+            filtered_go_ids = []
+            for go_id in go_ids:
+                if go_dag:
+                    if go_id in go_dag:
+                        filtered_go_ids.append(go_id)
+                else:
+                    filtered_go_ids.append(go_id)
+            if not filtered_go_ids:
+                continue
+            if list2set:
+                filtered_go_ids = set(filtered_go_ids)
+            gid2go_dic[gene_id] = filtered_go_ids
+
+    assert gid2go_dic, "gid2go_dic empty. No GO terms stored for any gene ID. Make sure %s file has correct row format: gene_id<tab>go_id1,go_id2,..." %(gid2go_file)
+
+    return gid2go_dic
+
+
+################################################################################
+
+class GeneDesc:
+    """
+    Stores gene description (compact gene infos objects).
+
+    """
+
+    def __init__(self,
+                 gene_id: str,
+                 gene_name: str,
+                 gene_synonyms: str,
+                 gene_type: str,
+                 gene_desc: str) -> None:
+        self.gene_id = gene_id
+        self.gene_name = gene_name
+        self.gene_synonyms = gene_synonyms
+        self.gene_type = gene_type
+        self.gene_desc = gene_desc
+
+
+################################################################################
+
+def get_gene_descriptions(target_reg_annot_file):
+    """
+    Read in gene descriptions.
+
+    E.g. get from ensembl_gene_infos.biomart.GRCh38.112.tsv.gz:
+    gene_id	gene_name	gene_synonyms	gene_type	gene_description
+    ENSG00000286112	KYAT1	CCBL1;GTK;KAT1;KATI	protein_coding	kynurenine aminotransferase 1 [Source:NCBI gene (formerly Entrezgene);Acc:883]
+    ENSG00000171097	KYAT1	CCBL1;GTK;KAT1;KATI;CCBL1;GTK;KATI	protein_coding	kynurenine aminotransferase 1 [Source:HGNC Symbol;Acc:HGNC:1564]
+    ENSG00000291087	CRYBB2P1	CRYB2B	lncRNA	crystallin beta B2 pseudogene 1 [Source:NCBI gene (formerly Entrezgene);Acc:1416]
+    ...
+    
+    """
+
+    gene_desc_dic = {}
+    with gzip.open(target_reg_annot_file, 'rt') as f:
+        for line in f:
+            if line.startswith("gene_id"):
+                continue
+            cols = line.strip().split("\t")
+            gene_id = cols[0]
+            gene_name = cols[1]
+            gene_synonyms = cols[2]
+            gene_type = cols[3]
+            gene_desc = cols[4]
+            gene_desc_obj = GeneDesc(gene_id, gene_name, gene_synonyms, gene_type, gene_desc)
+            gene_desc_dic[gene_id] = gene_desc_obj
+
+    assert gene_desc_dic, "no gene descriptions read in from %s" %(target_reg_annot_file)
+    return gene_desc_dic
+
+
+################################################################################
+
+def output_target_reg_annot(target_genes_dic, gene_infos_file, target_reg_annot_file,
+                            remove_version_numbers=True,
+                            gid2tid_dic=None,
+                            tid2tio_dic=None):
+
+    """
+    Output target region annotations (target regions used in GOA).
+
+    Note that if internal gene_infos_file is outdated compared to given GOA/GTF files, 
+    this could result in missing gene descriptions for some genes.
+                              
+    """
+
+    assert target_genes_dic, "No target genes provided"
+    # check if gene_infos_file file exists.
+    assert os.path.exists(gene_infos_file), "gene infos file %s not found" %(gene_infos_file)
+
+    gene_desc_dic = get_gene_descriptions(gene_infos_file)
+
+    OUTANNOT = open(target_reg_annot_file, "w")
+
+    OUTANNOT.write("gene_id\tgene_name\tgene_synonyms\tgene_type\tgene_description\ttr_id\ttr_type\n")
+
+    for gene_id in target_genes_dic:
+
+        gene_id_full = gene_id
+
+        if remove_version_numbers:
+            gene_id = re.sub("\.\d+$", "", gene_id)
+
+        gene_name = "-"
+        gene_synonyms = "-"
+        gene_type = "-"
+        gene_desc = "-"
+        if gene_id in gene_desc_dic:
+            gene_name = gene_desc_dic[gene_id].gene_name
+            gene_synonyms = gene_desc_dic[gene_id].gene_synonyms
+            gene_type = gene_desc_dic[gene_id].gene_type
+            gene_desc = gene_desc_dic[gene_id].gene_desc
+
+        tr_id = "-"
+        tr_type = "-"
+        if gid2tid_dic is not None:
+            if gene_id in gid2tid_dic or gene_id_full in gid2tid_dic:
+                tr_id = gid2tid_dic[gene_id]
+                if tid2tio_dic is not None:
+                    if tr_id in tid2tio_dic:
+                        tr_type = tid2tio_dic[tr_id].tr_biotype
+
+        OUTANNOT.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\n" %(gene_id, gene_name, gene_synonyms, gene_type, gene_desc, tr_id, tr_type))
+
+    OUTANNOT.close()
+
+
+################################################################################
+
+def run_go_analysis(target_genes_dic, background_genes_dic, 
+                    gid2go_file, out_folder,
+                    pval_thr=0.05,
+                    excluded_terms = ["GO:0005575", "GO:0008150", "GO:0003674"],
+                    goa_obo_mode=1,
+                    stats_dic=None,
+                    propagate_counts=True,
+                    store_gene_names=True,
+                    goa_obo_file=False):
+
+    """
+    Run GO enrichment analysis for target genes, using goatools:
+    conda install goatools
+    
+    pval_thr:
+        BH corrected p-value threshold.
+    goa_obo_mode:
+        1: Get GO DAG file online.
+        2: Get GO DAG file locally.
+        3: Use provided GO DAG file.
+    store_gene_names:
+        If True, use values of background_genes_dic (which are their gene names),
+        instead of gene IDs in dataframe.
+    
+    """
+
+    assert target_genes_dic, "No target genes provided"
+    assert background_genes_dic, "No background genes provided"
+
+    godag_obo_file = out_folder + "/go-basic.obo"
+    if stats_dic is None:
+        stats_dic = {}
+
+    print("Run GO enrichment analysis ...")
+
+    # Get GO DAG file.
+    if goa_obo_mode == 1:
+
+        print("Get GO DAG obo file online ...")
+        get_godag_obo_file_online(godag_obo_file)
+        assert os.path.exists(godag_obo_file), "Downloaded GO DAG file not found in output folder. Please check internet connection or use local file via --goa_obo_mode 2"
+
+    elif goa_obo_mode == 2:
+
+        print("Use local GO DAG obo file ...")
+        get_godag_obo_file_local(goa_obo_file, godag_obo_file)
+        assert os.path.exists(godag_obo_file), "Local GO DAG file not found in output folder. Please contact developers"
+
+    elif goa_obo_mode == 3:
+
+        assert goa_obo_file, "--goa-obo-mode 3, but no GO DAG obo file provided. Please provide --goa-obo-file or change --goa-obo-mode"
+        print("Use GO DAG obo file provided via --goa-obo-file ...")
+        # Copy goa_obo_file to godag_obo_file.
+        shutil.copyfile(goa_obo_file, godag_obo_file)
+
+    # Read in GO DAG.
+    print("Load GO DAG file ...")
+    go_dag = GODag(godag_obo_file)
+
+    # Check if gene IDs have version numbers.
+    id_has_version = False
+    version_pattern = re.compile(r"\.\d+$")
+    for gene_id in target_genes_dic:
+        # if re.search("\.\d+$", gene_id):
+        if version_pattern.search(gene_id):
+            id_has_version = True
+        break
+
+    # Read in gene ID 2 GO ID(s) mapping.
+    print("Load gene ID to GO ID mapping ...")
+    gid2go_dic = get_gid2go_mapping(gid2go_file,
+                                    remove_version_numbers=id_has_version,
+                                    go_dag=go_dag,  # Filter out GO terms not present in GO DAG.
+                                    list2set=True)  # Convert GO ID lists to sets.
+
+    print("# genes in gene ID to GO ID mapping:", len(gid2go_dic))
+
+    stats_dic["c_genes_from_gid2go"] = len(gid2go_dic)
+
+    print("# of target genes (before GO ID filtering):    ", len(target_genes_dic))
+    print("# of background genes (before GO ID filtering):", len(background_genes_dic))
+
+    # Remove version numbers for GOA.
+    print("Filter to keep only genes with associated GO IDs ...")
+    target_genes = []
+    for gene_id in target_genes_dic:
+        if id_has_version:
+            gene_id = re.sub("\.\d+$", "", gene_id)
+        if gene_id in gid2go_dic:  # Can only work with genes that have associated GO terms.
+            target_genes.append(gene_id)
+    background_genes = []
+    gid2gn_dic = {}
+    for gene_id in background_genes_dic:
+        new_gene_id = gene_id
+        if id_has_version:
+            new_gene_id = re.sub("\.\d+$", "", gene_id)
+        gid2gn_dic[new_gene_id] = background_genes_dic[gene_id]
+        if new_gene_id in gid2go_dic:
+            background_genes.append(new_gene_id)
+
+    assert target_genes, "No target genes left after filtering for GO terms. Make sure to provide --gtf with compatible gene IDs (internal IDs are ENSEMBL style gene IDs). Alternatively, provide gene ID to GO ID mapping file via --goa-gene2go-file"
+    assert background_genes, "No background genes left after filtering for GO terms. Make sure to provide --gtf with compatible gene IDs (internal IDs are ENSEMBL style gene IDs). Alternatively, provide gene ID to GO ID mapping file via --goa-gene2go-file"
+
+    print("# of target genes with GO IDs (used for GOA):    ", len(target_genes))
+    print("# of background genes with GO IDS (used for GOA):", len(background_genes))
+
+    stats_dic["c_target_genes_goa"] = len(target_genes)
+    stats_dic["c_background_genes_goa"] = len(background_genes)
+
+    # Namespace short to long name mapping.
+    ns2name_dic = {
+        'BP': 'biological_process',
+        'MF': 'molecular_function',
+        'CC': 'cellular_component'
+    }
+
+    # Create GOEnrichmentStudy object.
+    goeaobj = GOEnrichmentStudy(
+        background_genes,   # List of background genes.
+        gid2go_dic,         # Gene ID -> GO IDs mapping.
+        go_dag,             # GO directed acyclic graph.
+        propagate_counts=propagate_counts,
+        alpha=0.05,
+        methods=['fdr_bh']  # Multiple testing correction method.
+    )
+
+    # Run GO enrichment analysis.
+    goea_results_all = goeaobj.run_study(target_genes)
+
+    results_dic = {
+        "GO": [],
+        "term": [],
+        "class": [],
+        "p": [],
+        "p_corr": [],
+        "enrichment": [],
+        "depth": [],
+        "n_children": [],
+        "n_genes": [],
+        "n_study": [],
+        "perc_genes": [],
+        "study_genes": []
+    }
+
+    stats_dic["c_sig_go_terms_e"] = 0
+    stats_dic["c_sig_go_terms_p"] = 0
+
+    # Loop over significant results.
+    for res in goea_results_all:
+
+        go_id = res.GO
+
+        if res.p_fdr_bh > pval_thr:
+            continue
+
+        if go_id in excluded_terms:
+            continue
+
+        go_n_children = len(res.goterm.get_all_children()) 
+        go_name = res.name
+        namespace = res.NS
+        class_name = ns2name_dic[namespace]
+        p_uncorrected = res.p_uncorrected
+        p_corrected = res.p_fdr_bh
+        study_count = res.study_count  # number of genes for this result.
+        study_items = res.study_items  # Gene names for this result.
+        study_n = res.study_n  # number target genes.
+        enrichment = res.enrichment  # e for enriched, p for purified.
+        go_depth = res.depth
+
+        # if filter_purified and enrichment == "p":
+        #     continue
+
+        perc_in_study = 0.0
+        if res.ratio_in_study[1] > 0:
+            # Rounded to 2 decimal places percentage.
+            perc_in_study = round((res.ratio_in_study[0] / res.ratio_in_study[1]) * 100, 2)
+
+        p_uncorrected = round_to_n_significant_digits_v2(p_uncorrected, 4)
+        p_corrected = round_to_n_significant_digits_v2(p_corrected, 4)
+
+        gene_list = []
+        for gene_id in study_items:
+            gene_name = gene_id
+            if store_gene_names:
+                if gene_id in gid2gn_dic:
+                    gene_name = gid2gn_dic[gene_id]
+            gene_list.append(gene_name)
+
+        gene_list_str = ""
+        if len(study_items) > 0:
+            gene_list_str = ",".join(gene_list)
+        
+        results_dic["GO"].append(go_id)
+        results_dic["term"].append(go_name)
+        results_dic["class"].append(class_name)
+        results_dic["p"].append(p_uncorrected)
+        results_dic["p_corr"].append(p_corrected)
+        results_dic["enrichment"].append(enrichment)
+        results_dic["depth"].append(go_depth)
+        results_dic["n_children"].append(go_n_children)
+        results_dic["n_genes"].append(study_count)
+        results_dic["n_study"].append(study_n)
+        results_dic["perc_genes"].append(perc_in_study)
+        results_dic["study_genes"].append(gene_list_str)
+    
+        if enrichment == "e":
+            stats_dic["c_sig_go_terms_e"] += 1
+        elif enrichment == "p":
+            stats_dic["c_sig_go_terms_p"] += 1
+        
+    # Make dataframe out of results dictionary.
+    goa_results_df = pd.DataFrame(results_dic)
+
+    c_goa_results = len(goa_results_df)
+
+    print("# of significant GO terms:", c_goa_results)
+    stats_dic["c_sig_go_terms"] = c_goa_results
+    if excluded_terms:
+        excluded_terms_str = ",".join(excluded_terms)
+        stats_dic["excluded_terms"] = excluded_terms_str
+
+    return goa_results_df
+
+
+################################################################################
+
+def round_to_n_significant_digits_v2(num, n, zero_check_val=1e-304,
+                                     min_val=0):
+    """
+    Round float / scientific notation number to n significant digits.
+    This function only works for positive numbers.
+
+    >>> round_to_n_significant_digits_v2(4.0980000000000007e-38, 4)
+    4.098e-38
+    >>> round_to_n_significant_digits_v2(4.410999999999999e-81, 4)
+    4.411e-81
+    >>> round_to_n_significant_digits_v2(0.0000934234823499234, 4)
+    9.342e-05
+    >>> round_to_n_significant_digits_v2(0.0112123123123123, 4)
+    0.01121
+    >>> round_to_n_significant_digits_v2(0.0, 2)
+    0
+    >>> round_to_n_significant_digits_v2(1e-300, 3)
+    1e-300
+
+    """
+
+    getcontext().prec = n  # Set precision to n.
+
+    if num < zero_check_val:
+        return min_val
+    else:
+        d_num = Decimal(num)  # Convert float to decimal.
+        return float(round(d_num, -int(floor(log10(abs(d_num))) - (n - 1))))
+
+
+################################################################################
+
 def round_to_n_significant_digits(num, n,
                                   zero_check_val=1e-300):
     """
@@ -138,8 +787,7 @@ def round_to_n_significant_digits(num, n,
     0
     >>> round_to_n_significant_digits(1e-300, 3)
     1e-300
-    >>> round_to_n_significant_digits(1e-300, 3)
-    1e-300
+
     
     """
 
@@ -147,6 +795,182 @@ def round_to_n_significant_digits(num, n,
         return 0
     else:
         return round(num, -int(floor(log10(abs(num))) - (n - 1)))
+
+
+################################################################################
+
+def read_in_tomtom_tsv(tomtom_tsv):
+    """
+    Read in tomtom.tsv file (produced by tomtom call).
+
+    """
+
+    pair2sim_dic = {}
+    motif_ids_dic = {}
+
+    line_c = 0
+    with open(tomtom_tsv) as f:
+        for line in f:
+            line_c += 1
+            if line_c == 1:
+                continue
+            cols = line.strip().split("\t")
+            if len(cols) != 10:
+                continue
+            q_id = cols[0]
+            t_id = cols[1]
+            opt_offset = int(cols[2])
+            pval = float(cols[3])
+            e_val = float(cols[4])
+            q_val = float(cols[5])
+            overlap = int(cols[6])
+            q_cons = cols[7]
+            t_cons = cols[8]
+            orient = cols[9]
+
+            pval = round_to_n_significant_digits_v2(pval, 4,
+                                                    min_val=1e-304)
+
+            log_pval = log_tf_pval(pval)
+            log_pval = round_to_n_significant_digits_v2(log_pval, 4,
+                                                        min_val=0)
+
+            motif_ids_dic[q_id] = 1
+
+            pair_str1 = q_id + "," + t_id
+            pair_str2 = t_id + "," + q_id
+            pair2sim_dic[pair_str1] = log_pval
+            pair2sim_dic[pair_str2] = log_pval
+
+    f.closed
+
+    return pair2sim_dic, motif_ids_dic
+
+
+################################################################################
+
+def output_tomtom_sim_results(motif_ids_dic, pair2sim_dic, sim_out_tsv,
+                              header=False):
+    """
+    Output tomtom similarity results.
+
+    Similarity == -log10(pval_tomtom)
+    pval_tomtom measuring how similar two motifs are (the lower the more similar).
+    
+    """
+
+    motif_ids_list = [x for x in motif_ids_dic.keys()]
+    motif_ids_list.sort()
+
+    motif_pairs = list(combinations(motif_ids_list, 2))
+
+    OUTSIM = open(sim_out_tsv, "w")
+    if header:
+        OUTSIM.write("motif1\tmotif2\tsimilarity\n")
+
+    for pair in motif_pairs:
+        pair = list(pair)
+        pair.sort()
+        pair_str = pair[0] + "," + pair[1]
+
+        assert pair_str in pair2sim_dic, "motif pair string \"%s\" not in pair2sim_dic" %(pair_str)
+
+        sim = pair2sim_dic[pair_str]
+
+        OUTSIM.write("%s\t%s\t%s\n" %(pair[0], pair[1], str(sim)))
+
+    # Also get motif ID with itself pairs.
+    for motif_id in motif_ids_list:
+        
+        pair_str = motif_id + "," + motif_id
+
+        assert pair_str in pair2sim_dic, "motif pair string \"%s\" not in pair2sim_dic" %(pair_str)
+
+        sim = pair2sim_dic[pair_str]
+
+        OUTSIM.write("%s\t%s\t%s\n" %(motif_id, motif_id, str(sim)))
+
+    OUTSIM.close()
+
+
+################################################################################
+
+def read_in_tomtom_sim_results(sim_out_tsv,
+                               motif_sim_cap=50):
+    """
+    Read in tomtom similarity results.
+
+    """
+
+    assert os.path.exists(sim_out_tsv), "sim_out_tsv %s not found" %(sim_out_tsv)
+
+    pair2sim_dic = {}
+
+    if re.search(".+\.gz$", sim_out_tsv):
+        f = gzip.open(sim_out_tsv, 'rt')
+    else:
+        f = open(sim_out_tsv, "r")
+    
+    for line in f:
+        cols = line.strip().split("\t")
+        if cols[2] == "similarity":
+            continue
+        motif1 = cols[0]
+        motif2 = cols[1]
+        sim = float(cols[2])
+
+        if motif_sim_cap:
+            if sim > motif_sim_cap:
+                sim = motif_sim_cap
+
+        pair_str1 = motif1 + "," + motif2
+        pair_str2 = motif2 + "," + motif1
+        pair2sim_dic[pair_str1] = sim
+        pair2sim_dic[pair_str2] = sim
+
+    f.closed
+
+    assert pair2sim_dic, "pair2sim_dic empty (no similarity values read in from %s)" %(sim_out_tsv)
+
+    return pair2sim_dic
+
+
+################################################################################
+
+def calc_tomtom_sim(seq_motifs_db_file, out_folder):
+    """
+    Based on given seq_motifs_db_file (MEME motif format file), 
+    calculate similarities between all motifs in file.
+    Return motif pair to similarity score dictionary, format:
+    "motif_id1,motif_id2" -> similarity_score 
+
+
+    tomtom -norc -oc mdb3_sim_out -dist ed -thresh 1.0 
+    """
+    assert os.path.exists(seq_motifs_db_file), "seq_motifs_db_file not found"
+
+    # Bang the tomtom slowly, dumbass.
+    run_tomtom(seq_motifs_db_file, seq_motifs_db_file, out_folder,
+                tomtom_bfile=False,
+                tomtom_thresh=1.0,
+                tomtom_evalue=False,
+                tomtom_m=False,
+                tomtom_min_overlap=1,
+                params="-norc -dist ed",
+                call_dic=None,
+                print_output=False,
+                error_check=False)
+
+    tomtom_tsv = out_folder + "/tomtom.tsv"
+    pair2sim_dic, motif_ids_dic = read_in_tomtom_tsv(tomtom_tsv)
+
+    tomtom_sim_out = out_folder + "/tomtom_sim.tsv"
+
+    output_tomtom_sim_results(motif_ids_dic, pair2sim_dic, tomtom_sim_out, header=True)
+
+    motif_pair2sim_dic = read_in_tomtom_sim_results(tomtom_sim_out)
+
+    return motif_pair2sim_dic
 
 
 ################################################################################
@@ -187,13 +1011,26 @@ def search_regex_in_seqs_dic(regex, seqs_dic,
         return "Invalid regex"
     
     hits_dic = {}
+    seq_c = 0
+
+    # Pre-compile the regular expression.
+    flags = 0
+    if not case_sensitive:
+        flags |= re.IGNORECASE
+    if all(ord(char) < 128 for char in regex):
+        flags |= re.ASCII
+    compiled_regex = re.compile(regex, flags)
 
     if step_size_one:
 
         for seq_name, seq in seqs_dic.items():
+            seq_c += 1
+            if seq_c % 1000 == 0:
+                print(f"{seq_c} sequences scanned ... ")
+            
             seq_length = len(seq)
             for i in range(seq_length):
-                for match in re.finditer(regex, seq[i:], re.IGNORECASE if not case_sensitive else 0):
+                for match in compiled_regex.finditer(seq[i:]):
                     if match.start() != 0:
                         break
                     if seq_name not in hits_dic:
@@ -204,7 +1041,11 @@ def search_regex_in_seqs_dic(regex, seqs_dic,
     else:
 
         for seq_name, seq in seqs_dic.items():
-            for match in re.finditer(regex, seq, re.IGNORECASE if not case_sensitive else 0):
+            seq_c += 1
+            if seq_c % 1000 == 0:
+                print(f"{seq_c} sequences scanned ... ")
+            
+            for match in compiled_regex.finditer(seq):
                 if seq_name not in hits_dic:
                     hits_dic[seq_name] = [[match.start(), match.end(), match.group()]]
                 else:
@@ -502,6 +1343,50 @@ def closest_dist_motif_pos_lists(l1, l2):
 
 ################################################################################
 
+def run_k_nt_shuffling(seqs_fa, out_fa,
+                       kmer_size=2,
+                       params="-dna",
+                       error_check=True,
+                       tag="_shuf",
+                       seed=None):
+    """
+    
+    Do k-nucleotide (kmer_size-nt) shuffling of FASTA sequences in seqs_fa. 
+    Output shuffled sequences to out_fa.
+
+    https://meme-suite.org/meme/doc/fasta-shuffle-letters.html
+
+    fasta-shuffle-letters [options] <sequence file> [<output file>]
+
+    -kmer 2
+    -dna
+    -tag	The name of the sequence will have text appended to it.	
+            default: The name of the sequence will have "_shuf" appended to it.
+    -seed
+            
+    """
+
+    assert is_tool("fasta-shuffle-letters"), "fasta-shuffle-letters not in PATH. MEME suite (v5) not installed?"
+
+    params += " -kmer %s " %(str(kmer_size))
+
+    if seed is not None:
+        params += " -seed %s " %(str(seed))
+
+    params += ' -tag "%s" ' %(tag)
+
+    check_cmd = "fasta-shuffle-letters " + params + " " + seqs_fa + " " + out_fa
+    output = subprocess.getoutput(check_cmd)
+
+    if error_check:
+        error = False
+        if output:
+            error = True
+        assert error == False, "fasta-shuffle-letters is complaining:\n%s\n%s" %(check_cmd, output)
+
+
+################################################################################
+
 def make_contingency_table_2x2_v2(region_labels_dic, idx1, idx2,
                                   rid2rbpidx2hcp_dic,
                                   max_motif_dist=50):
@@ -603,7 +1488,7 @@ def read_in_cm_blocks(cm_file,
                 blocks_list.append(line)
                 idx += 1
             elif re.search("^ACC\s+\w+", line):
-                m = re.search("ACC\s+(\w+)", line)
+                m = re.search("^ACC\s+(\w+)", line)
                 acc_id = m.group(1)
                 # Remove special characters from motif/accession ID.
                 new_acc_id = remove_special_chars_from_str(acc_id)
@@ -672,7 +1557,8 @@ def check_cm_file(cm_file, cmstat_out,
     acc_ids_dic = {}
     with open(cmstat_out) as f:
         for line in f:
-            if re.search("^#", line):
+            # if re.search("^#", line):
+            if line.startswith("#"):
                 continue
             cols_pre = line.strip().split(" ")
             # Remove empty column values.
@@ -712,7 +1598,7 @@ def read_cm_acc(in_cm):
     with open(in_cm) as f:
         for line in f:
             if re.search("^ACC\s+\w+", line):
-                m = re.search("ACC\s+(\w+)", line)
+                m = re.search("^ACC\s+(\w+)", line)
                 acc_id = m.group(1)
                 if acc_id in acc_dic:
                     acc_dic[acc_id] += 1
@@ -749,11 +1635,11 @@ def get_fasta_headers(in_fa,
     for line in output.split('\n'):
         if re.search("^>", line):
             if full_header:
-                m = re.search(">(.+)", line)
+                m = re.search("^>(.+)", line)
                 seq_id = m.group(1)
                 seq_ids_dic[seq_id] = 1
             else:
-                m = re.search(">(\S+)", line)
+                m = re.search("^>(\S+)", line)
                 seq_id = m.group(1)
                 seq_ids_dic[seq_id] = 1
 
@@ -882,6 +1768,119 @@ def run_fimo(in_fa, in_meme_xml, out_folder,
 
 ################################################################################
 
+def run_streme(in_fa, out_folder,
+               neg_fa=False,
+               streme_bfile=False,
+               streme_evalue=False,
+               streme_thresh=0.05,
+               streme_minw=6,
+               streme_maxw=15,
+               streme_seed=0,
+               streme_order=2,
+               params="--dna",
+               call_dic=None,
+               print_output=True,
+               error_check=False):
+    """
+    Run STREME on input FASTA file in_fa.
+    
+    """
+    assert is_tool("streme"), "streme not in PATH"
+    assert os.path.exists(in_fa), "in_fa \"%s\" does not exist" %(in_fa)
+
+    if neg_fa:
+        params += " --n " + neg_fa
+    if streme_bfile:
+        params += " --bfile " + streme_bfile
+    if streme_evalue:
+        params += " --evalue"
+    params += " --thresh " + str(streme_thresh)
+    params += " --minw " + str(streme_minw)
+    params += " --maxw " + str(streme_maxw)
+    params += " --seed " + str(streme_seed)
+    params += " --order " + str(streme_order)
+    params += " --oc " + out_folder
+
+    check_cmd = "streme " + params + " -p " + in_fa
+
+    output = subprocess.getoutput(check_cmd)
+
+    if call_dic is not None:
+        call_dic["streme_call"] = check_cmd
+
+    if error_check:
+        error = False
+        if output:
+            error = True
+        assert error == False, "streme is complaining:\n%s\n%s" %(check_cmd, output)
+    if print_output:
+        if output:
+            print("")
+            print("STREME COMMAND:\n%s" %(check_cmd))
+            print("STREME OUTPUT:\n%s" %(output))
+            print("")
+
+
+################################################################################
+
+def run_tomtom(query_meme, db_meme, out_folder,
+               tomtom_bfile=False,
+               tomtom_thresh=0.5,
+               tomtom_evalue=False,
+               tomtom_m=False,
+               tomtom_min_overlap=1,
+               params="-norc",
+               call_dic=None,
+               print_output=True,
+               error_check=False):
+
+    """
+    Run TOMTOM using query motifs file query_meme and database motifs file db_meme.
+
+    Output folder content:
+    tomtom.tsv
+    tomtom.xml
+    tomtom.html
+
+    -dist ed (default) not compatible with a set -bfile. Using 'allr' instead.
+
+    """
+    assert is_tool("tomtom"), "tomtom not in PATH"
+    assert os.path.exists(query_meme), "query_meme \"%s\" does not exist" %(query_meme)
+    assert os.path.exists(db_meme), "db_meme \"%s\" does not exist" %(db_meme)
+    
+    if tomtom_bfile:
+        params += " -bfile %s" %(tomtom_bfile)
+        params += " -dist allr"
+    params += " -thresh %s" %(str(tomtom_thresh))
+    if tomtom_evalue:
+        params += " -evalue"
+    if tomtom_m:
+        params += " -m"
+    params += " -min-overlap %s" %(str(tomtom_min_overlap))
+    params += " -oc %s" %(out_folder)
+
+    check_cmd = "tomtom " + params + " " + query_meme + " " + db_meme
+    output = subprocess.getoutput(check_cmd)
+
+    if call_dic is not None:
+        call_dic["tomtom_call"] = check_cmd
+
+    if error_check:
+        error = False
+        if output:
+            error = True
+        assert error == False, "tomtom is complaining:\n%s\n%s" %(check_cmd, output)
+    if print_output:
+        if output:
+            print("")
+            print("TOMTOM COMMAND:\n%s" %(check_cmd))
+            print("TOMTOM OUTPUT:\n%s" %(output))
+            print("")
+
+
+################################################################################
+
 def bed_extract_sequences_from_fasta(in_bed, in_fa, out_fa,
                                      add_param="",
                                      print_warnings=False,
@@ -894,6 +1893,12 @@ def bed_extract_sequences_from_fasta(in_bed, in_fa, out_fa,
         Instead of raising an error when output is encountered,
         print output (i.e. bedtools getfasta warnings)
 
+    Q: what happens if BED file contains regions not fully included in FASTA?
+    This should in region sequence not being extracted at all (even if partially overlapping 
+    with FASTA), plus throwing error:
+    Feature (t1:19-25) beyond the length of t1 size (20 bp).  Skipping.
+
+        
     # Example call.
     bedtools getfasta -fi hg38.fa -bed PUM1_K562_IDR_peaks.uniq_ids.bed -s -fo test_out.fa
 
@@ -934,6 +1939,29 @@ def bed_extract_sequences_from_fasta(in_bed, in_fa, out_fa,
 
 ################################################################################
 
+def plot_seq_len_distr(seq_len_list1, seq_len_list2, plot_out,
+                       label1='Set1',
+                       label2='Set2',
+                       density=True):
+    """
+    Plot histograms of sequence length distributions.
+
+    """
+
+    plt.figure(figsize=(10, 6))
+    plt.hist(seq_len_list1, bins=50, alpha=0.5, label=label1, density=density)
+    plt.hist(seq_len_list2, bins=50, alpha=0.5, label=label2, density=density)
+
+    plt.xlabel('Sequence Length')
+    plt.ylabel('Density')
+    plt.title('Length Distribution of Sequence sets')
+    plt.legend(loc='upper right')
+
+    plt.savefig(plot_out)
+
+
+################################################################################
+
 def read_fasta_into_dic(fasta_file,
                         seqs_dic=False,
                         ids_dic=False,
@@ -946,12 +1974,17 @@ def read_fasta_into_dic(fasta_file,
                         id_check=True,
                         skip_data_id="set",
                         new_header_id="site",
+                        remove_regex=False,
                         make_uniq_headers=False,
                         skip_n_seqs=True):
     """
+
     Read in FASTA sequences, store in dictionary and return dictionary.
     FASTA file can be plain text or gzipped (watch out for .gz ending).
 
+    remove_regex:
+        If regex given, use this to remove special characters from the header ID.
+        E.g. "[ :\(\)]"
     full_header:
         If true, use whole header (after >) as ID. By default, use ID up to 
         first space character.
@@ -966,26 +1999,34 @@ def read_fasta_into_dic(fasta_file,
     seq_id = ""
     header_idx = 0
 
+    # Compile regex patterns.
+    header_pattern = re.compile(r">(.+)" if full_header else r">(\S+)")  # \S any non-whitespaces match.
+    bed_pattern = re.compile(r"^(.+)::")
+    seq_pattern = re.compile(r"[ACGTUN]+", re.I)
+    n_pattern = re.compile(r"N", re.I)
+
     # Open FASTA either as .gz or as text file.
     if re.search(".+\.gz$", fasta_file):
         f = gzip.open(fasta_file, 'rt')
     else:
         f = open(fasta_file, "r")
+    
     for line in f:
-        if re.search(">.+", line):
-            m = False
-            if full_header:
-                m = re.search(">(.+)", line)
-            else:
-                m = re.search(">(\S+)", line)
+        # line = line.strip()
+        if line.startswith(">"):
 
-            assert m, "header ID extraction failed for FASTA header line \"%s\"" %(line)
+            m = header_pattern.search(line)
+            assert m, f'header ID extraction failed for FASTA header line "{line}"'
             seq_id = m.group(1)
+
+            if remove_regex:
+                seq_id = re.sub(remove_regex, "", seq_id)
+                assert seq_id, "filtering FASTA sequence header ID \"%s\" by regex \"%s\" resulted in string" %(seq_id, remove_regex)
 
             # If name_bed, get first part of ID (before "::").
             if name_bed:
-                m = re.search("^(.+)::", seq_id)
-                assert m, "BED column 4 ID extraction failed for FASTA header \"%s\"" %(seq_id)
+                m = bed_pattern.search(seq_id)
+                assert m, f'BED column 4 ID extraction failed for FASTA header "{seq_id}"'
                 seq_id = m.group(1)
 
             if id_check:
@@ -1000,9 +2041,13 @@ def read_fasta_into_dic(fasta_file,
                     seqs_dic[seq_id] = ""
             else:
                 seqs_dic[seq_id] = ""
-        elif re.search("[ACGTUN]+", line, re.I):
-            m = re.search("([ACGTUN]+)", line, re.I)
-            seq = m.group(1)
+            # elif re.search("[ACGTUN]+", line, re.I):
+            #     m = re.search("([ACGTUN]+)", line, re.I)
+            #     seq = m.group(1)
+
+        elif seq_pattern.search(line):
+            m = seq_pattern.search(line)
+            seq = m.group(0)
             if seq_id in seqs_dic:
                 if dna:
                     # Convert to DNA, concatenate sequence.
@@ -1024,7 +2069,8 @@ def read_fasta_into_dic(fasta_file,
         del_ids = []
         for seq_id in seqs_dic:
             seq = seqs_dic[seq_id]
-            if re.search("N", seq, re.I):
+            # if re.search("N", seq, re.I):
+            if n_pattern.search(seq):
                 if report == 1:
                     print ("WARNING: sequence with seq_id \"%s\" in file \"%s\" contains N nucleotides. Discarding sequence ... " % (seq_id, fasta_file))
                 c_skipped_n_ids += 1
@@ -1093,6 +2139,19 @@ def read_in_xml_motifs(meme_xml_file,
     """
     Read in XML motifs, store in blocks dictionary.
 
+    motif_blocks_dic entry:
+    ['letter-probability matrix: alength= 4 w= 10 nsites= 20 E= 0', 
+    ' 0.050000  0.400000  0.050000  0.500000 ', 
+    ' 0.285714  0.000000  0.000000  0.714286 ', 
+    ' 0.252525  0.141414  0.606061  0.000000 ', 
+    ' 0.505051  0.090909  0.404040  0.000000 ', 
+    ' 0.714286  0.000000  0.000000  0.285714 ', 
+    ' 0.081633  0.000000  0.918367  0.000000 ', 
+    ' 0.505051  0.090909  0.404040  0.000000 ', 
+    ' 0.505051  0.090909  0.404040  0.000000 ', 
+    ' 0.353535  0.191919  0.454545  0.000000 ', 
+    ' 0.404040  0.242424  0.353535  0.000000 ']
+
     """
 
     assert os.path.exists(meme_xml_file), "meme_xml_file %s not found" % (meme_xml_file)
@@ -1113,6 +2172,61 @@ def read_in_xml_motifs(meme_xml_file,
 
 ################################################################################
 
+def get_consensus_motif_from_seq_block(seq_block):
+    """
+    seq_block is list with following format:
+    ['letter-probability matrix: alength= 4 w= 10 nsites= 20 E= 0', 
+    ' 0.050000  0.400000  0.050000  0.500000 ', 
+    ' 0.285714  0.000000  0.000000  0.714286 ', 
+    ' 0.252525  0.141414  0.606061  0.000000 ', 
+    ' 0.505051  0.090909  0.404040  0.000000 ', 
+    ' 0.714286  0.000000  0.000000  0.285714 ', 
+    ' 0.081633  0.000000  0.918367  0.000000 ', 
+    ' 0.505051  0.090909  0.404040  0.000000 ', 
+    ' 0.505051  0.090909  0.404040  0.000000 ', 
+    ' 0.353535  0.191919  0.454545  0.000000 ', 
+    ' 0.404040  0.242424  0.353535  0.000000 ']
+    
+    Return consensus motif sequence.
+
+    >>> seq_block = ['letter-probability matrix: alength= 4 w= 10 nsites= 20 E= 0', ' 0.250000  0.250000  0.250000  0.250000 ', ' 0.285714  0.000000  0.000000  0.714286 ', ' 0.081633  0.000000  0.918367  0.000000 ']
+    >>> get_consensus_motif_from_seq_block(seq_block)
+    'ATG'
+    
+    """
+
+    idx2nt_dic = {0: "A", 1: "C", 2: "G", 3: "T"}
+
+    assert seq_block, "seq_block empty"
+    assert len(seq_block) > 1, "seq_block empty (only header present?)"
+
+    # Get consensus motif sequence.
+    consensus_seq = ""
+    for i in range(1, len(seq_block)):
+        line = seq_block[i]
+        line = line.strip()
+        if not line:
+            continue
+        # Split line.
+        ll = line.split()
+        assert len(ll) == 4, "invalid line format in seq_block (expected 4 columns)"
+        # Get max value index.
+        max_val = 0
+        max_idx = 0
+        for j in range(4):
+            val = float(ll[j])
+            if val > max_val:
+                max_val = val
+                max_idx = j
+        # Get consensus base.
+        max_nt = idx2nt_dic[max_idx]
+        consensus_seq += max_nt
+
+    return consensus_seq
+
+
+################################################################################
+
 def extract_motif_blocks(raw_text):
     """
     Extract MEME XML motif blocks, store in dictionary:
@@ -1123,7 +2237,7 @@ def extract_motif_blocks(raw_text):
     motif_id = ""
     lines = raw_text.strip().split('\n')
     for l in lines:
-        if re.search("MOTIF\s\w+", l):
+        if re.search("^MOTIF\s\w+", l):
             m = re.search("MOTIF (\w+)", l)
             motif_id = m.group(1)
             new_motif_id = remove_special_chars_from_str(motif_id)
@@ -1131,6 +2245,10 @@ def extract_motif_blocks(raw_text):
             motif_id = new_motif_id
         else:
             if motif_id and l:
+                if re.search("^URL", l):  # Skip URL rows e.g. from Ray2013 meme file. format: URL http:// ...
+                    continue
+                # Also remove <tab> characters from lines.
+                l = l.replace("\t", "")
                 if motif_id in motif_blocks_dic:
                     motif_blocks_dic[motif_id].append(l)
                 else:
@@ -1320,6 +2438,7 @@ def gtf_read_in_gene_infos(in_gtf,
                            tr_types_dic=None,
                            check_chr_ids_dic=None,
                            chr_style=0,
+                           skip_gene_biotype_dic=None,
                            empty_check=False):
     """
     Read in gene infos into GeneInfo objects, including information on 
@@ -1344,13 +2463,17 @@ def gtf_read_in_gene_infos(in_gtf,
     # Gene info objects dictionary (gene_id -> gene info object).
     gid2gio_dic = {}
 
+    if skip_gene_biotype_dic is None:
+        skip_gene_biotype_dic = {"TEC" : 1}
+
     if re.search(".+\.gz$", in_gtf):
         f = gzip.open(in_gtf, 'rt')
     else: 
         f = open(in_gtf, "r")
     for line in f:
         # Skip header.
-        if re.search("^#", line):
+        # if re.search("^#", line):
+        if line.startswith("#"):
             continue
 
         cols = line.strip().split("\t")
@@ -1389,6 +2512,9 @@ def gtf_read_in_gene_infos(in_gtf,
             # assert m, "gene_biotype / gene_type entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             # gene_biotype = m.group(1)
 
+            if gene_biotype in skip_gene_biotype_dic:
+                continue
+
             gene_infos = GeneInfo(gene_id, gene_name, gene_biotype, chr_id, feat_s, feat_e, feat_pol)
 
             assert gene_id not in gid2gio_dic, "gene feature with gene ID %s already encountered in GTF file \"%s\"" %(gene_id, in_gtf)
@@ -1402,7 +2528,10 @@ def gtf_read_in_gene_infos(in_gtf,
             m = re.search('transcript_id "(.+?)"', infos)
             assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             tr_id = m.group(1)
-            assert gene_id in gid2gio_dic, "gene_id %s belonging to transcript ID %s not (yet) encountered. Gene feature expected to come before transcript and exon features in GTF file \"%s\"" %(gene_id, tr_id, in_gtf)
+
+            # assert gene_id in gid2gio_dic, "gene_id %s belonging to transcript ID %s not (yet) encountered. Gene feature expected to come before transcript and exon features in GTF file \"%s\"" %(gene_id, tr_id, in_gtf)
+            if gene_id not in gid2gio_dic:
+                continue
 
             if tr2gid_dic is not None:
                 tr2gid_dic[tr_id] = gene_id
@@ -1452,6 +2581,11 @@ def gtf_read_in_gene_infos(in_gtf,
             gid2gio_dic[gene_id].tr_lengths.append(tr_length)
 
         elif feature == "exon":
+            m = re.search('gene_id "(.+?)"', infos)
+            assert m, "gene_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
+            gene_id = m.group(1)
+            if gene_id not in gid2gio_dic:
+                continue
             # Extract transcript ID.
             m = re.search('transcript_id "(.+?)"', infos)
             assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)    
@@ -1514,7 +2648,8 @@ def gtf_read_in_transcript_infos(in_gtf,
         f = open(in_gtf, "r")
     for line in f:
         # Skip header.
-        if re.search("^#", line):
+        # if re.search("^#", line):
+        if line.startswith("#"):
             continue
 
         cols = line.strip().split("\t")
@@ -1552,6 +2687,26 @@ def gtf_read_in_transcript_infos(in_gtf,
             if m:
                 tr_biotype = m.group(1)
 
+            # Basic tag.
+            basic_tag = 0
+            m = re.search('tag "basic"', infos)
+            if m:
+                basic_tag = 1
+            # Ensembl canonical.
+            ensembl_canonical = 0
+            m = re.search('tag "Ensembl_canonical"', infos)
+            if m:
+                ensembl_canonical = 1
+            # Transcript support level (TSL).
+            # transcript_support_level "NA (assigned to previous version 1)"
+            m = re.search('transcript_support_level "(.+?)"', infos)
+            tsl_id = "NA"
+            if m:
+                tsl_id = m.group(1)
+                if re.search("assigned to previous", tsl_id):
+                    m = re.search("(.+?) \(", tsl_id)
+                    tsl_id = m.group(1)
+
             if tr_types_dic is not None:
                 if tr_biotype not in tr_types_dic:
                     tr_types_dic[tr_biotype] = 1
@@ -1560,6 +2715,9 @@ def gtf_read_in_transcript_infos(in_gtf,
 
             tr_infos = TranscriptInfo(tr_id, tr_biotype, chr_id, feat_s, feat_e, feat_pol, gene_id,
                                       tr_length=0,
+                                      basic_tag=basic_tag,  # int
+                                      ensembl_canonical=ensembl_canonical,  # str
+                                      tsl_id=tsl_id,  # int
                                       exon_c=0)
             assert tr_id not in tid2tio_dic, "transcript feature with transcript ID %s already encountered in GTF file \"%s\"" %(tr_id, in_gtf)
             tid2tio_dic[tr_id] = tr_infos
@@ -1622,15 +2780,453 @@ def gtf_read_in_transcript_infos(in_gtf,
     if empty_check:
         assert tid2tio_dic, "no transcript infos read in from GTF file \"%s\"" %(in_gtf)
 
+    """
+    Add intron coordinates and total intron length to TranscriptInfo objects.
+
+    """
+
+    if tid2tio_dic:
+        for tid in tid2tio_dic:        
+            tr_pol = tid2tio_dic[tid].tr_pol
+            exon_coords = tid2tio_dic[tid].exon_coords
+            assert exon_coords is not None, "exon coordinates list not set for transcript ID %s" %(tr_id)
+            # Get intron coordinates.
+            intron_coords = []
+            if tr_pol == "+":
+                for i in range(len(exon_coords) - 1):
+                    intron_coords.append([exon_coords[i][1]+1, exon_coords[i+1][0]-1])
+            elif tr_pol == "-":
+                for i in range(len(exon_coords) - 1):
+                    intron_coords.append([exon_coords[i+1][1]+1,exon_coords[i][0]-1])
+            else:
+                assert False, "invalid strand given (%s) for transcript ID %s" %(tr_pol, tr_id)
+
+            total_intron_len = 0
+            for intron in intron_coords:
+                intron_len = intron[1] - intron[0] + 1
+                total_intron_len += intron_len
+                tid2tio_dic[tid].intron_coords.append(intron)
+
+            tid2tio_dic[tid].total_intron_len = total_intron_len
+
     return tid2tio_dic
+
+
+################################################################################
+
+def get_exon_pos_count_list_dic(tid2tio_dic,
+                                tr_ids_dic=None):
+    """
+    Get exon ID -> exon position count list dictionary.
+
+    Expects exon_coords in correct order (i.e. exon 1 on - most downstream, 
+    exon 1 on + most upstream).
+    
+    tr_ids_dic:
+        If set, only consider transcript IDs in tr_ids_dic.
+    
+    """
+
+    exon2pcl_dic = {}
+
+    for tr_id in tid2tio_dic:
+        
+        if tr_ids_dic is not None:
+            if tr_id not in tr_ids_dic:
+                continue
+
+        exon_coords = tid2tio_dic[tr_id].exon_coords
+        assert exon_coords is not None, "exon coordinates list not set for transcript ID %s" %(tr_id)
+    
+        for idx, exon in enumerate(exon_coords):
+
+            exon_len = exon[1] - exon[0] + 1
+            exon_id = "exon;%i;%s" %(idx+1, tr_id)
+            exon2pcl_dic[exon_id] = [0] * exon_len
+
+    return exon2pcl_dic
+
+
+
+################################################################################
+
+class ExonIntronOverlap:
+    """
+    Exon intron overlap stats class.
+
+    """
+    def __init__(self,
+                 dataset_id: str,
+                 c_input_sites: int,
+                 c_exon_sites = 0,
+                 c_intron_sites = 0,
+                 c_us_ib_sites = 0,
+                 c_ds_ib_sites = 0,
+                 c_eib_sites = 0,
+                 min_overlap = 0.9,
+                 intron_border_len = 250,
+                 ei_border_len = 50,
+                 c_tr_ids = 0,
+                 c_tr_ids_with_sites = 0) -> None:
+
+        self.dataset_id = dataset_id
+        self.c_input_sites = c_input_sites
+        self.c_exon_sites = c_exon_sites
+        self.c_intron_sites = c_intron_sites
+        self.c_us_ib_sites = c_us_ib_sites
+        self.c_ds_ib_sites = c_ds_ib_sites
+        self.c_eib_sites = c_eib_sites
+        self.min_overlap = min_overlap
+        self.intron_border_len = intron_border_len
+        self.ei_border_len = ei_border_len
+        self.c_tr_ids = c_tr_ids
+        self.c_tr_ids_with_sites = c_tr_ids_with_sites
+
+
+################################################################################
+
+def get_intron_exon_ol_counts(overlap_ei_regions_bed):
+    """
+    Get exon + intron overlap counts
+
+    overlap_ei_regions_bed format:
+    chr1	3385286	3396490	intron;ENST00000270722	0	+
+    chr1	3396593	3402790	intron;ENST00000270722	0	+
+        
+    """
+
+    assert os.path.exists(overlap_ei_regions_bed), "file \"%s\" does not exist" %(overlap_ei_regions_bed)
+
+    c_exon_ol = 0
+    c_intron_ol = 0
+
+    with open(overlap_ei_regions_bed, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            cols = line.split("\t")
+            reg_tr_id = cols[3]
+            reg_id = reg_tr_id.split(";")[0]
+            if reg_id == "intron":
+                c_intron_ol += 1
+            else:
+                c_exon_ol += 1
+
+    return c_exon_ol, c_intron_ol
+
+
+################################################################################
+
+def get_eib_ol_counts(overlap_eib_regions_bed):
+    """
+    Get exon-intron border overlap counts.
+
+    """
+
+    assert os.path.exists(overlap_eib_regions_bed), "file \"%s\" does not exist" %(overlap_eib_regions_bed)
+
+    c_eib_ol = 0
+    c_us_ib_ol = 0
+    c_ds_ib_ol = 0
+
+    with open(overlap_eib_regions_bed, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            cols = line.split("\t")
+            reg_id = cols[3]
+            if reg_id == "eib":
+                c_eib_ol += 1
+            elif reg_id == "us_ib":
+                c_us_ib_ol += 1
+            elif reg_id == "ds_ib":
+                c_ds_ib_ol += 1
+            else:
+                assert False, "invalid region ID \"%s\" found in line \"%s\"" %(reg_id, line)
+
+    return c_eib_ol, c_us_ib_ol, c_ds_ib_ol
+
+
+################################################################################
+
+def exon_intron_border_regions_to_bed(tid2tio_dic, out_bed,
+                                      tr_ids_dic=None,
+                                      intron_border_len=250,
+                                      ei_border_len=50):
+    """
+    Output border regions (intron border regions, and exon-intron border regions)
+    to out_bed. 
+    and exon border regions to BED.
+
+    These can then be used to determin what regions are covered by
+    input sites.
+
+    Correct exon_coords order expected (i.e. exon 1 on - most downstream, and most upstream on +).
+
+    Based on:
+    chr1	3000	3100	exon	0	-
+    chr1	2000	2100	exon	0	-
+    chr1	1000	1100	exon	0	-
+    chr1	2100	3000	intron	0	-
+    chr1	1100	2000	intron	0	-
+    chr1	1000	1100	exon	0	+
+    chr1	2000	2100	exon	0	+
+    chr1	3000	3100	exon	0	+
+    chr1	1100	2000	intron	0	+
+    chr1	2100	3000	intron	0	+
+
+    Generate this:
+    chr1	1100	1350	us_ib	0	+
+    chr1	1750	2000	ds_ib	0	+
+    chr1	2100	2350	us_ib	0	+
+    chr1	2750	3000	ds_ib	0	+
+    chr1	1050	1150	eib	0	+
+    chr1	1950	2050	eib	0	+
+    chr1	2050	2150	eib	0	+
+    chr1	2950	3050	eib	0	+
+    chr1	2750	3000	us_ib	0	-
+    chr1	2100	2350	ds_ib	0	-
+    chr1	1750	2000	us_ib	0	-
+    chr1	1100	1350	ds_ib	0	-
+    chr1	2050	2150	W	0	-
+    chr1	2950	3050	eib	0	-
+    chr1	1050	1150	eib	0	-
+    chr1	1950	2050	eib	0	-
+    
+    >>> out_bed = "test_data/test.exon_intron_border_reg.tmp.bed"
+    >>> exp_bed = "test_data/test.exon_intron_border_reg.exp.bed"
+    >>> tid2tio_dic = {}
+    >>> tid2tio_dic["ENST1"] = TranscriptInfoExonTest("ENST1", "chr1", "+", [[1001, 1100], [2001, 2100], [3001, 3100]])
+    >>> tid2tio_dic["ENST2"] = TranscriptInfoExonTest("ENST2", "chr1", "-", [[3001, 3100], [2001, 2100], [1001, 1100]])
+    >>> exon_intron_border_regions_to_bed(tid2tio_dic, out_bed)
+    >>> diff_two_files_identical(out_bed, exp_bed)
+    True
+
+
+    """
+
+    assert tid2tio_dic, "given tid2tio_dic empty"
+
+    OUTBED = open(out_bed, "w")
+
+    min_intron_len = intron_border_len * 2
+
+    for tr_id in tid2tio_dic:
+
+        if tr_ids_dic is not None:
+            if tr_id not in tr_ids_dic:
+                continue
+
+        chr_id = tid2tio_dic[tr_id].chr_id
+        tr_pol = tid2tio_dic[tr_id].tr_pol
+        exon_coords = tid2tio_dic[tr_id].exon_coords
+        assert exon_coords is not None, "exon coordinates list not set for transcript ID %s" %(tr_id)
+    
+        # Get intron coordinates.
+        intron_coords = []
+        if tr_pol == "+":
+            for i in range(len(exon_coords) - 1):
+                intron_coords.append([exon_coords[i][1]+1, exon_coords[i+1][0]-1])
+        elif tr_pol == "-":
+            for i in range(len(exon_coords) - 1):
+                intron_coords.append([exon_coords[i+1][1]+1, exon_coords[i][0]-1])
+        else:
+            assert False, "invalid strand given (%s) for transcript ID %s" %(tr_pol, tr_id)
+
+        # # Output exon regions.
+        # for idx, exon in enumerate(exon_coords):
+        #     c_exon_out += 1
+        #     exon_id = "exon"
+        #     OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], exon_id, tr_pol))
+
+        for idx, intron in enumerate(intron_coords):
+            # intron_id = "intron"
+            intron_s = intron[0]-1
+            intron_e = intron[1]
+            # # Output intron regions.
+            # OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, intron_s, intron_e, intron_id, tr_pol))
+            # Intron border regions.
+            intron_len = intron_e - intron_s
+            if intron_len >= min_intron_len:
+                # + case.
+                us_intron_s = intron_s
+                us_intron_e = intron_s + intron_border_len
+                ds_intron_s = intron_e - intron_border_len
+                ds_intron_e = intron_e
+                us_intron_id = "us_ib"  # upstream intron border region.
+                ds_intron_id = "ds_ib"  # downstream intron border region.
+                if tr_pol == "-":
+                    us_intron_s = intron_e - intron_border_len
+                    us_intron_e = intron_e
+                    ds_intron_s = intron_s
+                    ds_intron_e = intron_s + intron_border_len
+                OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, us_intron_s, us_intron_e, us_intron_id, tr_pol))
+                OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, ds_intron_s, ds_intron_e, ds_intron_id, tr_pol))
+
+            # Exon-intron-border regions.
+            us_exon_s = exon_coords[idx][0] - 1
+            if tr_pol == "-":
+                us_exon_s = exon_coords[idx+1][0] - 1            
+            us_exon_e = intron_s
+            us_exon_len = us_exon_e - us_exon_s
+            ds_exon_s = intron_e
+            ds_exon_e = exon_coords[idx+1][1]
+            if tr_pol == "-":
+                ds_exon_e = exon_coords[idx][1]
+            ds_exon_len = ds_exon_e - ds_exon_s
+            us_eib_s = intron_s - ei_border_len
+            if us_exon_len < ei_border_len:
+                us_eib_s = us_exon_s
+            us_eib_e = intron_s + ei_border_len
+            if intron_len < ei_border_len:
+                us_eib_e = intron_e
+            ds_eib_s = intron_e - ei_border_len
+            if intron_len < ei_border_len:
+                ds_eib_s = intron_s
+            ds_eib_e = intron_e + ei_border_len
+            if ds_exon_len < ei_border_len:
+                ds_eib_e = ds_exon_e
+            eib_id = "eib"
+            OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, us_eib_s, us_eib_e, eib_id, tr_pol))
+            OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, ds_eib_s, ds_eib_e, eib_id, tr_pol))
+
+    OUTBED.close()
+
+"""
+	-f	Minimum overlap required as a fraction of A.
+		- Default is 1E-9 (i.e., 1bp).
+		- FLOAT (e.g. 0.50)
+
+	-F	Minimum overlap required as a fraction of B.
+		- Default is 1E-9 (i.e., 1bp).
+		- FLOAT (e.g. 0.50)
+
+	-r	Require that the fraction overlap be reciprocal for A AND B.
+		- In other words, if -f is 0.90 and -r is used, this requires
+		  that B overlap 90% of A and A _also_ overlaps 90% of B.
+
+	-e	Require that the minimum fraction be satisfied for A OR B.
+		- In other words, if -e is used with -f 0.90 and -F 0.10 this requires
+		  that either 90% of A is covered OR 10% of  B is covered.
+		  Without -e, both fractions would have to be satisfied.
+
+"""
+
+################################################################################
+
+def output_eib_pos_to_bed(tid2tio_dic, out_bed,
+                          min_intron_len=False,
+                          min_exon_len=False,
+                          border_mode=1):
+
+    """
+    Output exon-intron border positions (first or last intron positions) 
+    to out_bed.
+
+    border_mode:
+        1: upstream borders
+        2: downstream borders
+
+    Correct exon_coords order expected (i.e. exon 1 on - most downstream, and most upstream on +).
+
+    >>> out_bed = "test_data/test.exon_intron_border_pos.tmp.bed"
+    >>> exp_bed = "test_data/test.exon_intron_border_pos.exp.bed"
+    >>> tid2tio_dic = {}
+    >>> tid2tio_dic["ENST1"] = TranscriptInfoExonTest("ENST1", "chr1", "+", [[1001, 1100], [2001, 2100], [3001, 3100]])
+    >>> tid2tio_dic["ENST2"] = TranscriptInfoExonTest("ENST2", "chr1", "-", [[3001, 3100], [2001, 2100], [1001, 1100]])
+    >>> output_eib_pos_to_bed(tid2tio_dic, out_bed)
+    >>> diff_two_files_identical(out_bed, exp_bed)
+    True
+    >>> exp_bed = "test_data/test.exon_intron_border_pos2.exp.bed"
+    >>> output_eib_pos_to_bed(tid2tio_dic, out_bed, border_mode=2)
+    >>> diff_two_files_identical(out_bed, exp_bed)
+    True
+
+    
+    """
+
+    assert tid2tio_dic, "given tid2tio_dic empty"
+
+    OUTBED = open(out_bed, "w")
+
+    for tr_id in tid2tio_dic:
+
+        chr_id = tid2tio_dic[tr_id].chr_id
+        tr_pol = tid2tio_dic[tr_id].tr_pol
+        exon_coords = tid2tio_dic[tr_id].exon_coords
+        assert exon_coords is not None, "exon coordinates list not set for transcript ID %s" %(tr_id)
+    
+        # Get intron coordinates.
+        intron_coords = []
+        if tr_pol == "+":
+            for i in range(len(exon_coords) - 1):
+                intron_coords.append([exon_coords[i][1]+1, exon_coords[i+1][0]-1])
+        elif tr_pol == "-":
+            for i in range(len(exon_coords) - 1):
+                intron_coords.append([exon_coords[i+1][1]+1, exon_coords[i][0]-1])
+        else:
+            assert False, "invalid strand given (%s) for transcript ID %s" %(tr_pol, tr_id)
+
+        for idx, intron in enumerate(intron_coords):
+
+            intron_s = intron[0]-1
+            intron_e = intron[1]
+            eib_id = "eib"
+
+            intron_len = intron_e - intron_s
+            if min_intron_len:
+                if intron_len < min_intron_len:
+                    continue
+
+            # Exon lengths.
+            us_exon_s = exon_coords[idx][0] - 1
+            if tr_pol == "-":
+                us_exon_s = exon_coords[idx+1][0] - 1            
+            us_exon_e = intron_s
+            us_exon_len = us_exon_e - us_exon_s
+            ds_exon_s = intron_e
+            ds_exon_e = exon_coords[idx+1][1]
+            if tr_pol == "-":
+                ds_exon_e = exon_coords[idx][1]
+            ds_exon_len = ds_exon_e - ds_exon_s
+
+            us_eib_s = intron_s
+            us_eib_e = intron_s + 1
+            ds_eib_s = intron_e - 1
+            ds_eib_e = intron_e
+
+            if tr_pol == "-":
+                us_eib_s = intron_e - 1
+                us_eib_e = intron_e
+                ds_eib_s = intron_s
+                ds_eib_e = intron_s + 1
+
+            if border_mode == 1:
+                if min_exon_len:
+                    if us_exon_len < min_exon_len:
+                        continue
+                eib_id += ";us;%i;%s" %(idx+1, tr_id)
+                OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, us_eib_s, us_eib_e, eib_id, tr_pol))
+            elif border_mode == 2:
+                if min_exon_len:
+                    if ds_exon_len < min_exon_len:
+                        continue
+                eib_id += ";ds;%i;%s" %(idx+1, tr_id)
+                OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, ds_eib_s, ds_eib_e, eib_id, tr_pol))
+
+    OUTBED.close()
 
 
 ################################################################################
 
 def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
                                               output_mode=1,
+                                              tr_ids_dic=None,
                                               report_counts=True,
                                               add_tr_id=True,
+                                              add_numbers=False,
                                               empty_check=False):
     """
     Output exon and/or intron regions to BED given a dictionary of TranscriptInfo 
@@ -1643,6 +3239,8 @@ def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
     add_tr_id:
         If True, add transcript ID after exon intron label (BED column 4), 
         format: intron;tr_id
+    add_numbers:
+        If True, add exon + intron numbers.
         
     """
     assert tid2tio_dic, "given tid2tio_dic empty"
@@ -1653,7 +3251,11 @@ def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
     c_intron_out = 0
 
     for tr_id in tid2tio_dic:
-        
+
+        if tr_ids_dic is not None:
+            if tr_id not in tr_ids_dic:
+                continue
+
         chr_id = tid2tio_dic[tr_id].chr_id
         tr_pol = tid2tio_dic[tr_id].tr_pol
         exon_coords = tid2tio_dic[tr_id].exon_coords
@@ -1671,32 +3273,43 @@ def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
             assert False, "invalid strand given (%s) for transcript ID %s" %(tr_pol, tr_id)
 
         if output_mode == 1:
-            for exon in exon_coords:
+            for idx, exon in enumerate(exon_coords):
                 c_exon_out += 1
+                exon_id = "exon"
+                if add_numbers:
+                    exon_id += ";%i" %(idx+1)
                 if add_tr_id:
-                    OUTBED.write("%s\t%i\t%i\texon;%s\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], tr_id, tr_pol))
-                else:
-                    OUTBED.write("%s\t%i\t%i\texon\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], tr_pol))
-            for intron in intron_coords:
+                    exon_id += ";" + tr_id
+                OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], exon_id, tr_pol))
+
+            for idx, intron in enumerate(intron_coords):
                 c_intron_out += 1
+                intron_id = "intron"
+                if add_numbers:
+                    intron_id += ";%i" %(idx+1)
                 if add_tr_id:
-                    OUTBED.write("%s\t%i\t%i\tintron;%s\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], tr_id, tr_pol))
-                else:
-                    OUTBED.write("%s\t%i\t%i\tintron\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], tr_pol))
+                    intron_id += ";" + tr_id
+                OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], intron_id, tr_pol))
+
         elif output_mode == 2:
-            for exon in exon_coords:
+            for idx, exon in enumerate(exon_coords):
                 c_exon_out += 1
+                exon_id = "exon"
+                if add_numbers:
+                    exon_id += ";%i" %(idx+1)
                 if add_tr_id:
-                    OUTBED.write("%s\t%i\t%i\texon;%s\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], tr_id, tr_pol))
-                else:
-                    OUTBED.write("%s\t%i\t%i\texon\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], tr_pol))
+                    exon_id += ";" + tr_id
+                OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], exon_id, tr_pol))
+
         elif output_mode == 3:
-            for intron in intron_coords:
+            for idx, intron in enumerate(intron_coords):
                 c_intron_out += 1
+                intron_id = "intron"
+                if add_numbers:
+                    intron_id += ";%i" %(idx+1)
                 if add_tr_id:
-                    OUTBED.write("%s\t%i\t%i\tintron;%s\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], tr_id, tr_pol))
-                else:
-                    OUTBED.write("%s\t%i\t%i\tintron\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], tr_pol))
+                    intron_id += ";" + tr_id
+                OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], intron_id, tr_pol))
 
     OUTBED.close()
 
@@ -1705,6 +3318,136 @@ def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
         print("# of intron features output to BED: ", c_intron_out)
     if empty_check:
         assert (c_exon_out+c_intron_out) > 0, "no exon/intron features output to BED"
+
+
+################################################################################
+
+def get_mrna_tids_and_sites(in_bed):
+    """
+    Given BED file with format:
+    chr1	1080	1085	exon;1;ENST01	0	-	chr1	1070	1085	s1	0	-
+    chr2	1010	1020	exon;1;ENST02	0	+	chr2	1010	1030	s2	0	+
+    chr2	1015	1020	exon;1;ENST02	0	+	chr2	1015	1030	s3	0	+
+
+    Extract transcript IDs (ENST01,..) and count site IDs (s1,...).
+    
+    """
+
+    c_ol_mrna_sites = 0
+    ol_mrna_tids_dic = {}
+    seen_site_ids_dic = {}
+
+    with open(in_bed, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            cols = line.split("\t")
+            exon_id = cols[3]
+            tr_id = exon_id.split(";")[2]
+            site_id = cols[9]
+            ol_mrna_tids_dic[tr_id] = 1
+            seen_site_ids_dic[site_id] = 1
+
+    c_ol_mrna_sites = len(seen_site_ids_dic)
+
+    return c_ol_mrna_sites, ol_mrna_tids_dic
+
+
+################################################################################
+
+def fill_exon_pos_count_lists(exon_cov_bed, tid2tio_dic, exon2pcl_dic):
+    """
+    Fill position count lists for exons in exon2pcl_dic.
+
+    exon_cov_bed has following format:
+    chr1	1080	1085	exon;1;ENST01	0	-
+    chr2	1010	1020	exon;1;ENST02	0	+
+    chr2	1010	1020	exon;1;ENST02	0	+
+
+    tid2tio_dic["ENST01"].exon_coords format (e1, e2, e3 order):
+    ENST01 exon_coords: [[1081, 1100], [1041, 1050], [1001, 1010]]
+    exon2pcl_dic format:
+    {..., 'exon;2;ENST01': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], ...}
+
+    test.exon_cov.bed:
+    chr1	1050	1055	exon;2;ENST01	0	-
+    chr1	1050	1054	exon;2;ENST01	0	-
+    chr1	1050	1053	exon;2;ENST01	0	-
+    chr1	1050	1052	exon;2;ENST01	0	-
+    chr1	1050	1051	exon;2;ENST01	0	-
+    chr2	1005	1010	exon;1;ENST02	0	+
+    chr2	1007	1010	exon;1;ENST02	0	+
+    chr2	1050	1053	exon;2;ENST02	0	+
+
+    >>> exon_cov_bed = "test_data/test.exon_cov.bed"
+    >>> tid2tio_dic = {}
+    >>> tid2tio_dic["ENST02"] = TranscriptInfoExonTest("ENST02", "chr2", "+", [[1001, 1010], [1051, 1055]])
+    >>> exon2pcl_dic = {'exon;1;ENST02': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'exon;2;ENST02': [0, 0, 0, 0, 0], 'exon;1;666': [0]}
+    >>> fill_exon_pos_count_lists(exon_cov_bed, tid2tio_dic, exon2pcl_dic)
+    >>> exon2pcl_dic
+    {'exon;1;ENST02': [0, 0, 0, 0, 0, 1, 1, 2, 2, 2], 'exon;2;ENST02': [1, 1, 1, 0, 0], 'exon;1;666': [0]}
+    >>> tid2tio_dic = {}
+    >>> tid2tio_dic["ENST01"] = TranscriptInfoExonTest("ENST01", "chr1", "-", [[1096, 1100], [1051, 1060]])
+    >>> exon2pcl_dic = {'exon;1;ENST01': [0, 0, 0, 0, 0], 'exon;2;ENST01': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}
+    >>> fill_exon_pos_count_lists(exon_cov_bed, tid2tio_dic, exon2pcl_dic)
+    >>> exon2pcl_dic
+    {'exon;1;ENST01': [0, 0, 0, 0, 0], 'exon;2;ENST01': [0, 0, 0, 0, 0, 1, 2, 3, 4, 5]}
+
+    """
+
+    assert exon2pcl_dic, "exon2pcl_dic is empty"
+    assert tid2tio_dic, "tid2tio_dic is empty"
+    assert os.path.exists(exon_cov_bed), "exon_cov_bed does not exist"
+
+    with open(exon_cov_bed, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            cols = line.split("\t")
+            chr_id = cols[0]
+            hit_s = int(cols[1])  # 0-based.
+            hit_e = int(cols[2])  # 1-based.
+            ex_id = cols[3]
+            ex_strand = cols[5]
+
+            tr_id = ex_id.split(";")[2]
+            
+            if tr_id not in tid2tio_dic:
+                continue
+
+            ex_nr = int(ex_id.split(";")[1])
+            ex_s = tid2tio_dic[tr_id].exon_coords[ex_nr-1][0]
+            ex_e = tid2tio_dic[tr_id].exon_coords[ex_nr-1][1]
+
+            if ex_id not in exon2pcl_dic:
+                continue
+
+            for i in range(hit_s, hit_e):
+                if ex_strand == "+":
+                    exon2pcl_dic[ex_id][i - ex_s + 1] += 1
+                else:
+                    exon2pcl_dic[ex_id][ex_e - i - 1] += 1
+
+
+################################################################################
+
+def count_lines_in_file(file_path):
+    """
+    Count number of lines in file.
+
+    >>> file_path = "test_data/file1"
+    >>> count_lines_in_file(file_path)
+    9
+    >>> file_path = "test_data/empty_file"
+    >>> count_lines_in_file(file_path)
+    0
+
+    """
+    with open(file_path, 'r') as file:
+        line_count = sum(1 for line in file)
+    return line_count
 
 
 ################################################################################
@@ -1727,6 +3470,127 @@ def bed_intersect_files(a_bed, b_bed, out_bed,
     assert error == False, "intersectBed has problems with your input:\n%s\n%s" %(check_cmd, output)
 
 
+
+################################################################################
+
+class TranscriptInfoExonTest:
+    """
+    Transcript infos exon coordinates test class.
+
+    """
+    def __init__(self,
+                 tr_id: str,
+                 chr_id: str,
+                 tr_pol: str,
+                 exon_coords=None) -> None:
+
+        self.tr_id = tr_id
+        self.chr_id = chr_id
+        self.tr_pol = tr_pol
+        if exon_coords is None:
+            self.exon_coords = []
+        else:
+            self.exon_coords = exon_coords
+
+
+
+################################################################################
+
+class MrnaRegionProfile:
+    """
+    mRNA input region coverage profile class. 
+
+    """
+    def __init__(self,
+                 dataset_id: str,
+                 utr5_len_norm: float,
+                 cds_len_norm: float,
+                 utr3_len_norm: float,
+                 norm_mode: str,
+                 c_ol_sites: Optional[int] = None,
+                 c_all_sites: Optional[int] = None,
+                 c_ol_mrnas: Optional[int] = None,
+                 utr5_pc_list=None,
+                 cds_pc_list=None,
+                 utr3_pc_list=None) -> None:
+
+        self.dataset_id = dataset_id
+        self.utr5_len_norm = utr5_len_norm
+        self.cds_len_norm = cds_len_norm
+        self.utr3_len_norm = utr3_len_norm
+        self.norm_mode = norm_mode
+        self.c_ol_sites = c_ol_sites
+        self.c_all_sites = c_all_sites
+        self.c_ol_mrnas = c_ol_mrnas
+        if utr5_pc_list is None:
+            self.utr5_pc_list = []
+        else:
+            self.utr5_pc_list = utr5_pc_list
+        if cds_pc_list is None:
+            self.cds_pc_list = []
+        else:
+            self.cds_pc_list = cds_pc_list
+        if utr3_pc_list is None:
+            self.utr3_pc_list = []
+        else:
+            self.utr3_pc_list = utr3_pc_list
+
+
+################################################################################
+
+def get_mrna_reg_norm_len(tid2regl_dic,
+                          mrna_norm_mode=1):
+    """
+    Get normalized mRNA region lengths.
+
+    mrna_norm_mode:
+        1: median
+        2: mean
+    
+    """
+
+    assert tid2regl_dic, "given tid2regl_dic empty"
+
+    # Get mean / median UTR CDS lengths.
+    utr5_len_list = []
+    cds_len_list = []
+    utr3_len_list = []
+    for tr_id in tid2regl_dic:
+        utr5_len_list.append(tid2regl_dic[tr_id][0])
+        cds_len_list.append(tid2regl_dic[tr_id][1])
+        utr3_len_list.append(tid2regl_dic[tr_id][2])
+    
+    utr5_len_norm = 100
+    cds_len_norm = 100
+    utr3_len_norm = 100
+    norm_mode = "uniform"
+
+    if mrna_norm_mode == 1:
+        # Median.
+        utr5_len_norm = statistics.median(utr5_len_list)
+        cds_len_norm = statistics.median(cds_len_list)
+        utr3_len_norm = statistics.median(utr3_len_list)
+        norm_mode = "median"
+        # print("Median lengths of mRNA regions:")
+
+    elif mrna_norm_mode == 2:
+        # Mean.
+        utr5_len_norm = statistics.mean(utr5_len_list)
+        cds_len_norm = statistics.mean(cds_len_list)
+        utr3_len_norm = statistics.mean(utr3_len_list)
+        norm_mode = "mean"
+        # print("Mean lengths of mRNA regions:")
+
+    else:
+        assert False, "invalid --mrna-norm-mode %i set" %(mrna_norm_mode)
+
+    # print("5'UTR = ", utr5_len_norm)
+    # print("CDS   = ", cds_len_norm)
+    # print("3'UTR = ", utr3_len_norm)
+
+    return utr5_len_norm, cds_len_norm, utr3_len_norm, norm_mode
+
+
 ################################################################################
 
 class TranscriptInfo:
@@ -1746,10 +3610,15 @@ class TranscriptInfo:
                  tr_e: int,  # 1-based index.
                  tr_pol: str,
                  gene_id: str,
-                 tr_length: Optional[int] = None,
+                 total_intron_len = 0,
+                 tr_length: Optional[int] = None,  # spliced transcript length.
                  exon_c: Optional[int] = None,
+                 basic_tag: Optional[int] = None,
+                 ensembl_canonical: Optional[int] = None,
+                 tsl_id: Optional[str] = None,
                  cds_s: Optional[int] = None,
                  cds_e: Optional[int] = None,
+                 intron_coords=None,  # intron_coords + exon_coords with 1-based starts and ends.
                  exon_coords=None) -> None:
 
         self.tr_id = tr_id
@@ -1763,6 +3632,15 @@ class TranscriptInfo:
         self.exon_c = exon_c
         self.cds_s = cds_s
         self.cds_e = cds_e
+        self.total_intron_len = total_intron_len
+        self.basic_tag = basic_tag
+        self.ensembl_canonical = ensembl_canonical
+        self.tsl_id = tsl_id
+
+        if intron_coords is None:
+            self.intron_coords = []
+        else:
+            self.intron_coords = intron_coords
         if exon_coords is None:
             self.exon_coords = []
         else:
@@ -1942,6 +3820,8 @@ def get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e,
 
 def get_transcript_sequences_from_gtf(tid2tio_dic, in_genome_fasta,
                                       tr_ids_dic=False,
+                                      dna=True,
+                                      all_uc=True,
                                       tmp_out_folder=False):
     """
     Given tid2tio_dic, extract transcript sequences from genome FASTA file.
@@ -2019,8 +3899,8 @@ def get_transcript_sequences_from_gtf(tid2tio_dic, in_genome_fasta,
                                      ignore_errors=False)
 
     exon_seqs_dic = read_fasta_into_dic(tmp_fa,
-                                        dna=True,
-                                        all_uc=True,
+                                        dna=dna,
+                                        all_uc=all_uc,
                                         skip_n_seqs=False)
 
     """
@@ -2131,6 +4011,44 @@ def get_mrna_region_lengths(tid2tio_dic):
                     tid2regl_dic[tid][2] += utr3_len
 
     return tid2regl_dic
+
+
+################################################################################
+
+def bed_filter_by_seqs_dic(seqs_dic, in_bed, out_bed,
+                           use_col4_id=False):
+    """
+    Keep only in_bed entries with column 4 ID present in seqs_dic.
+
+    """
+
+    assert os.path.isfile(in_bed), "in_bed file does not exist"
+    assert seqs_dic, "seqs_dic empty"
+    c_out = 0
+
+    OUTBED = open(out_bed, "w")
+
+    with open(in_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            chr_id = cols[0]
+            reg_s = cols[1]
+            reg_e = cols[2]
+            reg_id = cols[3]
+            sc = cols[4]
+            strand = cols[5]
+
+            exp_reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + strand + ")"
+            if use_col4_id:
+                exp_reg_id = reg_id
+
+            if exp_reg_id in seqs_dic:
+                OUTBED.write("%s\t%s\t%s\t%s\t0\t%s\n" % (chr_id, reg_s, reg_e, exp_reg_id, strand))
+                c_out += 1
+
+    f.closed
+    OUTBED.close()
+    assert c_out, "no entries written to out_bed"
 
 
 ################################################################################
@@ -2319,16 +4237,294 @@ IG_pseudogene	1
 
 """
 
+
 ################################################################################
 
-def get_motif_hit_region_annotations(overlap_annotations_bed):
+def get_regex_hit_region_annotations(overlap_annotations_bed,
+                                     tid2tio_dic=None):
+    """
+    Given a BED file (overlap_annotations_bed) with format:
+    chr12	57586611	57586617	AATAAA	0	+	chr12	57584217	57586633	3'UTR;ENST00000455537	0	+	6
+    chr4	73075045	73075051	AATAAA	0	-	.	-1	-1	.	-1	.	0
+    ...
+    extract the region annotations and return a dictionary with region ID as key.
+    Note that regex regions without overlapping annotation are expected to have
+    "." in the annotation field, and will get the annotation "intergenic".
+    
+    Format reg2annot_dic:
+    chr1:101-120(+) -> ["exon", "ENST00000455537"]
+
+    tid2tio_dic:
+        If provided, if two features have same overlap amount with region,
+        choose the more prominent transcript ID (i.e., better annotation).
+
+    """
+
+    assert os.path.exists(overlap_annotations_bed), "file %s does not exist" %(overlap_annotations_bed)
+
+    reg2maxol_dic = {}
+    reg2annot_dic = {}
+    annot_col = 9
+    c_ol_nt_col = 12
+
+    with open(overlap_annotations_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+
+            chr_id = cols[0]
+            reg_s = str(int(cols[1]) + 1)
+            reg_e = cols[2]
+            regex = cols[3]
+            reg_strand = cols[5]
+
+            reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + reg_strand + ")"
+            annot_id = "intergenic"
+            tr_id = False
+
+            if cols[annot_col] != ".":
+                annot_ids = cols[annot_col].split(";")
+                assert len(annot_ids) == 2, "len(annot_ids) != 2 (expected ; separated string, but got: \"%s\")" %(cols[9])
+                annot_id = annot_ids[0]
+                tr_id = annot_ids[1]
+
+            c_overlap_nts = cols[c_ol_nt_col]
+
+            if reg_id not in reg2maxol_dic:
+                reg2maxol_dic[reg_id] = c_overlap_nts
+                reg2annot_dic[reg_id] = [annot_id, tr_id]
+            else:
+                if c_overlap_nts > reg2maxol_dic[reg_id]:
+                    reg2maxol_dic[reg_id] = c_overlap_nts
+                    reg2annot_dic[reg_id][0] = annot_id
+                    reg2annot_dic[reg_id][1] = tr_id
+                elif c_overlap_nts == reg2maxol_dic[reg_id]:  # if region overlaps with > 1 feature by same amount.
+                    if tid2tio_dic is not None:
+                        best_tid = reg2annot_dic[reg_id][1]
+                        new_best_tid = select_more_prominent_tid(tr_id, best_tid, tid2tio_dic)
+                        # If current tr_id has better annotation, update region annotation.
+                        if new_best_tid == tr_id:
+                            reg2maxol_dic[reg_id] = c_overlap_nts
+                            reg2annot_dic[reg_id][0] = annot_id
+                            reg2annot_dic[reg_id][1] = new_best_tid
+
+    f.closed
+
+    return reg2annot_dic
+
+
+################################################################################
+
+def get_normnalized_annot_counts(filtered_sites_bed, intron_exon_out_bed,
+                                 rbp2motif2annot2c_dic, reg2pol_dic, out_folder):
+
+    """
+    Get normalized annotation counts, i.e., counts normalized by the 
+    total length of input regions with the given annotations.
+
+    filtered_sites_bed:
+    chr8	126557892	127292862	chr8:126557892-127292862(+)	0.0	+
+    chr2	20248736	20350844	chr2:20248736-20350844(-)	0.0	-
+
+    intron_exon_out_bed:
+    chr8	126713674	126877671	intron;ENST00000645463	0	+
+    chr8	126877790	127006554	intron;ENST00000645463	0	+
+    chr8	127006618	127292811	intron;ENST00000645463	0	+
+    chr2	20350596	20350844	5'UTR;ENST00000361078	0	-
+    chr2	20327309	20327360	CDS;ENST00000361078	0	-
+    chr2	20327360	20327378	5'UTR;ENST00000361078	0	-
+    chr2	20318536	20318645	CDS;ENST00000361078	0	-
+    ...
+    chr2	20256032	20256170	CDS;ENST00000361078	0	-
+    chr2	20255215	20255341	CDS;ENST00000361078	0	-
+    chr2	20254862	20254984	CDS;ENST00000361078	0	-
+    chr2	20253821	20254014	CDS;ENST00000361078	0	-
+    chr2	20251587	20251716	CDS;ENST00000361078	0	-
+    chr2	20248736	20251587	3'UTR;ENST00000361078	0	-
+    chr8	126557892	126557931	lncRNA;ENST00000645463	0	+
+    chr8	126589191	126589290	lncRNA;ENST00000645463	0	+
+
+    rbp2motif2annot2c_dic:
+        rbp_id -> motif_id -> annot -> annot_c.
+    
+    $ intersectBed -a test_reg.bed -b test_annot.bed -s -wb
+    chr1	1000	1100	s1	0	+	chr1	900	1100	5'UTR	0	+
+    chr1	1100	1300	s1	0	+	chr1	1100	1300	intron	0	+
+    chr1	1300	1500	s1	0	+	chr1	1300	1500	CDS	0	+
+    chr1	1500	1700	s1	0	+	chr1	1500	1700	intron	0	+
+    chr1	1700	1900	s1	0	+	chr1	1700	1900	3'UTR	0	+
+    chr1	1600	1650	s1	0	+	chr1	1600	1650	lncRNA	0	+
+
+    """
+
+    assert os.path.exists(filtered_sites_bed), "filtered_sites_bed does not exist"
+    assert os.path.exists(intron_exon_out_bed), "intron_exon_out_bed does not exist"
+    assert rbp2motif2annot2c_dic, "rbp2motif2annot2c_dic empty"
+    
+    rbp2motif2annot2normc_dic = {}
+
+    in_bed = out_folder + "/in_sites.filtered.eff_regs.tmp.bed"
+    reg_len_dic = {}
+    bed_get_effective_reg_bed(filtered_sites_bed, in_bed, reg2pol_dic,
+                              reg_len_dic=reg_len_dic)
+                              
+    eff_reg_size = 0
+    for reg_id in reg_len_dic:
+        reg_len = reg_len_dic[reg_id]
+        eff_reg_size += reg_len
+
+    # # Get effective total input regions length.
+    # eff_reg_size = get_uniq_gen_size(filtered_sites_bed)
+
+    out_bed = out_folder + "/in_sites.filtered.annot_overlap.tmp.bed"
+
+    bed_intersect_files(in_bed, intron_exon_out_bed, out_bed, params="-s -wb")
+
+    annot_len_dic = {}
+
+    with open(out_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            reg_s = int(cols[1])
+            reg_e = int(cols[2])
+            reg_id = cols[3]
+            reg_len = reg_e - reg_s
+            annot_info = cols[9]
+            annot_id = annot_info.split(";")[0]
+            tr_id = annot_info.split(";")[1]
+            if annot_id not in annot_len_dic:
+                annot_len_dic[annot_id] = reg_len
+            else:
+                annot_len_dic[annot_id] += reg_len
+
+    f.closed
+
+    # Get effective region length of of regions overlapping with annotations.
+    eff_ol_reg_size = get_uniq_gen_size(out_bed)
+    assert eff_ol_reg_size <= eff_reg_size, "eff_ol_reg_size > eff_reg_size"
+    len_intergenic = eff_reg_size - eff_ol_reg_size
+    annot_len_dic["intergenic"] = len_intergenic
+
+    for rbp_id in rbp2motif2annot2c_dic:
+        rbp2motif2annot2normc_dic[rbp_id] = {}
+        for motif_id in rbp2motif2annot2c_dic[rbp_id]:
+            rbp2motif2annot2normc_dic[rbp_id][motif_id] = {}
+            for annot_id in rbp2motif2annot2c_dic[rbp_id][motif_id]:
+                assert annot_id in annot_len_dic, "annot_id \"%s\" not in annot_len_dic" %(annot_id)
+                annot_c = rbp2motif2annot2c_dic[rbp_id][motif_id][annot_id]
+                annot_len_1000 = annot_len_dic[annot_id] / 1000
+                norm_c = annot_c / annot_len_1000
+                rbp2motif2annot2normc_dic[rbp_id][motif_id][annot_id] = norm_c
+    
+    return rbp2motif2annot2normc_dic, eff_reg_size
+
+
+################################################################################
+
+def bed_get_effective_reg_bed(in_bed, out_bed, reg2pol_dic,
+                              reg_len_dic=None):
+    """
+    Convert regions BED file into effective regions BED file.
+    Effective regions are unique regions, i.e., overlapping regions are merged.
+
+    reg2pol_dic:
+        region ID -> region polarity / strand. Needed since merge operation does not 
+        store region polarity/ strand.
+
+    >>> in_bed = "test_data/test.eff_reg.in.bed"
+    >>> out_bed = "test_data/test.eff_reg.tmp.bed"
+    >>> exp_bed = "test_data/test.eff_reg.exp.bed"
+    >>> reg2pol_dic = {"s1":"+", "s2":"+", "s3":"+", "s4":"-", "s5":"-"}
+    >>> bed_get_effective_reg_bed(in_bed, out_bed, reg2pol_dic)
+    >>> diff_two_files_identical(out_bed, exp_bed)
+    True
+         
+    """
+
+    params_str = '-s -c 4 -o distinct -delim ";"'
+    check_cmd = "sort -k1,1 -k2,2n " + in_bed + " | mergeBed -i stdin " + params_str
+    output = subprocess.getoutput(check_cmd)
+
+    BEDOUT = open(out_bed, "w")
+    c_out = 0
+
+    for line in output.split('\n'):
+        cols = line.strip().split("\t")
+        chr_id = cols[0]
+        reg_s = int(cols[1])
+        reg_e = int(cols[2])
+        reg_ids_str = cols[3]
+        reg_ids_list = reg_ids_str.split(";")
+        reg_id_0 = reg_ids_list[0]
+        assert reg_id_0 in reg2pol_dic, "region ID \"%s\" not in reg2pol_dic" %(reg_id_0)
+        reg_strand = reg2pol_dic[reg_id_0]
+        reg_len = reg_e - reg_s
+        if reg_len_dic is not None:
+            reg_len_dic[reg_ids_str] = reg_len
+        c_out += 1
+        BEDOUT.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, reg_s, reg_e, reg_ids_str, reg_strand))
+
+    BEDOUT.close()
+
+    assert c_out, "mergeBed on in_bed %s to produce out_bed %s failed (in_bed empty?)" %(in_bed, out_bed)
+
+
+################################################################################
+
+
+def bed_sort_file(in_bed, out_bed, 
+                  params="-k1,1 -k2,2n"):
+    """
+    Sort BED file (necessary for some bedtools operations).
+
+    """
+
+    assert os.path.exists(in_bed), "in_bed does not exist"
+
+    check_cmd = "sort " + params + " " + in_bed + " > " + out_bed
+    output = subprocess.getoutput(check_cmd)
+    error = False
+    if output:
+        error = True
+    assert error == False, "sort has problems with your input:\n%s\n%s" %(check_cmd, output)
+
+
+# ################################################################################
+
+# def bed_merge_entries(in_bed, out_bed, 
+#                       params="-k1,1 -k2,2n"):
+
+#     """
+#     Merge entries in in_bed file. Output is 3-col BED:
+#     chr1	1000	1900
+
+#     """
+
+#     assert os.path.exists(in_bed), "in_bed does not exist"
+
+#     check_cmd = "sort " + params + " " + in_bed + " > " + out_bed
+#     output = subprocess.getoutput(check_cmd)
+#     error = False
+#     if output:
+#         error = True
+#     assert error == False, "sort has problems with your input:\n%s\n%s" %(check_cmd, output)
+
+
+
+################################################################################
+
+def get_motif_hit_region_annotations(overlap_annotations_bed,
+                                     tid2tio_dic=None):
     """
     Get motif hit region annotations from overlap_annotations_bed. This file 
     was produced using intersectBed -wao, so also motif hit regions that do not
     overlap with genomic regions are present in the file.
-    motif hit region id format: HNRNPL,HNRNPL_1;1;method_id,data_id
+    motif hit region id format: HNRNPL:HNRNPL_1;1;method_id:data_id
     genomic annotation region id format: intron;ENST00000434296
-    
+
+    tid2tio_dic:
+        If provided, if two features have same overlap amount with region,
+        choose the more prominent transcript ID (i.e., better annotation).
+
     """
 
     assert os.path.exists(overlap_annotations_bed), "file %s does not exist" %(overlap_annotations_bed)
@@ -2338,6 +4534,8 @@ def get_motif_hit_region_annotations(overlap_annotations_bed):
     # These shift since motif hits BED contains additional (4) p-value and score columns.
     annot_col = 13
     c_ol_nt_col = 16
+
+    motif_id_pattern = re.compile(r"^.+?:(.+?);")
 
     with open(overlap_annotations_bed) as f:
         for line in f:
@@ -2349,9 +4547,16 @@ def get_motif_hit_region_annotations(overlap_annotations_bed):
             reg_id = cols[3]
             reg_strand = cols[5]
 
-            # col[3] has format: "rbp_id,motif_id;1;method_id,data_id". Extract motif_id from this string.
-            motif_id = reg_id.split(",")[1].split(";")[0]
-            reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + reg_strand + ")," + motif_id
+            # col[3] has format: "rbp_id:motif_id;1;method_id:data_id". Extract motif_id from this string.
+            # m = re.search("^.+?:(.+?);", reg_id)
+            # assert m is not None, "Motif ID extraction failed for region ID \"%s\"" %(reg_id)
+            # motif_id = m.group(1)
+            m = motif_id_pattern.search(reg_id)
+            assert m is not None, "Motif ID extraction failed for region ID \"%s\"" %(reg_id)
+            motif_id = m.group(1)
+
+            # motif_id = reg_id.split(":")[1].split(";")[0]
+            reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + reg_strand + ")" + motif_id
 
             annot_id = "intergenic"
             tr_id = False
@@ -2372,7 +4577,108 @@ def get_motif_hit_region_annotations(overlap_annotations_bed):
                     reg2maxol_dic[reg_id] = c_overlap_nts
                     reg2annot_dic[reg_id][0] = annot_id
                     reg2annot_dic[reg_id][1] = tr_id
+
+                elif c_overlap_nts == reg2maxol_dic[reg_id]:  # if region overlaps with > 1 feature by same amount.
+                    if tid2tio_dic is not None:
+                        best_tid = reg2annot_dic[reg_id][1]
+                        new_best_tid = select_more_prominent_tid(tr_id, best_tid, tid2tio_dic)
+                        # If current tr_id has better annotation, update region annotation.
+                        if new_best_tid == tr_id:
+                            reg2maxol_dic[reg_id] = c_overlap_nts
+                            reg2annot_dic[reg_id][0] = annot_id
+                            reg2annot_dic[reg_id][1] = new_best_tid
+
     f.closed
+
+    return reg2annot_dic
+
+
+################################################################################
+
+def reformat_to_bed10(in_bed, out_bed):
+    """
+    Reformat to BED10 format.
+    
+    """
+
+    assert os.path.exists(in_bed), "in_bed file does not exist"
+    OUTBED = open(out_bed, "w")
+
+    with open(in_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            OUTBED.write("%s\t%s\t%s\t%s\t%s\t%s\t-1.0\t-1.0\t-1.0\t-1.0\n" %(cols[0], cols[1], cols[2], cols[3], cols[4], cols[5]))
+    f.closed
+    OUTBED.close()
+
+
+################################################################################
+
+def output_bed6plus_to_bed6_format(in_bed, out_bed):
+    """
+    Output BED file with 6+ columns to BED file with 6 columns.
+
+    Can be necessary for intersectBed to work.
+
+    """
+
+    assert os.path.exists(in_bed), "in_bed file does not exist"
+    OUTBED = open(out_bed, "w")
+
+    with open(in_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            assert len(cols) >= 6, "less than 6 columns in line \"%s\"" %(line)
+            OUTBED.write("%s\t%s\t%s\t%s\t%s\t%s\n" %(cols[0], cols[1], cols[2], cols[3], cols[4], cols[5]))
+    f.closed
+    OUTBED.close()
+
+
+################################################################################
+
+def get_mrna_region_annotations_v2(overlap_annotations_bed,
+                                   reg_ids_dic=None):
+    """
+    Get mRNA region annotations, i.e. sites are on transcripts and were overlapped
+    with 5'UTR CDS 3'UTR regions.
+
+    This function (v2) is designed for rbpbench enmo.
+
+    """
+    assert os.path.exists(overlap_annotations_bed), "file %s does not exist" %(overlap_annotations_bed)
+
+    reg2maxol_dic = {}
+    reg2annot_dic = {}
+    annot_col = 9
+    c_ol_nt_col = 12
+
+    with open(overlap_annotations_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            reg_id = cols[3]  # reg_id format: ENST00000663363:36-136(+)
+
+            annot_ids = cols[annot_col].split(";")  # annot_col format: ENST00000663363;5'UTR
+            assert len(annot_ids) == 2, "len(annot_ids) != 2 (expected ; separated string, but got: \"%s\")" %(cols[9])
+            tr_id = annot_ids[0]
+            annot_id = annot_ids[1]
+
+            c_overlap_nts = cols[c_ol_nt_col]
+
+            if reg_id not in reg2maxol_dic:
+                reg2maxol_dic[reg_id] = c_overlap_nts
+                reg2annot_dic[reg_id] = [annot_id, tr_id]
+            else:
+                if c_overlap_nts > reg2maxol_dic[reg_id]:
+                    reg2maxol_dic[reg_id] = c_overlap_nts
+                    reg2annot_dic[reg_id][0] = annot_id
+                    reg2annot_dic[reg_id][1] = tr_id
+    f.closed
+
+    if reg_ids_dic is not None:
+        for reg_id in reg_ids_dic:
+            if reg_id not in reg2annot_dic:
+                tr_id = reg_id.split(":")[0]
+                reg2annot_dic[reg_id] = ["ncRNA", tr_id]
 
     return reg2annot_dic
 
@@ -2381,6 +4687,7 @@ def get_motif_hit_region_annotations(overlap_annotations_bed):
 
 def get_region_annotations(overlap_annotations_bed,
                            motif_hits=False,
+                           tid2tio_dic=None,
                            reg_ids_dic=None):
     """
     Get region annotations from overlapping genomic regions with exon / intron 
@@ -2390,8 +4697,12 @@ def get_region_annotations(overlap_annotations_bed,
         If True, the -a file is the motif hits BED file. In this case, the region ID
         has to be reconstructed from the BED region info.
         Format of reg_ids_dic key if motif_hits=True:
-        "chr1:10-15(+),motif_id"
-
+        "chr1:10-15(+)motif_id"
+    
+    tid2tio_dic:
+        If provided, if two features have same overlap amount with region,
+        choose the more prominent transcript ID (i.e., better annotation).
+        
     reg_ids_dic:
         If set, compare genomic region IDs with IDs in dictionary. If region ID 
         from dictionary not in overlap_annotations_bed, set label "intergenic".
@@ -2405,10 +4716,12 @@ def get_region_annotations(overlap_annotations_bed,
     annot_col = 9
     c_ol_nt_col = 12
 
+    motif_id_pattern = re.compile(r"^.+?:(.+?);")
+
     with open(overlap_annotations_bed) as f:
         for line in f:
             cols = line.strip().split("\t")
-            reg_id = cols[3]
+            reg_id = cols[3]  # format: chr8:90314134-90314381(+) (if motif_hits=False)
 
             # If motif_ids, construct new unique region_id from BED region info.
             if motif_hits:
@@ -2416,9 +4729,16 @@ def get_region_annotations(overlap_annotations_bed,
                 reg_s = str(int(cols[1]) + 1)
                 reg_e = cols[2]
                 reg_strand = cols[5]
-                # col[3] has format: "rbp_id,motif_id;1;method_id,data_id". Extract motif_id from this string.
-                motif_id = reg_id.split(",")[1].split(";")[0]
-                reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + reg_strand + ")," + motif_id
+                # col[3] has format: "rbp_id:motif_id;1;method_id:data_id". Extract motif_id from this string.
+                # m = re.search("^.+?:(.+?);", reg_id)
+                # assert m is not None, "Motif ID extraction failed for region ID \"%s\"" %(reg_id)
+                # motif_id = m.group(1)
+                m = motif_id_pattern.search(reg_id)
+                assert m is not None, "Motif ID extraction failed for region ID \"%s\"" %(reg_id)
+                motif_id = m.group(1)
+
+                # motif_id = reg_id.split(":")[1].split(";")[0]
+                reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + reg_strand + ")" + motif_id
                 annot_col = 13  # These shift since motif hits BED contains additional (4) p-value and score columns.
                 c_ol_nt_col = 16
 
@@ -2435,6 +4755,16 @@ def get_region_annotations(overlap_annotations_bed,
                     reg2maxol_dic[reg_id] = c_overlap_nts
                     reg2annot_dic[reg_id][0] = annot_id
                     reg2annot_dic[reg_id][1] = tr_id
+                elif c_overlap_nts == reg2maxol_dic[reg_id]:  # if region overlaps with > 1 feature by same amount.
+                    if tid2tio_dic is not None:
+                        best_tid = reg2annot_dic[reg_id][1]
+                        new_best_tid = select_more_prominent_tid(tr_id, best_tid, tid2tio_dic)
+                        # If current tr_id has better annotation, update region annotation.
+                        if new_best_tid == tr_id:
+                            reg2maxol_dic[reg_id] = c_overlap_nts
+                            reg2annot_dic[reg_id][0] = annot_id
+                            reg2annot_dic[reg_id][1] = new_best_tid
+
     f.closed
 
     if reg_ids_dic is not None:
@@ -2480,6 +4810,8 @@ def get_mrna_region_annotations(overlap_annotations_bed,
     annot_col = 9
     c_ol_nt_col = 12
 
+    motif_id_pattern = re.compile(r"^.+?:(.+?);")
+
     with open(overlap_annotations_bed) as f:
         for line in f:
             cols = line.strip().split("\t")
@@ -2492,8 +4824,16 @@ def get_mrna_region_annotations(overlap_annotations_bed,
             mrna_reg_id = cols[13]
             c_overlap_nts = cols[16]
 
-            # motif_hit_id has format: "rbp_id,motif_id;1;method_id,data_id". Extract motif_id from this string.
-            motif_id = motif_hit_id.split(",")[1].split(";")[0]
+            # col[3] has format: "rbp_id:motif_id;1;method_id:data_id". Extract motif_id from this string.
+            # m = re.search("^.+?:(.+?);", reg_id)
+            # assert m is not None, "Motif ID extraction failed for region ID \"%s\"" %(motif_hit_id)
+            # motif_id = m.group(1)
+            m = motif_id_pattern.search(reg_id)
+            assert m is not None, "Motif ID extraction failed for region ID \"%s\"" %(reg_id)
+            motif_id = m.group(1)
+
+            # motif_id = reg_id.split(":")[1].split(";")[0]
+            # motif_id = motif_hit_id.split(",")[1].split(";")[0]
             # mrna_reg_id has format: ENST00000434296;3utr. Extract region type from this string.
             mrna_reg_type = mrna_reg_id.split(";")[1]  # can be: 5'UTR, CDS, 3'UTR
 
@@ -2620,7 +4960,8 @@ def gtf_check_exon_order(in_gtf):
         f = open(in_gtf, "r")
     for line in f:
         # Skip header.
-        if re.search("^#", line):
+        if line.startswith("#"):
+        # if re.search("^#", line):
             continue
         cols = line.strip().split("\t")
         chr_id = cols[0]
@@ -2668,6 +5009,54 @@ def gtf_check_exon_order(in_gtf):
 
     assert check != 6666, "no minus strand exon regions found in GTF file %s" %(in_gtf)
     return check
+
+
+################################################################################
+
+def select_more_prominent_tid(tid1, tid2, tid2tio_dic):
+    """
+    Given two transcript IDs tid1 and tid2, select the more prominent 
+    transcript (i.e., with better experimental evidence).
+
+    Features to compare:
+    tidtio_dic[tid].basic_tag  # 0 or 1
+    tidtio_dic[tid].ensembl_canonical  # 0 or 1
+    tidtio_dic[tid].tsl_id  # 1-5 or "NA"
+
+    """
+    assert tid1 in tid2tio_dic, "tid1 \"%s\" not in tid2tio_dic" %(tid1)
+    assert tid2 in tid2tio_dic, "tid2 \"%s\" not in tid2tio_dic" %(tid2)
+
+    # Comparison dictionary.
+    id2sc = {}
+    for i in range(5):
+        pos = i + 1
+        pos_str = "%i" %(pos)
+        id2sc[pos_str] = pos
+    id2sc["NA"] = 6
+
+    if tid1 == tid2:
+        return tid1
+    if tid2tio_dic[tid1].basic_tag > tid2tio_dic[tid2].basic_tag:
+        return tid1
+    if tid2tio_dic[tid1].basic_tag < tid2tio_dic[tid2].basic_tag:
+        return tid2
+    if tid2tio_dic[tid1].ensembl_canonical > tid2tio_dic[tid2].ensembl_canonical:
+        return tid1
+    if tid2tio_dic[tid1].ensembl_canonical < tid2tio_dic[tid2].ensembl_canonical:
+        return tid2
+    if id2sc[tid2tio_dic[tid1].tsl_id] < id2sc[tid2tio_dic[tid2].tsl_id]:
+        return tid1
+    if id2sc[tid2tio_dic[tid1].tsl_id] > id2sc[tid2tio_dic[tid2].tsl_id]:
+        return tid2
+    # Unspliced transcript lengths.
+    tid1_len = tid2tio_dic[tid1].tr_e - tid2tio_dic[tid1].tr_s + 1
+    tid2_len = tid2tio_dic[tid2].tr_e - tid2tio_dic[tid2].tr_s + 1
+    if tid1_len > tid2_len:
+        return tid1
+    if tid1_len < tid2_len:
+        return tid2
+    return tid1
 
 
 ################################################################################
@@ -2828,7 +5217,74 @@ def output_string_to_file(out_str, out_file):
 
 ################################################################################
 
-def get_rbp_id_mappings(rbp2ids_file):
+def get_fid2desc_mapping(fid2desc_file):
+    """
+    Get RBP molecular function to description mapping.
+    
+    """
+
+    assert os.path.exists(fid2desc_file), "file %s does not exist" %(fid2desc_file)
+
+    # Get function ID to function description mapping.
+    fid2desc_dic = {}
+    desc2fid_dic = {}
+
+    with open(fid2desc_file) as f:
+        for line in f:
+            if line.startswith('Function ID'):
+                continue
+            cols = line.strip().split("\t")
+            fid = cols[0]
+            disc = cols[1]
+            fid2desc_dic[fid] = disc
+            desc2fid_dic[disc] = fid
+    f.closed
+
+    return fid2desc_dic, desc2fid_dic
+
+
+################################################################################
+
+def get_fid_db_counts(name2ids_dic, name2fids_dic,
+                      motif_level=False):
+    """
+    Get function ID database counts (i.e. number of their appearances 
+    over all RBPs, so count appearance for every motif of an RBP!).
+
+    >>> name2ids_dic = {'A1CF': ['A1CF_1', 'A1CF_2'], 'ACIN1': ['ACIN1_1']}
+    >>> name2fids_dic = {'A1CF': ['RM', 'RSD', 'RE'], 'ACIN1': ['RSD']}
+    >>> get_fid_db_counts(name2ids_dic, name2fids_dic, motif_level=True)
+    {'RM': 2, 'RSD': 3, 'RE': 2}
+    >>> get_fid_db_counts(name2ids_dic, name2fids_dic, motif_level=False)
+    {'RM': 1, 'RSD': 2, 'RE': 1}
+    
+    """
+    fid2dbc_dic = {}
+
+    for rbp_name in name2ids_dic:
+        if motif_level:
+            for motif_id in name2ids_dic[rbp_name]:
+                fids_list = name2fids_dic[rbp_name]
+                for fid in fids_list:
+                    if fid in fid2dbc_dic:
+                        fid2dbc_dic[fid] += 1
+                    else:
+                        fid2dbc_dic[fid] = 1
+        else:
+            fids_list = name2fids_dic[rbp_name]
+            for fid in fids_list:
+                if fid in fid2dbc_dic:
+                    fid2dbc_dic[fid] += 1
+                else:
+                    fid2dbc_dic[fid] = 1
+
+    return fid2dbc_dic
+
+
+################################################################################
+
+def get_rbp_id_mappings(rbp2ids_file,
+                        only_meme_xml=False):
     """
     Read in file mapping RBP names to motif IDs and motif types.
     Return dictionaries with:
@@ -2837,7 +5293,7 @@ def get_rbp_id_mappings(rbp2ids_file):
 
     FILE FORMAT:
 
-    RBP_motif_id	RBP_name	Motif_type	Organism
+    RBP_motif_ID	RBP_name	Motif_type	Organism
     AGGF1_1	AGGF1	meme_xml	human
     AGGF1_2	AGGF1	meme_xml	human
     AKAP1_1	AKAP1	meme_xml	human
@@ -2849,34 +5305,65 @@ def get_rbp_id_mappings(rbp2ids_file):
     RBPBench v0.3:
     Currently ignore Organism column / do not use this information.
 
+    RBPBench v1.0 updated:
+    RBP_motif_ID	RBP_name	Motif_type	Organism	Gene_ID	Function_IDs	Reference	Experiment	Comments
+    A1CF_1	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	34086933	-	-
+    A1CF_2	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	34086933	-	-
+    ACIN1_1	ACIN1	meme_xml	human	-	-	34086933	-	-
+    
     """
     name2ids_dic = {}
+    name2gid_dic = {}
     id2type_dic = {}
+    name2fids_dic = {}
     # id2org_dic = {}
 
     with open(rbp2ids_file) as f:
         for line in f:
-            if re.search("^RBP_motif_id", line) or re.search("^#", line):
+            if line.startswith("RBP_motif_ID") or line.startswith("#"):
                 continue
+
             cols = line.strip().split("\t")
             motif_id = cols[0]
             rbp_name = cols[1]
             motif_type = cols[2]
-            # organism = cols[3]            
-            # if organism != "human":
-            #     rbp_name = rbp_name + "_" + organism
-            # id2org_dic[motif_id] = organism
 
             id2type_dic[motif_id] = motif_type
+            if only_meme_xml:
+                if motif_type != "meme_xml":
+                    continue
+
             if rbp_name in name2ids_dic:
                 name2ids_dic[rbp_name].append(motif_id)
             else:
                 name2ids_dic[rbp_name] = [motif_id]
+
+            name2gid_dic[rbp_name] = "-"
+            name2fids_dic[rbp_name] = []
+
+            if len(cols) > 3:
+
+                # organism = cols[3]
+                # if organism != "human":
+                #     rbp_name = rbp_name + "_" + organism
+                # id2org_dic[motif_id] = organism
+                gene_id = cols[4]
+                function_ids = cols[5]
+
+                fids_list = []
+                if function_ids != "-":
+                    fids_list = function_ids.split(";")
+        
+                fids_list.sort()
+
+                name2gid_dic[rbp_name] = gene_id
+                name2fids_dic[rbp_name] = fids_list
+
     f.closed
 
     assert name2ids_dic, "no RBP IDs read in from %s" %(rbp2ids_file)
 
-    return name2ids_dic, id2type_dic  #, id2org_dic
+    return name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic
 
 
 ################################################################################
@@ -2886,11 +5373,15 @@ def get_uniq_gen_size(gen_sites_bed):
     Get unique genomic space size, which the genomic sites inside
     gen_sites_bed cover.
 
+    sort -k1,1 -k2,2n in_sites.filtered.bed | mergeBed -i stdin -s -c 4 -o distinct -delim ";"
+
     >>> gen_sites_bed = "test_data/test_gen_size.bed"
     >>> get_uniq_gen_size(gen_sites_bed)
     2500
+    >>> in_bed = "test_data/test_ol.sorted.bed"    
+    >>> get_uniq_gen_size(in_bed)
+    2100
 
-    sort -k1,1 -k2,2n in_sites.filtered.bed | mergeBed -i stdin -s -c 4 -o distinct -delim ";"
     """
 
     params_str = '-s -c 4 -o distinct -delim ";"'
@@ -2918,7 +5409,8 @@ def is_tool(name):
 
 ################################################################################
 
-def bed_check_format(bed_file, asserts=True):
+def bed_check_format(bed_file, asserts=True,
+                     param_str=False):
     """
     Check whether given BED file is not empty + has >= 6 columns.
 
@@ -2927,6 +5419,7 @@ def bed_check_format(bed_file, asserts=True):
     True
     
     """
+
     pols = ["+", "-"]
     okay = False
     with open(bed_file) as f:
@@ -2946,7 +5439,10 @@ def bed_check_format(bed_file, asserts=True):
                         break
     f.closed
     if asserts:
-        assert okay, "invalid --in BED format (file empty?)"
+        false_msg = "provided file \"%s\" not in BED format (file empty or not in 6-column format?)" %(bed_file)
+        if param_str:
+            false_msg = "provided file \"%s\" (via %s) not in BED format (file empty or not in 6-column format?)" %(bed_file, param_str)
+        assert okay, false_msg
     return okay
 
 
@@ -2999,8 +5495,8 @@ def check_report_in_file(in_file):
             if len(cols) == 27: # RBP stats.
                 if cols[0] == "data_id" and cols[26] == "internal_id":
                     type = "rbp_stats"
-            elif len(cols) == 20:
-                if cols[0] == "data_id" and cols[19] == "internal_id":
+            elif len(cols) == 21:
+                if cols[0] == "data_id" and cols[20] == "internal_id":
                     type = "motif_stats"
             break
     f.closed
@@ -3036,16 +5532,16 @@ def get_hit_id_elements(hit_id):
     From  hit ID to ID elements list.
 
     Hit ID format:
-    chr1:100-110(+),motif_id
+    chr1:100-110(+)motif_id
 
-    >>> hit_id = "chr1:100-110(+),motif_id"
+    >>> hit_id = "chr1:100-110(+)motif_id"
     >>> get_hit_id_elements(hit_id)
     ['chr1', '100', '110', '+', 'motif_id']
     
     """
 
-    if re.search("\w+:\d+-\d+\([+|-]\),\w+", hit_id):
-        m = re.search("(\w+):(\d+)-(\d+)\(([+|-])\),(.+)", hit_id)
+    if re.search("^\w+?:\d+-\d+\([+|-]\)\w+", hit_id):
+        m = re.search("^(\w+?):(\d+)-(\d+)\(([+|-])\)(.+)", hit_id)
         id_elements = [m.group(1), m.group(2), m.group(3), m.group(4), m.group(5)]
         return id_elements
     else:
@@ -3334,16 +5830,319 @@ def bed_check_ids_output_bed(in_bed, out_bed,
 
 ################################################################################
 
+def merge_files(files_list, out_file):
+    """
+    Merge list of files into one output file.
+
+    """
+    assert files_list, "given files_list is empty"
+    # Delete out_file if exists.
+    if os.path.exists(out_file):
+        os.remove(out_file)
+    for f in files_list:
+        assert os.path.isfile(f), "list file \"%s\" not found" % (f)
+        assert f != out_file, "cat does not like to cat file into same file (%s)" %(check_cmd)
+        check_cmd = "cat " + f + " >> " + out_file
+        output = subprocess.getoutput(check_cmd)
+        error = False
+        if output:
+            error = True
+        assert error == False, "cat did not like your input (in_file: %s, out_file: %s):\n%s" %(f, out_file, output)
+
+
+################################################################################
+
+def bed_generate_random_negatives(in_bed, chr_sizes_file, out_bed,
+                                  incl_bed=False,
+                                  excl_bed=False,
+                                  allow_overlaps=False,
+                                  seed=None):
+    """
+    Shuffle given in_bed, generating random negative regions. Optionally,
+    the regions to extract negatives from can be controlled by incl_bed
+    and excl_bed.
+
+    in_bed:
+        .bed file containing regions to shuffle, i.e., generate same number
+        of random negatives (with same size distribution too)
+    chr_sizes_file:
+        File that stores chromosome IDs and their sizes
+    out_bed:
+        Output random negative regions in out_bed
+    incl_bed:
+        Regions from which to extract random negatives
+    excl_bed:
+        Regions from which no random negatives should be extracted
+    allow_overlaps:
+        Allow random negatives to overlap with each other
+
+    Returns:
+    Function returns True if no error occured.
+    If loci error occured, function returns False.
+    Any other error will throw an assertion error.
+    If it is not possible to get the number of random negatives with the given
+    restrictions, bedtools shuffle will throw the following error:
+    Error, line 3: tried 1000 potential loci for entry, but could not avoid
+    excluded regions.  Ignoring entry and moving on.
+    This error will be thrown for every failed attempt to find a random
+    negative for a certain positive instance.
+
+
+    Tool:    bedtools shuffle (aka shuffleBed)
+    Version: v2.31.1
+    Summary: Randomly permute the locations of a feature file among a genome.
+
+    Usage:   bedtools shuffle [OPTIONS] -i <bed/gff/vcf> -g <genome>
+
+    Options: 
+        -excl	A BED/GFF/VCF file of coordinates in which features in -i
+            should not be placed (e.g. gaps.bed).
+
+        -incl	Instead of randomly placing features in a genome, the -incl
+            options defines a BED/GFF/VCF file of coordinates in which 
+            features in -i should be randomly placed (e.g. genes.bed). 
+            Larger -incl intervals will contain more shuffled regions. 
+            This method DISABLES -chromFirst. 
+        -chrom	Keep features in -i on the same chromosome.
+            - By default, the chrom and position are randomly chosen.
+            - NOTE: Forces use of -chromFirst (see below).
+
+        -seed	Supply an integer seed for the shuffling.
+            - By default, the seed is chosen automatically.
+            - (INTEGER)
+
+        -f	Maximum overlap (as a fraction of the -i feature) with an -excl
+            feature that is tolerated before searching for a new, 
+            randomized locus. For example, -f 0.10 allows up to 10%
+            of a randomized feature to overlap with a given feature
+            in the -excl file. **Cannot be used with -incl file.**
+            - Default is 1E-9 (i.e., 1bp).
+            - FLOAT (e.g. 0.50)
+
+        -chromFirst	
+            Instead of choosing a position randomly among the entire
+            genome (the default), first choose a chrom randomly, and then
+            choose a random start coordinate on that chrom.  This leads
+            to features being ~uniformly distributed among the chroms,
+            as opposed to features being distribute as a function of chrom size.
+
+        -bedpe	Indicate that the A file is in BEDPE format.
+
+        -maxTries	
+            Max. number of attempts to find a home for a shuffled interval
+            in the presence of -incl or -excl.
+            Default = 1000.
+        -noOverlapping	
+            Don't allow shuffled intervals to overlap.
+        -allowBeyondChromEnd	
+            Allow shuffled intervals to be relocated to a position
+            in which the entire original interval cannot fit w/o exceeding
+            the end of the chromosome.  In this case, the end coordinate of the
+            shuffled interval will be set to the chromosome's length.
+            By default, an interval's original length must be fully-contained
+            within the chromosome.
+
+    """
+    # Check for bedtools.
+    assert is_tool("bedtools"), "bedtools not in PATH"
+    # Construct call.
+    check_cmd = "bedtools shuffle "
+    if excl_bed:
+        check_cmd = check_cmd + "-excl " + excl_bed + " "
+    if incl_bed:
+        check_cmd = check_cmd + "-incl " + incl_bed + " "
+    if not allow_overlaps:
+        check_cmd = check_cmd + "-noOverlapping "
+    if seed is not None:
+        check_cmd = check_cmd + "-seed " + str(seed) + " "
+    check_cmd = check_cmd + "-i " + in_bed + " -g " + chr_sizes_file + " > " + out_bed
+    output = subprocess.getoutput(check_cmd)
+    error = False
+    if output:
+        error = True
+    # Look for "tried 1000 potential loci" error.
+    if error:
+        if re.search("potential loci", output):
+            print("WARNING: number of extracted random negatives < requested number")
+            return False
+        else:
+            assert False, "bedtools shuffle is complaining:\n%s\n%s" %(check_cmd, output)
+    else:
+        return True
+
+
+################################################################################
+
+def output_chromosome_lengths_file(len_dic, out_file,
+                                   ids2print_dic=None):
+    """
+    Output chromosome lengths file with format:
+    sequence_ID<tab>sequence_length
+    
+    """
+    LOUT = open(out_file, "w")
+    c_pr = 0
+    for seq_id in len_dic:
+        if ids2print_dic is not None:
+            if seq_id in ids2print_dic:
+                c_pr += 1
+                LOUT.write("%s\t%i\n" %(seq_id, len_dic[seq_id]))
+        else:
+            c_pr += 1
+            LOUT.write("%s\t%i\n" %(seq_id, len_dic[seq_id]))
+    LOUT.close()
+    assert c_pr, "nothing was printed out"
+
+
+################################################################################
+
+def genome_fasta_get_chr_sizes_file(in_genome_fa, out_chr_sizes_file,
+                                    check_ids=True,
+                                    seq_len_dic=None):
+    """
+    Extract sequence names and lengths in format:
+    seq_id<tab>seq_len
+
+    >>> test_fa = "test_data/test.fa"
+    >>> exp_chr_len_file = "test_data/test.fa.chr_len.exp.txt"
+    >>> out_chr_len_file = "test_data/test.fa.chr_len.tmp.txt"
+    >>> genome_fasta_get_chr_sizes_file(test_fa, out_chr_len_file)
+    >>> diff_two_files_identical(out_chr_len_file, exp_chr_len_file)
+    True
+
+    """
+
+    seq_id = "id"
+    seq_len = 0
+    seen_ids_dic = {}
+
+    OUTCHRLEN = open(out_chr_sizes_file, "w")
+
+    header_pattern = re.compile(r"^>(.+)")
+
+    with open(in_genome_fa) as f:
+        for line in f:
+            if line.startswith(">"):
+                m = header_pattern.match(line)
+                new_id = m.group(1)
+                if check_ids:
+                    assert new_id not in seen_ids_dic, f'non-unique sequence ID "{new_id}" found in --in genome FASTA file. Please provide unique sequence IDs'
+                seen_ids_dic[new_id] = 1
+                if seq_len:
+                    OUTCHRLEN.write(f"{seq_id}\t{seq_len}\n")
+                    if seq_len_dic is not None:
+                        seq_len_dic[seq_id] = seq_len
+                seq_len = 0
+                seq_id = new_id
+            else:
+                seq_len += len(line.strip())
+
+    # Print last sequence length.
+    if seq_len:
+        OUTCHRLEN.write(f"{seq_id}\t{seq_len}\n")
+        if seq_len_dic is not None:
+            seq_len_dic[seq_id] = seq_len
+
+    OUTCHRLEN.close()
+
+
+################################################################################
+
+def genome_fasta_get_chr_sizes(in_genome_fa,
+                               check_ids=True):
+    """
+    Extract sequence names and lengths and return dictionary with
+    seq_id -> seq_len mapping.
+
+    >>> test_fa = "test_data/test.fa"
+    >>> genome_fasta_get_chr_sizes(test_fa)
+    {'seq1': 12, 'seq2': 20}
+    
+    """
+
+    seq_len_dic = {}
+    seq_id = "id"
+    seq_len = 0
+
+    header_pattern = re.compile(r"^>(.+)")
+
+    with open(in_genome_fa) as f:
+        for line in f:
+            if line.startswith(">"):
+                m = header_pattern.match(line)
+                new_id = m.group(1)
+                new_id = m.group(1)
+                if check_ids:
+                    assert new_id not in seq_len_dic, "non-unique sequence ID \"%s\" found in --in genome FASTA file. Please provide unique sequence IDs" %(new_id)
+                if seq_len:
+                    seq_len_dic[seq_id] = seq_len
+                seq_len = 0
+                seq_id = new_id
+            else:
+                seq_len += len(line.strip())
+    f.closed
+
+    # Get last sequence length.
+    if seq_len:
+        seq_len_dic[seq_id] = seq_len
+
+    return seq_len_dic
+
+
+################################################################################
+
+def merge_pos_bed_files(shuffle_list, bg_shuffle_in_bed,
+                        core_neg_id="neg"):
+    """
+    Merge BED files in shuffle list and output to bg_shuffle_in_bed.
+    Use core_neg_id to add to column 4 of negative regions.
+    So new col4 ID format: pos1;neg1 pos1;neg2 ...
+
+    """
+    assert shuffle_list, "no BED files in shuffle_list"
+    
+    OUTBED = open(bg_shuffle_in_bed, "w")
+
+    idx = 0
+    for out_bed in shuffle_list:
+        idx += 1
+        with open(out_bed) as f:
+            for line in f:
+                cols = line.strip().split("\t")
+                chr_id = cols[0]
+                reg_s = cols[1]
+                reg_e = cols[2]
+                reg_id = cols[3]
+                reg_sc = cols[4]
+                reg_pol = cols[5]
+
+                new_reg_id = reg_id + ";" + core_neg_id + str(idx)
+
+                OUTBED.write("%s\t%s\t%s\t%s\t%s\t%s\n" % (chr_id, reg_s, reg_e, new_reg_id, reg_sc, reg_pol))
+
+        f.closed
+    
+    OUTBED.close()
+
+
+################################################################################
+
 def bed_filter_extend_bed(in_bed, out_bed,
                           ext_up=0,
                           ext_down=0,
                           remove_dupl=True,
                           reg2sc_dic=None,
+                          reg2pol_dic=None,
                           score_col=5,
+                          score_thr=None,
+                          score_rev_filter=False,
                           chr_ids_dic=None,
                           bed_chr_ids_dic=None,
                           use_region_ids=False,
                           chr_len_dic=False,
+                          new_reg_ids=False,
+                          core_reg_id="pos",
+                          core_reg_dic=None,
                           transcript_sites=False,
                           unstranded=False):
     """
@@ -3360,11 +6159,15 @@ def bed_filter_extend_bed(in_bed, out_bed,
         input region, two output regions are generated.
     reg2sc_dic:
         region ID -> column score_col BED score
+    reg2sc_dic:
+        region ID -> polarity/strand of region
     transcript_sites:
         If transcript sites, just use first three columns.
     chr_len_dic:
         Provide transcript lengths for each chromosome, to extend not beyond ends.
-
+    core_reg_dic:
+        Store core region infos for each region ID (if core_reg_dic not None).
+        
     """
 
     OUTBED = open(out_bed, "w")
@@ -3375,6 +6178,8 @@ def bed_filter_extend_bed(in_bed, out_bed,
     c_out = 0
     c_chr_filter = 0
     c_dupl_filter = 0
+    c_sc_thr = 0
+
     reg_len_sum = 0
     if reg2sc_dic is None:
         reg2sc_dic = {}
@@ -3385,22 +6190,17 @@ def bed_filter_extend_bed(in_bed, out_bed,
             chr_id = cols[0]
             reg_s = int(cols[1])
             reg_e = int(cols[2])
-            reg_id = "-"
-            reg_sc = 0
-            reg_pol = "+"
+            reg_id = cols[3]
+            reg_sc = float(cols[score_col-1])
+            reg_pol = cols[5]
+
+            assert len(cols) >= score_col, "given score column for --in BED file out of range (# columns = %i, set score column = %i)" %(len(cols), score_col)
 
             # If input regions are transcript sites, we just need first three columns.
             if transcript_sites:
                 reg_id = "%s:%i-%i" %(chr_id, reg_s, reg_e)
-                reg_sc = 0
-                reg_pol = "+"
-            else:
-                # If not transcript sites (usual case, e.g. with rbpbench search).
-                reg_id = cols[3]
                 reg_sc = float(cols[score_col-1])
-                reg_pol = cols[5]
-
-                assert len(cols) >= score_col, "given score column for --in BED file out of range (# columns = %i, set score column = %i)" %(len(cols), score_col)
+                reg_pol = "+"
 
             c_in += 1
 
@@ -3410,9 +6210,29 @@ def bed_filter_extend_bed(in_bed, out_bed,
                     c_chr_filter += 1
                     continue
 
+            # Filter by site score.
+            if score_thr is not None:
+                if score_rev_filter:
+                    if reg_sc > score_thr:
+                        c_sc_thr += 1
+                        continue
+                else:
+                    if reg_sc < score_thr:
+                        c_sc_thr += 1
+                        continue
+
+            if new_reg_ids:
+                reg_id = core_reg_id + str(c_in)
+
+            if core_reg_dic is not None:
+                core_reg_dic[reg_id] = [chr_id, reg_s, reg_e, reg_pol]
+
             # Record present IDs.
             if bed_chr_ids_dic is not None:
                 bed_chr_ids_dic[chr_id] = 1
+
+            if reg2pol_dic is not None:
+                reg2pol_dic[reg_id] = reg_pol
 
             # Use "chr20:62139082-62139128(-)" style.
             # if use_region_ids:
@@ -3514,7 +6334,8 @@ def bed_filter_extend_bed(in_bed, out_bed,
     stats_dic["c_out"] = c_out
     stats_dic["c_chr_filter"] = c_chr_filter
     stats_dic["c_dupl_filter"] = c_dupl_filter
-    stats_dic["reg_len_sum"] = reg_len_sum 
+    stats_dic["reg_len_sum"] = reg_len_sum
+    stats_dic["c_sc_thr"] = c_sc_thr
 
     return stats_dic
 
@@ -3615,6 +6436,118 @@ def get_length_from_seq_name(seq_name):
 
 ################################################################################
 
+class EnmoStats:
+    """
+    Store motif enrichment stats for each motif.
+    
+    """
+
+    def __init__(self,
+                 motif_id: str,
+                 rbp_id: str,
+                 c_pos_hit_regions = 0,
+                 c_neg_hit_regions = 0,
+                 c_pos_regions = 0,
+                 c_neg_regions = 0,
+                 c_pos_hits = 0,
+                 c_neg_hits = 0,
+                 con_table = False,  # Continency table.
+                 fisher_pval = 1.0,
+                 fisher_pval_corr = 1.0,
+                 fisher_corr_mode = 1,  # 1: BH, 2: Bonferroni, 3: no correction
+                 fisher_alt_hyp_mode = 1,  # Alternative hypothesis mode, 1: greater, 2: two-sided, 3: less
+                 motif_type="meme_xml",
+                 consensus_seq="-",  # Consensus sequence of sequence motif (for structure motif "-", for regex "regex_string").
+                 logo_png_file = False) -> None:
+        self.motif_id = motif_id
+        self.rbp_id = rbp_id
+        self.c_pos_hit_regions = c_pos_hit_regions
+        self.c_neg_hit_regions = c_neg_hit_regions
+        self.c_pos_regions = c_pos_regions
+        self.c_neg_regions = c_neg_regions
+        self.c_pos_hits = c_pos_hits
+        self.c_neg_hits = c_neg_hits
+        self.con_table = con_table
+        self.fisher_pval = fisher_pval
+        self.fisher_pval_corr = fisher_pval_corr
+        self.fisher_corr_mode = fisher_corr_mode
+        self.fisher_alt_hyp_mode = fisher_alt_hyp_mode
+        self.motif_type = motif_type
+        self.consensus_seq = consensus_seq
+        self.logo_png_file = logo_png_file
+
+
+################################################################################
+
+class NemoStats:
+    """
+    Store motif enrichment stats for each motif.
+    
+    """
+
+    def __init__(self,
+                 motif_id: str,
+                 rbp_id: str,
+                 c_pos_hit_regions = 0,
+                 c_neg_hit_regions = 0,
+                 c_pos_regions = 0,
+                 c_neg_regions = 0,
+                 c_pos_hits = 0,
+                 c_neg_hits = 0,
+                 con_table = False,  # Continency table.
+                 fisher_pval = 1.0,
+                 fisher_pval_corr = 1.0,
+                 fisher_corr_mode = 1,  # 1: BH, 2: Bonferroni, 3: no correction
+                 fisher_alt_hyp_mode = 1,  # Alternative hypothesis mode, 1: greater, 2: two-sided, 3: less
+                 motif_type="meme_xml",
+                 consensus_seq="-",  # Consensus sequence of sequence motif (for structure motif "-", for regex "regex_string").
+                 pos_set_avg_center_dist="-",
+                 neg_set_avg_center_dist="-",
+                 pos_set_max_center_dist="-",
+                 pos_set_max_center_dist_c="-",
+                 neg_set_max_center_dist="-",
+                 neg_set_max_center_dist_c="-",
+                 logo_png_file = False,
+                 wrs_pval_two_sided=False,
+                 wrs_test_stat_two_sided=False,
+                 wrs_pval_greater=False,
+                 wrs_test_stat_greater=False,
+                 wrs_pval_less=False,
+                 wrs_test_stat_less=False,         
+                 dist_plot_counts_dic={}) -> None:
+        self.motif_id = motif_id
+        self.rbp_id = rbp_id
+        self.c_pos_hit_regions = c_pos_hit_regions
+        self.c_neg_hit_regions = c_neg_hit_regions
+        self.c_pos_regions = c_pos_regions
+        self.c_neg_regions = c_neg_regions
+        self.c_pos_hits = c_pos_hits
+        self.c_neg_hits = c_neg_hits
+        self.con_table = con_table
+        self.fisher_pval = fisher_pval
+        self.fisher_pval_corr = fisher_pval_corr
+        self.fisher_corr_mode = fisher_corr_mode
+        self.fisher_alt_hyp_mode = fisher_alt_hyp_mode
+        self.motif_type = motif_type
+        self.consensus_seq = consensus_seq
+        self.pos_set_avg_center_dist = pos_set_avg_center_dist
+        self.neg_set_avg_center_dist = neg_set_avg_center_dist
+        self.pos_set_max_center_dist = pos_set_max_center_dist
+        self.pos_set_max_center_dist_c = pos_set_max_center_dist_c
+        self.neg_set_max_center_dist = neg_set_max_center_dist
+        self.neg_set_max_center_dist_c = neg_set_max_center_dist_c
+        self.logo_png_file = logo_png_file
+        self.wrs_pval_two_sided = wrs_pval_two_sided
+        self.wrs_test_stat_two_sided = wrs_test_stat_two_sided
+        self.wrs_pval_greater = wrs_pval_greater
+        self.wrs_test_stat_greater = wrs_test_stat_greater
+        self.wrs_pval_less = wrs_pval_less
+        self.wrs_test_stat_less = wrs_test_stat_less
+        self.dist_plot_counts_dic = dist_plot_counts_dic
+
+
+################################################################################
+
 class MotifStats:
     """
     Stores motif hit stats.
@@ -3622,7 +6555,7 @@ class MotifStats:
     data_id, method_id, run_id, motif_db stored in RBPStats object, linked 
     by dictionary (common internal_id).
     
-    hit_id : chr:s-e(+),motif_id
+    hit_id : chr:s-e(+)motif_id
 
     """
 
@@ -3640,6 +6573,7 @@ class MotifStats:
                  region_e = 0,
                  region_len = 0,
                  uniq_count = 0,
+                 matched_seq: Optional[str] = None,
                  fimo_score: Optional[float] = None,
                  fimo_pval: Optional[float] = None,
                  cms_score: Optional[float] = None,
@@ -3657,6 +6591,7 @@ class MotifStats:
         self.region_e = region_e
         self.region_len = region_len
         self.uniq_count = uniq_count
+        self.matched_seq = matched_seq
         self.fimo_score = fimo_score
         self.fimo_pval = fimo_pval
         self.cms_score = cms_score
@@ -3685,10 +6620,10 @@ def read_in_motif_stats(in_file,
     with open(in_file) as f:
         for line in f:
             cols = line.strip().split("\t")
-            internal_id = cols[19]
+            internal_id = cols[20]
             if internal_id == "internal_id":
                 continue
-            hit_id = "%s:%s-%s(%s),%s" %(cols[7], cols[8], cols[9], cols[10], cols[6])
+            hit_id = "%s:%s-%s(%s)%s" %(cols[7], cols[8], cols[9], cols[10], cols[6])
             
             int_hit_id = internal_id + "," + hit_id
             if store_uniq_only:
@@ -3709,6 +6644,7 @@ def read_in_motif_stats(in_file,
             motif_stats.region_e = int(cols[12])
             motif_stats.region_len = int(cols[13])
             motif_stats.uniq_count = int(cols[14])
+            motif_stats.matched_seq = cols[19]
             fimo_score = cols[15]
             fimo_pval = cols[16]
             cms_score = cols[17]
@@ -3984,6 +6920,7 @@ class FimoHit(GenomicRegion):
                  matched_seq: Optional[str] = None,
                  seq_s: Optional[int] = None,
                  seq_e: Optional[int] = None,
+                 center_dist: Optional[int] = None,  # Distance of motif center position to region center (rbpbench nemo).
                  genome: Optional[str] = None) -> None:
         super().__init__(chr_id, start, end, strand, score, genome)
         self.motif_id = motif_id
@@ -3991,6 +6928,7 @@ class FimoHit(GenomicRegion):
         self.pval = pval
         self.qval = qval
         self.matched_seq = matched_seq
+        self.center_dist = center_dist
         self.seq_s = seq_s
         self.seq_e = seq_e
 
@@ -4005,7 +6943,7 @@ class FimoHit(GenomicRegion):
                 self.genome == other.genome)
 
     def __repr__(self) -> str:
-        return f"{self.chr_id}:{self.start}-{self.end}({self.strand}),{self.motif_id}"
+        return f"{self.chr_id}:{self.start}-{self.end}({self.strand}){self.motif_id}"
 
 
 ################################################################################
@@ -4013,6 +6951,7 @@ class FimoHit(GenomicRegion):
 def get_regex_hits(regex, regex_id, seqs_dic,
                    step_size_one=False,
                    seq_based=False,
+                   reg_dic=None,
                    use_motif_regex_id=False):
     """
     Given a regular expression (regex), get all hits in sequence dictionary.
@@ -4024,6 +6963,11 @@ def get_regex_hits(regex, regex_id, seqs_dic,
     seq_based:
         If true, input to regex search was sequences, so use coordinates as they are (not genomic + relative).
         Also seq_name is the sequence ID, and does not have to have format like "chr6:35575787-35575923(-)"
+    reg_dic:
+        If provided, use this dictionary (mapping reg_id -> "chr1:100-200(+)", take value string) 
+        to get genomic coordinates from get_genomic_coords_from_seq_name, instead of seq_name.
+        This can be applied in cases where seq_name is some ID that does not contain region info, but
+        motif hit coordinates are still relative to the region.
 
     """
 
@@ -4052,29 +6996,34 @@ def get_regex_hits(regex, regex_id, seqs_dic,
                                 start=start+1, 
                                 end=end,
                                 strand="+", 
-                                score=0.0, 
+                                score=-1.0, 
                                 motif_id=motif_id, 
                                 seq_name=seq_name, 
-                                pval=0.0, 
-                                qval=0.0,
+                                pval=-1.0, 
+                                qval=-1.0,
                                 seq_s=start+1,
                                 seq_e=end,
                                 matched_seq=matched_seq)
 
             else:
 
-                gen_motif_coords = get_genomic_coords_from_seq_name(seq_name, start, end,
+                region_info_seq_name = seq_name
+
+                if reg_dic is not None:
+                    region_info_seq_name = reg_dic[seq_name]
+
+                gen_motif_coords = get_genomic_coords_from_seq_name(region_info_seq_name, start, end,
                                                                     one_based_start=True)
 
                 regex_hit = FimoHit(chr_id=gen_motif_coords[0], 
                                 start=gen_motif_coords[1], 
                                 end=gen_motif_coords[2],
                                 strand=gen_motif_coords[3], 
-                                score=0.0, 
+                                score=-1.0, 
                                 motif_id=motif_id, 
                                 seq_name=seq_name, 
-                                pval=0.0, 
-                                qval=0.0,
+                                pval=-1.0, 
+                                qval=-1.0,
                                 seq_s=start+1,
                                 seq_e=end,
                                 matched_seq=matched_seq)
@@ -4086,8 +7035,230 @@ def get_regex_hits(regex, regex_id, seqs_dic,
 
 ################################################################################
 
+def bed_get_core_rel_reg_dic(core_reg_dic, in_bed):
+    """
+    Based on core region dictionary, containing chromosome coordinates, 
+    get relative region dictionary (i.e. relative to sequence not to chromosome start).
+
+    test3.bed:
+    chr1	100	200	r1	0	+
+    chr1	100	200	r2	0	-
+
+    >>> core_reg_dic = {"r1": ["chr1", 120, 130, "+"], "r2": ["chr1", 120, 130, "-"], "r3": ["chr1", 200, 210, "+"], "r4": ["chr1", 200, 210, "-"]}
+    >>> in_bed = "test_data/test3.bed"
+    >>> core_rel_reg_dic = bed_get_core_rel_reg_dic(core_reg_dic, in_bed)
+    >>> print(core_rel_reg_dic["r1"])
+    ['r1', 20, 30, '+']
+    >>> print(core_rel_reg_dic["r2"])
+    ['r2', 70, 80, '+']
+    >>> print(core_rel_reg_dic["r3"])
+    ['r3', 0, 10, '+']
+    >>> print(core_rel_reg_dic["r4"])
+    ['r4', 90, 100, '+']
+    
+    """
+    core_rel_reg_dic = {}
+
+    with open(in_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            reg_chr = cols[0]
+            reg_s = int(cols[1])  # 0-based.
+            reg_e = int(cols[2])  # 1-based.
+            reg_id = cols[3]
+            reg_pol = cols[5]
+            core_chr = cols[0]
+            core_s = core_reg_dic[reg_id][1] # 0-based.
+            core_e = core_reg_dic[reg_id][2] # 1-based.
+            core_pol = core_reg_dic[reg_id][3]
+            assert reg_chr == core_chr, "chromosome mismatch between core and region for ID %s in BED file %s" %(reg_id, in_bed)
+            assert reg_pol == core_pol, "polarity mismatch between core and region for ID %s in BED file %s" %(reg_id, in_bed)
+
+            core_len = core_e - core_s
+
+            # + strand.
+            rel_s = core_s - reg_s
+            rel_e = rel_s + core_len
+            if core_pol == "-":
+                rel_s = reg_e - core_e
+                rel_e = rel_s + core_len
+
+            core_rel_reg_dic[reg_id] = [reg_id, rel_s, rel_e, "+"]
+
+    f.closed
+
+    return core_rel_reg_dic
+
+
+################################################################################
+
+def bed_get_region_str_len_dic(in_bed):
+    """
+    Read in BED file and store region ID -> region string in dictionary.
+    Also return region ID -> region length mappings.
+    Format of region string:
+    chr1:100-200(+)
+    
+    """
+    reg_dic = {}
+    len_dic = {}
+
+    with open(in_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            reg_id = cols[3]
+            reg_len = int(cols[2]) - int(cols[1])
+            reg_str = "%s:%s-%s(%s)" %(cols[0], cols[1], cols[2], cols[5])
+            reg_dic[reg_id] = reg_str
+            len_dic[reg_id] = reg_len
+    f.closed
+
+    return reg_dic, len_dic
+
+
+################################################################################
+
+def intervals_overlap(start1, end1, start2, end2):
+    """
+    Check if two intervals [start1, end1] and [start2, end2] overlap.
+    All indices are 1-based.
+
+    >>> intervals_overlap(1, 10, 5, 15)
+    True
+    >>> intervals_overlap(1, 10, 11, 15)
+    False
+    >>> intervals_overlap(5, 20, 10, 15)
+    True
+    >>> intervals_overlap(25, 30, 20, 25)
+    True
+    >>> intervals_overlap(40, 50, 20, 25)
+    False
+
+    """
+    return start1 <= end2 and end1 >= start2
+
+
+################################################################################
+
+def filter_out_center_motif_hits(hits_list, core_rel_reg_dic,
+                                 allow_overlaps=False):
+    """
+    Filter positive regions hits list (FIMO, CMSEARCH), based on given core region
+    (via core_rel_reg_dic) with which the hit should not overlap.
+    core_rel_reg_dic: core region dictionary with:
+    region_ID -> [chr, seq_s, seq_e, pol] (seq_s 0-based, seq_e 1-based).
+    seq_s : start on sequence snippet (0-based).
+    seq_e : end on sequence snippet (1-based).
+    If hit overlaps with core region, filter it out, otherwise keep it and 
+    store in flt_hits_list.
+
+    >>> fh1 = FimoHit("chr1", 140, 150, "+", 0.0, "motif1", "pos1", 0.0, seq_s=40, seq_e=50)
+    >>> fh2 = FimoHit("chr1", 120, 130, "+", 0.0, "motif1", "pos1", 0.0, seq_s=20, seq_e=30)
+    >>> hits_list = [fh1, fh2]
+    >>> core_rel_reg_dic = {"pos1": ["pos1", 45, 55, "+"]}
+    >>> flt_hits_list = filter_out_center_motif_hits(hits_list, core_rel_reg_dic)
+    >>> print(flt_hits_list[0])
+    chr1:120-130(+)motif1
+    >>> print(flt_hits_list[0].center_dist)
+    -26
+
+    """
+
+    flt_hits_list = []
+
+    for hit in hits_list:
+
+        motif_id = hit.motif_id
+        seq_name = hit.seq_name
+        hit_seq_s = hit.seq_s  # hit start on sequence snippet, already 1-based.
+        hit_seq_e = hit.seq_e
+        core_seq_s = core_rel_reg_dic[seq_name][1] + 1  # make 1-based.
+        core_seq_e = core_rel_reg_dic[seq_name][2]
+
+        assert hit_seq_s <= hit_seq_e, "hit_seq_s > hit_seq_e"
+        assert core_seq_s <= core_seq_e, "core_seq_s > core_seq_e"
+
+        if not allow_overlaps:
+            if intervals_overlap(hit_seq_s, hit_seq_e, core_seq_s, core_seq_e):
+                continue
+
+        hit_center_pos = get_center_position(hit_seq_s-1, hit_seq_e)
+        core_center_pos = get_center_position(core_seq_s-1, core_seq_e)
+
+        # Can be negative if hit upstream of center, or positive if hit downstream.
+        hit.center_dist = hit_center_pos - core_center_pos
+
+        flt_hits_list.append(hit)
+
+    return flt_hits_list
+
+
+################################################################################
+
+def filter_out_neg_center_motif_hits(neg_hits_list, core_rel_reg_dic,
+                                     allow_overlaps=False):
+    """
+    Filter negative regions hits list (FIMO, CMSEARCH), based on given positive 
+    core region (via core_rel_reg_dic) with which the hit should not overlap.
+    core_rel_reg_dic: core region dictionary with:
+    region_ID -> [chr, seq_s, seq_e, pol] (seq_s 0-based, seq_e 1-based).
+    seq_s : start on sequence snippet (0-based).
+    seq_e : end on sequence snippet (1-based).
+    If hit overlaps with core region, filter it out, otherwise keep it and 
+    store in flt_hits_list.
+    negative seq_name format: pos1;neg1 pos1;neg2 etc.
+    So first part (pos1) identifies which core region to use (here pos1) for
+    filtering.
+
+    Currently just assume both positive and negative regions have same lengths, 
+    thus mask same relative core region.
+
+    >>> fh1 = FimoHit("chr1", 140, 150, "+", 0.0, "motif1", "pos1;neg1", 0.0, seq_s=40, seq_e=50)
+    >>> fh2 = FimoHit("chr1", 120, 130, "+", 0.0, "motif1", "pos1;neg1", 0.0, seq_s=20, seq_e=30)
+    >>> hits_list = [fh1, fh2]
+    >>> core_rel_reg_dic = {"pos1": ["pos1", 45, 55, "+"]}
+    >>> flt_hits_list = filter_out_neg_center_motif_hits(hits_list, core_rel_reg_dic)
+    >>> print(flt_hits_list[0])
+    chr1:120-130(+)motif1
+    
+    """
+
+    flt_neg_hits_list = []
+
+    for hit in neg_hits_list:
+
+        # motif_id = hit.motif_id
+        seq_name = hit.seq_name
+        hit_seq_s = hit.seq_s  # hit start on sequence snippet, already 1-based.
+        hit_seq_e = hit.seq_e
+        pos_seq_name = seq_name.split(";")[0]
+        core_seq_s = core_rel_reg_dic[pos_seq_name][1] + 1  # make 1-based.
+        core_seq_e = core_rel_reg_dic[pos_seq_name][2]
+
+        assert hit_seq_s <= hit_seq_e, "hit_seq_s > hit_seq_e"
+        assert core_seq_s <= core_seq_e, "core_seq_s > core_seq_e"
+
+        if not allow_overlaps:
+            if intervals_overlap(hit_seq_s, hit_seq_e, core_seq_s, core_seq_e):
+                continue
+
+        hit_center_pos = get_center_position(hit_seq_s-1, hit_seq_e)
+        core_center_pos = get_center_position(core_seq_s-1, core_seq_e)
+
+        # Can be negative if hit upstream of center, or positive if hit downstream.
+        hit.center_dist =  hit_center_pos - core_center_pos
+
+        flt_neg_hits_list.append(hit)
+
+    return flt_neg_hits_list
+
+
+################################################################################
+
 def read_in_fimo_results(fimo_tsv,
                          seq_based=False,
+                         reg_dic=None,
+                         only_best_hits=False,
                          fast_fimo=True):
     """
     Read in FIMO motif finding results (TSV file).
@@ -4136,6 +7307,13 @@ def read_in_fimo_results(fimo_tsv,
         If true, input to FIMO search was sequences, so use coordinates as they are (not genomic + relative).
         Also seq_name is the sequence ID, and does not have to have format like "chr6:35575787-35575923(-)"
         Note that if prediction is on subsequences of transcripts, seq_based should be False too.
+    reg_dic:
+        If provided, use this dictionary (mapping reg_id -> "chr1:100-200(+)", take value string) 
+        to get genomic coordinates from get_genomic_coords_from_seq_name, instead of seq_name.
+        This can be applied in cases where seq_name is some ID that does not contain region info, but
+        motif hit coordinates are still relative to the region.
+    only_best_hits:
+        Keep only best hits for each motif ID and sequence/site combination. I.e., hit with lowest p-value.
         
     """
 
@@ -4143,7 +7321,8 @@ def read_in_fimo_results(fimo_tsv,
 
     with open(fimo_tsv) as f:
         for line in f:
-            if re.search("^#", line):
+            # if re.search("^#", line):
+            if line.startswith("#"):
                 continue
             cols = line.strip().split("\t")
             if cols[0] == "motif_id" or cols[0] == "":
@@ -4178,16 +7357,21 @@ def read_in_fimo_results(fimo_tsv,
                 
             else:
 
-                gen_motif_coords = get_genomic_coords_from_seq_name(seq_name, motif_s, motif_e,
+                region_info_seq_name = seq_name
+
+                if reg_dic is not None:
+                    region_info_seq_name = reg_dic[seq_name]
+
+                gen_motif_coords = get_genomic_coords_from_seq_name(region_info_seq_name, motif_s, motif_e,
                                                                     one_based_start=True)
-                
+            
                 fimo_hit = FimoHit(chr_id=gen_motif_coords[0], 
                                 start=gen_motif_coords[1], 
                                 end=gen_motif_coords[2],
                                 strand=gen_motif_coords[3], 
                                 score=score, 
-                                motif_id=motif_id, 
-                                seq_name=seq_name, 
+                                motif_id=motif_id,
+                                seq_name=seq_name,
                                 pval=pval, 
                                 qval=qval,
                                 seq_s=motif_s+1,
@@ -4198,7 +7382,132 @@ def read_in_fimo_results(fimo_tsv,
 
     f.closed
 
+    if only_best_hits and fimo_hits_list:
+        print("--greatest-hits enabled. Keep only best FIMO motif hits ... ")
+        print("# of FIMO motif hits before best hit filtering: %i" %(len(fimo_hits_list)))
+        fimo_hits_list = get_best_fimo_hits(fimo_hits_list)
+        print("# of FIMO motif hits after best hit filtering:  %i" %(len(fimo_hits_list)))
+
     return fimo_hits_list
+
+
+################################################################################
+
+def get_best_fimo_hits(fimo_hits_list):
+    """
+    Filter FIMO hits list, keep only best hit for each motif ID and sequence combination.
+    Best hit is hit with lowest p-value.
+    
+    """
+    assert fimo_hits_list, "fimo_hits_list is empty"
+
+    filt_fimo_hits_list = []
+    best_list_idx_dic = {}  # "motif_id,seq_name" -> best list index.
+
+    for idx, fimo_hit in enumerate(fimo_hits_list):
+        seq_name = fimo_hit.seq_name
+        motif_id = fimo_hit.motif_id
+        p_val = fimo_hit.pval
+        comb_id = "%s,%s" %(motif_id, seq_name)
+        if comb_id not in best_list_idx_dic:
+            best_list_idx_dic[comb_id] = idx
+        else:
+            best_idx = best_list_idx_dic[comb_id]
+            if fimo_hits_list[best_idx].pval > p_val:
+                best_list_idx_dic[comb_id] = idx
+
+    for comb_id in best_list_idx_dic:
+        best_idx = best_list_idx_dic[comb_id]
+        filt_fimo_hits_list.append(fimo_hits_list[best_idx])
+
+    return filt_fimo_hits_list
+
+
+################################################################################
+
+def get_best_cmsearch_hits(cmsearch_hits_list):
+    """
+    Filter CMSEARCH hits list, keep only best hit for each motif ID and sequence combination.
+    Best hit is hit with highest bit score.
+    
+    """
+    assert cmsearch_hits_list, "cmsearch_hits_list is empty"
+
+    filt_cmsearch_hits_list = []
+    best_list_idx_dic = {}  # "motif_id,seq_name" -> best list index.
+
+    for idx, cmsh_hit in enumerate(cmsearch_hits_list):
+        seq_name = cmsh_hit.seq_name
+        motif_id = cmsh_hit.motif_id
+        score = cmsh_hit.score  # compare cmsearch bit score (the higher the better).
+        comb_id = "%s,%s" %(motif_id, seq_name)
+        if comb_id not in best_list_idx_dic:
+            best_list_idx_dic[comb_id] = idx
+        else:
+            best_idx = best_list_idx_dic[comb_id]
+            if cmsearch_hits_list[best_idx].score < score:
+                best_list_idx_dic[comb_id] = idx
+
+    for comb_id in best_list_idx_dic:
+        best_idx = best_list_idx_dic[comb_id]
+        filt_cmsearch_hits_list.append(cmsearch_hits_list[best_idx])
+
+    return filt_cmsearch_hits_list
+
+
+################################################################################
+
+def get_target_genes_with_rbp_hits(reg2annot_dic, tr2gid_dic, region_rbp_binds_dic,
+                                   gid2tid_dic=None,
+                                   goa_cooc_mode=3):
+    """
+    Get target genes dictionary with RBP hits.
+
+    reg2annot_dic format:
+    'chr20:62139082-62139128(-)': ['CDS', 'ENST00000367770.3'] 
+    'chr20:62139082-62139128(+)': ['intergenic', False] 
+
+    region_rbp_binds_dic format:
+    'chr20:62139082-62139128(-)': [False, False, False]
+    
+    >>> reg2annot_dic = {'chr1:1000-2000(+)': ['CDS', 'ENST6666'], 'chr1:1000-2000(-)': ['intergenic', False], 'chr1:5000-6000(-)': ['intron', 'ENST6667'], 'chr1:5000-6000(+)': ['CDS', 'ENST6668']}
+    >>> tr2gid_dic = {'ENST6666': 'GID1', 'ENST6667': 'GID2', 'ENST6668': 'GID3'}
+    >>> region_rbp_binds_dic = {'chr1:1000-2000(+)': [True, True, True], 'chr1:1000-2000(-)': [True, True, True], 'chr1:5000-6000(-)': [False, True, True], 'chr1:5000-6000(+)': [False, False, False]}
+    >>> get_target_genes_with_rbp_hits(reg2annot_dic, tr2gid_dic, region_rbp_binds_dic, goa_cooc_mode=3)
+    {'GID1': 1}
+    >>> get_target_genes_with_rbp_hits(reg2annot_dic, tr2gid_dic, region_rbp_binds_dic, goa_cooc_mode=2)
+    {'GID1': 1, 'GID2': 1}
+    >>> get_target_genes_with_rbp_hits(reg2annot_dic, tr2gid_dic, region_rbp_binds_dic, goa_cooc_mode=1)
+    {'GID1': 1, 'GID2': 1, 'GID3': 1}
+    
+    """
+
+    target_genes_dic = {}
+    for reg_id in region_rbp_binds_dic:
+        tr_id = reg2annot_dic[reg_id][1]
+        if tr_id:
+            gid = tr2gid_dic[tr_id]
+            if gid2tid_dic is not None:
+                gid2tid_dic[gid] = tr_id
+            add_gene = False
+            if goa_cooc_mode == 1:
+                add_gene = True
+            elif goa_cooc_mode == 2:
+                # Check if region_rbp_binds_dic[reg_id] list has at least one True value.
+                if any(region_rbp_binds_dic[reg_id]):
+                    add_gene = True
+            elif goa_cooc_mode == 3:
+                # Check if region_rbp_binds_dic[reg_id] list has only True values.
+                if all(region_rbp_binds_dic[reg_id]):
+                    add_gene = True
+
+            if add_gene:
+                if gid not in target_genes_dic:
+                    target_genes_dic[gid] = 1
+                else:
+                    target_genes_dic[gid] += 1
+
+    return target_genes_dic
 
 
 ################################################################################
@@ -4221,21 +7530,26 @@ def output_motif_hits_to_bed(rbp_id, unique_motifs_dic, out_bed,
 
     OUTMRBED = open(out_bed, "w")
 
+    # pattern_check = re.compile(r"\w+:\d+-\d+\([+|-]\).+")
+    pattern_extract = re.compile(r"^(.+):(\d+)-(\d+)\(([+|-])\)(.+)")
+
     for fh_str in unique_motifs_dic[rbp_id]:
-        if re.search("\w+:\d+-\d+\([+|-]\),.+", fh_str):
-            m = re.search("(\w+):(\d+)-(\d+)\(([+|-])\),(.+)", fh_str)
-            chr_id = m.group(1)
-            reg_s = int(m.group(2))
-            reg_e = int(m.group(3))
-            strand = m.group(4)
-            motif_id = m.group(5)
+        # if re.search("\w+:\d+-\d+\([+|-]\).+", fh_str):
+        #   m = re.search("(\w+):(\d+)-(\d+)\(([+|-])\)(.+)", fh_str)
 
-            if one_based_start:
-                reg_s -= 1
+        m = pattern_extract.search(fh_str)
+        assert m, "invalid fh_str format given (%s)" % (fh_str)
 
-            OUTMRBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, reg_s, reg_e, motif_id, strand))
-        else:
-            assert False, "invalid fh_str format given (%s)" %(fh_str)
+        chr_id = m.group(1)
+        reg_s = int(m.group(2))
+        reg_e = int(m.group(3))
+        strand = m.group(4)
+        motif_id = m.group(5)
+
+        if one_based_start:
+            reg_s -= 1
+
+        OUTMRBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, reg_s, reg_e, motif_id, strand))
 
     OUTMRBED.close()
 
@@ -4252,27 +7566,30 @@ def batch_output_motif_hits_to_bed(unique_motifs_dic, out_bed,
         Assumes FIMO hit string contains 1-based start.
 
     Format of fimo_hit_string:
-    chr_id:start-end(strand),motif_id
+    chr_id:start-end(strand)motif_id
 
     """
     
     OUTMRBED = open(out_bed, "w")
 
+    pattern_extract = re.compile(r"^(\w+?):(\d+)-(\d+)\(([+|-])\)(.+)")
+
     for fh_str in unique_motifs_dic:
-        if re.search("\w+:\d+-\d+\([+|-]\),.+", fh_str):
-            m = re.search("(\w+):(\d+)-(\d+)\(([+|-])\),(.+)", fh_str)
-            chr_id = m.group(1)
-            reg_s = int(m.group(2))
-            reg_e = int(m.group(3))
-            strand = m.group(4)
-            motif_id = m.group(5)
+        # if re.search("^\w+?:\d+-\d+\([+|-]\).+", fh_str):
+        #     m = re.search("^(\w+?):(\d+)-(\d+)\(([+|-])\)(.+)", fh_str)
+        m = pattern_extract.search(fh_str)
+        assert m, "invalid fh_str format given (%s)" % (fh_str)
 
-            if one_based_start:
-                reg_s -= 1
+        chr_id = m.group(1)
+        reg_s = int(m.group(2))
+        reg_e = int(m.group(3))
+        strand = m.group(4)
+        motif_id = m.group(5)
 
-            OUTMRBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, reg_s, reg_e, motif_id, strand))
-        else:
-            assert False, "invalid fh_str format given (%s)" %(fh_str)
+        if one_based_start:
+            reg_s -= 1
+
+        OUTMRBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, reg_s, reg_e, motif_id, strand))
 
     OUTMRBED.close()
 
@@ -4282,6 +7599,8 @@ def batch_output_motif_hits_to_bed(unique_motifs_dic, out_bed,
 def read_in_cmsearch_results(in_tab,
                              check=True,
                              seq_based=False,
+                             reg_dic=None,
+                             only_best_hits=False,
                              hits_list=None):
     """
     Read in cmsearch motif finding results file.
@@ -4306,6 +7625,13 @@ def read_in_cmsearch_results(in_tab,
     17 inc
     18 description of target
 
+    
+    reg_dic:
+        If provided, use this dictionary (mapping reg_id -> "chr1:100-200(+)", take value string) 
+        to get genomic coordinates from get_genomic_coords_from_seq_name, instead of seq_name.
+        This can be applied in cases where seq_name is some ID that does not contain region info, but
+        motif hit coordinates are still relative to the region.
+
     """
 
     if check:
@@ -4318,7 +7644,8 @@ def read_in_cmsearch_results(in_tab,
 
     with open(in_tab) as f:
         for line in f:
-            if re.search("^#", line):
+            if line.startswith("#"):
+            # if re.search("^#", line):
                 continue
             cols_pre = line.strip().split(" ")
             # Remove empty column values.
@@ -4362,11 +7689,13 @@ def read_in_cmsearch_results(in_tab,
 
             else:
 
-                gen_motif_coords = get_genomic_coords_from_seq_name(seq_name, seq_s, seq_e,
-                                                                    one_based_start=True)
+                region_info_seq_name = seq_name
 
-                # print("cols:", cols)
-                # print("e_value:", e_value)
+                if reg_dic is not None:
+                    region_info_seq_name = reg_dic[seq_name]
+
+                gen_motif_coords = get_genomic_coords_from_seq_name(region_info_seq_name, seq_s, seq_e,
+                                                                    one_based_start=True)
 
                 cmsearch_hit = CmsearchHit(chr_id=gen_motif_coords[0], 
                                     start=gen_motif_coords[1], 
@@ -4389,7 +7718,37 @@ def read_in_cmsearch_results(in_tab,
 
     f.closed
 
+    if only_best_hits and hits_list:
+        print("--greatest-hits enabled. Keep only best CMSEARCH hits ... ")
+        print("# of CMSEARCH hits before best hit filtering: %i" %(len(hits_list)))
+        hits_list = get_best_cmsearch_hits(hits_list)
+        print("# of CMSEARCH hits after best hit filtering:  %i" %(len(hits_list)))
+        c_hits = len(hits_list)
+
     return hits_list, c_hits
+
+
+################################################################################
+
+def get_matched_seq(seq_id, seqs_dic, match_s, match_e):
+    """
+    Get motif hit sequence (matched sequence, subsequence) given:
+    sequence dictionary seqs_dic, sequence name seq_id, 
+    and start+end coordinates (match_s, match_e, both 1-based).
+
+    >>> seqs_dic = {"seq1": "AAAAACGTAAAA"}
+    >>> get_matched_seq("seq1", seqs_dic, 6, 8)
+    'CGT'
+
+    """
+    assert seq_id in seqs_dic, "sequence ID \"%s\" not in seqs_dic" %(seq_id)
+    # assert match_s <= match_e, "match_s > match_e for seq_id %s" %(seq_id)
+    seq = seqs_dic[seq_id]
+    # len_seq = len(seq)
+    # assert match_s <= len_seq, "match_s > len_seq (%i > %i) for seq_id %s" %(seq_id)
+    # assert match_e <= len_seq, "match_e > len_seq (%ifor seq_id %s" %(seq_id)
+    matched_seq = seq[match_s-1:match_e]
+    return matched_seq
 
 
 ################################################################################
@@ -4407,6 +7766,8 @@ class CmsearchHit(GenomicRegion):
                  model_e: Optional[int] = None,
                  seq_s: Optional[int] = None,
                  seq_e: Optional[int] = None,
+                 center_dist: Optional[int] = None,  # Distance of motif center position to region center (rbpbench nemo).
+                 matched_seq: Optional[str] = None,
                  genome: Optional[str] = None) -> None:
         super().__init__(chr_id, start, end, strand, score, genome)
         self.motif_id = motif_id
@@ -4417,6 +7778,9 @@ class CmsearchHit(GenomicRegion):
         self.model_e = model_e
         self.seq_s = seq_s
         self.seq_e = seq_e
+        self.query_name = query_name
+        self.center_dist = center_dist
+        self.matched_seq = matched_seq
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, CmsearchHit):
@@ -4429,7 +7793,7 @@ class CmsearchHit(GenomicRegion):
                 self.genome == other.genome)
 
     def __repr__(self) -> str:
-        return f"{self.chr_id}:{self.start}-{self.end}({self.strand}),{self.motif_id}"
+        return f"{self.chr_id}:{self.start}-{self.end}({self.strand}){self.motif_id}"
 
 
 ################################################################################
@@ -4467,14 +7831,34 @@ def remove_special_chars_from_str(check_str,
     reg_ex:
         Regular expression defining what to keep.
 
+    Special regex characters:
+    . (dot)
+    ^ (caret)
+    $ (dollar sign)
+    * (asterisk)
+    + (plus sign)
+    ? (question mark)
+    {} (curly braces)
+    [] (square brackets)
+    () (parentheses)
+    | (pipe)
+    \ (backslash)
+
+    To remove these:
+    special_chars = r"[.^$*+?{}[\]()|\\]"
+
     >>> check_str = "{_}[-](_)\V/"
     >>> remove_special_chars_from_str(check_str)
     '_-_V'
     >>> check_str = ""
     >>> remove_special_chars_from_str(check_str)
     ''
+    >>> check_str = "AC.+?GA[AC]A\\\\C(AAA)C;C.{2,8}AC"
+    >>> remove_special_chars_from_str(check_str, reg_ex="[ ;\(\)]")
+    'AC.+?GA[AC]ACAAACC.{2,8}AC'
 
     """
+    check_str = check_str.replace("\\t", "").replace("\\n", "").replace("\\", "")
     clean_string = re.sub(reg_ex, '', check_str)
     return clean_string
 
@@ -4484,17 +7868,22 @@ def remove_special_chars_from_str(check_str,
 def get_motif_id_from_str_repr(hit_str_repr):
     """
     From motif string representation:
-    chr1:100-200(-),motif_id
+    chr1:100-200(-)motif_id
     return motif_id
 
-    >>> hit_str_repr = "chr6:66-666(-),satan6666"
+    ENST00000561978.1:1242-1248(+)PUM1_1
+
+    >>> hit_str_repr = "chr6:66-666(-)satan6666"
     >>> get_motif_id_from_str_repr(hit_str_repr)
     'satan6666'
+    >>> hit_str_repr = "chr6:66-666(-)CGGAC.{10,25}[CA]CA[CT]"
+    >>> get_motif_id_from_str_repr(hit_str_repr)
+    'CGGAC.{10,25}[CA]CA[CT]'
 
     """
 
-    if re.search("\w+:\d+-\d+\([+|-]\),.+", hit_str_repr):
-        m = re.search(".+,(.+)", hit_str_repr)
+    if re.search("^.+:\d+-\d+\([+|-]\).+", hit_str_repr):
+        m = re.search("^.+?\)(.+)", hit_str_repr)
         motif_id = m.group(1)
         return motif_id
     else:
@@ -4555,8 +7944,23 @@ def create_color_scale(min_value, max_value, colors):
 
 ################################################################################
 
+def rgb_to_hex(rgb):
+    """
+    Convert RGB to hex.
+
+    """
+    rgb = rgb.replace('rgb(', '').replace(')', '').split(',')
+    return '#{:02x}{:02x}{:02x}'.format(int(rgb[0]), int(rgb[1]), int(rgb[2]))
+
+
+################################################################################
+
 def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
                             max_motif_dist=50,
+                            min_motif_dist=0,
+                            id1="RBP1",
+                            id2="RBP2",
+                            ids="RBPs",
                             include_plotlyjs="cdn",
                             full_html=False):
     """
@@ -4579,16 +7983,29 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
     # color_scale = [[0, 'grey'], [0.01, 'darkblue'], [1, 'yellow']]
 
     # color_scale = [[0, "midnightblue"], [0, 'darkblue'], [0.25, 'blue'], [0.5, 'purple'], [0.75, 'red'], [1, 'yellow']]
-
-    colors = ['darkblue', 'blue', 'purple', 'red', 'orange', 'yellow']
+    
+    # Light blue to dark blue gradient.
+    # colors = ['#E0FFFF', '#B0E0E6', '#87CEEB', '#4682B4', '#0000FF', '#00008B', '#000080']  
+    # colors = ['darkblue', 'blue', 'purple', 'red', 'orange', 'yellow']
     # colors = ['green', 'red']
 
     min_val = 0.01
     max_val = 1  # df.max().max() # color scale values need to be 0 .. 1.
 
-    color_scale = create_color_scale(min_val, max_val, colors)
+    # color_scale = create_color_scale(min_val, max_val, colors)
+    # color_scale.insert(0, [0, "white"])  # lightgray ? dimgray (old color)
 
-    color_scale.insert(0, [0, "dimgray"])
+
+    # Define the Blues color scale.
+    blues_colors = px.colors.sequential.Blues
+    blues_colors_hex = [rgb_to_hex(color) for color in blues_colors]
+    # blues_colors_hex: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+
+    color_scale = create_color_scale(min_val, max_val, blues_colors_hex)
+    color_scale.insert(0, [0, "white"])  # lightgray ? dimgray was old color.
+
+    # # Insert white at the beginning of the color scale
+    # custom_color_scale = [[0, 'white']] + [[i / (len(blues_colors) - 1), color] for i, color in enumerate(blues_colors)]
 
     # Set the color scale range according to the data (minimum 0 .. 1).
     zmin = min(0, df.min().min())
@@ -4601,21 +8018,26 @@ def create_cooc_plot_plotly(df, pval_cont_lll, plot_out,
     plot = px.imshow(df, color_continuous_scale=color_scale, zmin=zmin, zmax=zmax)
     # plot = px.imshow(df)
 
-
-    """
-    Old:
-    'hovertemplate': 'RBP1: %{x}<br>RBP2: %{y}<br>p-value: %{customdata[0]}<br>p-value after filtering: %{customdata[1]}<br>RBPs: %{customdata[2]}<br>Counts: %{customdata[3]}<br>Mean minimum motif distance: %{customdata[4]}<br>Motif pairs within set motif distance: %{customdata[5]} %<br>Correlation: %{customdata[6]}<br>-log10(p-value after filtering): %{z}'}])
-    New:
-    'hovertemplate': f'RBP1: {{x}}<br>RBP2: {{y}}<br>p-value: {{customdata[0]}}<br>p-value after filtering: {{customdata[1]}}<br>RBPs: {{customdata[2]}}<br>Counts: {{customdata[3]}}<br>Mean minimum motif distance: {{customdata[4]}}<br>Motif pairs within {max_motif_dist} nt: {{customdata[5]}} %<br>Correlation: {{customdata[6]}}<br>-log10(p-value after filtering): {{z}}'}])
-
-    """
+    hover_content = (
+        '1) ' + id1 + ': %{x}<br>%{customdata[8]}'
+        '2) ' + id2 + ': %{y}<br>%{customdata[9]}'
+        '3) p-value: %{customdata[0]}<br>'
+        '4) p-value after filtering: %{customdata[1]}<br>%{customdata[7]}'
+        '5) ' + ids + ': %{customdata[2]}<br>'
+        '6) Counts: %{customdata[3]}<br>'
+        '7) Mean minimum motif distance (nt): %{customdata[4]}<br>'
+        '8) Motif pairs within ' + str(max_motif_dist) + ' nt (%): %{customdata[5]}<br>'
+        '9) Correlation: %{customdata[6]}<br>'
+        '10) -log10(p-value after filtering): %{z}<extra></extra>'
+    )
 
     plot.update(data=[{'customdata': pval_cont_lll,
-                      'hovertemplate': '1) RBP1: %{x}<br>2) RBP2: %{y}<br>3) p-value: %{customdata[0]}<br>4) p-value after filtering: %{customdata[1]}<br>5) RBPs: %{customdata[2]}<br>6) Counts: %{customdata[3]}<br>7) Mean minimum motif distance (nt): %{customdata[4]}<br>8) Motif pairs within ' + str(max_motif_dist) + ' nt (%): %{customdata[5]}<br>9) Correlation: %{customdata[6]}<br>10) -log10(p-value after filtering): %{z}<extra></extra>'}])
+                      'hovertemplate': hover_content}])
     plot.update_layout(plot_bgcolor='white')
     plot.write_html(plot_out,
                     full_html=full_html,
                     include_plotlyjs=include_plotlyjs)
+
 
 ################################################################################
 
@@ -4682,8 +8104,194 @@ def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll,
         hovertemplate='<b>%{hovertext}</b><br>Annotation percentages: %{customdata[1]}<extra></extra>'
     )
 
-    fig.update_traces(marker=dict(size=8))
+    fig.update_traces(marker=dict(size=8, line=dict(width=0.5, color='white')))
     # fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
+def create_pca_motif_sim_sig_plot_plotly(motif_ids_list, motif_sim_ll, 
+                                         motif_sim_stats_dic,
+                                         plot_out,
+                                         include_plotlyjs="cdn",
+                                         full_html=False):
+    """
+
+    motif_ids_list:
+    List of motif IDs, in same order as motif_sim_ll.
+    motif_sim_ll:
+    List of lists containing motif similarities. In order of motif_ids_list, 
+    so that motif_sim_ll[i][j] corresponds to motif_ids_list[i] and motif_ids_list[j].
+    motif_sim_stats_dic:
+    Dictionary with motif ID as key and list of [consensus_seq, con_table_str, pval, -log10pval] as value, 
+    for hoverbox information.
+
+    """
+
+    assert motif_ids_list, "motif_ids_list empty"
+
+    pca = PCA(n_components=2)
+    data_2d_pca = pca.fit_transform(motif_sim_ll)
+
+    df = pd.DataFrame(data_2d_pca, columns=['PC1', 'PC2'])
+    
+    df['Motif ID'] = motif_ids_list
+    df['Consensus sequence'] = [motif_sim_stats_dic[motif_id][0] for motif_id in motif_ids_list]
+    df['Counts'] = [motif_sim_stats_dic[motif_id][1] for motif_id in motif_ids_list]
+    df['p-value'] = [motif_sim_stats_dic[motif_id][2] for motif_id in motif_ids_list]
+    df['-log10(p-value)'] = [motif_sim_stats_dic[motif_id][3] for motif_id in motif_ids_list]
+
+    # colors = ['#E0FFFF', '#B0E0E6', '#87CEEB', '#4682B4', '#0000FF', '#00008B', '#000080']
+    # min_val = 0.01
+    # max_val = 1
+    # color_scale = create_color_scale(min_val, max_val, colors)
+    # color_scale.insert(0, [0, "white"])
+    # lp_min = df['-log10(p-value)'].min()
+    # lp_max = df['-log10(p-value)'].max()
+
+    # Define the custom blue color scale
+    # colors = ['#E0FFFF', '#B0E0E6', '#87CEEB', '#4682B4', '#0000FF', '#00008B', '#000080']
+    # color_scale = [[i / (len(colors) - 1), color] for i, color in enumerate(colors)]
+    # Viridis, Magma
+    # intron green: #2ca02c
+    # 3utr blue: #1f77b4
+    # cds orange: #ff7f0e
+
+    # blues_colors_hex: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+
+    color_scale = ['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+
+    explained_variance = pca.explained_variance_ratio_ * 100
+
+    fig = px.scatter(
+        df,
+        x='PC1',
+        y='PC2',
+        color='-log10(p-value)',
+        labels={
+            'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+            'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
+        },
+        hover_name='Motif ID',
+        hover_data=['Consensus sequence', 'Counts', 'p-value', '-log10(p-value)'],
+        # color_continuous_scale='Blues'
+        color_continuous_scale=color_scale # ylgnbu
+        # range_color=[lp_min, lp_max]
+    )
+
+    fig.update_traces(
+        hovertemplate='motif: <b>%{hovertext}</b><br>Consensus: %{customdata[0]}<br>Counts: %{customdata[1]}<br>p-value: %{customdata[2]}<br>-log10(p-value): %{customdata[3]}<extra></extra>'
+    )
+
+    fig.update_traces(marker=dict(size=12, line=dict(width=0.75, color='white')))
+    fig.update_layout(coloraxis_colorbar_title=''
+                      # plot_bgcolor='white',
+                      # paper_bgcolor='white',
+                      # xaxis=dict(showgrid=False, zeroline=False, gridcolor='lightgray', zerolinecolor='lightgray'),
+                      # yaxis=dict(showgrid=False, zeroline=False, gridcolor='lightgray', zerolinecolor='lightgray')
+                      )
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+    # fig.update_scenes(aspectmode='cube')
+    # fig.update_traces(marker=dict(size=3))
+    # fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
+    # fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
+def create_pca_motif_sim_dir_plot_plotly(motif_ids_list, motif_sim_ll, 
+                                         motif_sim_stats_dic,
+                                         plot_out,
+                                         include_plotlyjs="cdn",
+                                         full_html=False):
+    """
+
+    motif_ids_list:
+    List of motif IDs, in same order as motif_sim_ll.
+    motif_sim_ll:
+    List of lists containing motif similarities. In order of motif_ids_list, 
+    so that motif_sim_ll[i][j] corresponds to motif_ids_list[i] and motif_ids_list[j].
+    motif_sim_stats_dic:
+    Dictionary with motif ID as key and list of
+    [conseq, con_table_str, pval, log_pval, wrs_pval_greater, wrs_pval_less, log_wrs_pval]
+    as value, for hoverbox information.
+
+    """
+
+    assert motif_ids_list, "motif_ids_list empty"
+
+    pca = PCA(n_components=2)
+    data_2d_pca = pca.fit_transform(motif_sim_ll)
+
+    df = pd.DataFrame(data_2d_pca, columns=['PC1', 'PC2'])
+    
+    df['Motif ID'] = motif_ids_list
+    df['Consensus sequence'] = [motif_sim_stats_dic[motif_id][0] for motif_id in motif_ids_list]
+    df['Counts'] = [motif_sim_stats_dic[motif_id][1] for motif_id in motif_ids_list]
+    df['p-value'] = [motif_sim_stats_dic[motif_id][2] for motif_id in motif_ids_list]
+    df['WRS p-value (upstream)'] = [motif_sim_stats_dic[motif_id][4] for motif_id in motif_ids_list]
+    df['WRS p-value (downstream)'] = [motif_sim_stats_dic[motif_id][5] for motif_id in motif_ids_list]
+    df['-log10(WRS p-value)'] = [motif_sim_stats_dic[motif_id][6] for motif_id in motif_ids_list]
+
+    # Get maximum -log10(WRS p-value) for colorbar scaling.
+    max_abs_log10_pval = df['-log10(WRS p-value)'].abs().max()
+
+    # Define a custom diverging color scale
+    custom_color_scale = [
+        [0, '#ff7f0e'],  # counts higher in upstream context
+        [0.5, 'white'],  # Color around zero
+        [1, '#1f77b4']  # counts higher in downstream context
+    ]
+
+    # intron green: #2ca02c
+    # 3utr blue: #1f77b4
+    # cds orange: #ff7f0e
+
+    # dark blue from Blues: #08306b
+    # blues_colors_hex: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+
+
+    # colors = ['#E0FFFF', '#B0E0E6', '#87CEEB', '#4682B4', '#0000FF', '#00008B', '#000080']
+    # min_val = 0.01
+    # max_val = 1
+    # color_scale = create_color_scale(min_val, max_val, colors)
+    # color_scale.insert(0, [0, "white"])
+    # lp_min = df['-log10(p-value)'].min()
+    # lp_max = df['-log10(p-value)'].max()
+
+    explained_variance = pca.explained_variance_ratio_ * 100
+
+    fig = px.scatter(
+        df,
+        x='PC1',
+        y='PC2',
+        color='-log10(WRS p-value)',
+        labels={
+            'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+            'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
+        },
+        hover_name='Motif ID',
+        hover_data=['Consensus sequence', 'Counts', 'p-value', 'WRS p-value (upstream)', 'WRS p-value (downstream)', '-log10(WRS p-value)'],
+        color_continuous_scale=custom_color_scale,
+        range_color=[-max_abs_log10_pval, max_abs_log10_pval]
+    )
+
+    fig.update_traces(
+        hovertemplate='motif: <b>%{hovertext}</b><br>Consensus: %{customdata[0]}<br>Counts: %{customdata[1]}<br>p-value: %{customdata[2]}<br>WRS p-value (upstream): %{customdata[3]}<br>WRS p-value (downstream): %{customdata[4]}<br>-log10(WRS p-value): %{customdata[5]}<extra></extra>'
+    )
+
+    # fig.update_traces(marker=dict(size=11))
+    # fig.update_layout(coloraxis_colorbar_title='')
+
+    fig.update_traces(marker=dict(size=12, line=dict(width=0.75, color='white')))
+    fig.update_layout(coloraxis_colorbar_title=''
+                      # plot_bgcolor='white',
+                      # paper_bgcolor='white',
+                      # xaxis=dict(showgrid=False, zeroline=False, gridcolor='lightgray', zerolinecolor='lightgray'),
+                      # yaxis=dict(showgrid=False, zeroline=False, gridcolor='lightgray', zerolinecolor='lightgray')
+                      )
+
     fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
 
 
@@ -4743,6 +8351,9 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
         # print("combined_id:", combined_id)
         # print(id2occ_list_dic[internal_id])
 
+
+    color_scale = ['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+
     if sparse_pca:
 
         from sklearn.decomposition import SparsePCA
@@ -4788,6 +8399,7 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
                 'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
             },
             hover_name='Dataset ID',
+            color_continuous_scale=color_scale,
             hover_data=['# occupied genes', '% occupied genes']
         )
 
@@ -4795,8 +8407,10 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
         hovertemplate='<b>%{hovertext}</b><br>Occupied genes (#): %{customdata[0]}<br>Occupied genes (%): %{customdata[1]}<extra></extra>'
     )
 
+
     fig.update_scenes(aspectmode='cube')
-    fig.update_traces(marker=dict(size=3))
+
+    fig.update_traces(marker=dict(size=3, line=dict(width=0.5, color='white')))
     fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
     fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
 
@@ -4873,7 +8487,8 @@ def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll, plo
 
 ################################################################################
 
-def get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic):
+def get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic,
+                             optimal_ordering=True):
     """
     Calculate co-occurrence matrices for plotting cosine similarities between datasets
     (more precisely between their gene list binary vectors).
@@ -4885,7 +8500,13 @@ def get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic):
     id2infos_dic:
         id2infos_dic[internal_id] = [rbp_id, data_id, method_id, motif_db_str, bed_file_path]
 
-
+    optimal_ordering:
+        If True, the linkage matrix will be reordered so that the distance between successive 
+        leaves is minimal. This results in a more intuitive tree structure when the data are 
+        visualized. defaults to False, because this algorithm can be slow, particularly on 
+        large datasets. See also the optimal_leaf_ordering function.
+        https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.hierarchy.linkage.html
+        
     """
 
     assert id2occ_list_dic, "id2lst_dic empty"
@@ -4921,7 +8542,7 @@ def get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic):
 
     # Perform hierarchical clustering.
     dist_matrix_condensed = dist_matrix[np.triu_indices(dist_matrix.shape[0], k=1)]
-    linkage_matrix = linkage(dist_matrix_condensed, method='average')
+    linkage_matrix = linkage(dist_matrix_condensed, method='average', optimal_ordering=optimal_ordering)
 
     # Calculate leaves order.
     leaves_order = leaves_list(linkage_matrix)
@@ -5037,7 +8658,16 @@ def create_gene_occ_cooc_plot_plotly(df_gene_occ, gene_cooc_lll, plot_out,
 
     """
 
-    plot = px.imshow(df_gene_occ)
+    min_val = 0.01
+    max_val = 1
+    blues_colors = px.colors.sequential.Blues
+    blues_colors_hex = [rgb_to_hex(color) for color in blues_colors]
+    color_scale = create_color_scale(min_val, max_val, blues_colors_hex)
+    color_scale.insert(0, [0, "white"])
+    zmin = min(0, df_gene_occ.min().min())
+    zmax = max(1, df_gene_occ.max().max())
+
+    plot = px.imshow(df_gene_occ, color_continuous_scale=color_scale, zmin=zmin, zmax=zmax)
 
     plot.update(data=[{'customdata': gene_cooc_lll,
                        'hovertemplate': '1) Set1: %{customdata[1]}<br>2) Set2: %{customdata[2]}<br>3) cosine similarity: %{customdata[0]}<br>4) Counts: %{customdata[3]}<extra></extra>'}])
@@ -5066,67 +8696,27 @@ def create_gene_occ_cooc_plot_plotly(df_gene_occ, gene_cooc_lll, plot_out,
 
 ################################################################################
 
-def batch_generate_html_report(dataset_ids_list, 
-                               kmer_list,
-                               kmer_freqs_ll,
-                               id2infos_dic, 
-                               id2reg_annot_dic,
-                               id2hit_reg_annot_dic,
-                               out_folder,
-                               benchlib_path,
-                               seq_len_stats_ll,
-                               html_report_out="report.rbpbench_batch.html",
-                               unstranded=False,
-                               unstranded_ct=False,
-                               id2regex_stats_dic=None,
-                               regex="",
-                               wrs_mode=1,
-                               fisher_mode=1,
-                               max_motif_dist=50,
-                               id2occ_list_dic=False,
-                               gene_occ_cooc_plot=False,
-                               plot_abs_paths=False,
-                               plotly_js_mode=1,
-                               sort_js_mode=1,
-                               plotly_full_html=False,
-                               kmer_size=5,
-                               plotly_embed_style=1,
-                               add_motif_db_info=False,
-                               fimo_pval=0.001,
-                               motif_db_str="custom",
-                               report_header=False,
-                               plots_subfolder="html_report_plots"):
+def goa_generate_html_report(goa_results_df, goa_stats_dic,
+                             out_folder, benchlib_path,
+                             goa_min_depth=None,
+                             goa_max_child=None,
+                             goa_filter_purified=False,
+                             report_header=False,
+                             sort_js_mode=1,
+                             html_report_out="goa_results.rbpbench_goa.html"):
     """
-    Create plots for RBPBench batch run results.
+    Generate GOA results HTML report (rbpbench goa mode).
 
     """
 
-    # Minimum dataset_ids_list and kmer_freqs_ll needed for plotting anything.
-    assert dataset_ids_list, "no dataset IDs found for report creation"
-    assert kmer_freqs_ll, "no k-mer frequencies found for report creation"
-
-    # Use absolute paths?
-    if plot_abs_paths:
-        out_folder = os.path.abspath(out_folder)
-
-    plots_folder = plots_subfolder
-    plots_out_folder = out_folder + "/" + plots_folder
-    if plot_abs_paths:
-        plots_folder = plots_out_folder
-
-    # Delete folder if already present.
-    if os.path.exists(plots_out_folder):
-        shutil.rmtree(plots_out_folder)
-    os.makedirs(plots_out_folder)
-
-    html_out = out_folder + "/" + "report.rbpbench_batch.html"
-    md_out = out_folder + "/" + "report.rbpbench_batch.md"
+    html_out = out_folder + "/" + "goa_results.rbpbench_goa.html"
+    md_out = out_folder + "/" + "goa_results.rbpbench_goa.md"
     if html_report_out:
         html_out = html_report_out
 
-    report_header_info = ""
+    report_header_info = "GO enrichment analysis (GOA) report"
     if report_header:
-        report_header_info = "RBPBench "
+        report_header_info = "RBPBench GO enrichment analysis (GOA) report"
 
     """
     Setup sorttable.js to make tables in HTML sortable.
@@ -5140,6 +8730,300 @@ def batch_generate_html_report(dataset_ids_list,
         sorttable_js_path = plots_folder + "/sorttable.js"
         sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
     elif sort_js_mode == 3:
+        js_code = read_file_content_into_str_var(sorttable_js_path)
+        sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
+
+    # HTML head section.
+    html_head = """<!DOCTYPE html>
+<html>
+<head>
+<title>RBPBench - GO Enrichment Analysis Report</title>
+
+<style>
+    th, td {
+        border: 1px solid black;
+        padding: 8px;
+        text-align: center;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+    .page {
+        page-break-after: always;
+    }
+</style>
+
+</head>
+<body>
+"""
+
+    # HTML tail section.
+    html_tail = """
+%s
+</body>
+</html>
+""" %(sorttable_js_html)
+
+    # Markdown part.
+    mdtext = """
+
+# %s
+
+List of available statistics and plots generated
+by RBPBench (rbpbench goa):
+
+- [GO enrichment analysis results](#goa-results)""" %(report_header_info)
+    mdtext += "\n"
+    mdtext += "\n&nbsp;\n"
+
+    mdtext += """
+## GO enrichment analysis results ### {#goa-results}
+
+"""
+    c_goa_results = 0
+    if isinstance(goa_results_df, pd.DataFrame) and not goa_results_df.empty:
+        c_goa_results = len(goa_results_df)
+
+    filter_purified_info = " GO terms with significantly higher and lower concentration ([e,p]) in study group are shown."
+    filter_purified_info2 = "significant"
+    if goa_filter_purified:
+        filter_purified_info = " Only GO terms with significantly higher concentration in study group are shown."
+        filter_purified_info2 = "significantly enriched"
+        c_goa_results = len(goa_results_df[goa_results_df["enrichment"] == "e"])
+    filter_further_info = ""
+    if goa_max_child is not None: 
+        filter_further_info += " Only GO terms with <= %i children are shown." %(goa_max_child)
+    if goa_min_depth is not None:
+        filter_further_info += " Only GO terms with >= %i depth are shown." %(goa_min_depth)
+    if filter_further_info:
+        filter_further_info += " Note that additional filters (children + depth) can result in an empty table. For all significant GO terms (i.e., unfiltered results) check *goa_results.tsv* output table."
+
+    if c_goa_results > 0:
+
+        mdtext += """
+**Table:** GO enrichment analysis results. # of %s GO terms found: %i. Filter p-value threshold (on corrected p-value) = %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
+%s %s
+
+""" %(filter_purified_info2, c_goa_results, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"], filter_purified_info, filter_further_info)
+
+        mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.9;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>GO</th>\n"
+        mdtext += "<th>Term</th>\n"
+        mdtext += "<th>Class</th>\n"
+        mdtext += "<th>p-value</th>\n"
+        mdtext += "<th>[e,p]</th>\n"
+        mdtext += "<th>Depth</th>\n"
+        mdtext += "<th># child</th>\n"
+        mdtext += "<th># genes</th>\n"
+        mdtext += "<th># study</th>\n"
+        mdtext += "<th>% genes</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
+
+        for index, row in goa_results_df.iterrows():
+
+            go_id = row['GO']
+            go_term = row['term']
+            go_class = row['class']
+            # go_p = row['p']
+            go_p_corr = row['p_corr']
+            go_enrichment = row['enrichment']
+            go_depth = row['depth']
+            go_n_genes = row['n_genes']
+            go_n_study = row['n_study']
+            go_perc_genes = row['perc_genes']
+            go_n_children = row['n_children']
+
+            if goa_filter_purified:
+                if go_enrichment == "p":
+                    continue
+
+            if goa_max_child is not None:
+                if go_n_children > goa_max_child:
+                    continue
+            if goa_min_depth is not None:
+                if go_depth < goa_min_depth:
+                    continue
+
+            mdtext += '<tr>' + "\n"
+            mdtext += "<td>" + go_id + "</td>\n"
+            mdtext += "<td>" + go_term + "</td>\n"
+            mdtext += "<td>" + go_class + "</td>\n"
+            mdtext += "<td>" + str(go_p_corr) + "</td>\n"
+            mdtext += "<td>" + go_enrichment + "</td>\n"
+            mdtext += "<td>" + str(go_depth) + "</td>\n"
+            mdtext += "<td>" + str(go_n_children) + "</td>\n"
+            mdtext += "<td>" + str(go_n_genes) + "</td>\n"
+            mdtext += "<td>" + str(go_n_study) + "</td>\n"
+            mdtext += "<td>" + str(go_perc_genes) + "</td>\n"
+            mdtext += '</tr>' + "\n"
+
+        mdtext += '</tbody>' + "\n"
+        mdtext += '</table>' + "\n"
+        
+        mdtext += "\n&nbsp;\n&nbsp;\n"
+        mdtext += "\nColumn IDs have the following meanings: "
+        mdtext += "**GO** -> gene ontology (GO) ID, "
+        mdtext += "**Term** -> GO term / name, "
+        mdtext += "**Class** -> GO term class (biological_process, molecular_function, or cellular_component), "
+        mdtext += "**p-value** -> multiple testing corrected (BH) p-value, "
+        mdtext += "**[e,p]** -> e: enriched, i.e., GO term with significantly higher concentration, p: purified, GO term with significantly lower concentration), "
+        mdtext += "**Depth** -> depth / level of GO term in GO hierarchy (the higher number, the more specific), "
+        mdtext += "**# child** -> number of GO term children, "
+        mdtext += "**# genes** -> number of genes associated with GO term, "
+        mdtext += "**# study** -> number of genes in study (i.e., target genes), "
+        mdtext += "**% genes** -> percentage of study genes associated with GO term." + "\n"
+        mdtext += "\n&nbsp;\n"
+
+    else:
+
+        if "c_target_genes_goa" in goa_stats_dic:
+
+            mdtext += """
+
+No %s GO terms found given p-value threshold of %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
+
+&nbsp;
+
+""" %(filter_purified_info2, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"])
+
+        else:
+
+            mdtext += """
+
+No significant GO terms found due to no GO IDs associated with target genes. # of initial target genes (i.e., genes overlapping with --in regions): %i.
+
+&nbsp;
+
+""" %(goa_stats_dic["c_target_genes_pre_filter"])
+
+    # Convert mdtext to html.
+    md2html = markdown(mdtext, extensions=['attr_list', 'tables'])
+
+    # OUTMD = open(md_out,"w")
+    # OUTMD.write("%s\n" %(mdtext))
+    # OUTMD.close()
+
+    html_content = html_head + md2html + html_tail
+
+    OUTHTML = open(html_out,"w")
+    OUTHTML.write("%s\n" %(html_content))
+    OUTHTML.close()
+
+
+################################################################################
+
+def guess_chr_id_style(chr_ids_dic):
+    """
+    Guess chromosome style present in chr_ids_dic.
+
+    chr_style:
+        1: chr1, chr2, ..., chrX, chrM
+        2: 1, 2, ... , X, MT
+
+    >>> chr_ids_dic = {"chr1": 1, "chr2": 1, "chrX": 1, "chrM": 1, "chr11_KI270721v1_random": 1}
+    >>> guess_chr_id_style(chr_ids_dic)
+    1
+    >>> chr_ids_dic = {"1": 1, "2": 1, "X": 1, "MT": 1}
+    >>> guess_chr_id_style(chr_ids_dic)
+    2
+    
+    """
+    assert chr_ids_dic, "chr_ids_dic empty (no chromosome IDs found in --genome FASTA file?)"
+
+    chr_style = 1
+    
+    for chr_id in chr_ids_dic:
+        if chr_id.startswith("chr"):
+            chr_style = 1
+            break
+        else:
+            chr_style = 2
+            break
+
+    if chr_style == 1:
+        for chr_id in chr_ids_dic:
+            assert chr_id.startswith("chr"), "inconsistent chromosome IDs in --genome FASTA file (chr prefix expected but not present for ID %s)" %(chr_id)
+    else:
+        for chr_id in chr_ids_dic:
+            assert not chr_id.startswith("chr"), "inconsistent chromosome IDs in --genome FASTA file (both chr prefix and no chr prefix present)"
+
+    return chr_style
+
+
+################################################################################
+
+def batch_generate_html_report(args,
+                               dataset_ids_list, 
+                               kmer_list,
+                               kmer_freqs_ll,
+                               id2infos_dic, 
+                               id2reg_annot_dic,
+                               id2hit_reg_annot_dic,
+                               benchlib_path,
+                               seq_len_stats_ll,
+                               html_report_out="report.rbpbench_batch.html",
+                               id2motif_enrich_stats_dic=False,
+                               id2regex_stats_dic=False,
+                               regex_annot_dic=False,
+                               id2occ_list_dic=False,
+                               gene_occ_cooc_plot=False,
+                               ei_ol_stats_dic=False,
+                               plotly_full_html=False,
+                               plotly_embed_style=1,
+                               add_motif_db_info=False,
+                               heatmap_cluster_olo=False,
+                               goa_results_df=False,
+                               goa_stats_dic=False,
+                               plots_subfolder="html_report_plots"):
+    """
+    Create plots for RBPBench batch run results.
+
+    """
+
+    # Minimum dataset_ids_list and kmer_freqs_ll needed for plotting anything.
+    assert dataset_ids_list, "no dataset IDs found for report creation"
+    assert kmer_freqs_ll, "no k-mer frequencies found for report creation"
+
+    # Use absolute paths?
+    out_folder = args.out_folder
+    if args.plot_abs_paths:
+        out_folder = os.path.abspath(out_folder)
+
+    plots_folder = plots_subfolder
+    plots_out_folder = out_folder + "/" + plots_folder
+    if args.plot_abs_paths:
+        plots_folder = plots_out_folder
+
+    # Delete folder if already present.
+    if os.path.exists(plots_out_folder):
+        shutil.rmtree(plots_out_folder)
+    os.makedirs(plots_out_folder)
+
+    html_out = out_folder + "/" + "report.rbpbench_batch.html"
+    md_out = out_folder + "/" + "report.rbpbench_batch.md"
+    if html_report_out:
+        html_out = html_report_out
+
+    report_header_info = "Batch search report"
+    if args.report_header:
+        report_header_info = "RBPBench batch search report"
+
+    """
+    Setup sorttable.js to make tables in HTML sortable.
+
+    """
+    sorttable_js_path = benchlib_path + "/content/sorttable.js"
+    assert os.path.exists(sorttable_js_path), "sorttable.js not at %s" %(sorttable_js_path)
+    sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    if args.sort_js_mode == 2:
+        shutil.copy(sorttable_js_path, plots_out_folder)
+        sorttable_js_path = plots_folder + "/sorttable.js"
+        sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    elif args.sort_js_mode == 3:
         js_code = read_file_content_into_str_var(sorttable_js_path)
         sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
 
@@ -5157,25 +9041,25 @@ def batch_generate_html_report(dataset_ids_list,
     plotly_js_html = ""
     plotly_js_path = benchlib_path + "/content/plotly-2.20.0.min.js"
     assert os.path.exists(plotly_js_path), "plotly .js %s not found" %(plotly_js_path)
-    if plotly_js_mode == 2:
+    if args.plotly_js_mode == 2:
         include_plotlyjs = plotly_js_path
-    elif plotly_js_mode == 3:
+    elif args.plotly_js_mode == 3:
         shutil.copy(plotly_js_path, plots_out_folder)
         include_plotlyjs = "plotly-2.20.0.min.js" # Or plots_folder + "/plotly-2.20.0.min.js" ?
-    elif plotly_js_mode == 4:
+    elif args.plotly_js_mode == 4:
         include_plotlyjs = True
         # plotly_full_html = False # Don't really need full html (head body ..) in plotly html.
-    elif plotly_js_mode == 5:
+    elif args.plotly_js_mode == 5:
         plotly_js_web = "https://cdn.plot.ly/plotly-2.25.2.min.js"
         plotly_js_html = '<script src="' + plotly_js_web + '"></script>' + "\n"
         include_plotlyjs = False
         # plotly_full_html = True
-    elif plotly_js_mode == 6:
+    elif args.plotly_js_mode == 6:
         shutil.copy(plotly_js_path, plots_out_folder)
         plotly_js = plots_folder + "/plotly-2.20.0.min.js"
         plotly_js_html = '<script src="' + plotly_js + '"></script>' + "\n"
         include_plotlyjs = False
-    elif plotly_js_mode == 7:
+    elif args.plotly_js_mode == 7:
         js_code = read_file_content_into_str_var(plotly_js_path)
         plotly_js_html = "<script>\n" + js_code + "\n</script>\n"
         include_plotlyjs = False
@@ -5214,6 +9098,21 @@ def batch_generate_html_report(dataset_ids_list,
 <head>
 <title>RBPBench - Batch Report</title>
 %s
+
+<style>
+    th, td {
+        border: 1px solid black;
+        padding: 8px;
+        text-align: center;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+    .page {
+        page-break-after: always;
+    }
+</style>
+
 </head>
 <body>
 """ %(plotly_js_html)
@@ -5225,16 +9124,22 @@ def batch_generate_html_report(dataset_ids_list,
 </html>
 """ %(sorttable_js_html)
 
-    # Markdown part.   AALAMO
+    # Markdown part.
     mdtext = """
 
-# %sBatch report
+# %s
 
 List of available statistics and plots generated
 by RBPBench (rbpbench batch --report):
 
 - [Input datasets sequence length statistics](#seq-len-stats)""" %(report_header_info)
     mdtext += "\n"
+
+    if ei_ol_stats_dic:
+        mdtext += "- [Input datasets exon-intron overlap statistics](#ei-ol-stats)\n"
+
+    if id2motif_enrich_stats_dic: # if not empty.
+        mdtext += "- [Input datasets RBP region score motif enrichment statistics](#motif-enrich-stats)\n"
 
     if id2regex_stats_dic:  # if not empty.
         mdtext += "- [Regular expression motif enrichment statistics](#regex-enrich-stats)\n"
@@ -5265,8 +9170,20 @@ by RBPBench (rbpbench batch --report):
             data_idx += 1
         # mdtext += "\n&nbsp;\n"
 
-    mdtext += "\nUsed motif database = %s. FIMO p-value threshold (--fimo-pval) = %s.\n" %(motif_db_str, str(fimo_pval))
+    if args.run_goa:
+        mdtext += "- [GO enrichment analysis results](#goa-results)\n"
+
+    add_head_info = ""
+    if args.bed_sc_thr is not None:
+        add_head_info = " BED score threshold (--bed-sc-thr) = %s" %(str(args.bed_sc_thr))
+        if args.bed_sc_thr_rev_filter:
+            add_head_info += " (reverse filtering applied, i.e., the lower the better)."
+        else:
+            add_head_info += "."
+
+    mdtext += "\nUsed motif database = %s. FIMO p-value threshold (--fimo-pval) = %s.%s Region extension (upstream, downstream) = (%i, %i).\n" %(args.motif_db_str, str(args.fimo_pval), add_head_info, args.ext_up, args.ext_down)
     mdtext += "\n&nbsp;\n"
+
 
     """
     Input sequence stats table.
@@ -5278,25 +9195,57 @@ by RBPBench (rbpbench batch --report):
         dataset_id_format = "rbp_id,motif_database_id,method_id,data_id"
 
     seq_stats_info = ""
-    if unstranded and not unstranded_ct:
+    if args.unstranded and not args.unstranded_ct:
         seq_stats_info = "--unstranded option selected, i.e., both strands of a region are included in the length statistics, but the two strands are counted as one region."
-    elif unstranded and unstranded_ct:
+    elif args.unstranded and args.unstranded_ct:
         seq_stats_info = "--unstranded and --unstranded-ct options selected, i.e., both strands of a region are included in the length statistics, and each strand counts as separate region."
+
 
     mdtext += """
 ## Input datasets sequence length statistics ### {#seq-len-stats}
 
 **Table:** Sequence length statistics of input datasets.
+Sequence length in nt.
 Input dataset ID format: %s. %s
 
 """ %(dataset_id_format, seq_stats_info)
 
     # return [nr_seqs, seq_len_mean, seq_len_median, seq_len_q1, seq_len_q3, seq_len_min, seq_len_max]
 
-    mdtext += '| Dataset ID | # input regions | mean length | median length | Q1 percentile | Q3 percentile | min length | max length |' + " \n"
-    mdtext += '| :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |' + " \n"
+    # mdtext += '| Dataset ID | # input regions | mean length | median length | Q1 percentile | Q3 percentile | min length | max length |' + " \n"
+    # mdtext += '| :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |' + " \n"
+
+    mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+    mdtext += "<thead>\n"
+    mdtext += "<tr>\n"
+    mdtext += "<th>Dataset ID</th>\n"
+    mdtext += "<th># input regions</th>\n"
+    mdtext += "<th>mean length</th>\n"
+    mdtext += "<th>median length</th>\n"
+    mdtext += "<th>Q1 percentile</th>\n"
+    mdtext += "<th>Q3 percentile</th>\n"
+    mdtext += "<th>min length</th>\n"
+    mdtext += "<th>max length</th>\n"
+    mdtext += "</tr>\n"
+    mdtext += "</thead>\n"
+    mdtext += "<tbody>\n"
+
     for seq_len_stats in seq_len_stats_ll:
-        mdtext += "| %s | %i | %.1f | %.1f | %.1f | %.1f | %i | %i |\n" %(seq_len_stats[0], seq_len_stats[1], seq_len_stats[2], seq_len_stats[3], seq_len_stats[4], seq_len_stats[5], seq_len_stats[6], seq_len_stats[7])
+        # mdtext += "| %s | %i | %.1f | %.1f | %.1f | %.1f | %i | %i |\n" %(seq_len_stats[0], seq_len_stats[1], seq_len_stats[2], seq_len_stats[3], seq_len_stats[4], seq_len_stats[5], seq_len_stats[6], seq_len_stats[7])
+        mdtext += "<tr>\n"
+        mdtext += "<td>%s</td>\n" %(seq_len_stats[0])
+        mdtext += "<td>%i</td>\n" %(seq_len_stats[1])
+        mdtext += "<td>%.1f</td>\n" %(seq_len_stats[2])
+        mdtext += "<td>%.1f</td>\n" %(seq_len_stats[3])
+        mdtext += "<td>%.1f</td>\n" %(seq_len_stats[4])
+        mdtext += "<td>%.1f</td>\n" %(seq_len_stats[5])
+        mdtext += "<td>%i</td>\n" %(seq_len_stats[6])
+        mdtext += "<td>%i</td>\n" %(seq_len_stats[7])
+        mdtext += "</tr>\n"
+    
+    mdtext += "</tbody>\n"
+    mdtext += "</table>\n"
+
     # mdtext += "\n&nbsp;\n&nbsp;\n"
     mdtext += "\n&nbsp;\n"
 
@@ -5316,9 +9265,186 @@ Input dataset ID format: %s. %s
     # mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
     # mdtext += "\n&nbsp;\n"
 
+    if ei_ol_stats_dic:
+
+        perc_min_overlap = round(args.gtf_eib_min_overlap * 100, 1)
+        ib_len =  args.gtf_intron_border_len
+        eib_len = args.ei_border_len
+
+        mdtext += """
+## Input datasets exon-intron overlap statistics ### {#ei-ol-stats}
+
+**Table:** Exon, intron + border region overlap statistics for each input dataset.
+Minimum overlap with exon/intron region for input region to be counted as overlapping = %s%%.
+Considered intron border region length = %i nt. Considered exon-intron border region = +/- %i nt relative to border.
+%s
+
+""" %(str(perc_min_overlap), ib_len, eib_len, seq_stats_info)
+
+
+        mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>Dataset ID</th>\n"
+        mdtext += "<th># input regions</th>\n"
+        mdtext += "<th>% exon regions</th>\n"
+        mdtext += "<th>% intron regions</th>\n"
+        mdtext += "<th>% upstream intron border regions</th>\n"
+        mdtext += "<th>% downstream intron border regions</th>\n"
+        mdtext += "<th>% exon-intron border regions</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
+
+        # OUTEIB = open(eib_ol_table_out,"w")
+        # OUTEIB.write("dataset_id\tperc_exons\tperc_introns\tperc_us_ib\tperc_ds_ib\tperc_eib\tc_regions\tc_exon_sites\tc_intron_sites\tc_us_ib_sites\tc_ds_ib_sites\tc_eib_sites\tc_tr_ids\tc_tr_ids_with_sites\n")
+
+        for internal_id in ei_ol_stats_dic:
+            combined_id = internal_id
+            rbp_id = id2infos_dic[internal_id][0]
+            data_id = id2infos_dic[internal_id][1]
+            method_id = id2infos_dic[internal_id][2]
+            database_id = id2infos_dic[internal_id][3]
+            if add_motif_db_info:
+                combined_id = rbp_id + "," + database_id + "," + method_id + "," + data_id
+            else:
+                combined_id = rbp_id + "," + method_id + "," + data_id
+
+            ei_ol_stats = ei_ol_stats_dic[internal_id]
+            exon_sites_perc = 0.0
+            if ei_ol_stats.c_exon_sites and ei_ol_stats.c_input_sites:
+                exon_sites_perc = round(ei_ol_stats.c_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
+            intron_sites_perc = 0.0
+            if ei_ol_stats.c_intron_sites and ei_ol_stats.c_input_sites:
+                intron_sites_perc = round(ei_ol_stats.c_intron_sites / ei_ol_stats.c_input_sites * 100, 1)
+            us_ib_sites_perc = 0.0
+            if ei_ol_stats.c_us_ib_sites and ei_ol_stats.c_input_sites:
+                us_ib_sites_perc = round(ei_ol_stats.c_us_ib_sites / ei_ol_stats.c_input_sites * 100, 1)
+            ds_ib_sites_perc = 0.0
+            if ei_ol_stats.c_ds_ib_sites and ei_ol_stats.c_input_sites:
+                ds_ib_sites_perc = round(ei_ol_stats.c_ds_ib_sites / ei_ol_stats.c_input_sites * 100, 1)
+            eib_sites_perc = 0.0
+            if ei_ol_stats.c_eib_sites and ei_ol_stats.c_input_sites:
+                eib_sites_perc = round(ei_ol_stats.c_eib_sites / ei_ol_stats.c_input_sites * 100, 1)
+        
+            mdtext += "<tr>\n"
+            mdtext += "<td>%s</td>\n" %(combined_id)
+            mdtext += "<td>%i</td>\n" %(ei_ol_stats.c_input_sites)
+            mdtext += "<td>%.1f</td>\n" %(exon_sites_perc)
+            mdtext += "<td>%.1f</td>\n" %(intron_sites_perc)
+            mdtext += "<td>%.1f</td>\n" %(us_ib_sites_perc)
+            mdtext += "<td>%.1f</td>\n" %(ds_ib_sites_perc)
+            mdtext += "<td>%.1f</td>\n" %(eib_sites_perc)
+            mdtext += "</tr>\n"
+
+        mdtext += "</tbody>\n"
+        mdtext += "</table>\n"
+
+        mdtext += "\n&nbsp;\n&nbsp;\n"
+        mdtext += "\nColumn IDs have the following meanings: "
+        mdtext += "**Dataset ID** -> Dataset ID for input dataset with following format: %s, " %(dataset_id_format)
+        mdtext += '**# input regions** -> number of considered input regions from input dataset, '
+        mdtext += '**% exon regions** -> % of input regions overlapping with exon regions, '
+        mdtext += '**% intron regions** -> % of input regions overlapping with intron regions, '
+        mdtext += '**%% upstream intron border regions** -> %% of input regions overlapping with upstream ends of intron regions (first %i nt), ' %(ib_len)
+        mdtext += '**%% downstream intron border regions** -> %% of input regions overlapping with downstream ends of intron regions (last %i nt), ' %(ib_len)
+        mdtext += '**%% exon-intron border regions** -> %% of input regions overlapping with exon-intron borders (+/- %i nt of exon-intron borders). ' %(eib_len)
+        mdtext += "Note that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered. " %(2*ib_len, ib_len)
+        mdtext += "Also note that the overlap is calculated between (optionally extended) input regions and transcript regions (one representative transcript, i.e., transcript with highest experimental support, chosen for each gene region, unless --tr-list provided). "
+        mdtext += "Thus, depending on set parameters (minimum overlap amount etc.) and characteristics of input dataset, exon/intron overlap can vary or even be relatively low.\n"
+        mdtext += "\n&nbsp;\n"
 
 
 
+    """
+
+Also note that the overlap is calculated between (optionally extended) input regions and transcript regions 
+(one representative transcript, i.e., transcript with highest experimental support, chosen for each gene region, unless --tr-list provided). 
+Thus, depending on set parameters (minimum overlap amount etc.) and characteristics of input dataset, 
+exon/intron overlap can vary or even be relatively low.
+
+
+    Input datasets RBP region score motif enrichment statistics.
+
+    Format:
+    id2motif_enrich_stats_dic[internal_id] = [c_reg_with_hits, perc_reg_with_hits, c_uniq_motif_hits, wc_pval]
+
+
+    """
+
+    # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
+    wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low p-values mean hit-containing regions have significantly higher scores."
+    wrs_mode_info2 = "higher"
+    if args.wrs_mode == 2:
+        wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low p-values mean hit-containing regions have significantly lower scores."
+        wrs_mode_info2 = "lower"
+
+    if id2motif_enrich_stats_dic:
+
+        mdtext += """
+## Input datasets region score motif enrichment statistics ### {#motif-enrich-stats}
+
+**Table:** Input datasets region score motif enrichment statistics for all input datasets.
+For each input dataset, consisting of a set of genomic regions with associated scores (set BED score column via --bed-score-col),
+RBPbench checks whether regions with RBP motif hits have significantly different scores compared to regions without hits.
+%s
+In other words, a low test p-value for a given dataset indicates 
+that %s-scoring regions are more likely to contain RBP motif hits.
+NOTE that if scores associated to input genomic regions are all the same, p-values become meaningless 
+(i.e., they result in p-values of 1.0).
+By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
+
+""" %(wrs_mode_info1, wrs_mode_info2)
+
+        mdtext += '<table style="max-width: 1000px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>Dataset ID</th>\n"
+        mdtext += "<th># hit regions</th>\n"
+        mdtext += "<th>% hit regions</th>\n"
+        mdtext += "<th># motif hits</th>\n"
+        mdtext += "<th>p-value</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
+
+        pval_dic = {}
+        for internal_id in id2motif_enrich_stats_dic:
+            wc_pval = id2motif_enrich_stats_dic[internal_id][3]
+            pval_dic[internal_id] = wc_pval
+
+        for internal_id, wc_pval in sorted(pval_dic.items(), key=lambda item: item[1], reverse=False):
+
+            rbp_id = id2infos_dic[internal_id][0]
+            data_id = id2infos_dic[internal_id][1]
+            method_id = id2infos_dic[internal_id][2]
+            database_id = id2infos_dic[internal_id][3]
+            combined_id = rbp_id + "," + method_id + "," + data_id
+
+            c_hit_reg = id2motif_enrich_stats_dic[internal_id][0]
+            perc_hit_reg = id2motif_enrich_stats_dic[internal_id][1]
+            c_uniq_motif_hits = id2motif_enrich_stats_dic[internal_id][2]
+
+            mdtext += '<tr>' + "\n"
+            mdtext += "<td>" + combined_id + "</td>\n"
+            mdtext += "<td>" + str(c_hit_reg) + "</td>\n"
+            mdtext += "<td>%.2f" %(perc_hit_reg) + "</td>\n"
+            mdtext += "<td>" + str(c_uniq_motif_hits) + "</td>\n"
+            mdtext += "<td>" + str(wc_pval) + "</td>\n"
+            mdtext += '</tr>' + "\n"
+
+        mdtext += "</tbody>\n"
+        mdtext += "</table>\n"
+        
+        mdtext += "\n&nbsp;\n&nbsp;\n"
+        mdtext += "\nColumn IDs have the following meanings: "
+        mdtext += "**Dataset ID** -> Dataset ID with following format: %s, " %(dataset_id_format)
+        mdtext += '**# regions** -> number of input genomic regions in dataset (after filtering and optional extension), '
+        mdtext += '**# hit regions** -> number of input genomic regions with motif hits (after filtering and optional extension), '
+        mdtext += '**% hit regions** -> percentage of motif hit regions over all regions (i.e., how many input regions contain >= 1 RBP motif hit), '
+        mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
+        mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
+        mdtext += "\n&nbsp;\n"
 
 
     """
@@ -5328,19 +9454,13 @@ Input dataset ID format: %s. %s
 
     if id2regex_stats_dic:
 
-        # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
-        wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low p-values mean regex-containing regions have significantly higher scores."
-        wrs_mode_info2 = "higher"
-        if wrs_mode == 2:
-            wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low p-values mean regex-containing regions have significantly lower scores."
-            wrs_mode_info2 = "lower"
 
         mdtext += """
-## Regular expression motif enrichment statistics ### {#regex-enrich-stats}
+## Regular expression region score motif enrichment statistics ### {#regex-enrich-stats}
 
-**Table:** Regular expression (regex) '%s' motif enrichment statistics for all input datasets.
+**Table:** Regular expression (regex) '%s' region score motif enrichment statistics for all input datasets.
 For each input dataset, consisting of a set of genomic regions with associated scores (set BED score column via --bed-score-col),
-RBPbench checks whether regex-containing regions have significantly different scores compared to regions without regex hits.
+RBPbench checks whether regions containing regex hits have significantly different scores compared to regions without regex hits.
 %s
 In other words, a low test p-value for a given dataset indicates 
 that %s-scoring regions are more likely to contain regex hits.
@@ -5348,10 +9468,23 @@ NOTE that if scores associated to input genomic regions are all the same, p-valu
 (i.e., they result in p-values of 1.0).
 By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
 
-""" %(regex, wrs_mode_info1, wrs_mode_info2)
+""" %(args.regex, wrs_mode_info1, wrs_mode_info2)
 
-        mdtext += '| Dataset ID  | # regions | # hit regions | % hit regions | # regex hits | p-value |' + " \n"
-        mdtext += '| :-: | :-: | :-: | :-: | :-: | :-: |' + " \n"
+        # mdtext += '| Dataset ID  | # regions | # hit regions | % hit regions | # regex hits | p-value |' + " \n"
+        # mdtext += '| :-: | :-: | :-: | :-: | :-: | :-: |' + " \n"
+
+        mdtext += '<table style="max-width: 1000px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>Dataset ID</th>\n"
+        mdtext += "<th># regions</th>\n"
+        mdtext += "<th># hit regions</th>\n"
+        mdtext += "<th>% hit regions</th>\n"
+        mdtext += "<th># regex hits</th>\n"
+        mdtext += "<th>p-value</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
 
         for internal_id in id2regex_stats_dic:
             rbp_id = id2infos_dic[internal_id][0]
@@ -5371,7 +9504,19 @@ By default, BED genomic regions input file column 5 is used as the score column 
             perc_hit_reg = (c_regex_hit_reg / c_all_set_reg) * 100
             perc_hit_reg = str(round(perc_hit_reg, 2))
 
-            mdtext += "| %s | %i | %i | %s | %i | %s |\n" %(combined_id, c_all_set_reg, c_regex_hit_reg, perc_hit_reg, c_uniq_regex_hits, str(wc_pval))
+            # mdtext += "| %s | %i | %i | %s | %i | %s |\n" %(combined_id, c_all_set_reg, c_regex_hit_reg, perc_hit_reg, c_uniq_regex_hits, str(wc_pval))
+
+            mdtext += "<tr>\n"
+            mdtext += "<td>%s</td>\n" %(combined_id)
+            mdtext += "<td>%i</td>\n" %(c_all_set_reg)
+            mdtext += "<td>%i</td>\n" %(c_regex_hit_reg)
+            mdtext += "<td>%s</td>\n" %(perc_hit_reg)
+            mdtext += "<td>%i</td>\n" %(c_uniq_regex_hits)
+            mdtext += "<td>%s</td>\n" %(str(wc_pval))
+            mdtext += "</tr>\n"
+
+        mdtext += "</tbody>\n"
+        mdtext += "</table>\n"
 
         mdtext += "\n&nbsp;\n&nbsp;\n"
         mdtext += "\nColumn IDs have the following meanings: "
@@ -5393,9 +9538,9 @@ By default, BED genomic regions input file column 5 is used as the score column 
 
         # Inform about set alterntive hypothesis for Fisher exact test on regex RBP motif co-occurrences.
         fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., low p-values mean that regex and RBP motifs have significantly high co-occurrence."
-        if fisher_mode == 2:
+        if args.fisher_mode == 2:
             fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'two-sided', i.e., low p-values mean that regex and RBP motifs have significantly high or low co-occurrence."
-        elif fisher_mode == 3:
+        elif args.fisher_mode == 3:
             fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., low p-values mean that regex and RBP motifs have significantly low co-occurrence."
 
         mdtext += """
@@ -5408,10 +9553,22 @@ counts (i.e., number of genomic regions with/without shared motif hits)
 between regex and RBP motif(s) for each dataset.
 %s
 
-""" %(regex, fisher_mode_info)
+""" %(args.regex, fisher_mode_info)
 
-        mdtext += '| Dataset ID  | contingency table | avg min distance | perc close hits |  p-value |' + " \n"
-        mdtext += '| :-: | :-: | :-: | :-: | :-: |' + " \n"
+        # mdtext += '| Dataset ID  | contingency table | avg min distance | perc close hits |  p-value |' + " \n"
+        # mdtext += '| :-: | :-: | :-: | :-: | :-: |' + " \n"
+
+        mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>Dataset ID</th>\n"
+        mdtext += "<th>contingency table</th>\n"
+        mdtext += "<th>avg min distance</th>\n"
+        mdtext += "<th>% close hits</th>\n"
+        mdtext += "<th>p-value</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
 
         for internal_id in id2regex_stats_dic:
             rbp_id = id2infos_dic[internal_id][0]
@@ -5428,9 +9585,22 @@ between regex and RBP motif(s) for each dataset.
             if add_motif_db_info:
                 combined_id = rbp_id + "," + database_id + "," + method_id + "," + data_id
 
-            mdtext += "| %s | %s | %s | %s | %s |\n" %(combined_id, cont_table, avg_min_dist, perc_close_hits, fisher_pval)
+            # mdtext += "| %s | %s | %s | %s | %s |\n" %(combined_id, cont_table, avg_min_dist, perc_close_hits, fisher_pval)
 
+            mdtext += "<tr>\n"
+            mdtext += "<td>%s</td>\n" %(combined_id)
+            mdtext += "<td>%s</td>\n" %(cont_table)
+            mdtext += "<td>%s</td>\n" %(avg_min_dist)
+            mdtext += "<td>%s</td>\n" %(perc_close_hits)
+            mdtext += "<td>%s</td>\n" %(fisher_pval)
+            mdtext += "</tr>\n"
+
+        mdtext += "</tbody>\n"
+        mdtext += "</table>\n"
+        
         mdtext += "\n&nbsp;\n&nbsp;\n"
+
+        perc_sign = "%"
 
         mdtext += """
 
@@ -5443,20 +9613,12 @@ B: NOT regex AND RBP
 C: regex AND NOT RBP
 D: NOT regex AND NOT RBP. 
 **avg min distance** -> Mean minimum distance of regex and RBP motif hits (mean over all regions containing regex + RBP motif hits).
-**perc close hits** -> Over all regions containing regex and RBP motif hit pairs, percentage of regions where regex + RBP motif hits are within %i nt distance (set via --max-motif-dist).
+**%s close hits** -> Over all regions containing regex and RBP motif hit pairs, percentage of regions where regex + RBP motif hits are within %i nt distance (set via --max-motif-dist).
 **p-value** -> Fisher's exact test p-value (calculated based on contingency table).
 
 &nbsp;
 
-""" %(dataset_id_format, max_motif_dist)
-
-
-
-
-
-
-
-
+""" %(dataset_id_format, perc_sign, args.max_motif_dist)
 
 
 
@@ -5482,7 +9644,7 @@ D: NOT regex AND NOT RBP.
 
         plot_path = plots_folder + "/" + kmer_comp_plot_plotly
 
-        if plotly_js_mode in [5, 6, 7]:
+        if args.plotly_js_mode in [5, 6, 7]:
             # Read in plotly code.
             # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
             js_code = read_file_content_into_str_var(kmer_comp_plot_plotly_out)
@@ -5506,7 +9668,7 @@ Input dataset IDs (show via hovering over data points) have following format: %s
 
 &nbsp;
 
-""" %(kmer_size, dataset_id_format)
+""" %(args.kmer_size, dataset_id_format)
 
     else:
         mdtext += """
@@ -5516,7 +9678,6 @@ No plot generated since < 4 datasets were provided.
 &nbsp;
 
 """
-
 
 
 
@@ -5552,7 +9713,7 @@ No plot generated since < 4 datasets were provided.
 
             plot_path = plots_folder + "/" + occ_comp_plot_plotly
 
-            if plotly_js_mode in [5, 6, 7]:
+            if args.plotly_js_mode in [5, 6, 7]:
                 # Read in plotly code.
                 # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
                 js_code = read_file_content_into_str_var(occ_comp_plot_plotly_out)
@@ -5604,7 +9765,8 @@ No plot generated since < 4 datasets were provided.
 """
 
         # Get tables for plotting heatmap.
-        df_gene_cooc, gene_cooc_lll = get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic)
+        df_gene_cooc, gene_cooc_lll = get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic,
+                                                               optimal_ordering=heatmap_cluster_olo)
 
         cooc_plot_plotly =  "gene_occ_cooc_heatmap.plotly.html"
         cooc_plot_plotly_out = plots_out_folder + "/" + cooc_plot_plotly
@@ -5616,7 +9778,7 @@ No plot generated since < 4 datasets were provided.
 
         plot_path = plots_folder + "/" + cooc_plot_plotly
 
-        if plotly_js_mode in [5, 6, 7]:
+        if args.plotly_js_mode in [5, 6, 7]:
             # Read in plotly code.
             # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
             js_code = read_file_content_into_str_var(cooc_plot_plotly_out)
@@ -5663,22 +9825,6 @@ resulting in a vector of 1s and 0s for each RBP, which is then used to construct
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     """
     Input datasets region annotations comparative plot.
 
@@ -5692,6 +9838,12 @@ resulting in a vector of 1s and 0s for each RBP, which is then used to construct
 ## Input datasets genomic region annotations comparative plot ### {#annot-comp-plot}
 
 """
+        # If --regex + --gtf given, regex_annot_dic contains regex hit region annotations.
+        regex_info = ""
+        if regex_annot_dic:
+            for annot in regex_annot_dic:
+                if annot not in annot_dic:
+                    annot_dic[annot] = 1
 
         annot_ids_list = []
         for annot in sorted(annot_dic, reverse=True):
@@ -5722,6 +9874,24 @@ resulting in a vector of 1s and 0s for each RBP, which is then used to construct
             annot_freqs_ll.append(annot_freqs_list)
             annot_dataset_ids_list.append(dataset_id)
 
+        if regex_annot_dic:
+            dataset_id = "regex:" + args.regex
+            regex_info = " Genomic region annotations for regex hit regions (regex: %s) in all input datasets are also included." %(args.regex)
+
+            annot_freqs_list = []
+            sum_annot = 0
+
+            for annot in sorted(annot_dic, reverse=True):
+                c_annot = 0
+                if annot in regex_annot_dic:
+                    c_annot = regex_annot_dic[annot]
+                annot_freqs_list.append(c_annot)
+                sum_annot += c_annot
+            
+            annot_freqs_list = [x/sum_annot for x in annot_freqs_list]
+            annot_freqs_ll.append(annot_freqs_list)
+            annot_dataset_ids_list.append(dataset_id)
+
         if len(annot_dataset_ids_list) > 2:
 
             annot_comp_plot_plotly =  "gen_annot_comparative_plot.plotly.html"
@@ -5735,7 +9905,7 @@ resulting in a vector of 1s and 0s for each RBP, which is then used to construct
 
             plot_path = plots_folder + "/" + annot_comp_plot_plotly
 
-            if plotly_js_mode in [5, 6, 7]:
+            if args.plotly_js_mode in [5, 6, 7]:
                 # Read in plotly code.
                 # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
                 js_code = read_file_content_into_str_var(annot_comp_plot_plotly_out)
@@ -5755,11 +9925,11 @@ resulting in a vector of 1s and 0s for each RBP, which is then used to construct
 
 **Figure:** Comparison of input datasets, using genomic region annotations from GTF file of input regions as features, 
 to show similarities between input datasets based on similar genomic region occupancy (see detailed annotations for each input dataset below).
-Input dataset IDs (show via hovering over data points) have following format: %s.
+Input dataset IDs (show via hovering over data points) have following format: %s.%s
 
 &nbsp;
 
-""" %(dataset_id_format)
+""" %(dataset_id_format, regex_info)
 
         else:
             mdtext += """
@@ -5769,20 +9939,6 @@ No plot generated since < 4 datasets were provided.
 &nbsp;
 
 """
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
     """
@@ -5832,7 +9988,8 @@ No plot generated since no regions for plotting.
                 # print(reg2annot_dic)
 
                 create_batch_annotation_stacked_bars_plot(internal_id, id2infos_dic, id2reg_annot_dic, id2hit_reg_annot_dic,
-                                                          annot2color_dic, annot_stacked_bars_plot_out)
+                                                          annot2color_dic, annot_stacked_bars_plot_out,
+                                                          plot_pdf=args.plot_pdf)
 
                 plot_path = plots_folder + "/" + annot_stacked_bars_plot
 
@@ -5855,6 +10012,143 @@ is assigned to each input region. "intergenic" feature means none of the used GT
 
 
 
+    """
+    GOA results.
+
+    """
+
+    if args.run_goa:
+
+        mdtext += """
+## GO enrichment analysis results ### {#goa-results}
+
+"""
+        c_goa_results = 0
+        if isinstance(goa_results_df, pd.DataFrame) and not goa_results_df.empty:
+            c_goa_results = len(goa_results_df)
+
+        filter_purified_info = " GO terms with significantly higher and lower concentration ([e,p]) in study group are shown."
+        filter_purified_info2 = "significant"
+        if args.goa_filter_purified:
+            filter_purified_info = " Only GO terms with significantly higher concentration in study group are shown."
+            filter_purified_info2 = "significantly enriched"
+            c_goa_results = len(goa_results_df[goa_results_df["enrichment"] == "e"])
+        filter_further_info = ""
+        if args.goa_max_child is not None: 
+            filter_further_info += " Only GO terms with <= %i children are shown." %(args.goa_max_child)
+        if args.goa_min_depth is not None:
+            filter_further_info += " Only GO terms with >= %i depth are shown." %(args.goa_min_depth)
+        if filter_further_info:
+            filter_further_info += " Note that additional filters (children + depth) can result in an empty table. For all significant GO terms (i.e., unfiltered results) check *goa_results.tsv* output table."
+        filter_only_cooc_info = "Only target genes are considered which are covered by regions from all input datasets."
+        if args.goa_only_cooc:
+            filter_only_cooc_info = " Only target genes are considered which are covered by regions with motif hits from all input datasets (--goa-only-cooc enabled)."
+
+        if c_goa_results > 0:
+
+            mdtext += """
+**Table:** GO enrichment analysis results. # of %s GO terms found: %i. Filter p-value threshold (on corrected p-value) = %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
+%s %s %s
+
+""" %(filter_purified_info2, c_goa_results, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"], filter_only_cooc_info, filter_purified_info, filter_further_info)
+
+            mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.9;">' + "\n"
+            mdtext += "<thead>\n"
+            mdtext += "<tr>\n"
+            mdtext += "<th>GO</th>\n"
+            mdtext += "<th>Term</th>\n"
+            mdtext += "<th>Class</th>\n"
+            mdtext += "<th>p-value</th>\n"
+            mdtext += "<th>[e,p]</th>\n"
+            mdtext += "<th>Depth</th>\n"
+            mdtext += "<th># child</th>\n"
+            mdtext += "<th># genes</th>\n"
+            mdtext += "<th># study</th>\n"
+            mdtext += "<th>% genes</th>\n"
+            mdtext += "</tr>\n"
+            mdtext += "</thead>\n"
+            mdtext += "<tbody>\n"
+
+            for index, row in goa_results_df.iterrows():
+
+                go_id = row['GO']
+                go_term = row['term']
+                go_class = row['class']
+                # go_p = row['p']
+                go_p_corr = row['p_corr']
+                go_enrichment = row['enrichment']
+                go_depth = row['depth']
+                go_n_genes = row['n_genes']
+                go_n_study = row['n_study']
+                go_perc_genes = row['perc_genes']
+                go_n_children = row['n_children']
+
+                if args.goa_filter_purified:
+                    if go_enrichment == "p":
+                        continue
+
+                if args.goa_max_child is not None:
+                    if go_n_children > args.goa_max_child:
+                        continue
+                if args.goa_min_depth is not None:
+                    if go_depth < args.goa_min_depth:
+                        continue
+
+                mdtext += '<tr>' + "\n"
+                mdtext += "<td>" + go_id + "</td>\n"
+                mdtext += "<td>" + go_term + "</td>\n"
+                mdtext += "<td>" + go_class + "</td>\n"
+                mdtext += "<td>" + str(go_p_corr) + "</td>\n"
+                mdtext += "<td>" + go_enrichment + "</td>\n"
+                mdtext += "<td>" + str(go_depth) + "</td>\n"
+                mdtext += "<td>" + str(go_n_children) + "</td>\n"
+                mdtext += "<td>" + str(go_n_genes) + "</td>\n"
+                mdtext += "<td>" + str(go_n_study) + "</td>\n"
+                mdtext += "<td>" + str(go_perc_genes) + "</td>\n"
+                mdtext += '</tr>' + "\n"
+
+            mdtext += '</tbody>' + "\n"
+            mdtext += '</table>' + "\n"
+            
+            mdtext += "\n&nbsp;\n&nbsp;\n"
+            mdtext += "\nColumn IDs have the following meanings: "
+            mdtext += "**GO** -> gene ontology (GO) ID, "
+            mdtext += "**Term** -> GO term / name, "
+            mdtext += "**Class** -> GO term class (biological_process, molecular_function, or cellular_component), "
+            mdtext += "**p-value** -> multiple testing corrected (BH) p-value, "
+            mdtext += "**[e,p]** -> e: enriched, i.e., GO term with significantly higher concentration, p: purified, GO term with significantly lower concentration), "
+            mdtext += "**Depth** -> depth / level of GO term in GO hierarchy (the higher number, the more specific), "
+            mdtext += "**# child** -> number of GO term children, "
+            mdtext += "**# genes** -> number of genes associated with GO term, "
+            mdtext += "**# study** -> number of genes in study (i.e., target genes), "
+            mdtext += "**% genes** -> percentage of study genes associated with GO term." + "\n"
+            mdtext += "\n&nbsp;\n"
+
+        else:
+
+            if "c_target_genes_goa" in goa_stats_dic:
+
+                mdtext += """
+
+No %s GO terms found given p-value threshold of %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
+
+&nbsp;
+
+""" %(filter_purified_info2, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"])
+
+            else:
+
+                mdtext += """
+
+No significant GO terms found due to no GO IDs associated with target genes. # of initial target genes (i.e., genes overlapping with --in regions): %i.
+
+&nbsp;
+
+""" %(goa_stats_dic["c_target_genes_pre_filter"])
+
+
+
+
     # Convert mdtext to html.
     md2html = markdown(mdtext, extensions=['attr_list', 'tables'])
 
@@ -5869,10 +10163,15 @@ is assigned to each input region. "intergenic" feature means none of the used GT
     OUTHTML.close()
 
 
+
+
+
 ################################################################################
 
 def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic, 
                                 annot2color_dic, plot_out,
+                                same_y_scale=True,
+                                plot_pdf=False,
                                 rbp_id=False):
     """
     Create mRNA region occupancy stacked line plot for rbp_id and associated 
@@ -5888,10 +10187,15 @@ def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic,
     """
 
     datasets = {}
+    max_pos_count = 0  # Get maximum positional count.
     if rbp_id and len(motif_ids_list) > 1:
         datasets[rbp_id] = mrna_reg_occ_dic[rbp_id]
+        for mrna_reg in mrna_reg_occ_dic[rbp_id]:
+            max_pos_count = max(max_pos_count, max(mrna_reg_occ_dic[rbp_id][mrna_reg]))
     for motif_id in motif_ids_list:
         datasets[motif_id] = mrna_reg_occ_dic[motif_id]
+        for mrna_reg in mrna_reg_occ_dic[motif_id]:
+            max_pos_count = max(max_pos_count, max(mrna_reg_occ_dic[motif_id][mrna_reg]))
 
     # Number of datasets
     num_datasets = len(datasets)
@@ -5907,7 +10211,7 @@ def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic,
     cds_color = annot2color_dic["CDS"]
     utr3color = annot2color_dic["3'UTR"]
 
-    # Plot each dataset
+    # Plot each dataset. label: rbp_id/motif_id, data: positional counts list for each mRNA region.
     for ax, (label, data) in zip(axs, datasets.items()):
 
         # Concatenate data for plotting
@@ -5919,6 +10223,10 @@ def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic,
         ax.fill_between(x_positions[len(data["5'UTR"]):len(data["5'UTR"]) + len(data["CDS"])+1], all_counts[len(data["5'UTR"]):len(data["5'UTR"]) + len(data["CDS"])+1], color=cds_color, alpha=1, zorder=3)
         ax.fill_between(x_positions[-len(data["3'UTR"]):], all_counts[-len(data["3'UTR"]):], color=utr3color, alpha=1, zorder=3)
         
+        if same_y_scale:
+            if max_pos_count > 0:
+                ax.set_ylim(0, max_pos_count)
+
         # Use dataset ID as y-axis label
         # label_y = label + ' motif coverage'
         ax.set_ylabel(label)
@@ -5944,14 +10252,22 @@ def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic,
     # # Show plot
     # plt.show()
 
-    plt.savefig(plot_out, dpi=110, bbox_inches='tight')
+    if plot_pdf and plot_out.endswith('.png'):
+        pdf_out = plot_out[:-4] + '.pdf'
+        plt.savefig(pdf_out, dpi=110, bbox_inches='tight')
+
+    plt.savefig(plot_out, dpi=110, bbox_inches='tight')  # 110
     plt.close()
 
 
 ################################################################################
 
-def create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, annot2color_dic,
-                                        plot_out):
+def create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, 
+                                        annot2color_dic, plot_out,
+                                        x_label="Annotation overlap",
+                                        no_x_labels=False,
+                                        plot_pdf=False,
+                                        y_label=""):
     """
     Do the motif hit genomic region annotations stacked bars plot.
     Plot all bars in one plot, one for all rbp_id hits, and one for each motif_id hits. 
@@ -6009,11 +10325,15 @@ def create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, annot2col
 
     ax = df.set_index('rbp_id').plot(kind='barh', stacked=True, legend=False, color=annot2color_dic, edgecolor="none", figsize=(fwidth, fheight))
 
-    plt.xlabel('Annotation overlap')
-    ax.set_ylabel('')
+    plt.xlabel(x_label)
+    ax.set_ylabel(y_label)
     ax.yaxis.grid(False)
     ax.xaxis.grid(True)
     ax.set_axisbelow(True)
+
+    if no_x_labels:
+        ax.set_xticklabels([])
+        ax.tick_params(axis='x', which='both', bottom=False, top=False)
 
     # Remove border lines.
     ax.spines['top'].set_visible(False)
@@ -6024,6 +10344,10 @@ def create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, annot2col
     # plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.5)
     plt.legend(bbox_to_anchor=(1.01, 1), loc='upper left')
 
+    if plot_pdf and plot_out.endswith('.png'):
+        pdf_out = plot_out[:-4] + '.pdf'
+        plt.savefig(pdf_out, dpi=110, bbox_inches='tight')
+
     plt.savefig(plot_out, dpi=110, bbox_inches='tight')
     plt.close()
 
@@ -6031,7 +10355,8 @@ def create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, annot2col
 ################################################################################
 
 def create_batch_annotation_stacked_bars_plot(internal_id, id2infos_dic, id2reg_annot_dic, id2hit_reg_annot_dic,
-                                              annot2color_dic, plot_out):
+                                              annot2color_dic, plot_out,
+                                              plot_pdf=False):
     """
     Created stacked genomic region annotation plot.
 
@@ -6074,6 +10399,11 @@ def create_batch_annotation_stacked_bars_plot(internal_id, id2infos_dic, id2reg_
     plt.legend(bbox_to_anchor=(1.01, 1), loc='upper left')
 
     plt.savefig(plot_out, dpi=110, bbox_inches='tight')
+
+    if plot_pdf and plot_out.endswith('.png'):
+        pdf_out = plot_out[:-4] + '.pdf'
+        plt.savefig(pdf_out, dpi=110, bbox_inches='tight')
+
     plt.close()
 
 
@@ -6205,54 +10535,1943 @@ def get_sequence_length_statistics(seq_dic,
 
     return [nr_seqs, seq_len_mean, seq_len_median, seq_len_q1, seq_len_q3, seq_len_min, seq_len_max]
      
+################################################################################
+
+def get_motif_similarites_ll(motif_ids_list, motif_pair2sim_dic,
+                             min_max_norm=False):
+    """
+    Get motif similarities list of lists, in order of sorted motif IDs list.
+    So e.g. 3 motifs: A, B, C, then list of lists with entry format A-A: similarity of A with A, ...
+    [[A-A, A-B, A-C], [B-A, B-B, B-C], [C-A, C-B, C-C]]
+
+    motif_ids_list: list of motif IDs.
+    motif_pair2sim_dic format:
+    motif_pair2sim_dic[motif_id1 + "," + motif_id2] = sim_score
+
+    >>> motif_ids_list = ["A", "B"]
+    >>> motif_pair2sim_dic = {"A,A": 1.0, "A,B": 0.6, "B,A": 0.6, "B,B": 1.0}
+    >>> get_motif_similarites_ll(motif_ids_list, motif_pair2sim_dic)
+    [[1.0, 0.6], [0.6, 1.0]]
+
+    """
+    assert motif_ids_list, "motif_ids_list empty"
+    assert motif_pair2sim_dic, "motif_pair2sim_dic empty"
+
+    motif_sim_ll = []
+
+    # Sort motif IDs list.
+    motif_ids_list.sort()
+    for m1 in motif_ids_list:
+        motif_sim_list = []
+        for m2 in motif_ids_list:
+            m1m2_id = m1 + "," + m2
+            assert m1m2_id in motif_pair2sim_dic, "no similarity score stored for motif pair %s" %(m1m2_id)
+            m1m2_sim = motif_pair2sim_dic[m1m2_id]
+            motif_sim_list.append(m1m2_sim)
+        motif_sim_ll.append(motif_sim_list)
+
+    if min_max_norm:
+        motif_sim_ll = min_max_normalize_list_of_lists(motif_sim_ll)
+
+    return motif_sim_ll
+
 
 ################################################################################
 
-def search_generate_html_report(df_pval, pval_cont_lll,
+def min_max_normalize_list_of_lists(in_ll):
+    """
+    Min-max normalize list of lists (i.e. 2d list of numeric values).
+
+    >>> in_ll = [[0, 1, 2], [3, 4, 5], [6, 7, 10]]
+    >>> min_max_normalize_list_of_lists(in_ll)
+    [[0.0, 0.1, 0.2], [0.3, 0.4, 0.5], [0.6, 0.7, 1.0]]
+
+    """
+    assert in_ll, "input list of lists empty"
+
+    min_val = 1000000
+    max_val = -1000000
+    for l in in_ll:
+        for v in l:
+            if v < min_val:
+                min_val = v
+            if v > max_val:
+                max_val = v
+
+    out_ll = []
+    for l in in_ll:
+        out_l = []
+        for v in l:
+            out_v = (v - min_val) / (max_val - min_val)
+            out_l.append(out_v)
+        out_ll.append(out_l)
+        
+    return out_ll
+
+
+################################################################################
+
+def enmo_generate_html_report(args,
+                              motif_enrich_stats_dic,
+                              seq_motif_blocks_dic,
+                              benchlib_path,
+                              df_pval=False, 
+                              pval_cont_lll=False,
+                              motif_pair2sim_dic=False,
+                              pos_seqs_dic=False,
+                              neg_seqs_dic=False,
+                              pos_reg2annot_dic=False,
+                              neg_reg2annot_dic=False,
+                              annot2color_dic=False,
+                              plotly_full_html=False,
+                              plotly_embed_style=1,
+                              rbpbench_mode="search --report",
+                              html_report_out="report.rbpbench_enmo.html",
+                              plots_subfolder="html_report_plots"):
+
+    """
+    Create motif enrichment statistics / plots (enmo mode).
+
+    """
+
+    # Use absolute paths?
+    out_folder = args.out_folder
+    if args.plot_abs_paths:
+        out_folder = os.path.abspath(out_folder)
+    
+    plots_folder = plots_subfolder
+    plots_out_folder = out_folder + "/" + plots_folder
+    if args.plot_abs_paths:
+        plots_folder = plots_out_folder
+
+    # Delete folder if already present.
+    if os.path.exists(plots_out_folder):
+        shutil.rmtree(plots_out_folder)
+    os.makedirs(plots_out_folder)
+
+    html_out = out_folder + "/" + "report.rbpbench_enmo.html"
+    md_out = out_folder + "/" + "report.rbpbench_enmo.md"
+    if html_report_out:
+        html_out = html_report_out
+
+    # Number of input + background regions/sites.
+    c_input_sites = args.c_input_sites
+    c_bg_sites = args.c_bg_sites
+    
+    site_type_uc = "Genomic"
+    site_type = "genomic"
+    if not args.genomic_sites_input:
+        site_type_uc = "Transcript"
+        site_type = "transcript"
+
+    regex_motif_info = ""
+    # if args.regex:
+    #     regex_motif_info = "Used regex motif: '%s'." %(args.regex)
+
+    report_header_info = "Motif enrichment report"
+    if args.report_header:
+        report_header_info = "RBPBench motif enrichment report"
+
+    """
+    Setup plotly .js to support plotly plots.
+
+    """
+
+    include_plotlyjs = "cdn"
+    # plotly_full_html = False
+    plotly_js_html = ""
+    plotly_js_path = benchlib_path + "/content/plotly-2.20.0.min.js"
+    assert os.path.exists(plotly_js_path), "plotly .js %s not found" %(plotly_js_path)
+    if args.plotly_js_mode == 2:
+        include_plotlyjs = plotly_js_path
+    elif args.plotly_js_mode == 3:
+        shutil.copy(plotly_js_path, plots_out_folder)
+        include_plotlyjs = "plotly-2.20.0.min.js" # Or plots_folder + "/plotly-2.20.0.min.js" ?
+    elif args.plotly_js_mode == 4:
+        include_plotlyjs = True
+        # plotly_full_html = False # Don't really need full html (head body ..) in plotly html.
+    elif args.plotly_js_mode == 5:
+        plotly_js_web = "https://cdn.plot.ly/plotly-2.25.2.min.js"
+        plotly_js_html = '<script src="' + plotly_js_web + '"></script>' + "\n"
+        include_plotlyjs = False
+        # plotly_full_html = True
+    elif args.plotly_js_mode == 6:
+        shutil.copy(plotly_js_path, plots_out_folder)
+        plotly_js = plots_folder + "/plotly-2.20.0.min.js"
+        plotly_js_html = '<script src="' + plotly_js + '"></script>' + "\n"
+        include_plotlyjs = False
+    elif args.plotly_js_mode == 7:
+        js_code = read_file_content_into_str_var(plotly_js_path)
+        plotly_js_html = "<script>\n" + js_code + "\n</script>\n"
+        include_plotlyjs = False
+        # plotly_full_html = True
+
+    """
+    Setup sorttable.js to make tables in HTML sortable.
+
+    """
+    sorttable_js_path = benchlib_path + "/content/sorttable.js"
+    assert os.path.exists(sorttable_js_path), "sorttable.js not at %s" %(sorttable_js_path)
+    sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    if args.sort_js_mode == 2:
+        shutil.copy(sorttable_js_path, plots_out_folder)
+        sorttable_js_path = plots_folder + "/sorttable.js"
+        sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    elif args.sort_js_mode == 3:
+        js_code = read_file_content_into_str_var(sorttable_js_path)
+        sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
+
+    # HTML head section.
+    html_head = """<!DOCTYPE html>
+<html>
+<head>
+<title>RBPBench - Motif Enrichment Report</title>
+%s
+
+<style>
+    th, td {
+        border: 1px solid black;
+        padding: 8px;
+        text-align: center;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+    .page {
+        page-break-after: always;
+    }
+</style>
+
+</head>
+<body>
+""" %(plotly_js_html)
+
+    # HTML tail section.
+    html_tail = """
+%s
+</body>
+</html>
+""" %(sorttable_js_html)
+
+    # Markdown part.
+    mdtext = """
+
+# %s
+
+List of available statistics and plots generated
+by RBPBench (rbpbench %s):
+
+- [Motif enrichment statistics](#enmo-stats)
+- [Motif co-occurrences heat map](#cooc-heat-map)
+- [Sequence motif similarity vs significance PCA plot](#motif-sim-sig-plot)""" %(report_header_info, rbpbench_mode)
+
+    mdtext += "\n"
+
+    if pos_reg2annot_dic or neg_reg2annot_dic:
+        mdtext += "- [Genomic region annotations](#reg-annot)\n"
+    if pos_seqs_dic and neg_seqs_dic:
+        mdtext += "- [k-mer distributions](#kmer-plotly)\n"
+
+    add_head_info = ""
+    if args.bed_sc_thr is not None:
+        add_head_info = " BED score threshold (--bed-sc-thr) = %s" %(str(args.bed_sc_thr))
+        if args.bed_sc_thr_rev_filter:
+            add_head_info += " (reverse filtering applied, i.e., the lower the better)."
+        else:
+            add_head_info += "."
+
+    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s.%s # of considered input regions = %i. Region extension (upstream, downstream) = (%i, %i).\n" %(str(args.fimo_pval), add_head_info, c_input_sites, args.ext_up, args.ext_down)
+    mdtext += "\n&nbsp;\n"
+
+
+    """
+    Motif enrichment statistics.
+
+    """
+
+    motif_add_info = "Enriched"
+    fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., significantly overrepresented motifs are reported."
+    if args.fisher_mode == 2:
+        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'two-sided', i.e., significantly over- and underrepresented motifs are reported."
+        motif_add_info = "Enriched and depleted"
+    elif args.fisher_mode == 3:
+        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., significantly underrepresented motifs are reported."
+        motif_add_info = "Depleted"
+
+    p_val_info = "P-values below %s are considered significant." %(str(args.enmo_pval_thr))
+    if args.enmo_pval_mode == 1:
+        p_val_info = "%s motifs with Benjamini-Hochberg multiple testing corrected p-values below %s are considered significant." %(motif_add_info, str(args.enmo_pval_thr))
+    elif args.enmo_pval_mode == 2:
+        p_val_info = "%s motifs with p-values below %s (p-value threshold Bonferroni multiple testing corrected) are considered significant." %(motif_add_info, str(args.enmo_pval_thr))
+    elif args.enmo_pval_mode == 3:
+        p_val_info = "%s motifs with p-values below %s are considered significant." %(motif_add_info, str(args.enmo_pval_thr))
+    else:
+        assert False, "Invalid motif enrichment p-value mode (--enmo-pval-mode) set: %i" %(args.enmo_pval_mode)
+
+    pval_dic = {}
+    c_sig_motifs = 0
+    sig_seq_motif_ids_list = []
+
+    for motif_id in motif_enrich_stats_dic:
+        pval = motif_enrich_stats_dic[motif_id].fisher_pval_corr
+        pval_dic[motif_id] = pval
+        if pval <= args.enmo_pval_thr:
+            c_sig_motifs += 1
+            if motif_enrich_stats_dic[motif_id].motif_type == "meme_xml":
+                sig_seq_motif_ids_list.append(motif_id)
+
+    sig_seq_motif_ids_list.sort()
+
+    mdtext += """
+## Motif enrichment statistics ### {#enmo-stats}
+
+**Table:** RBP binding motif enrichment statistics. # of significant motifs = %i. Enrichment is calculated by comparing motif occurrences in input and background dataset. 
+Based on the numbers of input and background sites with and without motif hits, 
+Fisher's exact test is used to assess the significance of motif enrichment.
+%s
+%s
+For full motif results list regardless of significance, see *motif_enrichment_stats.tsv* output table.
+%s
+
+""" %(c_sig_motifs, p_val_info, fisher_mode_info, regex_motif_info)
+
+    mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+    mdtext += "<thead>\n"
+    mdtext += "<tr>\n"
+    mdtext += "<th>RBP ID</th>\n"
+    mdtext += "<th>Motif ID</th>\n"
+    mdtext += "<th>Motif plot</th>\n"
+    mdtext += "<th># in hits</th>\n"
+    mdtext += "<th># bg hits</th>\n"
+    mdtext += "<th># in</th>\n"
+    mdtext += "<th># not in</th>\n"
+    mdtext += "<th># bg</th>\n"
+    mdtext += "<th># not bg</th>\n"
+    mdtext += "<th>p-value</th>\n"
+    mdtext += "</tr>\n"
+    mdtext += "</thead>\n"
+    mdtext += "<tbody>\n"
+
+    for motif_id, fisher_pval in sorted(pval_dic.items(), key=lambda item: item[1], reverse=False):
+
+        if fisher_pval > args.enmo_pval_thr:
+            break
+
+        rbp_id = motif_enrich_stats_dic[motif_id].rbp_id
+        c_pos_hits = motif_enrich_stats_dic[motif_id].c_pos_hits
+        c_neg_hits = motif_enrich_stats_dic[motif_id].c_neg_hits
+        c_pos_hit_regions = motif_enrich_stats_dic[motif_id].c_pos_hit_regions
+        c_neg_hit_regions = motif_enrich_stats_dic[motif_id].c_neg_hit_regions
+        c_pos_regions = motif_enrich_stats_dic[motif_id].c_pos_regions
+        c_neg_regions = motif_enrich_stats_dic[motif_id].c_neg_regions
+        a_con = c_pos_hit_regions
+        b_con = c_pos_regions - c_pos_hit_regions
+        c_con = c_neg_hit_regions
+        d_con = c_neg_regions - c_neg_hit_regions
+
+        plot_str = "-"
+
+        if motif_id in seq_motif_blocks_dic:
+
+            motif_plot = "%s.%s.png" %(rbp_id, motif_id)
+            motif_plot_out = plots_out_folder + "/" + motif_plot
+            plot_path = plots_folder + "/" + motif_plot
+
+            # Check if motif in motif plots folder.
+            motif_path = benchlib_path + "/content/motif_plots/%s" %(motif_plot)
+            if os.path.exists(motif_path):
+                shutil.copy(motif_path, motif_plot_out)
+                if args.plot_pdf:
+                    create_motif_plot(motif_id, seq_motif_blocks_dic,
+                                      motif_plot_out,
+                                      plot_pdf=True,
+                                      plot_png=False)
+
+            if not os.path.exists(motif_plot_out):
+                create_motif_plot(motif_id, seq_motif_blocks_dic,
+                                  motif_plot_out,
+                                  plot_pdf=args.plot_pdf,
+                                  plot_png=True)
+
+            plot_str = '<image src = "' + plot_path + '" width="300px"></image>'
+
+        mdtext += '<tr>' + "\n"
+        mdtext += "<td>" + rbp_id + "</td>\n"
+        mdtext += "<td>" + motif_id + "</td>\n"
+        mdtext += "<td>" + plot_str + "</td>\n"
+        mdtext += "<td>" + str(c_pos_hits) + "</td>\n"
+        mdtext += "<td>" + str(c_neg_hits) + "</td>\n"
+        mdtext += "<td>" + str(a_con) + "</td>\n"
+        mdtext += "<td>" + str(b_con) + "</td>\n"
+        mdtext += "<td>" + str(c_con) + "</td>\n"
+        mdtext += "<td>" + str(d_con) + "</td>\n"
+        mdtext += "<td>" + str(fisher_pval) + "</td>\n"
+        mdtext += '</tr>' + "\n"
+
+    mdtext += '</tbody>' + "\n"
+    mdtext += '</table>' + "\n"
+
+    mdtext += "\n&nbsp;\n&nbsp;\n"
+    mdtext += "\nColumn IDs have the following meanings: "
+    mdtext += "**RBP ID** -> RBP ID belonging to motif ID, "
+    mdtext += "**Motif ID** -> motif ID, "
+    mdtext += "**Motif plot** -> visualization of motif (sequence logo for sequence motifs, otherwise -), "
+    mdtext += '**# in hits** -> number of motif hits in input sites, '
+    mdtext += '**# bg hits** -> number of motif hits in background sites, '
+    mdtext += '**# in** -> number of input sites with motif hits, '
+    mdtext += '**# not in** -> number of input sites without motif hits, '
+    mdtext += '**# bg** -> number of background sites with motif hits, '
+    mdtext += '**# not bg** -> number of background sites without motif hits, '
+    mdtext += '**p-value** -> Fisher exact test p-value (corrected).' + "\n"
+    mdtext += "\n&nbsp;\n"
+
+
+    """
+    Motif co-occurrences heat map.
+
+    """
+
+    mdtext += """
+## Motif co-occurrences heat map ### {#cooc-heat-map}
+
+"""
+
+    if pval_cont_lll:
+
+        cooc_plot_plotly =  "co-occurrence_plot.plotly.html"
+        cooc_plot_plotly_out = plots_out_folder + "/" + cooc_plot_plotly
+
+        create_cooc_plot_plotly(df_pval, pval_cont_lll, cooc_plot_plotly_out,
+                                max_motif_dist=args.max_motif_dist,
+                                min_motif_dist=args.min_motif_dist,
+                                id1="Motif1",
+                                id2="Motif2",
+                                ids="Motifs",
+                                include_plotlyjs=include_plotlyjs,
+                                full_html=plotly_full_html)
+
+        plot_path = plots_folder + "/" + cooc_plot_plotly
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            # Read in plotly code.
+            # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+            js_code = read_file_content_into_str_var(cooc_plot_plotly_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:1200px; width:1200px;")
+            mdtext += js_code + "\n"
+            # mdtext += '</div>'
+        else:
+            if plotly_embed_style == 1:
+                # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                mdtext += "<div>\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1200" height="1200"></iframe>' + "\n"
+                mdtext += '</div>'
+            elif plotly_embed_style == 2:
+                mdtext += '<object data="' + plot_path + '" width="1200" height="1200"> </object>' + "\n"
+
+        p_val_info = "P-values below %s are considered significant." %(str(args.cooc_pval_thr))
+
+        min_motif_dist_info = ""
+        if args.min_motif_dist > 0:
+            min_motif_dist_info = " + a mean minimum motif distance >= %i nt " %(args.min_motif_dist)
+
+        if args.cooc_pval_mode == 1:
+            p_val_info = "Motif co-occurrences with Benjamini-Hochberg multiple testing corrected p-values below %s %sare considered significant." %(str(args.cooc_pval_thr), min_motif_dist_info)
+        elif args.cooc_pval_mode == 2:
+            p_val_info = "Motif co-occurrences with p-values below %s (p-value threshold Bonferroni multiple testing corrected) %sare considered significant." %(str(args.cooc_pval_thr), min_motif_dist_info)
+        elif args.cooc_pval_mode == 3:
+            p_val_info = "Motif co-occurrences with p-values below %s %sare considered significant." %(str(args.cooc_pval_thr), min_motif_dist_info)
+        else:
+            assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(args.cooc_pval_mode)
+        
+        p_val_info += " # of motif co-occurrence comparisons: %i. # of significant co-occurrences: %i (%.2f%%)." %(args.c_all_fisher_pval, args.c_sig_fisher_pval, args.perc_sig_fisher_pval)
+
+
+        # Inform about set alterntive hypothesis for Fisher exact test on significant motif co-occurrences.
+        motif_add_info = "enriched"
+        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., significantly overrepresented motif co-occurrences are reported."
+        if args.fisher_mode == 2:
+            fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'two-sided', i.e., significantly over- and underrepresented motif co-occurrences are reported."
+            motif_add_info = "enriched and depleted"
+        elif args.fisher_mode == 3:
+            fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., significantly underrepresented motif co-occurrences are reported."
+            motif_add_info = "depleted"
+
+        mdtext += """
+
+**Figure:** Heat map of co-occurrences (Fisher's exact test p-values) between motifs. 
+Only significantly %s motifs (listed in upper table) are used in checking for siginificant co-occurrences.
+Motif hit co-occurrences that are not significant are colored white, while
+significant co-occurrences are colored according to their -log10 p-value (used as legend color, i.e., the higher the more significant).
+%s
+%s
+Hover box: 
+**1)** Motif1 in pair.
+**2)** Motif2 in pair.
+**3)** p-value: Fisher's exact test p-value (calculated based on contingency table (6) between Motif1 and Motif2). 
+**4)** p-value after filtering: p-value after filtering, i.e., p-value is kept if significant (< %s), otherwise it is set to 1.0.
+**5)** Motifs compaired.
+**6)** Counts[]: contingency table of co-occurrence counts (i.e., number of %s regions with/without shared motif hits) between compaired motifs, 
+with format [[A, B], [C, D]], where 
+A: Motif1 AND Motif2, 
+B: NOT Motif1 AND Motif2,
+C: Motif1 AND NOT Motif2,
+D: NOT Motif1 AND NOT Motif2.
+**7)** Mean minimum distance of Motif1 and Motif2 hits (mean over all regions containing Motif1 + Motif2 motif hits). Distances measured from motif center positions.
+**8)** Over all regions containing Motif1 and Motif2 pairs, percentage of regions where Motif1 + Motif2 motifs are within %i nt distance (set via --max-motif-dist).
+**9)** Correlation: Pearson correlation coefficient between Motif1 and Motif2.
+%s regions are labelled 1 or 0 (motif present or not), resulting in a vector of 1s and 0s for each motif.
+Correlations are then calculated by comparing vectors for every pair of motifs.
+**10)** -log10 of p-value after filtering, used for legend coloring. Using p-value after filtering, all non-significant p-values become 0 
+for easier distinction between significant and non-significant co-occurrences.
+%s
+
+&nbsp;
+
+""" %(motif_add_info, p_val_info, fisher_mode_info, str(args.cooc_pval_thr), site_type, args.max_motif_dist, site_type_uc, regex_motif_info)
+
+
+    else:
+
+        mdtext += """
+
+No co-occurrences calculated as there are no significant motifs (see upper table).
+        
+&nbsp;
+
+"""
+
+
+    """
+    Motif similarity (only for MEME formatted sequence motifs) vs significance PCA plot.
+    
+    """
+
+    mdtext += """
+## Sequence motif similarity vs significance PCA plot ### {#motif-sim-sig-plot}
+
+"""
+
+    # Get motif similarities of significant motifs.
+    motif_sim_ll = False
+    motif_sim_stats_dic = {}
+    if motif_pair2sim_dic and len(sig_seq_motif_ids_list) > 2:  # at least 3 significant sequence motifs needed.
+        motif_sim_ll = get_motif_similarites_ll(sig_seq_motif_ids_list, motif_pair2sim_dic,
+                                                min_max_norm=args.motif_sim_norm)
+
+        for motif_id in sig_seq_motif_ids_list:
+            conseq = motif_enrich_stats_dic[motif_id].consensus_seq
+            pval = motif_enrich_stats_dic[motif_id].fisher_pval_corr
+            con_table_str = motif_enrich_stats_dic[motif_id].con_table
+            pval = round_to_n_significant_digits_v2(pval, 4,
+                                                    min_val=1e-304)
+            log_pval = log_tf_pval(pval)
+            log_pval = round_to_n_significant_digits_v2(log_pval, 4,
+                                                        min_val=0)
+            motif_sim_stats_dic[motif_id] = [conseq, con_table_str, pval, log_pval]
+
+        # for idx, motif_id in enumerate(sig_seq_motif_ids_list):
+        #     print(motif_id, motif_sim_stats_dic[motif_id][0], motif_sim_ll[idx])
+
+        motif_sim_plot_plotly =  "motif_sim_sig_pca_plot.plotly.html"
+        motif_sim_plot_plotly_out = plots_out_folder + "/" + motif_sim_plot_plotly
+
+        create_pca_motif_sim_sig_plot_plotly(sig_seq_motif_ids_list, motif_sim_ll,
+                                         motif_sim_stats_dic, motif_sim_plot_plotly_out,
+                                         include_plotlyjs=include_plotlyjs,
+                                         full_html=plotly_full_html)
+
+        plot_path = plots_folder + "/" + motif_sim_plot_plotly
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            js_code = read_file_content_into_str_var(motif_sim_plot_plotly_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:900px; width:1000px;")
+            mdtext += js_code + "\n"
+        else:
+            if plotly_embed_style == 1:
+                mdtext += "<div>\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1000" height="900"></iframe>' + "\n"
+                mdtext += '</div>'
+            elif plotly_embed_style == 2:
+                mdtext += '<object data="' + plot_path + '" width="1000" height="900"> </object>' + "\n"
+
+
+        mdtext += """
+
+**Figure:** Sequence motif similarity vs significance PCA plot. Motifs are arranged by their similarity and colored by their significance, i.e., their -log10 p-value (used as legend color, i.e., the higher the more significant).
+Motifs closer together in the plot translates to higher motif similarity.
+Motif similarity is measured using TOMTOM's euclidean distance measure between motif position weight matrices (PWMs), and motif similarity vectors are used for 2-dimensional PCA.
+Only motifs that are sequence motifs and that are significantly %s (from upper table, sequence logos shown as well) are used for the comparison.
+Hover box: 
+**Motif** -> Motif ID.
+**Consensus** -> Consensus sequence derived from PWM (PWM sequence logo can be found in upper motif enrichment statistics table).
+**Counts** -> contingency table of motif occurrence counts (i.e., number of input and background regions with/without motif hits), 
+with format [[A, B], [C, D]], where 
+A: # input regions with motif hits, 
+B: # input regions without motif hits,
+C: # background regions with motif hits,
+D: # background regions without motif hits.
+**p-value** -> Fisher exact test p-value (corrected) derived from contingency table.
+**-log10(p-value)** -> -log10 p-value of Fisher exact test p-value, used for coloring of motifs.
+
+&nbsp;
+
+""" %(motif_add_info)
+
+    else:
+
+        mdtext += """
+
+No motif similarity vs significance plot generated since there are < 3 significant sequence motifs.
+        
+&nbsp;
+
+"""
+
+
+
+    """
+    Genomic region annotations.
+
+    """
+
+    if pos_reg2annot_dic or neg_reg2annot_dic:
+
+        mdtext += """
+## Genomic region annotations ### {#reg-annot}
+
+"""
+
+    if pos_reg2annot_dic:
+
+        annot_bar_plot =  "gene_region_annotation_bar_plot.input.png"
+        annot_bar_plot_out = plots_out_folder + "/" + annot_bar_plot
+
+        create_enmo_annotation_bar_plot(pos_reg2annot_dic, 
+                                        annot2color_dic=annot2color_dic,
+                                        data_id="",
+                                        plot_pdf=args.plot_pdf,
+                                        plot_out=annot_bar_plot_out)
+
+        plot_path = plots_folder + "/" + annot_bar_plot
+
+        mdtext += '<img src="' + plot_path + '" alt="Annotation bar plot input"' + "\n"
+        mdtext += 'title="Annotation bar plot input" />' + "\n"
+        mdtext += """
+**Figure:** Gene region annotations for input sites (# sites = %i).
+
+&nbsp;
+
+""" %(c_input_sites)
+
+    if neg_reg2annot_dic:
+
+        annot_bar_plot =  "gene_region_annotation_bar_plot.background.png"
+        annot_bar_plot_out = plots_out_folder + "/" + annot_bar_plot
+
+        create_enmo_annotation_bar_plot(neg_reg2annot_dic,
+                                        annot2color_dic=annot2color_dic,
+                                        data_id="",
+                                        plot_pdf=args.plot_pdf,
+                                        plot_out=annot_bar_plot_out)
+
+        plot_path = plots_folder + "/" + annot_bar_plot
+
+        mdtext += '<img src="' + plot_path + '" alt="Annotation bar plot background"' + "\n"
+        mdtext += 'title="Annotation bar plot background" />' + "\n"
+        mdtext += """
+**Figure:** Gene region annotations for background sites (# sites = %i).
+
+&nbsp;
+
+""" %(c_bg_sites)
+
+
+    """
+    k-mer distributions.
+    
+    """
+
+    if pos_seqs_dic and neg_seqs_dic:
+
+
+        # Get 3-mer percentages.
+        pos_3mer_dic = seqs_dic_count_kmer_freqs(pos_seqs_dic, 3, rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
+                                                 convert_to_uc=True)
+        neg_3mer_dic = seqs_dic_count_kmer_freqs(neg_seqs_dic, 3, rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
+                                                 convert_to_uc=True)
+        # Get 4-mer percentages.
+        pos_4mer_dic = seqs_dic_count_kmer_freqs(pos_seqs_dic, 4, rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
+                                                 convert_to_uc=True)
+        neg_4mer_dic = seqs_dic_count_kmer_freqs(neg_seqs_dic, 4, rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
+                                                 convert_to_uc=True)
+        # Get 5-mer percentages.
+        pos_5mer_dic = seqs_dic_count_kmer_freqs(pos_seqs_dic, 5, rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
+                                                 convert_to_uc=True)
+        neg_5mer_dic = seqs_dic_count_kmer_freqs(neg_seqs_dic, 5, rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
+                                                 convert_to_uc=True)
+
+        mdtext += """
+## k-mer distributions ### {#kmer-plotly}
+
+Frequency distributions of k-mers (in percent) for the input and background dataset.
+
+"""
+
+        plotly_3mer_plot = "plotly_scatter_3mer.html"
+        plotly_4mer_plot = "plotly_scatter_4mer.html"
+        plotly_5mer_plot = "plotly_scatter_5mer.html"
+        plotly_3mer_plot_out = plots_out_folder + "/" + plotly_3mer_plot
+        plotly_4mer_plot_out = plots_out_folder + "/" + plotly_4mer_plot
+        plotly_5mer_plot_out = plots_out_folder + "/" + plotly_5mer_plot
+
+        # Create 3-mer plotly scatter plot.
+        create_kmer_sc_plotly_scatter_plot(pos_3mer_dic, neg_3mer_dic, 3,
+                                        plotly_3mer_plot_out,
+                                        plotly_js_path)
+        # Create 4-mer plotly scatter plot.
+        create_kmer_sc_plotly_scatter_plot(pos_4mer_dic, neg_4mer_dic, 4,
+                                        plotly_4mer_plot_out,
+                                        plotly_js_path)
+        # Create 5-mer plotly scatter plot.
+        create_kmer_sc_plotly_scatter_plot(pos_5mer_dic, neg_5mer_dic, 5,
+                                        plotly_5mer_plot_out,
+                                        plotly_js_path)
+        # Plot paths inside html report.
+        plotly_3mer_plot_path = plots_folder + "/" + plotly_3mer_plot
+        plotly_4mer_plot_path = plots_folder + "/" + plotly_4mer_plot
+        plotly_5mer_plot_path = plots_folder + "/" + plotly_5mer_plot
+
+        # R2 scores.
+        r2_3mer = calc_r2_corr_measure(pos_3mer_dic, neg_3mer_dic,
+                                    is_dic=True)
+        r2_4mer = calc_r2_corr_measure(pos_4mer_dic, neg_4mer_dic,
+                                    is_dic=True)
+        r2_5mer = calc_r2_corr_measure(pos_5mer_dic, neg_5mer_dic,
+                                    is_dic=True)
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            js_code = read_file_content_into_str_var(plotly_3mer_plot_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:800px; width:800px;")
+            mdtext += js_code + "\n"
+        else:
+            mdtext += "<div>\n"
+            mdtext += '<iframe src="' + plotly_3mer_plot_path + '" width="800" height="800"></iframe>' + "\n"
+            mdtext += '</div>'
+
+        # Old rplib style.
+        # mdtext += '<div class=class="container-fluid" style="margin-top:40px">' + "\n"
+        # mdtext += '<iframe src="' + plotly_3mer_plot_path + '" width="500" height="500"></iframe>' + "\n"
+        # mdtext += '</div>'
+
+        mdtext += """
+
+**Figure:** 3-mer percentages in the input and background dataset. In case of
+a uniform distribution with all 3-mers present, each 3-mer would have a
+percentage = 1.5625. R2 = %.6f.
+
+&nbsp;
+
+""" %(r2_3mer)
+    
+        if args.plotly_js_mode in [5, 6, 7]:
+            js_code = read_file_content_into_str_var(plotly_4mer_plot_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:800px; width:800px;")
+            mdtext += js_code + "\n"
+        else:
+            mdtext += "<div>\n"
+            mdtext += '<iframe src="' + plotly_4mer_plot_path + '" width="800" height="800"></iframe>' + "\n"
+            mdtext += '</div>'
+
+        # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+        # mdtext += '<iframe src="' + plotly_4mer_plot_path + '" width="600" height="600"></iframe>' + "\n"
+        # mdtext += '</div>'
+
+        mdtext += """
+
+**Figure:** 4-mer percentages in the input and background dataset. In case of
+a uniform distribution with all 4-mers present, each 4-mer would have a
+percentage = 0.390625. R2 = %.6f.
+
+&nbsp;
+
+""" %(r2_4mer)
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            js_code = read_file_content_into_str_var(plotly_5mer_plot_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:800px; width:800px;")
+            mdtext += js_code + "\n"
+        else:
+            mdtext += "<div>\n"
+            mdtext += '<iframe src="' + plotly_5mer_plot_path + '" width="800" height="800"></iframe>' + "\n"
+            mdtext += '</div>'
+
+        # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+        # mdtext += '<iframe src="' + plotly_5mer_plot_path + '" width="700" height="700"></iframe>' + "\n"
+        # mdtext += '</div>'
+
+        mdtext += """
+
+**Figure:** 5-mer percentages in the input and background dataset. In case of
+a uniform distribution with all 5-mers present, each 5-mer would have a
+percentage = 0.09765625. R2 = %.6f.
+
+&nbsp;
+
+""" %(r2_5mer)
+
+    # Convert mdtext to html.
+    md2html = markdown(mdtext, extensions=['attr_list', 'tables'])
+
+    # OUTMD = open(md_out,"w")
+    # OUTMD.write("%s\n" %(mdtext))
+    # OUTMD.close()
+
+    html_content = html_head + md2html + html_tail
+
+    OUTHTML = open(html_out,"w")
+    OUTHTML.write("%s\n" %(html_content))
+    OUTHTML.close()
+
+
+################################################################################
+
+def nemo_generate_html_report(args,
+                              motif_enrich_stats_dic,
+                              seq_motif_blocks_dic,
+                              benchlib_path,
+                              df_pval=False, 
+                              pval_cont_lll=False,
+                              motif_pair2sim_dic=False,
+                              pos_seqs_dic=False,
+                              neg_seqs_dic=False,
+                              pos_reg2annot_dic=False,
+                              neg_reg2annot_dic=False,
+                              annot2color_dic=False,
+                              plotly_full_html=False,
+                              plotly_embed_style=1,
+                              rbpbench_mode="nemo",
+                              html_report_out="report.rbpbench_nemo.html",
+                              plots_subfolder="html_report_plots"):
+
+    """
+    Create neighboring motif enrichment statistics / plots (nemo mode).
+
+    """
+
+    # Use absolute paths?
+    out_folder = args.out_folder
+    if args.plot_abs_paths:
+        out_folder = os.path.abspath(out_folder)
+    
+    plots_folder = plots_subfolder
+    plots_out_folder = out_folder + "/" + plots_folder
+    if args.plot_abs_paths:
+        plots_folder = plots_out_folder
+
+    # Delete folder if already present.
+    if os.path.exists(plots_out_folder):
+        shutil.rmtree(plots_out_folder)
+    os.makedirs(plots_out_folder)
+
+    html_out = out_folder + "/" + "report.rbpbench_nemo.html"
+    md_out = out_folder + "/" + "report.rbpbench_nemo.md"
+    if html_report_out:
+        html_out = html_report_out
+
+    # Number of input + background regions/sites.
+    c_input_sites = args.c_input_sites
+    c_bg_sites = args.c_bg_sites
+    
+    site_type_uc = "Genomic"
+    site_type = "genomic"
+    if not args.genomic_sites_input:
+        site_type_uc = "Transcript"
+        site_type = "transcript"
+
+    regex_motif_info = ""
+    # if args.regex:
+    #     regex_motif_info = "Used regex motif: '%s'." %(args.regex)
+
+    report_header_info = "Neighboring motif enrichment report"
+    if args.report_header:
+        report_header_info = "RBPBench neighboring motif enrichment report"
+
+    """
+    Setup plotly .js to support plotly plots.
+
+    """
+
+    include_plotlyjs = "cdn"
+    # plotly_full_html = False
+    plotly_js_html = ""
+    plotly_js_path = benchlib_path + "/content/plotly-2.20.0.min.js"
+    assert os.path.exists(plotly_js_path), "plotly .js %s not found" %(plotly_js_path)
+    if args.plotly_js_mode == 2:
+        include_plotlyjs = plotly_js_path
+    elif args.plotly_js_mode == 3:
+        shutil.copy(plotly_js_path, plots_out_folder)
+        include_plotlyjs = "plotly-2.20.0.min.js" # Or plots_folder + "/plotly-2.20.0.min.js" ?
+    elif args.plotly_js_mode == 4:
+        include_plotlyjs = True
+        # plotly_full_html = False # Don't really need full html (head body ..) in plotly html.
+    elif args.plotly_js_mode == 5:
+        plotly_js_web = "https://cdn.plot.ly/plotly-2.25.2.min.js"
+        plotly_js_html = '<script src="' + plotly_js_web + '"></script>' + "\n"
+        include_plotlyjs = False
+        # plotly_full_html = True
+    elif args.plotly_js_mode == 6:
+        shutil.copy(plotly_js_path, plots_out_folder)
+        plotly_js = plots_folder + "/plotly-2.20.0.min.js"
+        plotly_js_html = '<script src="' + plotly_js + '"></script>' + "\n"
+        include_plotlyjs = False
+    elif args.plotly_js_mode == 7:
+        js_code = read_file_content_into_str_var(plotly_js_path)
+        plotly_js_html = "<script>\n" + js_code + "\n</script>\n"
+        include_plotlyjs = False
+        # plotly_full_html = True
+
+    """
+    Setup sorttable.js to make tables in HTML sortable.
+
+    """
+    sorttable_js_path = benchlib_path + "/content/sorttable.js"
+    assert os.path.exists(sorttable_js_path), "sorttable.js not at %s" %(sorttable_js_path)
+    sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    if args.sort_js_mode == 2:
+        shutil.copy(sorttable_js_path, plots_out_folder)
+        sorttable_js_path = plots_folder + "/sorttable.js"
+        sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    elif args.sort_js_mode == 3:
+        js_code = read_file_content_into_str_var(sorttable_js_path)
+        sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
+
+    # HTML head section.
+    html_head = """<!DOCTYPE html>
+<html>
+<head>
+<title>RBPBench - Neighboring Motif Enrichment Report</title>
+%s
+
+<style>
+    th, td {
+        border: 1px solid black;
+        padding: 8px;
+        text-align: center;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+    .page {
+        page-break-after: always;
+    }
+</style>
+
+</head>
+<body>
+""" %(plotly_js_html)
+
+    # HTML tail section.
+    html_tail = """
+%s
+</body>
+</html>
+""" %(sorttable_js_html)
+
+    # Markdown part.
+    mdtext = """
+
+# %s
+
+List of available statistics and plots generated
+by RBPBench (rbpbench %s):
+
+- [Neighboring motif enrichment statistics](#nemo-stats)
+- [Motif co-occurrences heat map](#cooc-heat-map)
+- [Sequence motif similarity vs significance PCA plot](#motif-sim-sig-plot)
+- [Sequence motif similarity vs direction PCA plot](#motif-sim-dir-plot)""" %(report_header_info, rbpbench_mode)
+
+    mdtext += "\n"
+
+    if pos_reg2annot_dic or neg_reg2annot_dic:
+        mdtext += "- [Genomic region annotations](#reg-annot)\n"
+    if pos_seqs_dic and neg_seqs_dic:
+        mdtext += "- [k-mer distributions](#kmer-plotly)\n"
+
+    add_head_info = ""
+    if args.bed_sc_thr is not None:
+        add_head_info = " BED score threshold (--bed-sc-thr) = %s" %(str(args.bed_sc_thr))
+        if args.bed_sc_thr_rev_filter:
+            add_head_info += " (reverse filtering applied, i.e., the lower the better)."
+        else:
+            add_head_info += "."
+
+    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s.%s # of considered input regions = %i. Region extension (upstream, downstream) = (%i, %i).\n" %(str(args.fimo_pval), add_head_info, c_input_sites, args.ext_up, args.ext_down)
+    mdtext += "\n&nbsp;\n"
+
+
+    """
+    Motif enrichment statistics.
+
+    """
+
+    motif_add_info = "Enriched"
+    fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., significantly overrepresented motifs are reported."
+    if args.fisher_mode == 2:
+        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'two-sided', i.e., significantly over- and underrepresented motifs are reported."
+        motif_add_info = "Enriched and depleted"
+    elif args.fisher_mode == 3:
+        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., significantly underrepresented motifs are reported."
+        motif_add_info = "Depleted"
+
+    p_val_info = "P-values (p-value column) below %s are considered significant." %(str(args.nemo_pval_thr))
+    if args.nemo_pval_mode == 1:
+        p_val_info = "%s motifs with Benjamini-Hochberg multiple testing corrected p-values (p-value column) below %s are considered significant." %(motif_add_info, str(args.nemo_pval_thr))
+    elif args.nemo_pval_mode == 2:
+        p_val_info = "%s motifs with p-values (p-value column) below %s (p-value threshold Bonferroni multiple testing corrected) are considered significant." %(motif_add_info, str(args.nemo_pval_thr))
+    elif args.nemo_pval_mode == 3:
+        p_val_info = "%s motifs with p-values (p-value column) below %s are considered significant." %(motif_add_info, str(args.nemo_pval_thr))
+    else:
+        assert False, "Invalid motif enrichment p-value mode (--nemo-pval-mode) set: %i" %(args.nemo_pval_mode)
+
+    # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
+    # wrs_mode_info = ""
+    # if args.wrs_mode == 1:
+    #     wrs_mode_info = "Wilcoxon rank sum test alternative hypothesis is set to 'two-sided', i.e., low WRS p-values (WRS p-value column) mean either up- or downstream context regions have significantly higher motif hit counts."
+    # elif args.wrs_mode == 2:
+    #     wrs_mode_info = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low WRS p-values (WRS p-value column) mean upstream context regions have significantly higher motif hit counts."
+    # elif args.wrs_mode == 3:
+    #     wrs_mode_info = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low WRS p-values (WRS p-value column) mean downstream context regions have significantly higher motif hit counts."
+    # else:
+    #     assert False, "Invalid Wilcoxon rank sum test mode (--wrs-mode) set: %i" %(args.wrs_mode)
+    wrs_mode_info = "Wilcoxon rank sum test alternative hypothesis is set to 'two-sided', i.e., low WRS p-values (WRS p-value column) mean either up- or downstream context regions have significantly higher motif hit counts."
+
+    ol_info = "Motif hits that overlap with the actual input sites are not counted."
+    if args.allow_overlaps:
+        ol_info = "Motif hits that overlap with the actual input sites are counted as well (--allow-overlaps enabled)."
+
+    pval_dic = {}
+    c_sig_motifs = 0
+    sig_seq_motif_ids_list = []
+
+    for motif_id in motif_enrich_stats_dic:
+        pval = motif_enrich_stats_dic[motif_id].fisher_pval_corr
+        pval_dic[motif_id] = pval
+        if pval <= args.nemo_pval_thr:
+            c_sig_motifs += 1
+            if motif_enrich_stats_dic[motif_id].motif_type == "meme_xml":
+                sig_seq_motif_ids_list.append(motif_id)
+
+    sig_seq_motif_ids_list.sort()
+
+    mdtext += """
+## Neighboring motif enrichment statistics ### {#nemo-stats}
+
+**Table:** Neighboring RBP binding motif enrichment statistics. # of significant motifs = %i. Enrichment is calculated by comparing motif occurrences in the context regions 
+surrounding given input sites (up- and downstream context region size specified via --ext), effectively comparing the input with the background context regions.
+%s
+Based on the numbers of input and background context regions with and without motif hits, 
+Fisher's exact test is used to assess the significance of motif enrichment.
+%s
+%s
+For full motif results list regardless of significance, see *motif_enrichment_stats.tsv* output table.
+To test whether up- or downstream regions have significantly higher motif hit counts, 
+Wilcoxon rank sum (WRS) test is applied.
+%s
+%s
+
+""" %(c_sig_motifs, ol_info, p_val_info, fisher_mode_info, wrs_mode_info, regex_motif_info)
+
+    mdtext += '<table style="max-width: 1400px; width: 100%; border-collapse: collapse; line-height: 0.9;">' + "\n"
+    mdtext += "<thead>\n"
+    mdtext += "<tr>\n"
+    mdtext += "<th>RBP ID</th>\n"
+    mdtext += "<th>Motif ID</th>\n"
+    mdtext += "<th>Motif plot</th>\n"
+    mdtext += "<th># in hits</th>\n"
+    mdtext += "<th># bg hits</th>\n"
+    mdtext += "<th># in</th>\n"
+    mdtext += "<th># not in</th>\n"
+    mdtext += "<th># bg</th>\n"
+    mdtext += "<th># not bg</th>\n"
+    mdtext += "<th>avg in dist</th>\n"
+    # mdtext += "<th>max in dist</th>\n"
+    # mdtext += "<th># max in dist</th>\n"
+    mdtext += "<th>avg bg dist</th>\n"
+    # mdtext += "<th>max bg dist</th>\n"
+    # mdtext += "<th># max bg dist</th>\n"
+    mdtext += "<th>WRS p-value</th>\n"
+    mdtext += "<th>Motif distance plot</th>\n"
+    mdtext += "<th>p-value</th>\n"
+    mdtext += "</tr>\n"
+    mdtext += "</thead>\n"
+    mdtext += "<tbody>\n"
+
+    for motif_id, fisher_pval in sorted(pval_dic.items(), key=lambda item: item[1], reverse=False):
+
+        if fisher_pval > args.nemo_pval_thr:
+            break
+
+        rbp_id = motif_enrich_stats_dic[motif_id].rbp_id
+        c_pos_hits = motif_enrich_stats_dic[motif_id].c_pos_hits
+        c_neg_hits = motif_enrich_stats_dic[motif_id].c_neg_hits
+        c_pos_hit_regions = motif_enrich_stats_dic[motif_id].c_pos_hit_regions
+        c_neg_hit_regions = motif_enrich_stats_dic[motif_id].c_neg_hit_regions
+        c_pos_regions = motif_enrich_stats_dic[motif_id].c_pos_regions
+        c_neg_regions = motif_enrich_stats_dic[motif_id].c_neg_regions
+        pos_avg_center_dist = round(motif_enrich_stats_dic[motif_id].pos_set_avg_center_dist, 1)
+        neg_avg_center_dist = round(motif_enrich_stats_dic[motif_id].neg_set_avg_center_dist, 1)
+        # pos_max_center_dist = motif_enrich_stats_dic[motif_id].pos_set_max_center_dist
+        # pos_max_center_dist_c = motif_enrich_stats_dic[motif_id].pos_set_max_center_dist_c
+        # neg_max_center_dist = motif_enrich_stats_dic[motif_id].neg_set_max_center_dist
+        # neg_max_center_dist_c = motif_enrich_stats_dic[motif_id].neg_set_max_center_dist_c
+
+        # dist_plot_counts_dic format: {pos: count, ...}, e.g. from -5 to 5: {5: 1, 4: 2, 3: 5, 2: 4, 1: 3, 0: 0, -1: 3, -2: 4, -3: 5, -4: 2, -5: 1}
+        dist_plot_counts_dic = motif_enrich_stats_dic[motif_id].dist_plot_counts_dic
+        wrs_pval = motif_enrich_stats_dic[motif_id].wrs_pval_two_sided
+
+        a_con = c_pos_hit_regions
+        b_con = c_pos_regions - c_pos_hit_regions
+        c_con = c_neg_hit_regions
+        d_con = c_neg_regions - c_neg_hit_regions
+
+        motif_plot_str = "-"
+
+        if motif_id in seq_motif_blocks_dic:
+
+            motif_plot = "%s.%s.png" %(rbp_id, motif_id)
+            motif_plot_out = plots_out_folder + "/" + motif_plot
+            plot_path = plots_folder + "/" + motif_plot
+
+            # Check if motif in motif plots folder.
+            motif_path = benchlib_path + "/content/motif_plots/%s" %(motif_plot)
+            if os.path.exists(motif_path):
+                shutil.copy(motif_path, motif_plot_out)
+                if args.plot_pdf:
+                    create_motif_plot(motif_id, seq_motif_blocks_dic,
+                                      motif_plot_out,
+                                      plot_pdf=True,
+                                      plot_png=False)
+
+            if not os.path.exists(motif_plot_out):
+                create_motif_plot(motif_id, seq_motif_blocks_dic,
+                                  motif_plot_out,
+                                  plot_pdf=args.plot_pdf,
+                                  plot_png=True)
+
+            motif_plot_str = '<image src = "' + plot_path + '" width="300px"></image>'
+
+        # Plot motif distances to center as positions on x-axis and counts on y-axis.
+        # positions = list(dist_plot_counts_dic.keys())
+        # counts = list(dist_plot_counts_dic.values())
+        positions = sorted(dist_plot_counts_dic.keys(), reverse=True)
+        counts = [dist_plot_counts_dic[pos] for pos in positions]
+
+        plt.figure(figsize=(16, 2))
+        plt.plot(positions, counts, marker='o', linestyle='-', color='b', markersize=3)
+        plt.xlabel('Position')
+        plt.ylabel('Count')
+
+        plt.xlim(min(positions) - 1, max(positions) + 1)
+
+        plt.grid(False)
+        plt.gca().spines['top'].set_visible(False)
+        plt.gca().spines['right'].set_visible(False)
+        plt.axvline(x=0, color='r', linestyle='--')
+
+        plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.25)
+
+        dist_plot = "%s.%s.motif_hit_dist_center.png" %(rbp_id, motif_id)
+        dist_plot_out = plots_out_folder + "/" + dist_plot
+        plot_path = plots_folder + "/" + dist_plot
+
+        plt.savefig(dist_plot_out)
+
+        if args.plot_pdf and dist_plot_out.endswith('.png'):
+            pdf_out = dist_plot_out[:-4] + '.pdf'
+            plt.savefig(pdf_out)
+
+        plt.close()
+        dist_plot_str = '<image src = "' + plot_path + '" width="300px"></image>'
+
+        mdtext += '<tr>' + "\n"
+        mdtext += "<td>" + rbp_id + "</td>\n"
+        mdtext += "<td>" + motif_id + "</td>\n"
+        mdtext += "<td>" + motif_plot_str + "</td>\n"
+        mdtext += "<td>" + str(c_pos_hits) + "</td>\n"
+        mdtext += "<td>" + str(c_neg_hits) + "</td>\n"
+        mdtext += "<td>" + str(a_con) + "</td>\n"
+        mdtext += "<td>" + str(b_con) + "</td>\n"
+        mdtext += "<td>" + str(c_con) + "</td>\n"
+        mdtext += "<td>" + str(d_con) + "</td>\n"
+        mdtext += "<td>" + str(pos_avg_center_dist) + "</td>\n"
+        # mdtext += "<td>" + str(pos_max_center_dist) + "</td>\n"
+        # mdtext += "<td>" + str(pos_max_center_dist_c) + "</td>\n"
+        mdtext += "<td>" + str(neg_avg_center_dist) + "</td>\n"
+        # mdtext += "<td>" + str(neg_max_center_dist) + "</td>\n"
+        # mdtext += "<td>" + str(neg_max_center_dist_c) + "</td>\n"
+        mdtext += "<td>" + str(wrs_pval) + "</td>\n"
+        mdtext += "<td>" + dist_plot_str + "</td>\n"
+        mdtext += "<td>" + str(fisher_pval) + "</td>\n"
+        mdtext += '</tr>' + "\n"
+
+    mdtext += '</tbody>' + "\n"
+    mdtext += '</table>' + "\n"
+
+    mdtext += "\n&nbsp;\n&nbsp;\n"
+    mdtext += "\nColumn IDs have the following meanings: "
+    mdtext += "**RBP ID** -> RBP ID belonging to motif ID, "
+    mdtext += "**Motif ID** -> motif ID, "
+    mdtext += "**Motif plot** -> visualization of motif (sequence logo for sequence motifs, otherwise -), "
+    mdtext += '**# in hits** -> number of motif hits in input sites, '
+    mdtext += '**# bg hits** -> number of motif hits in background sites, '
+    mdtext += '**# in** -> number of input sites with motif hits, '
+    mdtext += '**# not in** -> number of input sites without motif hits, '
+    mdtext += '**# bg** -> number of background sites with motif hits, '
+    mdtext += '**# not bg** -> number of background sites without motif hits, '
+    mdtext += '**avg in dist** -> average distance of motif hits to center of input sites (positive value indicates motifs tend to be located upstream of input sites, whereas negative value indicates downstream), '
+    # mdtext += '**max in dist** -> distance position with maximum count (i.e., where most motif hit centers lie relative to input site centers), '
+    # mdtext += '**# max in dist** -> number of motif hits at distance position with maximum count for input sites, '
+    mdtext += '**avg bg dist** -> average distance of motif hits to center of background sites (positive value indicates motifs tend to be located upstream of input sites, whereas negative value indicates downstream), '
+    # mdtext += '**max bg dist** -> distance position with maximum count (i.e., where most motif hit centers lie relative to background site centers), '
+    # mdtext += '**# max bg dist** -> number of motif hits at distance position with maximum count for background sites, '
+    mdtext += '**WRS p-value** -> Wilcoxon rank sum test p-value to test for significantly different counts in up- and downstream context regions.' + "\n"
+    mdtext += "**Motif distance plot** -> visualization of motif distance plot (counting motif hit center occurrences relative to input site centers), "
+    mdtext += '**p-value** -> Fisher exact test p-value (corrected).' + "\n"
+    mdtext += "\n&nbsp;\n"
+
+
+    """
+    Motif co-occurrences heat map.
+
+    """
+
+    mdtext += """
+## Motif co-occurrences heat map ### {#cooc-heat-map}
+
+"""
+
+    if pval_cont_lll:
+
+        cooc_plot_plotly =  "co-occurrence_plot.plotly.html"
+        cooc_plot_plotly_out = plots_out_folder + "/" + cooc_plot_plotly
+
+        create_cooc_plot_plotly(df_pval, pval_cont_lll, cooc_plot_plotly_out,
+                                max_motif_dist=args.max_motif_dist,
+                                min_motif_dist=args.min_motif_dist,
+                                id1="Motif1",
+                                id2="Motif2",
+                                ids="Motifs",
+                                include_plotlyjs=include_plotlyjs,
+                                full_html=plotly_full_html)
+
+        plot_path = plots_folder + "/" + cooc_plot_plotly
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            # Read in plotly code.
+            # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+            js_code = read_file_content_into_str_var(cooc_plot_plotly_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:1200px; width:1200px;")
+            mdtext += js_code + "\n"
+            # mdtext += '</div>'
+        else:
+            if plotly_embed_style == 1:
+                # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                mdtext += "<div>\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1200" height="1200"></iframe>' + "\n"
+                mdtext += '</div>'
+            elif plotly_embed_style == 2:
+                mdtext += '<object data="' + plot_path + '" width="1200" height="1200"> </object>' + "\n"
+
+        p_val_info = "P-values below %s are considered significant." %(str(args.cooc_pval_thr))
+
+        min_motif_dist_info = ""
+        if args.min_motif_dist > 0:
+            min_motif_dist_info = " + a mean minimum motif distance >= %i nt " %(args.min_motif_dist)
+
+        if args.cooc_pval_mode == 1:
+            p_val_info = "Motif co-occurrences with Benjamini-Hochberg multiple testing corrected p-values below %s %sare considered significant." %(str(args.cooc_pval_thr), min_motif_dist_info)
+        elif args.cooc_pval_mode == 2:
+            p_val_info = "Motif co-occurrences with p-values below %s (p-value threshold Bonferroni multiple testing corrected) %sare considered significant." %(str(args.cooc_pval_thr), min_motif_dist_info)
+        elif args.cooc_pval_mode == 3:
+            p_val_info = "Motif co-occurrences with p-values below %s %sare considered significant." %(str(args.cooc_pval_thr), min_motif_dist_info)
+        else:
+            assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(args.cooc_pval_mode)
+        
+        p_val_info += " # of motif co-occurrence comparisons: %i. # of significant co-occurrences: %i (%.2f%%)." %(args.c_all_fisher_pval, args.c_sig_fisher_pval, args.perc_sig_fisher_pval)
+
+        # Inform about set alterntive hypothesis for Fisher exact test on significant motif co-occurrences.
+        motif_add_info = "enriched"
+        fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., significantly overrepresented motif co-occurrences are reported."
+        if args.fisher_mode == 2:
+            fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'two-sided', i.e., significantly over- and underrepresented motif co-occurrences are reported."
+            motif_add_info = "enriched and depleted"
+        elif args.fisher_mode == 3:
+            fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., significantly underrepresented motif co-occurrences are reported."
+            motif_add_info = "depleted"
+
+        mdtext += """
+
+**Figure:** Heat map of co-occurrences (Fisher's exact test p-values) between motifs. 
+Only significantly %s context region motifs (listed in upper table) are used in checking for siginificant co-occurrences.
+Motif hit co-occurrences that are not significant are colored white, while
+significant co-occurrences are colored according to their -log10 p-value (used as legend color, i.e., the higher the more significant).
+%s
+%s
+Hover box: 
+**1)** Motif1 in pair.
+**2)** Motif2 in pair.
+**3)** p-value: Fisher's exact test p-value (calculated based on contingency table (6) between Motif1 and Motif2). 
+**4)** p-value after filtering: p-value after filtering, i.e., p-value is kept if significant (< %s), otherwise it is set to 1.0.
+**5)** Motifs compaired.
+**6)** Counts[]: contingency table of co-occurrence counts (i.e., number of %s regions with/without shared motif hits) between compaired motifs, 
+with format [[A, B], [C, D]], where 
+A: Motif1 AND Motif2, 
+B: NOT Motif1 AND Motif2,
+C: Motif1 AND NOT Motif2,
+D: NOT Motif1 AND NOT Motif2.
+**7)** Mean minimum distance of Motif1 and Motif2 hits (mean over all regions containing Motif1 + Motif2 motif hits). Distances measured from motif center positions.
+**8)** Over all regions containing Motif1 and Motif2 pairs, percentage of regions where Motif1 + Motif2 motifs are within %i nt distance (set via --max-motif-dist).
+**9)** Correlation: Pearson correlation coefficient between Motif1 and Motif2.
+%s regions are labelled 1 or 0 (motif present or not), resulting in a vector of 1s and 0s for each motif.
+Correlations are then calculated by comparing vectors for every pair of motifs.
+**10)** -log10 of p-value after filtering, used for legend coloring. Using p-value after filtering, all non-significant p-values become 0 
+for easier distinction between significant and non-significant co-occurrences.
+%s
+
+&nbsp;
+
+""" %(motif_add_info, p_val_info, fisher_mode_info, str(args.cooc_pval_thr), site_type, args.max_motif_dist, site_type_uc, regex_motif_info)
+
+
+    else:
+
+        mdtext += """
+
+No co-occurrences calculated as no significant context region motifs were found (see upper table).
+        
+&nbsp;
+
+"""
+
+
+
+    """
+    Motif similarity (only for MEME formatted sequence motifs) vs significance PCA plot.
+
+    """
+
+    mdtext += """
+## Sequence motif similarity vs significance PCA plot ### {#motif-sim-sig-plot}
+
+"""
+
+    # Get motif similarities of significant motifs.
+    motif_sim_ll = False
+    motif_sim_stats_dic = {}
+    if motif_pair2sim_dic and len(sig_seq_motif_ids_list) > 2:  # at least 3 significant sequence motifs needed.
+        motif_sim_ll = get_motif_similarites_ll(sig_seq_motif_ids_list, motif_pair2sim_dic,
+                                                min_max_norm=args.motif_sim_norm)
+
+        for motif_id in sig_seq_motif_ids_list:
+            conseq = motif_enrich_stats_dic[motif_id].consensus_seq
+            pval = motif_enrich_stats_dic[motif_id].fisher_pval_corr
+            con_table_str = motif_enrich_stats_dic[motif_id].con_table
+            pval = round_to_n_significant_digits_v2(pval, 4,
+                                                    min_val=1e-304)
+            log_pval = log_tf_pval(pval)
+            log_pval = round_to_n_significant_digits_v2(log_pval, 4,
+                                                        min_val=0)
+            motif_sim_stats_dic[motif_id] = [conseq, con_table_str, pval, log_pval]
+
+        # for idx, motif_id in enumerate(sig_seq_motif_ids_list):
+        #     print(motif_id, motif_sim_stats_dic[motif_id][0], motif_sim_ll[idx])
+
+        motif_sim_plot_plotly =  "motif_sim_sig_pca_plot.plotly.html"
+        motif_sim_plot_plotly_out = plots_out_folder + "/" + motif_sim_plot_plotly
+
+        create_pca_motif_sim_sig_plot_plotly(sig_seq_motif_ids_list, motif_sim_ll,
+                                         motif_sim_stats_dic, motif_sim_plot_plotly_out,
+                                         include_plotlyjs=include_plotlyjs,
+                                         full_html=plotly_full_html)
+
+        plot_path = plots_folder + "/" + motif_sim_plot_plotly
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            js_code = read_file_content_into_str_var(motif_sim_plot_plotly_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:900px; width:1000px;")
+            mdtext += js_code + "\n"
+        else:
+            if plotly_embed_style == 1:
+                mdtext += "<div>\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1000" height="900"></iframe>' + "\n"
+                mdtext += '</div>'
+            elif plotly_embed_style == 2:
+                mdtext += '<object data="' + plot_path + '" width="1000" height="900"> </object>' + "\n"
+
+
+        mdtext += """
+
+**Figure:** Sequence motif similarity vs significance PCA plot. Motifs are arranged by their similarity and colored by their significance, i.e., their -log10 p-value (used as legend color, i.e., the higher the more significant).
+Motifs closer together in the plot translates to higher motif similarity.
+Motif similarity is measured using TOMTOM's euclidean distance measure between motif position weight matrices (PWMs), and motif similarity vectors are used for 2-dimensional PCA.
+Only motifs that are sequence motifs and that are significantly %s (from upper table, sequence logos shown as well) are used for the comparison.
+Hover box: 
+**Motif** -> Motif ID.
+**Consensus** -> Consensus sequence derived from PWM (PWM sequence logo can be found in upper motif enrichment statistics table).
+**Counts** -> contingency table of motif occurrence counts (i.e., number of input and background regions with/without motif hits), 
+with format [[A, B], [C, D]], where 
+A: # input regions with motif hits, 
+B: # input regions without motif hits,
+C: # background regions with motif hits,
+D: # background regions without motif hits.
+**p-value** -> Fisher exact test p-value (corrected) derived from contingency table.
+**-log10(p-value)** -> -log10 p-value of Fisher exact test p-value, used for coloring of motifs.
+
+&nbsp;
+
+""" %(motif_add_info)
+
+    else:
+
+        mdtext += """
+
+No motif similarity vs significance plot generated since there are < 3 significant sequence motifs.
+        
+&nbsp;
+
+"""
+
+
+
+
+
+
+    """
+    Motif similarity (only for MEME formatted sequence motifs) vs direction / context PCA plot.
+
+    """
+
+    mdtext += """
+## Sequence motif similarities vs direction PCA plot ### {#motif-sim-dir-plot}
+
+"""
+
+    # Get motif similarities of significant motifs.
+    motif_sim_ll = False
+    motif_sim_stats_dic = {}
+    if motif_pair2sim_dic and len(sig_seq_motif_ids_list) > 2:  # at least 3 significant sequence motifs needed.
+        motif_sim_ll = get_motif_similarites_ll(sig_seq_motif_ids_list, motif_pair2sim_dic,
+                                                min_max_norm=args.motif_sim_norm)
+
+        for motif_id in sig_seq_motif_ids_list:
+            conseq = motif_enrich_stats_dic[motif_id].consensus_seq
+            pval = motif_enrich_stats_dic[motif_id].fisher_pval_corr
+            con_table_str = motif_enrich_stats_dic[motif_id].con_table
+            wrs_pval_greater = motif_enrich_stats_dic[motif_id].wrs_pval_greater
+            wrs_pval_less = motif_enrich_stats_dic[motif_id].wrs_pval_less
+
+            pval = round_to_n_significant_digits_v2(pval, 4,
+                                                    min_val=1e-304)
+            log_pval = log_tf_pval(pval)
+            log_pval = round_to_n_significant_digits_v2(log_pval, 4,
+                                                        min_val=0)
+
+            wrs_pval = 1.0
+            sign = 1
+            if wrs_pval_greater < wrs_pval_less: # upstream p-value lower.
+                wrs_pval = wrs_pval_greater
+                sign = -1
+            elif wrs_pval_less < wrs_pval_greater:
+                wrs_pval = wrs_pval_less
+            
+            wrs_pval = round_to_n_significant_digits_v2(wrs_pval, 4,
+                                                    min_val=1e-304)
+            log_wrs_pval = log_tf_pval(wrs_pval)
+            log_wrs_pval = round_to_n_significant_digits_v2(log_wrs_pval, 4,
+                                                            min_val=0)
+            
+            # log_wrs_pval zero if wrs_pval_greater == wrs_pval_less, negative if wrs_pval_greater greater, positive if wrs_pval_less greater.
+            log_wrs_pval = sign * log_wrs_pval
+
+            motif_sim_stats_dic[motif_id] = [conseq, con_table_str, pval, log_pval, wrs_pval_greater, wrs_pval_less, log_wrs_pval]
+
+
+        motif_sim_plot_plotly =  "motif_sim_dir_pca_plot.plotly.html"
+        motif_sim_plot_plotly_out = plots_out_folder + "/" + motif_sim_plot_plotly
+
+        create_pca_motif_sim_dir_plot_plotly(sig_seq_motif_ids_list, motif_sim_ll,
+                                         motif_sim_stats_dic, motif_sim_plot_plotly_out,
+                                         include_plotlyjs=include_plotlyjs,
+                                         full_html=plotly_full_html)
+
+        plot_path = plots_folder + "/" + motif_sim_plot_plotly
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            js_code = read_file_content_into_str_var(motif_sim_plot_plotly_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:900px; width:1000px;")
+            mdtext += js_code + "\n"
+        else:
+            if plotly_embed_style == 1:
+                mdtext += "<div>\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1000" height="900"></iframe>' + "\n"
+                mdtext += '</div>'
+            elif plotly_embed_style == 2:
+                mdtext += '<object data="' + plot_path + '" width="1000" height="900"> </object>' + "\n"
+
+
+        mdtext += """
+
+**Figure:** Sequence motif similarity vs direction PCA plot. Motifs are arranged by their similarity and colored by their preferred binding direction relative to the provided central sites (up- or downstream context). 
+Significance of directional preference is given as the -log10 of the Wilcoxon rank sum test p-value (used as legend color, i.e., the more negative or positive the value the more significant the preference).
+A negative -log10 p-value indicates a preference for upstream context, whereas a positive value indicates a preference for downstream context.
+A -log10 p-value close to 0 indicates no significant directional preference.
+Motifs closer together in the plot translates to higher motif similarity.
+Motif similarity is measured using TOMTOM's euclidean distance measure between motif position weight matrices (PWMs), and motif similarity vectors are used for 2-dimensional PCA.
+Only motifs that are sequence motifs and that are significantly %s (from upper table, also containing their sequence logos) are used for the comparison.
+Hover box: 
+**Motif** -> Motif ID.
+**Consensus** -> Consensus sequence derived from PWM (PWM sequence logo can be found in upper motif enrichment statistics table).
+**Counts** -> contingency table of motif occurrence counts (i.e., number of input and background regions with/without motif hits), 
+with format [[A, B], [C, D]], where 
+A: # input regions with motif hits, 
+B: # input regions without motif hits,
+C: # background regions with motif hits,
+D: # background regions without motif hits.
+**p-value** -> Fisher exact test p-value (corrected) derived from contingency table.
+**WRS p-value (upstream)** -> Wilcoxon rank sum test p-value to test for significantly higher counts in upstream context regions.
+**WRS p-value (downstream)** -> Wilcoxon rank sum test p-value to test for significantly higher counts in downstream context regions.
+**-log10(WRS p-value)** -> -log10 p-value of Wilcoxon rank sum test p-value used for coloring of motifs. 
+The smaller of the two WRS p-values is taken. A negative value indicates upstream preference, a positive value downstream preference.
+
+&nbsp;
+
+""" %(motif_add_info)
+
+    else:
+
+        mdtext += """
+
+No motif similarity vs direction plot generated since there are < 3 significant sequence motifs.
+        
+&nbsp;
+
+"""
+
+
+    """
+    Genomic region annotations.
+
+    """
+
+    if pos_reg2annot_dic or neg_reg2annot_dic:
+
+        mdtext += """
+## Genomic region annotations ### {#reg-annot}
+
+"""
+
+    if pos_reg2annot_dic:
+
+        annot_bar_plot =  "gene_region_annotation_bar_plot.input.png"
+        annot_bar_plot_out = plots_out_folder + "/" + annot_bar_plot
+
+        create_enmo_annotation_bar_plot(pos_reg2annot_dic, 
+                                        annot2color_dic=annot2color_dic,
+                                        data_id="",
+                                        plot_pdf=args.plot_pdf,
+                                        plot_out=annot_bar_plot_out)
+
+        plot_path = plots_folder + "/" + annot_bar_plot
+
+        mdtext += '<img src="' + plot_path + '" alt="Annotation bar plot input"' + "\n"
+        mdtext += 'title="Annotation bar plot input" />' + "\n"
+        mdtext += """
+**Figure:** Gene region annotations for input sites (# sites = %i).
+
+&nbsp;
+
+""" %(c_input_sites)
+
+    if neg_reg2annot_dic:
+
+        annot_bar_plot =  "gene_region_annotation_bar_plot.background.png"
+        annot_bar_plot_out = plots_out_folder + "/" + annot_bar_plot
+
+        create_enmo_annotation_bar_plot(neg_reg2annot_dic,
+                                        annot2color_dic=annot2color_dic,
+                                        data_id="",
+                                        plot_pdf=args.plot_pdf,
+                                        plot_out=annot_bar_plot_out)
+
+        plot_path = plots_folder + "/" + annot_bar_plot
+
+        mdtext += '<img src="' + plot_path + '" alt="Annotation bar plot background"' + "\n"
+        mdtext += 'title="Annotation bar plot background" />' + "\n"
+        mdtext += """
+**Figure:** Gene region annotations for background sites (# sites = %i).
+
+&nbsp;
+
+""" %(c_bg_sites)
+
+
+
+
+    """
+    k-mer distributions.
+    
+    """
+
+    if pos_seqs_dic and neg_seqs_dic:
+
+
+        # Get 3-mer percentages.
+        pos_3mer_dic = seqs_dic_count_kmer_freqs(pos_seqs_dic, 3, rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
+                                                 convert_to_uc=True)
+        neg_3mer_dic = seqs_dic_count_kmer_freqs(neg_seqs_dic, 3, rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
+                                                 convert_to_uc=True)
+        # Get 4-mer percentages.
+        pos_4mer_dic = seqs_dic_count_kmer_freqs(pos_seqs_dic, 4, rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
+                                                 convert_to_uc=True)
+        neg_4mer_dic = seqs_dic_count_kmer_freqs(neg_seqs_dic, 4, rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
+                                                 convert_to_uc=True)
+        # Get 5-mer percentages.
+        pos_5mer_dic = seqs_dic_count_kmer_freqs(pos_seqs_dic, 5, rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
+                                                 convert_to_uc=True)
+        neg_5mer_dic = seqs_dic_count_kmer_freqs(neg_seqs_dic, 5, rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
+                                                 convert_to_uc=True)
+
+        mdtext += """
+## k-mer distributions ### {#kmer-plotly}
+
+Frequency distributions of k-mers (in percent) for the input and background dataset.
+
+"""
+
+        plotly_3mer_plot = "plotly_scatter_3mer.html"
+        plotly_4mer_plot = "plotly_scatter_4mer.html"
+        plotly_5mer_plot = "plotly_scatter_5mer.html"
+        plotly_3mer_plot_out = plots_out_folder + "/" + plotly_3mer_plot
+        plotly_4mer_plot_out = plots_out_folder + "/" + plotly_4mer_plot
+        plotly_5mer_plot_out = plots_out_folder + "/" + plotly_5mer_plot
+
+        # Create 3-mer plotly scatter plot.
+        create_kmer_sc_plotly_scatter_plot(pos_3mer_dic, neg_3mer_dic, 3,
+                                        plotly_3mer_plot_out,
+                                        plotly_js_path)
+        # Create 4-mer plotly scatter plot.
+        create_kmer_sc_plotly_scatter_plot(pos_4mer_dic, neg_4mer_dic, 4,
+                                        plotly_4mer_plot_out,
+                                        plotly_js_path)
+        # Create 5-mer plotly scatter plot.
+        create_kmer_sc_plotly_scatter_plot(pos_5mer_dic, neg_5mer_dic, 5,
+                                        plotly_5mer_plot_out,
+                                        plotly_js_path)
+        # Plot paths inside html report.
+        plotly_3mer_plot_path = plots_folder + "/" + plotly_3mer_plot
+        plotly_4mer_plot_path = plots_folder + "/" + plotly_4mer_plot
+        plotly_5mer_plot_path = plots_folder + "/" + plotly_5mer_plot
+
+        # R2 scores.
+        r2_3mer = calc_r2_corr_measure(pos_3mer_dic, neg_3mer_dic,
+                                    is_dic=True)
+        r2_4mer = calc_r2_corr_measure(pos_4mer_dic, neg_4mer_dic,
+                                    is_dic=True)
+        r2_5mer = calc_r2_corr_measure(pos_5mer_dic, neg_5mer_dic,
+                                    is_dic=True)
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            js_code = read_file_content_into_str_var(plotly_3mer_plot_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:800px; width:800px;")
+            mdtext += js_code + "\n"
+        else:
+            mdtext += "<div>\n"
+            mdtext += '<iframe src="' + plotly_3mer_plot_path + '" width="800" height="800"></iframe>' + "\n"
+            mdtext += '</div>'
+
+        # Old rplib style.
+        # mdtext += '<div class=class="container-fluid" style="margin-top:40px">' + "\n"
+        # mdtext += '<iframe src="' + plotly_3mer_plot_path + '" width="500" height="500"></iframe>' + "\n"
+        # mdtext += '</div>'
+
+        mdtext += """
+
+**Figure:** 3-mer percentages in the input and background dataset. In case of
+a uniform distribution with all 3-mers present, each 3-mer would have a
+percentage = 1.5625. R2 = %.6f.
+
+&nbsp;
+
+""" %(r2_3mer)
+    
+        if args.plotly_js_mode in [5, 6, 7]:
+            js_code = read_file_content_into_str_var(plotly_4mer_plot_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:800px; width:800px;")
+            mdtext += js_code + "\n"
+        else:
+            mdtext += "<div>\n"
+            mdtext += '<iframe src="' + plotly_4mer_plot_path + '" width="800" height="800"></iframe>' + "\n"
+            mdtext += '</div>'
+
+        # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+        # mdtext += '<iframe src="' + plotly_4mer_plot_path + '" width="600" height="600"></iframe>' + "\n"
+        # mdtext += '</div>'
+
+        mdtext += """
+
+**Figure:** 4-mer percentages in the input and background dataset. In case of
+a uniform distribution with all 4-mers present, each 4-mer would have a
+percentage = 0.390625. R2 = %.6f.
+
+&nbsp;
+
+""" %(r2_4mer)
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            js_code = read_file_content_into_str_var(plotly_5mer_plot_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:800px; width:800px;")
+            mdtext += js_code + "\n"
+        else:
+            mdtext += "<div>\n"
+            mdtext += '<iframe src="' + plotly_5mer_plot_path + '" width="800" height="800"></iframe>' + "\n"
+            mdtext += '</div>'
+
+        # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+        # mdtext += '<iframe src="' + plotly_5mer_plot_path + '" width="700" height="700"></iframe>' + "\n"
+        # mdtext += '</div>'
+
+        mdtext += """
+
+**Figure:** 5-mer percentages in the input and background dataset. In case of
+a uniform distribution with all 5-mers present, each 5-mer would have a
+percentage = 0.09765625. R2 = %.6f.
+
+&nbsp;
+
+""" %(r2_5mer)
+
+    # Convert mdtext to html.
+    md2html = markdown(mdtext, extensions=['attr_list', 'tables'])
+
+    # OUTMD = open(md_out,"w")
+    # OUTMD.write("%s\n" %(mdtext))
+    # OUTMD.close()
+
+    html_content = html_head + md2html + html_tail
+
+    OUTHTML = open(html_out,"w")
+    OUTHTML.write("%s\n" %(html_content))
+    OUTHTML.close()
+
+
+################################################################################
+
+def create_kmer_sc_plotly_scatter_plot(pos_mer_dic, neg_mer_dic, k,
+                                       out_html, plotly_js):
+    """
+    Create plotly graph plot, containing k-mer scores of positive
+    and negative set, and store in .html file.
+
+    pos_mer_dic:
+        dic with k-mer percentages of positive set.
+    neg_mer_dic:
+        dic with k-mer percentages of negative set.
+    k:
+        k in k-mer.
+    out_html:
+        Output .html path to store interactive (!) plotly graph.
+    plotly_js:
+        Path to plotly js plotly-latest.min.js.
+
+    """
+    assert pos_mer_dic, "given pos_mer_dic empty"
+    assert neg_mer_dic, "given neg_mer_dic empty"
+    assert len(pos_mer_dic) == len(neg_mer_dic), "len(pos_mer_dic) != len(neg_mer_dic)"
+
+    pos_label = "k-mer % input"
+    neg_label = "k-mer % background"
+    kmer_label = "k-mer"
+    data = {pos_label : [], neg_label : [], kmer_label : []}
+
+    max_pos_perc = 0
+    max_neg_perc = 0
+
+    for kmer in pos_mer_dic:
+        pos_perc = pos_mer_dic[kmer]
+        neg_perc = neg_mer_dic[kmer]
+        if pos_perc != 0:
+            pos_perc = round(pos_perc, k)
+        if neg_perc != 0:
+            neg_perc = round(neg_perc, k)
+        if pos_perc > max_pos_perc:
+            max_pos_perc = pos_perc
+        if neg_perc > max_neg_perc:
+            max_neg_perc = neg_perc
+        data[pos_label].append(pos_perc)
+        data[neg_label].append(neg_perc)
+        data[kmer_label].append(kmer)
+
+    # Get min and max axis values for scaling.
+    min_perc = 0
+    max_perc = max_pos_perc
+    if max_neg_perc > max_pos_perc:
+        max_perc = max_neg_perc
+
+    # Find out how to round up max_perc.
+    if re.search("\d+\.\d+", str(max_perc)):
+        m = re.search("(\d+)\.(\d+)", str(max_perc))
+        left = str(m.group(1))
+        right = str(m.group(2))
+    else:
+        assert False, "no pattern match on max_perc"
+    if left == "0":
+        for i,c in enumerate(right):
+            prec = i + 1
+            if c != "0":
+                # Custom decimal round up.
+                max_perc = decimal_ceil(max_perc, prec)
+                break
+    else:
+        # Round up to whole number with math.ceil.
+        max_perc = ceil(max_perc)
+
+    df = pd.DataFrame(data, columns = [pos_label, neg_label, kmer_label])
+
+    # # 3utr blue: #1f77b4
+    # dot_col = "#1f77b4"  
+    # # Color of dots.
+    # dot_col = "#69e9f6"
+    # if theme == 2:
+    #     dot_col = "blue"
+
+    # plot = px.scatter(data_frame=df, x=pos_label, y=neg_label, hover_name=kmer_label,
+    #                   color_discrete_sequence=[dot_col])
+    # plot.layout.template = 'seaborn'
+
+    plot = px.scatter(data_frame=df, x=pos_label, y=neg_label, hover_name=kmer_label)
+
+    plot.update_layout(yaxis_range=[min_perc, max_perc])
+    plot.update_layout(xaxis_range=[min_perc, max_perc])
+
+    plot.write_html(out_html,
+                    full_html=False,
+                    include_plotlyjs=plotly_js)
+
+
+################################################################################
+
+def decimal_ceil(a, prec):
+    """
+    Round up a given decimal number at a certain precision.
+
+    >>> a = 0.002489
+    >>> decimal_ceil(a, 3)
+    0.003
+    >>> decimal_ceil(a, 2)
+    0.01
+    """
+    return np.round(a + 0.5 * 10**(-prec), prec)
+
+
+################################################################################
+
+def calc_r2_corr_measure(scores1, scores2,
+                         is_dic=False):
+    """
+    Calculate R2 measure.
+
+    is_dic:
+        If scores1 + scores2 are dictionaries.
+
+    """
+    assert len(scores1) == len(scores2), "len(scores1) != len(scores2)"
+
+    if is_dic:
+        sc1 = []
+        sc2 = []
+        for dic_key in scores1:
+            sc1.append(scores1[dic_key])
+            sc2.append(scores2[dic_key])
+        correlation_matrix = np.corrcoef(sc1, sc2)
+    else:
+        correlation_matrix = np.corrcoef(scores1, scores2)
+    correlation_xy = correlation_matrix[0,1]
+    return correlation_xy**2
+
+
+################################################################################
+
+def search_generate_html_report(args,
+                                df_pval, pval_cont_lll,
                                 search_rbps_dic,
                                 id2name_dic, name2ids_dic,
                                 region_rbp_motif_pos_dic,
                                 reg2pol_dic,
-                                out_folder, 
                                 benchlib_path,
                                 rbp2regidx_dic,
                                 reg_ids_list,
-                                fisher_mode=1,
-                                wrs_mode=1,
                                 seq_len_df=None,
-                                set_rbp_id=None,
-                                motif_db_str=False,
-                                regex_id=False,
+                                mrna_prof_dic=False,
+                                ei_ol_stats_dic=False,
                                 seq_motif_blocks_dic=None,
-                                max_motif_dist=50,
-                                motif_distance_plot_range=50,
-                                motif_min_pair_count=10,
-                                rbp_min_pair_count=10,
                                 reg2annot_dic=False,
                                 annot2color_dic=False,
-                                upset_plot_min_degree=2,
-                                upset_plot_max_degree=None,
-                                upset_plot_min_subset_size=10,
-                                upset_plot_max_subset_rank=20,
-                                upset_plot_min_rbp_count=0,
-                                upset_plot_max_rbp_rank=None,
                                 html_report_out="report.rbpbench_search.html",
-                                add_all_reg_bar=False,
-                                plot_abs_paths=False,
-                                sort_js_mode=1,
-                                plotly_js_mode=1,
+                                goa_results_df=False,
+                                goa_stats_dic=False,
                                 plotly_embed_style=1,
                                 plotly_full_html=False,
-                                cooc_pval_thr=0.05,
-                                cooc_pval_mode=1,
-                                c_all_fisher_pval=0,
-                                c_sig_fisher_pval=0,
-                                perc_sig_fisher_pval=0.0,
                                 rbpbench_mode="search --report",
                                 disable_motif_enrich_table=False,
-                                fimo_pval=0.001,
                                 reg_seq_str="regions",
-                                report_header=False,
                                 plots_subfolder="html_report_plots"):
     """
     Create additional hit statistics for selected RBPs, 
@@ -6261,12 +12480,13 @@ def search_generate_html_report(df_pval, pval_cont_lll,
     """
 
     # Use absolute paths?
-    if plot_abs_paths:
+    out_folder = args.out_folder
+    if args.plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
     
     plots_folder = plots_subfolder
     plots_out_folder = out_folder + "/" + plots_folder
-    if plot_abs_paths:
+    if args.plot_abs_paths:
         plots_folder = plots_out_folder
 
     # Delete folder if already present.
@@ -6286,7 +12506,7 @@ def search_generate_html_report(df_pval, pval_cont_lll,
     no_region_hits = True
     for rbp_id in rbp2regidx_dic:
         if rbp2regidx_dic[rbp_id]:
-            no_region_hits = False 
+            no_region_hits = False
             break
 
     site_type_uc = "Genomic"
@@ -6296,12 +12516,12 @@ def search_generate_html_report(df_pval, pval_cont_lll,
         site_type = "transcript"
 
     regex_motif_info = ""
-    if regex_id:
-        regex_motif_info = "Used regex motif: '%s'." %(name2ids_dic[regex_id][0])
+    if args.regex:
+        regex_motif_info = "Used regex motif: '%s'." %(name2ids_dic[args.regex_id][0])
 
-    report_header_info = ""
-    if report_header:
-        report_header_info = "RBPBench "
+    report_header_info = "Search report"
+    if args.report_header:
+        report_header_info = "RBPBench search report"
 
     # Number of input regions.
     c_in_regions = 0
@@ -6317,11 +12537,11 @@ def search_generate_html_report(df_pval, pval_cont_lll,
     sorttable_js_path = benchlib_path + "/content/sorttable.js"
     assert os.path.exists(sorttable_js_path), "sorttable.js not at %s" %(sorttable_js_path)
     sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
-    if sort_js_mode == 2:
+    if args.sort_js_mode == 2:
         shutil.copy(sorttable_js_path, plots_out_folder)
         sorttable_js_path = plots_folder + "/sorttable.js"
         sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
-    elif sort_js_mode == 3:
+    elif args.sort_js_mode == 3:
         js_code = read_file_content_into_str_var(sorttable_js_path)
         sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
 
@@ -6339,25 +12559,25 @@ def search_generate_html_report(df_pval, pval_cont_lll,
     plotly_js_html = ""
     plotly_js_path = benchlib_path + "/content/plotly-2.20.0.min.js"
     assert os.path.exists(plotly_js_path), "plotly .js %s not found" %(plotly_js_path)
-    if plotly_js_mode == 2:
+    if args.plotly_js_mode == 2:
         include_plotlyjs = plotly_js_path
-    elif plotly_js_mode == 3:
+    elif args.plotly_js_mode == 3:
         shutil.copy(plotly_js_path, plots_out_folder)
         include_plotlyjs = "plotly-2.20.0.min.js" # Or plots_folder + "/plotly-2.20.0.min.js" ?
-    elif plotly_js_mode == 4:
+    elif args.plotly_js_mode == 4:
         include_plotlyjs = True
         # plotly_full_html = False # Don't really need full html (head body ..) in plotly html.
-    elif plotly_js_mode == 5:
+    elif args.plotly_js_mode == 5:
         plotly_js_web = "https://cdn.plot.ly/plotly-2.25.2.min.js"
         plotly_js_html = '<script src="' + plotly_js_web + '"></script>' + "\n"
         include_plotlyjs = False
         # plotly_full_html = True
-    elif plotly_js_mode == 6:
+    elif args.plotly_js_mode == 6:
         shutil.copy(plotly_js_path, plots_out_folder)
         plotly_js = plots_folder + "/plotly-2.20.0.min.js"
         plotly_js_html = '<script src="' + plotly_js + '"></script>' + "\n"
         include_plotlyjs = False
-    elif plotly_js_mode == 7:
+    elif args.plotly_js_mode == 7:
         js_code = read_file_content_into_str_var(plotly_js_path)
         plotly_js_html = "<script>\n" + js_code + "\n</script>\n"
         include_plotlyjs = False
@@ -6369,6 +12589,21 @@ def search_generate_html_report(df_pval, pval_cont_lll,
 <head>
 <title>RBPBench - Search Report</title>
 %s
+
+<style>
+    th, td {
+        border: 1px solid black;
+        padding: 8px;
+        text-align: center;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+    .page {
+        page-break-after: always;
+    }
+</style>
+
 </head>
 <body>
 """ %(plotly_js_html)
@@ -6380,20 +12615,20 @@ def search_generate_html_report(df_pval, pval_cont_lll,
 </html>
 """ %(sorttable_js_html)
 
-    motif_enrich_info = "- [RBP motif enrichment statistics](#rbp-enrich-stats)"
+    motif_enrich_info = "- [RBP region score motif enrichment statistics](#rbp-enrich-stats)"
     if disable_motif_enrich_table:
         motif_enrich_info = ""
 
     # Markdown part.
     mdtext = """
 
-# %sSearch report
+# %s
 
 List of available statistics and plots generated
 by RBPBench (rbpbench %s):
 
 %s
-- [RBP co-occurrences heat map](#cooc-heat-map)""" %(report_header_info, rbpbench_mode, motif_enrich_info)
+- [RBP motif co-occurrences heat map](#cooc-heat-map)""" %(report_header_info, rbpbench_mode, motif_enrich_info)
 
     mdtext += "\n"
 
@@ -6405,27 +12640,44 @@ by RBPBench (rbpbench %s):
     if reg2annot_dic:
         mdtext += "- [Region annotations per RBP](#annot-rbp-plot)\n"
 
+    if mrna_prof_dic:
+        mdtext += "- [mRNA region coverage profile](#mrna-prof-plot)\n"
+
+    if ei_ol_stats_dic:
+        mdtext += "- [Exon-intron overlap statistics](#ei-ol-stats)\n"
+
     # Upset plot.
     # mdtext += "\n"
-    mdtext += "- [RBP combinations upset plot](#rbp-comb-upset-plot)\n"
+    if args.enable_upset_plot:
+        mdtext += "- [RBP combinations upset plot](#rbp-comb-upset-plot)\n"
 
     # If --set-rbp-id given.
-    if set_rbp_id is not None:
+    if args.set_rbp_id is not None:
         # if reg2annot_dic is None:
         #     mdtext += "\n"
-        mdtext += "- [Set RBP %s motifs distance statistics](#rbp-motif-dist-stats)\n" %(set_rbp_id)
+        mdtext += "- [Set RBP %s motifs distance statistics](#rbp-motif-dist-stats)\n" %(args.set_rbp_id)
         # mdtext += "- [Set RBP %s motif distance plot](#rbp-motif-dist-plot)\n" %(set_rbp_id)
-        for idx, motif_id in enumerate(name2ids_dic[set_rbp_id]):
+        for idx, motif_id in enumerate(name2ids_dic[args.set_rbp_id]):
             mdtext += "    - [Motif %s distance statistics](#single-motif-%i-dist-stats)\n" %(motif_id, idx)
             # mdtext += "    - [Single motif %s distance plot](#single-motif-%i-dist-plot)\n" %(motif_id, idx)
 
+    if args.run_goa:
+        mdtext += "- [GO enrichment analysis results](#goa-results)\n"
 
-    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s. # of input %s = %i.\n" %(str(fimo_pval), reg_seq_str, c_in_regions)
+    add_head_info = ""
+    if args.bed_sc_thr is not None:
+        add_head_info = " BED score threshold (--bed-sc-thr) = %s" %(str(args.bed_sc_thr))
+        if args.bed_sc_thr_rev_filter:
+            add_head_info += " (reverse filtering applied, i.e., the lower the better)."
+        else:
+            add_head_info += "."
+
+    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s.%s # of considered input %s = %i. Region extension (upstream, downstream) = (%i, %i).\n" %(str(args.fimo_pval), add_head_info, reg_seq_str, c_in_regions, args.ext_up, args.ext_down)
     mdtext += "\n&nbsp;\n"
 
 
     """
-    RBP motif enrichment statistics
+    RBP region score motif enrichment statistics
 
     """
 
@@ -6434,14 +12686,14 @@ by RBPBench (rbpbench %s):
         # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
         wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low p-values mean motif-containing regions have significantly higher scores."
         wrs_mode_info2 = "higher"
-        if wrs_mode == 2:
+        if args.wrs_mode == 2:
             wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low p-values mean motif-containing regions have significantly lower scores."
             wrs_mode_info2 = "lower"
 
         mdtext += """
-## RBP motif enrichment statistics ### {#rbp-enrich-stats}
+## RBP region score motif enrichment statistics ### {#rbp-enrich-stats}
 
-**Table:** RBP motif enrichment statistics. Given a score for each genomic region (# input regions = %i), 
+**Table:** RBP region score motif enrichment statistics. Given a score for each genomic region (# input regions = %i), 
 RBPbench checks whether motif-containing regions have significantly different scores compared to regions without motif hits.
 %s
 In other words, a low test p-value for a given RBP indicates 
@@ -6453,19 +12705,6 @@ By default, BED genomic regions input file column 5 is used as the score column 
 
 """ %(c_in_regions, wrs_mode_info1, wrs_mode_info2, regex_motif_info)
 
-        #     mdtext += """
-        # <table id="table1" class="sortable">
-        # <thead>
-        # <tr>
-        # <th style="text-align: center;" onclick="sortTable('table1', 0, false)">RBP ID</th>
-        # <th style="text-align: center;" onclick="sortTable('table1', 1, true)"># hit regions</th>
-        # <th style="text-align: center;" onclick="sortTable('table1', 2, true)">% hit regions</th>
-        # <th style="text-align: center;" onclick="sortTable('table1', 3, true)"># motif hits</th>
-        # <th style="text-align: center;" onclick="sortTable('table1', 4, true)">p-value</th>
-        # </tr>
-        # </thead>
-        # <tbody>
-        # """
 
         pval_dic = {}
         for rbp_id in search_rbps_dic:
@@ -6485,14 +12724,38 @@ By default, BED genomic regions input file column 5 is used as the score column 
         #     mdtext += '<td style="text-align: center;"' + ">" + str(wc_pval) + "</td>\n"
         #     mdtext += '</tr>' + "\n"
 
-        mdtext += '| RBP ID | # hit regions | % hit regions | # motif hits | p-value |' + " \n"
-        mdtext += "| :-: | :-: | :-: | :-: | :-: |\n"
+        # mdtext += '| RBP ID | # hit regions | % hit regions | # motif hits | p-value |' + " \n"
+        # mdtext += "| :-: | :-: | :-: | :-: | :-: |\n"
+
+        mdtext += '<table style="max-width: 800px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>RBP ID</th>\n"
+        mdtext += "<th># hit regions</th>\n"
+        mdtext += "<th>% hit regions</th>\n"
+        mdtext += "<th># motif hits</th>\n"
+        mdtext += "<th>p-value</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
+
         for rbp_id, wc_pval in sorted(pval_dic.items(), key=lambda item: item[1], reverse=False):
             wc_pval_str = convert_sci_not_to_decimal(wc_pval)  # Convert scientific notation to decimal string for sorting to work.
             c_hit_reg = search_rbps_dic[rbp_id].c_hit_reg
             perc_hit_reg = search_rbps_dic[rbp_id].perc_hit_reg
             c_uniq_motif_hits = search_rbps_dic[rbp_id].c_uniq_motif_hits
-            mdtext += "| %s | %i | %.2f | %i | %s |\n" %(rbp_id, c_hit_reg, perc_hit_reg, c_uniq_motif_hits, wc_pval)
+            # mdtext += "| %s | %i | %.2f | %i | %s |\n" %(rbp_id, c_hit_reg, perc_hit_reg, c_uniq_motif_hits, wc_pval)
+            mdtext += '<tr>' + "\n"
+            mdtext += "<td>" + rbp_id + "</td>\n"
+            mdtext += "<td>" + str(c_hit_reg) + "</td>\n"
+            mdtext += "<td>%.2f" %(perc_hit_reg) + "</td>\n"
+            mdtext += "<td>" + str(c_uniq_motif_hits) + "</td>\n"
+            mdtext += "<td>" + str(wc_pval) + "</td>\n"
+            mdtext += '</tr>' + "\n"
+
+        mdtext += '</tbody>' + "\n"
+        mdtext += '</table>' + "\n"
+
         mdtext += "\n&nbsp;\n&nbsp;\n"
         mdtext += "\nColumn IDs have the following meanings: "
         mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
@@ -6502,10 +12765,7 @@ By default, BED genomic regions input file column 5 is used as the score column 
         mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
         mdtext += "\n&nbsp;\n"
 
-    #     mdtext += """
-    # </tbody>
-    # </table>
-    # """
+
 
     #     mdtext += "\n&nbsp;\n&nbsp;\n"
     #     mdtext += "\nColumn IDs have the following meanings: "
@@ -6526,17 +12786,18 @@ By default, BED genomic regions input file column 5 is used as the score column 
     cooc_plot_plotly_out = plots_out_folder + "/" + cooc_plot_plotly
 
     create_cooc_plot_plotly(df_pval, pval_cont_lll, cooc_plot_plotly_out,
-                            max_motif_dist=max_motif_dist,
+                            max_motif_dist=args.max_motif_dist,
+                            min_motif_dist=args.min_motif_dist,
                             include_plotlyjs=include_plotlyjs,
                             full_html=plotly_full_html)
 
     plot_path = plots_folder + "/" + cooc_plot_plotly
 
     mdtext += """
-## RBP co-occurrences heat map ### {#cooc-heat-map}
+## RBP motif co-occurrences heat map ### {#cooc-heat-map}
 
 """
-    if plotly_js_mode in [5, 6, 7]:
+    if args.plotly_js_mode in [5, 6, 7]:
         # Read in plotly code.
         # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
         js_code = read_file_content_into_str_var(cooc_plot_plotly_out)
@@ -6552,30 +12813,34 @@ By default, BED genomic regions input file column 5 is used as the score column 
         elif plotly_embed_style == 2:
             mdtext += '<object data="' + plot_path + '" width="1200" height="1200"> </object>' + "\n"
 
-    p_val_info = "P-values below %s are considered significant." %(str(cooc_pval_thr))
+    p_val_info = "P-values below %s are considered significant." %(str(args.cooc_pval_thr))
 
-    if cooc_pval_mode == 1:
-        p_val_info = "Benjamini-Hochberg multiple testing corrected p-values below %s are considered significant." %(str(cooc_pval_thr))
-    elif cooc_pval_mode == 2:
-        p_val_info = "P-values below %s (p-value threshold Bonferroni multiple testing corrected) are considered significant." %(str(cooc_pval_thr))
-    elif cooc_pval_mode == 3:
-        p_val_info = "P-values below %s are considered significant." %(str(cooc_pval_thr))
+    min_motif_dist_info = ""
+    if args.min_motif_dist > 0:
+        min_motif_dist_info = " + a mean minimum motif distance >= %i nt " %(args.min_motif_dist)
+
+    if args.cooc_pval_mode == 1:
+        p_val_info = "RBP co-occurrences with Benjamini-Hochberg multiple testing corrected p-values below %s %sare considered significant." %(str(args.cooc_pval_thr), min_motif_dist_info)
+    elif args.cooc_pval_mode == 2:
+        p_val_info = "RBP co-occurrences with p-values below %s (p-value threshold Bonferroni multiple testing corrected) %sare considered significant." %(str(args.cooc_pval_thr), min_motif_dist_info)
+    elif args.cooc_pval_mode == 3:
+        p_val_info = "RBP co-occurrences with p-values below %s %sare considered significant." %(str(args.cooc_pval_thr), min_motif_dist_info)
     else:
-        assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(cooc_pval_mode)
+        assert False, "Invalid co-occurrence p-value mode (--cooc-pval-mode) set: %i" %(args.cooc_pval_mode)
     
-    p_val_info += " # of RBP co-occurrence comparisons: %i. # of significant co-occurrences: %i (%.2f%%)." %(c_all_fisher_pval, c_sig_fisher_pval, perc_sig_fisher_pval)
+    p_val_info += " # of RBP co-occurrence comparisons: %i. # of significant co-occurrences: %i (%.2f%%)." %(args.c_all_fisher_pval, args.c_sig_fisher_pval, args.perc_sig_fisher_pval)
 
     # Inform about set alterntive hypothesis for Fisher exact test on RBP motif co-occurrences.
     fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'greater', i.e., significantly overrepresented co-occurrences are reported."
-    if fisher_mode == 2:
+    if args.fisher_mode == 2:
         fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'two-sided', i.e., significantly over- and underrepresented co-occurrences are reported."
-    elif fisher_mode == 3:
+    elif args.fisher_mode == 3:
         fisher_mode_info = "Fisher exact test alternative hypothesis is set to 'less', i.e., significantly underrepresented co-occurrences are reported."
 
     mdtext += """
 
-**Figure:** Heat map of co-occurrences (Fisher's exact test p-values) between RBPs. 
-RBP co-occurrences that are not significant are colored gray, while
+**Figure:** Heat map of motif hit co-occurrences (Fisher's exact test p-values) between RBPs. 
+RBP motif hit co-occurrences that are not significant are colored white, while
 significant co-occurrences are colored according to their -log10 p-value (used as legend color, i.e., the higher the more significant).
 %s
 %s
@@ -6602,7 +12867,7 @@ for easier distinction between significant and non-significant co-occurrences.
 
 &nbsp;
 
-""" %(p_val_info, fisher_mode_info, str(cooc_pval_thr), site_type, max_motif_dist, site_type_uc, regex_motif_info)
+""" %(p_val_info, fisher_mode_info, str(args.cooc_pval_thr), site_type, args.max_motif_dist, site_type_uc, regex_motif_info)
 
 
     """
@@ -6628,7 +12893,7 @@ for easier distinction between significant and non-significant co-occurrences.
 
         plot_path = plots_folder + "/" + seq_len_plot_plotly
 
-        if plotly_js_mode in [5, 6, 7]:
+        if args.plotly_js_mode in [5, 6, 7]:
             # Read in plotly code.
             # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
             js_code = read_file_content_into_str_var(seq_len_plot_plotly_out)
@@ -6647,14 +12912,17 @@ for easier distinction between significant and non-significant co-occurrences.
         mdtext += """
 
 **Figure:** Input sequence lengths (after filtering and optional extension) violin plot.
-Hover box over data points shows sequence ID, sequence, sequence length, and motif hits. 
-Motif hit format: motif ID, motif start - motif end, p-value (for sequence motifs) or bit score (structure models).
+Hover box over data points shows sequence ID, sequence (60 nt per line), sequence length, and motif hits. 
+Motif hit format: motif ID, motif start - motif end.
 Violin plot shows density distribution of sequence lengths, including min, max, median, 
 and length quartiles (q1: 25th percentile, q3: 75th percentile).
 
 &nbsp;
 
 """
+    # Hover box over data points shows sequence ID, sequence, sequence length, and motif hits. 
+    # Motif hit format: motif ID, motif start - motif end, p-value (for sequence motifs) or bit score (structure models).
+
 
     """
     Region annotations per RBP plot.
@@ -6683,12 +12951,13 @@ No plot generated since no motif hits found in input regions.
             create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
                                                        plot_out=annot_stacked_bars_plot_out,
                                                        annot2color_dic=annot2color_dic,
-                                                       add_all_reg_bar=add_all_reg_bar)
+                                                       plot_pdf=args.plot_pdf,
+                                                       add_all_reg_bar=args.add_all_reg_bar)
 
             plot_path = plots_folder + "/" + annot_stacked_bars_plot
 
             more_infos = ""
-            if add_all_reg_bar:
+            if args.add_all_reg_bar:
                 more_infos = "**All**: annotations for all input regions (with and without motif hits)."
 
             mdtext += '<img src="' + plot_path + '" alt="Annotation stacked bars plot"' + "\n"
@@ -6706,41 +12975,200 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
 """ %(more_infos)
 
 
+
+
+
+
+    """
+    mRNA region coverage plot.
+
+    if mrna_prof_dic:
+        mdtext += "- [mRNA region coverage profile](#mrna-prof-plot)\n"
+    
+    """
+
+    if mrna_prof_dic:
+
+        mdtext += """
+## mRNA region coverage profile ### {#mrna-prof-plot}
+
+"""
+        mrna_prof_plot =  "mRNA_region_plot.png"
+        mrna_prof_plot_out = plots_out_folder + "/" + mrna_prof_plot
+
+        dataset_id = "rbpbench_search"
+        plot_id = "Input region coverage"
+        mrna_reg_occ_dic = {}
+        mrna_reg_occ_dic[plot_id] = {}
+        mrna_reg_occ_dic[plot_id]["5'UTR"] = mrna_prof_dic[dataset_id].utr5_pc_list
+        mrna_reg_occ_dic[plot_id]["CDS"] = mrna_prof_dic[dataset_id].cds_pc_list
+        mrna_reg_occ_dic[plot_id]["3'UTR"] = mrna_prof_dic[dataset_id].utr3_pc_list
+        c_ol_sites = mrna_prof_dic[dataset_id].c_ol_sites
+        c_all_sites = mrna_prof_dic[dataset_id].c_all_sites
+        utr5_len_norm = mrna_prof_dic[dataset_id].utr5_len_norm
+        cds_len_norm = mrna_prof_dic[dataset_id].cds_len_norm
+        utr3_len_norm = mrna_prof_dic[dataset_id].utr3_len_norm
+        norm_mode = mrna_prof_dic[dataset_id].norm_mode
+        c_ol_mrnas = mrna_prof_dic[dataset_id].c_ol_mrnas
+        perc_ol_sites = 0.0
+        if c_ol_sites and c_all_sites:
+            perc_ol_sites = round(c_ol_sites / c_all_sites * 100, 1)
+        perc_min_overlap = round(args.gtf_min_mrna_overlap * 100, 1)
+
+        create_mrna_region_occ_plot([plot_id], mrna_reg_occ_dic,
+                                    annot2color_dic, mrna_prof_plot_out,
+                                    plot_pdf=args.plot_pdf,
+                                    rbp_id=False)
+
+        plots_path = plots_folder + "/" + mrna_prof_plot
+
+        mdtext += '<img src="' + plots_path + '" alt="mRNA region coverage plot"' + "\n"
+        mdtext += 'title="mRNA region coverage plot" />' + "\n"
+        mdtext += """
+**Figure:** mRNA region coverage profile for provided input regions (# input regions = %i, # of input regions overlapping with mRNAs = %i). 
+Percentage of input regions overlapping with mRNA exons = %s%%. 
+NOTE that if this percentage is low, it likely means that the input regions (if derived from CLIP-seq or similar protocols) 
+originate from an intron binding RBP, making the plot less informative (since the RBP is typically not binding to spliced mRNAs).
+Minimum overlap amount with mRNA exons required for input region to be counted as overlapping = %s%% (set via --gtf-min-mrna-overlap).
+All overlapping input region positions are used for the coverage calculation.
+Only mRNA regions overlapping with input regions are used for plot generation (# mRNAs with input regions = %i).
+mRNA region lengths used for plotting are derived from the %i mRNA regions, using their  %s region lengths (5'UTR = %s, CDS = %s, 3'UTR = %s).
+
+&nbsp;
+
+""" %(c_all_sites, c_ol_sites, str(perc_ol_sites), str(perc_min_overlap), c_ol_mrnas, c_ol_mrnas, norm_mode, str(utr5_len_norm), str(cds_len_norm), str(utr3_len_norm))
+
+
+
+    """
+    Exon-intron overlap statistics
+
+    """
+
+    if ei_ol_stats_dic:
+
+        mdtext += """
+## Exon-intron overlap statistics ### {#ei-ol-stats}
+
+"""
+
+        ei_ol_stats = ei_ol_stats_dic["rbpbench_search"]
+        exon_sites_perc = 0.0
+        if ei_ol_stats.c_exon_sites and ei_ol_stats.c_input_sites:
+            exon_sites_perc = round(ei_ol_stats.c_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
+        intron_sites_perc = 0.0
+        if ei_ol_stats.c_intron_sites and ei_ol_stats.c_input_sites:
+            intron_sites_perc = round(ei_ol_stats.c_intron_sites / ei_ol_stats.c_input_sites * 100, 1)
+        us_ib_sites_perc = 0.0
+        if ei_ol_stats.c_us_ib_sites and ei_ol_stats.c_input_sites:
+            us_ib_sites_perc = round(ei_ol_stats.c_us_ib_sites / ei_ol_stats.c_input_sites * 100, 1)
+        ds_ib_sites_perc = 0.0
+        if ei_ol_stats.c_ds_ib_sites and ei_ol_stats.c_input_sites:
+            ds_ib_sites_perc = round(ei_ol_stats.c_ds_ib_sites / ei_ol_stats.c_input_sites * 100, 1)
+        eib_sites_perc = 0.0
+        if ei_ol_stats.c_eib_sites and ei_ol_stats.c_input_sites:
+            eib_sites_perc = round(ei_ol_stats.c_eib_sites / ei_ol_stats.c_input_sites * 100, 1)
+        perc_min_overlap = round(args.gtf_eib_min_overlap * 100, 1)
+
+        intron_bl =  args.gtf_intron_border_len
+
+        # Make bar plot.
+        categories = ['Exon\nregions', 'Intron\nregions', '%i nt us\nintron regions' %(intron_bl), '%i nt ds\nintron regions' %(intron_bl), '+/- 50 nt exon\nintron borders']
+        percentages = [exon_sites_perc, intron_sites_perc, us_ib_sites_perc, ds_ib_sites_perc, eib_sites_perc]
+
+        fig, ax = plt.subplots(figsize=(8, 4))
+
+        ax.bar(categories, percentages, color='lightgray', zorder=2)
+
+        ax.set_ylabel('Input regions overlapping with %')
+
+        ax.set_yticks(range(0, 101, 10))
+
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+
+        ax.grid(axis='y', color='lightgray', linestyle='-', alpha=0.7, linewidth=0.7, zorder=1)
+
+        # plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.25)
+
+        eib_stats_plot = "eib_ol_stats.bar_plot.png"
+        eib_stats_plot_out = plots_out_folder + "/" + eib_stats_plot
+        plot_path = plots_folder + "/" + eib_stats_plot
+
+        plt.savefig(eib_stats_plot_out, dpi=125)
+
+        if args.plot_pdf and eib_stats_plot_out.endswith('.png'):
+            pdf_out = eib_stats_plot_out[:-4] + '.pdf'
+            plt.savefig(pdf_out, dpi=125)
+
+        plt.close()
+        mdtext += '<image src = "' + plot_path + '" width="900px"></image>'  + "\n"
+        # mdtext += '<img src="' + plots_path + '" alt="Exon intron overlap plot"' + "\n"
+        # mdtext += 'title="mRNA region occupancy plot" />' + "\n"
+
+        mdtext += """
+**Figure:** Exon, intron + border region overlap statistics. \# input regions = %i. 
+\# input regions overlapping with exon regions = %i.
+\# input regions overlapping with intron regions = %i.
+Minimum overlap with exon/intron region for input region to be counted as overlapping = %s%%.
+Categories:
+**Exon regions** -> %% of input regions overlapping with exon regions.
+**Intron regions** -> %% of input regions overlapping with intron regions.
+**%i nt us intron regions** -> %% of input regions overlapping with upstream ends of intron regions (first %i nt) (\# %i).
+**%i nt ds intron regions** -> %% of input regions overlapping with downstream ends of intron regions (last %i nt) (\# %i).
+**+/- 50 nt exon intron borders** -> %% of input regions overlapping with exon-intron borders 
+(50 nt upstream and downstream of exon-intron borders) (\# %i).
+Note that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered. 
+Also note that the overlap is calculated between (optionally extended) input regions and transcript regions 
+(one representative transcript, i.e., transcript with highest experimental support, chosen for each gene region, unless --tr-list provided). 
+Thus, depending on set parameters (minimum overlap amount etc.) and characteristics of input dataset, 
+exon/intron overlap can vary or even be relatively low.
+
+&nbsp;
+
+""" %(ei_ol_stats.c_input_sites, ei_ol_stats.c_exon_sites, ei_ol_stats.c_intron_sites, str(perc_min_overlap), intron_bl, intron_bl, ei_ol_stats.c_us_ib_sites, intron_bl, intron_bl, ei_ol_stats.c_ds_ib_sites, ei_ol_stats.c_eib_sites, 2*intron_bl, intron_bl)
+
+
+
     """
     RBP region occupancies upset plot.
 
     """
 
-    rbp_reg_occ_upset_plot =  "rbp_region_occupancies.upset_plot.png"
-    rbp_reg_occ_upset_plot_out = plots_out_folder + "/" + rbp_reg_occ_upset_plot
+    if args.enable_upset_plot:
 
-    upset_plot_nr_included_rbps = len(rbp2regidx_dic)
-    if upset_plot_max_rbp_rank is not None:
-        if upset_plot_max_rbp_rank < upset_plot_nr_included_rbps:
-            upset_plot_nr_included_rbps = upset_plot_max_rbp_rank
-
-    plotted, reason, count = create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list, 
-                                  reg2annot_dic=reg2annot_dic,
-                                  min_degree=upset_plot_min_degree,
-                                  max_degree=upset_plot_max_degree,
-                                  min_subset_size=upset_plot_min_subset_size,
-                                  max_subset_rank=upset_plot_max_subset_rank,
-                                  min_rbp_count=upset_plot_min_rbp_count,
-                                  max_rbp_rank=upset_plot_max_rbp_rank,
-                                  plot_out=rbp_reg_occ_upset_plot_out)
-
-
-    plot_path = plots_folder + "/" + rbp_reg_occ_upset_plot
-
-    mdtext += """
+        mdtext += """
 ## RBP combinations upset plot ### {#rbp-comb-upset-plot}
 
 """
 
-    if plotted:
-        mdtext += '<img src="' + plot_path + '" alt="RBP region occupancies upset plot"' + "\n"
-        mdtext += 'title="RBP region occupancies upset plot" />' + "\n"
-        mdtext += """
+        rbp_reg_occ_upset_plot =  "rbp_region_occupancies.upset_plot.png"
+        rbp_reg_occ_upset_plot_out = plots_out_folder + "/" + rbp_reg_occ_upset_plot
+
+        upset_plot_nr_included_rbps = len(rbp2regidx_dic)
+        if args.upset_plot_max_rbp_rank is not None:
+            if args.upset_plot_max_rbp_rank < upset_plot_nr_included_rbps:
+                upset_plot_nr_included_rbps = args.upset_plot_max_rbp_rank
+
+        plotted, reason, count = create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list, 
+                                    reg2annot_dic=reg2annot_dic,
+                                    min_degree=args.upset_plot_min_degree,
+                                    max_degree=args.upset_plot_max_degree,
+                                    min_subset_size=args.upset_plot_min_subset_size,
+                                    max_subset_rank=args.upset_plot_max_subset_rank,
+                                    min_rbp_count=args.upset_plot_min_rbp_count,
+                                    max_rbp_rank=args.upset_plot_max_rbp_rank,
+                                    plot_pdf=args.plot_pdf,
+                                    plot_out=rbp_reg_occ_upset_plot_out)
+
+
+        plot_path = plots_folder + "/" + rbp_reg_occ_upset_plot
+
+        if plotted:
+            mdtext += '<img src="' + plot_path + '" alt="RBP region occupancies upset plot"' + "\n"
+            mdtext += 'title="RBP region occupancies upset plot" />' + "\n"
+            mdtext += """
 
 **Figure:** Upset plot of RBP combinations found in the given set of %s regions (# of regions = %i). 
 Intersection size == how often a specific RBP combination is found in the regions dataset.
@@ -6760,13 +13188,13 @@ This is why the more RBPs are selected, the smaller intersection sizes typically
 
 &nbsp;
 
-""" %(site_type, c_regions, upset_plot_min_subset_size, upset_plot_min_degree, upset_plot_max_subset_rank, upset_plot_nr_included_rbps, upset_plot_min_rbp_count, site_type)
+""" %(site_type, c_regions, args.upset_plot_min_subset_size, args.upset_plot_min_degree, args.upset_plot_max_subset_rank, upset_plot_nr_included_rbps, args.upset_plot_min_rbp_count, site_type)
 
-    else:
+        else:
 
-        if reason == "min_degree":
+            if reason == "min_degree":
 
-            mdtext += """
+                mdtext += """
 
 No upset plot generated since set --upset-plot-min-degree > maximum degree found in the RBP combination set. Please use lower number for --upset-plot-min-degree parameter.
 Also NOTE that upsetplot currently (v0.9) only supports distinct mode (no intersect or union modes available). 
@@ -6779,9 +13207,9 @@ This is why the more RBPs are selected, the smaller intersection sizes typically
 
 """
 
-        elif reason == "min_subset_size":
+            elif reason == "min_subset_size":
 
-            mdtext += """
+                mdtext += """
 
 No upset plot generated since set --upset-plot-min-subset-size (%i) > maximum subset size (%i) found in the RBP combination set. Please use lower number for --upset-plot-min-subset-size parameter.
 Also NOTE that upsetplot currently (v0.9) only supports distinct mode (no intersect or union modes available). 
@@ -6792,11 +13220,11 @@ This is why the more RBPs are selected, the smaller intersection sizes typically
 
 &nbsp;
 
-""" %(upset_plot_min_subset_size, count)
+""" %(args.upset_plot_min_subset_size, count)
 
-        elif reason == "len(rbp_id_list) == 1":
+            elif reason == "len(rbp_id_list) == 1":
 
-            mdtext += """
+                mdtext += """
 
 No plot generated since number of selected RBPs == 1.
 
@@ -6804,9 +13232,9 @@ No plot generated since number of selected RBPs == 1.
 
 """
 
-        elif reason == "no_region_hits":
+            elif reason == "no_region_hits":
 
-            mdtext += """
+                mdtext += """
 
 No plot generated since no motif hits found in input regions.
 
@@ -6814,9 +13242,9 @@ No plot generated since no motif hits found in input regions.
 
 """
 
-        elif reason == "min_rbp_count":
+            elif reason == "min_rbp_count":
 
-            mdtext += """
+                mdtext += """
 
 No plot generated since set --upset-plot-min-rbp-count results in no RBPs remaining for upset plot.
 
@@ -6824,8 +13252,8 @@ No plot generated since set --upset-plot-min-rbp-count results in no RBPs remain
 
 """
 
-        else:
-            assert False, "invalid reason given for not plotting upset plot"
+            else:
+                assert False, "invalid reason given for not plotting upset plot"
 
 
 
@@ -6835,14 +13263,15 @@ No plot generated since set --upset-plot-min-rbp-count results in no RBPs remain
     """
 
     # If --set-rbp-id and no motif hits, disable set_rbp_id again.
-    if set_rbp_id is not None and no_region_hits:
+    set_rbp_id = args.set_rbp_id
+    if args.set_rbp_id is not None and no_region_hits:
         mdtext += """
 ## Set RBP %s motifs distance statistics ### {#rbp-motif-dist-stats}
 
 No motif distance statistics and plots generated since no motif hits found in input regions.
 
 
-""" %(set_rbp_id)
+""" %(args.set_rbp_id)
         
         set_rbp_id = None
 
@@ -6859,8 +13288,8 @@ No motif distance statistics and plots generated since no motif hits found in in
             html_out=rbp_motif_dist_plot_plotly_out,
             include_plotlyjs=include_plotlyjs,
             full_html=plotly_full_html,
-            line_plot_range=motif_distance_plot_range,
-            min_pair_count=rbp_min_pair_count)
+            line_plot_range=args.motif_distance_plot_range,
+            min_pair_count=args.rbp_min_pair_count)
 
         mdtext += """
 ## Set RBP %s motifs distance statistics ### {#rbp-motif-dist-stats}
@@ -6872,23 +13301,46 @@ If a regex is included in the analysis (--regex), the first regex hit in each re
 (as all regex hits have same score).
 In case of an empty table, try to lower --rbp-min-pair-count (current value: %i).
 
-""" %(set_rbp_id, set_rbp_id, rbp_min_pair_count)
-        mdtext += '| Set RBP ID | Other RBP ID | Pair count | # near motifs | # distant motifs |' + " \n"
-        mdtext += "| :-: | :-: | :-: | :-: | :-: |\n"
+""" %(set_rbp_id, set_rbp_id, args.rbp_min_pair_count)
+
+        # mdtext += '| Set RBP ID | Other RBP ID | Pair count | # near motifs | # distant motifs |' + " \n"
+        # mdtext += "| :-: | :-: | :-: | :-: | :-: |\n"
+
+        mdtext += '<table style="max-width: 800px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>Set RBP ID</th>\n"
+        mdtext += "<th>Other RBP ID</th>\n"
+        mdtext += "<th>Pair count</th>\n"
+        mdtext += "<th># near motifs</th>\n"
+        mdtext += "<th># distant motifs</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
 
         top_c = 0
         for rbp_id, pair_c in sorted(pc_dic.items(), key=lambda item: item[1], reverse=True):
-            if pair_c >= rbp_min_pair_count:
+            if pair_c >= args.rbp_min_pair_count:
                 top_c += 1
-                mdtext += "| %s | %s | %i | %i | %i |\n" %(set_rbp_id, rbp_id, pair_c, in_dic[rbp_id], out_dic[rbp_id])
+                # mdtext += "| %s | %s | %i | %i | %i |\n" %(set_rbp_id, rbp_id, pair_c, in_dic[rbp_id], out_dic[rbp_id])
+                mdtext += '<tr>' + "\n"
+                mdtext += "<td>" + set_rbp_id + "</td>\n"
+                mdtext += "<td>" + rbp_id + "</td>\n"
+                mdtext += "<td>" + str(pair_c) + "</td>\n"
+                mdtext += "<td>" + str(in_dic[rbp_id]) + "</td>\n"
+                mdtext += "<td>" + str(out_dic[rbp_id]) + "</td>\n"
+                mdtext += '</tr>' + "\n"
+
+        mdtext += '</tbody>' + "\n"
+        mdtext += '</table>' + "\n"
 
         mdtext += "\n&nbsp;\n&nbsp;\n"
         mdtext += "\nColumn IDs have the following meanings: "
         mdtext += "**Set RBP ID** -> set RBP ID (specified via --set-rbp-id), "
         mdtext += "**Other RBP ID** -> other RBP ID that set RBP ID is compared to, "
-        mdtext += "**Pair count** -> number of input regions with motif hits from both RBP IDs (minimum pair count to be reported: %i (set by --rbp-min-pair-count)), " %(rbp_min_pair_count)
-        mdtext += '**# near motifs** -> ' + "number of other RBP ID motifs within specified distance (--motif-distance-plot-range %i) of the centered set RBP ID motifs, " %(motif_distance_plot_range)
-        mdtext += '**# distant motifs** -> ' + "number of other RBP ID motifs outside specified distance (--motif-distance-plot-range %i) of the centered set RBP ID motifs." %(motif_distance_plot_range)
+        mdtext += "**Pair count** -> number of input regions with motif hits from both RBP IDs (minimum pair count to be reported: %i (set by --rbp-min-pair-count)), " %(args.rbp_min_pair_count)
+        mdtext += '**# near motifs** -> ' + "number of other RBP ID motifs within specified distance (--motif-distance-plot-range %i) of the centered set RBP ID motifs, " %(args.motif_distance_plot_range)
+        mdtext += '**# distant motifs** -> ' + "number of other RBP ID motifs outside specified distance (--motif-distance-plot-range %i) of the centered set RBP ID motifs." %(args.motif_distance_plot_range)
         # mdtext += "\n"
         mdtext += "\n&nbsp;\n"
 
@@ -6899,7 +13351,7 @@ In case of an empty table, try to lower --rbp-min-pair-count (current value: %i)
 
         if plotted:
 
-            if plotly_js_mode in [5, 6, 7]:
+            if args.plotly_js_mode in [5, 6, 7]:
                 js_code = read_file_content_into_str_var(rbp_motif_dist_plot_plotly_out)
                 js_code = js_code.replace("height:100%; width:100%;", "height:700px; width:1200px;")
                 mdtext += js_code + "\n"
@@ -6924,7 +13376,7 @@ Each RBP with a pair count (definition see table above) of >= %i is shown, and t
 
 &nbsp;
 
-""" %(set_rbp_id, set_rbp_id, set_rbp_id, set_rbp_id, rbp_min_pair_count)
+""" %(set_rbp_id, set_rbp_id, set_rbp_id, set_rbp_id, args.rbp_min_pair_count)
 
         else:
 
@@ -6934,7 +13386,7 @@ Each RBP with a pair count (definition see table above) of >= %i is shown, and t
 
 &nbsp;
 
-""" %(set_rbp_id, rbp_min_pair_count)
+""" %(set_rbp_id, args.rbp_min_pair_count)
 
         """
         Set RBP single motif distance stats + plots.
@@ -6944,8 +13396,8 @@ Each RBP with a pair count (definition see table above) of >= %i is shown, and t
         for idx, motif_id in enumerate(name2ids_dic[set_rbp_id]):
 
             motif_id_plot_str = motif_id
-            if set_rbp_id == regex_id:
-                motif_id_plot_str = regex_id
+            if set_rbp_id == args.regex_id:
+                motif_id_plot_str = args.regex_id
 
             single_motif_dist_plot_plotly =  "%s.motif_level_dist.plotly.html" %(motif_id_plot_str)
             single_motif_dist_plot_plotly_out = plots_out_folder + "/" + single_motif_dist_plot_plotly
@@ -6957,8 +13409,8 @@ Each RBP with a pair count (definition see table above) of >= %i is shown, and t
                 html_out=single_motif_dist_plot_plotly_out,
                 include_plotlyjs=include_plotlyjs,
                 full_html=plotly_full_html,
-                line_plot_range=motif_distance_plot_range,
-                min_pair_count=motif_min_pair_count)
+                line_plot_range=args.motif_distance_plot_range,
+                min_pair_count=args.motif_min_pair_count)
 
 
             mdtext += """
@@ -6974,14 +13426,21 @@ Each RBP with a pair count (definition see table above) of >= %i is shown, and t
                 plot_path = plots_folder + "/" + motif_plot
 
                 # Check if motif in motif database folder.
-                if motif_db_str:
-                    db_motif_path = benchlib_path + "/content/%s_motif_plots/%s" %(motif_db_str, motif_plot)
+                if args.motif_db_str:
+                    db_motif_path = benchlib_path + "/content/motif_plots/%s" %(motif_plot)
                     if os.path.exists(db_motif_path):
                         shutil.copy(db_motif_path, motif_plot_out)
+                        if args.plot_pdf:
+                            create_motif_plot(motif_id, seq_motif_blocks_dic,
+                                            motif_plot_out,
+                                            plot_pdf=True,
+                                            plot_png=False)
 
                 if not os.path.exists(motif_plot_out):
                     create_motif_plot(motif_id, seq_motif_blocks_dic,
-                                      motif_plot_out)
+                                      motif_plot_out,
+                                      plot_pdf=args.plot_pdf,
+                                      plot_png=True)
 
                 mdtext += '<img src="' + plot_path + '" alt="' + "sequence motif plot %s" %(motif_id) + "\n"
                 mdtext += 'title="' + "sequence motif plot %s" %(motif_id) + '" width="500" />' + "\n"
@@ -7002,14 +13461,27 @@ If a regex is included in the analysis (--regex), the first regex hit in each re
 (as all regex hits have same score).
 In case of an empty table, try to lower --motif-min-pair-count (current value: %i).
 
-""" %(motif_id, set_rbp_id, motif_id, motif_min_pair_count)
+""" %(motif_id, set_rbp_id, motif_id, args.motif_min_pair_count)
 
-            mdtext += '| Motif ID | Other motif ID | &nbsp; Other motif ID plot &nbsp; | Pair count | # near motifs | # distant motifs |' + " \n"
-            mdtext += "| :-: | :-: | :-: | :-: | :-: | :-: |\n"
+            # mdtext += '| Motif ID | Other motif ID | &nbsp; Other motif ID plot &nbsp; | Pair count | # near motifs | # distant motifs |' + " \n"
+            # mdtext += "| :-: | :-: | :-: | :-: | :-: | :-: |\n"
+
+            mdtext += '<table style="max-width: 1000px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+            mdtext += "<thead>\n"
+            mdtext += "<tr>\n"
+            mdtext += "<th>Motif ID</th>\n"
+            mdtext += "<th>Other motif ID</th>\n"
+            mdtext += "<th>Other motif ID plot</th>\n"
+            mdtext += "<th>Pair count</th>\n"
+            mdtext += "<th># near motifs</th>\n"
+            mdtext += "<th># distant motifs</th>\n"
+            mdtext += "</tr>\n"
+            mdtext += "</thead>\n"
+            mdtext += "<tbody>\n"
 
             for other_motif_id, pair_c in sorted(pc_dic.items(), key=lambda item: item[1], reverse=True):
 
-                if pair_c >= motif_min_pair_count:
+                if pair_c >= args.motif_min_pair_count:
 
                     # Plot motif (if sequence motif).
                     plot_str = "-"
@@ -7021,36 +13493,55 @@ In case of an empty table, try to lower --motif-min-pair-count (current value: %
                         plot_path = plots_folder + "/" + motif_plot
 
                         # Check if motif in motif database folder.
-                        if motif_db_str:
-                            db_motif_path = benchlib_path + "/content/%s_motif_plots/%s" %(motif_db_str, motif_plot)
+                        if args.motif_db_str:
+                            db_motif_path = benchlib_path + "/content/motif_plots/%s" %(motif_plot)
                             if os.path.exists(db_motif_path):
                                 shutil.copy(db_motif_path, motif_plot_out)
+                                if args.plot_pdf:
+                                    create_motif_plot(motif_id, seq_motif_blocks_dic,
+                                                    motif_plot_out,
+                                                    plot_pdf=True,
+                                                    plot_png=False)
 
                         if not os.path.exists(motif_plot_out):
                             create_motif_plot(other_motif_id, seq_motif_blocks_dic,
-                                              motif_plot_out)
+                                              motif_plot_out,
+                                              plot_pdf=args.plot_pdf,
+                                              plot_png=True)
 
                         plot_str = '<image src = "' + plot_path + '" width="300px"></image>'
 
                     # else:
                     #     print("Motif ID %s not in seq_motif_blocks_dic ... " %(other_motif_id))
 
-                    mdtext += "| %s | %s | %s | %i | %i | %i |\n" %(motif_id, other_motif_id, plot_str, pair_c, in_dic[other_motif_id], out_dic[other_motif_id])
+                    # mdtext += "| %s | %s | %s | %i | %i | %i |\n" %(motif_id, other_motif_id, plot_str, pair_c, in_dic[other_motif_id], out_dic[other_motif_id])
+
+                    mdtext += '<tr>' + "\n"
+                    mdtext += "<td>" + motif_id + "</td>\n"
+                    mdtext += "<td>" + other_motif_id + "</td>\n"
+                    mdtext += "<td>" + plot_str + "</td>\n"
+                    mdtext += "<td>" + str(pair_c) + "</td>\n"
+                    mdtext += "<td>" + str(in_dic[other_motif_id]) + "</td>\n"
+                    mdtext += "<td>" + str(out_dic[other_motif_id]) + "</td>\n"
+                    mdtext += '</tr>' + "\n"
+            
+            mdtext += '</tbody>' + "\n"
+            mdtext += '</table>' + "\n"
 
             mdtext += "\n&nbsp;\n&nbsp;\n"
             mdtext += "\nColumn IDs have the following meanings: "
             mdtext += "**Motif ID** -> motif ID (motif belonging to set RBP), "
             mdtext += "**Other motif ID** -> other motif ID that set RBP motif ID is compared to, "
             mdtext += "**Other motif ID plot** -> other motif ID sequence motif plot (if motif is sequence motif), "
-            mdtext += "**Pair count** -> number of input regions containing hits for both motifs (minimum pair count to be reported: %i (set by --motif-min-pair-count)), " %(motif_min_pair_count)
-            mdtext += '**# near motifs** -> ' + "number of other motifs within specified distance (--motif-distance-plot-range %i) of the centered motif belonging to set RBP, " %(motif_distance_plot_range)
-            mdtext += '**# distant motifs** -> ' + "number of other motifs outside specified distance (--motif-distance-plot-range %i) of the centered motif belonging to set RBP." %(motif_distance_plot_range)
+            mdtext += "**Pair count** -> number of input regions containing hits for both motifs (minimum pair count to be reported: %i (set by --motif-min-pair-count)), " %(args.motif_min_pair_count)
+            mdtext += '**# near motifs** -> ' + "number of other motifs within specified distance (--motif-distance-plot-range %i) of the centered motif belonging to set RBP, " %(args.motif_distance_plot_range)
+            mdtext += '**# distant motifs** -> ' + "number of other motifs outside specified distance (--motif-distance-plot-range %i) of the centered motif belonging to set RBP." %(args.motif_distance_plot_range)
             # mdtext += "\n"
             mdtext += "\n&nbsp;\n"
 
             if plotted:
 
-                if plotly_js_mode in [5, 6, 7]:
+                if args.plotly_js_mode in [5, 6, 7]:
                     js_code = read_file_content_into_str_var(single_motif_dist_plot_plotly_out)
                     js_code = js_code.replace("height:100%; width:100%;", "height:700px; width:1200px;")
                     mdtext += js_code + "\n"
@@ -7074,7 +13565,7 @@ Only motifs with a pair count of >= %i appear in the plot.
 
 &nbsp;
 
-""" %(motif_id, motif_id, motif_id, motif_id, motif_min_pair_count)
+""" %(motif_id, motif_id, motif_id, motif_id, args.motif_min_pair_count)
 
 
             else:
@@ -7085,7 +13576,146 @@ Only motifs with a pair count of >= %i appear in the plot.
 
 &nbsp;
 
-""" %(motif_id, motif_min_pair_count)
+""" %(motif_id, args.motif_min_pair_count)
+
+
+
+    """
+    GOA results.
+
+    """
+
+    if args.run_goa:
+
+        mdtext += """
+## GO enrichment analysis results ### {#goa-results}
+
+"""
+        c_goa_results = 0
+        if isinstance(goa_results_df, pd.DataFrame) and not goa_results_df.empty:
+            c_goa_results = len(goa_results_df)
+
+        filter_purified_info = " GO terms with significantly higher and lower concentration ([e,p]) in study group are shown."
+        filter_purified_info2 = "significant"
+        if args.goa_filter_purified:
+            filter_purified_info = " Only GO terms with significantly higher concentration in study group are shown."
+            filter_purified_info2 = "significantly enriched"
+            c_goa_results = len(goa_results_df[goa_results_df["enrichment"] == "e"])
+        filter_further_info = ""
+        if args.goa_max_child is not None: 
+            filter_further_info += " Only GO terms with <= %i children are shown." %(args.goa_max_child)
+        if args.goa_min_depth is not None:
+            filter_further_info += " Only GO terms with >= %i depth are shown." %(args.goa_min_depth)
+        if filter_further_info:
+            filter_further_info += " Note that additional filters (children + depth) can result in an empty table. For all significant GO terms (i.e., unfiltered results) check *goa_results.tsv* output table."
+        filter_only_cooc_info = ""
+        if args.goa_cooc_mode == 2:
+            filter_only_cooc_info = " Only target genes are considered which contain regions with motif hits from any specified RBP (including regex)."
+        elif args.goa_cooc_mode == 3:
+            filter_only_cooc_info = " Only target genes are considered which contain regions with motif hits from all specified RBPs (including regex)."
+
+        if c_goa_results > 0:
+
+            mdtext += """
+**Table:** GO enrichment analysis results. # of %s GO terms found: %i. Filter p-value threshold (on corrected p-value) = %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
+%s %s %s
+
+""" %(filter_purified_info2, c_goa_results, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"], filter_only_cooc_info, filter_purified_info, filter_further_info)
+
+            mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.9;">' + "\n"
+            mdtext += "<thead>\n"
+            mdtext += "<tr>\n"
+            mdtext += "<th>GO</th>\n"
+            mdtext += "<th>Term</th>\n"
+            mdtext += "<th>Class</th>\n"
+            mdtext += "<th>p-value</th>\n"
+            mdtext += "<th>[e,p]</th>\n"
+            mdtext += "<th>Depth</th>\n"
+            mdtext += "<th># child</th>\n"
+            mdtext += "<th># genes</th>\n"
+            mdtext += "<th># study</th>\n"
+            mdtext += "<th>% genes</th>\n"
+            mdtext += "</tr>\n"
+            mdtext += "</thead>\n"
+            mdtext += "<tbody>\n"
+
+            for index, row in goa_results_df.iterrows():
+
+                go_id = row['GO']
+                go_term = row['term']
+                go_class = row['class']
+                # go_p = row['p']
+                go_p_corr = row['p_corr']
+                go_enrichment = row['enrichment']
+                go_depth = row['depth']
+                go_n_genes = row['n_genes']
+                go_n_study = row['n_study']
+                go_perc_genes = row['perc_genes']
+                go_n_children = row['n_children']
+
+                if args.goa_filter_purified:
+                    if go_enrichment == "p":
+                        continue
+
+                if args.goa_max_child is not None:
+                    if go_n_children > args.goa_max_child:
+                        continue
+                if args.goa_min_depth is not None:
+                    if go_depth < args.goa_min_depth:
+                        continue
+
+                mdtext += '<tr>' + "\n"
+                mdtext += "<td>" + go_id + "</td>\n"
+                mdtext += "<td>" + go_term + "</td>\n"
+                mdtext += "<td>" + go_class + "</td>\n"
+                mdtext += "<td>" + str(go_p_corr) + "</td>\n"
+                mdtext += "<td>" + go_enrichment + "</td>\n"
+                mdtext += "<td>" + str(go_depth) + "</td>\n"
+                mdtext += "<td>" + str(go_n_children) + "</td>\n"
+                mdtext += "<td>" + str(go_n_genes) + "</td>\n"
+                mdtext += "<td>" + str(go_n_study) + "</td>\n"
+                mdtext += "<td>" + str(go_perc_genes) + "</td>\n"
+                mdtext += '</tr>' + "\n"
+
+            mdtext += '</tbody>' + "\n"
+            mdtext += '</table>' + "\n"
+            
+            mdtext += "\n&nbsp;\n&nbsp;\n"
+            mdtext += "\nColumn IDs have the following meanings: "
+            mdtext += "**GO** -> gene ontology (GO) ID, "
+            mdtext += "**Term** -> GO term / name, "
+            mdtext += "**Class** -> GO term class (biological_process, molecular_function, or cellular_component), "
+            mdtext += "**p-value** -> multiple testing corrected (BH) p-value, "
+            mdtext += "**[e,p]** -> e: enriched, i.e., GO term with significantly higher concentration, p: purified, GO term with significantly lower concentration), "
+            mdtext += "**Depth** -> depth / level of GO term in GO hierarchy (the higher number, the more specific), "
+            mdtext += "**# child** -> number of GO term children, "
+            mdtext += "**# genes** -> number of genes associated with GO term, "
+            mdtext += "**# study** -> number of genes in study (i.e., target genes), "
+            mdtext += "**% genes** -> percentage of study genes associated with GO term." + "\n"
+            mdtext += "\n&nbsp;\n"
+
+        else:
+
+            if "c_target_genes_goa" in goa_stats_dic:
+
+                mdtext += """
+
+No %s GO terms found given p-value threshold of %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
+
+&nbsp;
+
+""" %(filter_purified_info2, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"])
+
+            else:
+
+                mdtext += """
+
+No significant GO terms found due to no GO IDs associated with target genes. # of initial target genes (i.e., genes overlapping with --in regions): %i.
+
+&nbsp;
+
+""" %(goa_stats_dic["c_target_genes_pre_filter"])
+
 
     # Convert mdtext to html.
     md2html = markdown(mdtext, extensions=['attr_list', 'tables'])
@@ -7143,7 +13773,7 @@ def plot_motif_dist_rbp_level(set_rbp_id,
         best_motif_pval = 1000
 
         for motif_str in region_rbp_motif_pos_dic[reg_id]:
-            motif_id, s, e, p = motif_str.split(",")
+            motif_id, s, e, p = motif_str.split(":")
             if id2name_dic[motif_id] != set_rbp_id:
                 continue
             pval = float(p)
@@ -7175,7 +13805,7 @@ def plot_motif_dist_rbp_level(set_rbp_id,
         for motif_str in region_rbp_motif_pos_dic[reg_id]:
             if motif_str == best_motif_str:
                 continue
-            motif_id, s, e, p = motif_str.split(",")
+            motif_id, s, e, p = motif_str.split(":")
             rbp_id = id2name_dic[motif_id]
             paired_rbp_ids_dic[rbp_id] = 1
 
@@ -7296,7 +13926,7 @@ def plot_motif_dist_motif_level(set_motif_id,
         best_motif_pval = 1000
 
         for motif_str in region_rbp_motif_pos_dic[reg_id]:
-            motif_id, s, e, p = motif_str.split(",")
+            motif_id, s, e, p = motif_str.split(":")
             if motif_id != set_motif_id:
                 continue
             pval = float(p)
@@ -7330,7 +13960,7 @@ def plot_motif_dist_motif_level(set_motif_id,
             # Do not compare with motif hit itself.
             if motif_str == best_motif_str:
                 continue
-            motif_id, s, e, p = motif_str.split(",")
+            motif_id, s, e, p = motif_str.split(":")
             paired_motif_ids_dic[motif_id] = 1
 
             s = int(s)
@@ -7409,6 +14039,7 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
                                   min_rbp_count=0,
                                   max_rbp_rank=None,
                                   annot2color_dic=False,
+                                  plot_pdf=False,
                                   plot_out="rbp_region_occupancies.upset_plot.png"):
     """
     Create upset plot for RBP region occupancies.
@@ -7585,8 +14216,81 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
         upset.plot()
 
     plt.savefig(plot_out, dpi=125, bbox_inches='tight')
+
+    if plot_pdf and plot_out.endswith('.png'):
+        pdf_out = plot_out[:-4] + '.pdf'
+        plt.savefig(pdf_out, dpi=125, bbox_inches='tight')
+
     plt.close()
     return True, "yowza", 0
+
+
+################################################################################
+
+def create_enmo_annotation_bar_plot(reg2annot_dic, 
+                                    annot2color_dic=False,
+                                    data_id="Input",
+                                    plot_pdf=False,
+                                    plot_out="enmo_annotation_bar_plot.png"):
+    """
+    Plot gene region annotations bar plot for input or backgroud set.
+
+    """
+    fheight = 0.8
+    fwidth = 10
+
+    # Get all annotation IDs in dataset.
+    annot_dic = {}
+    for reg_id in reg2annot_dic:
+        annot = reg2annot_dic[reg_id][0]
+        if annot not in annot_dic:
+            annot_dic[annot] = 1
+        else:
+            annot_dic[annot] += 1
+
+    data_dic = {}
+    for annot in sorted(annot_dic, reverse=True):
+        data_dic[annot] = [0]
+
+    data_dic["data_id"] = [data_id]
+
+    for reg_id in reg2annot_dic:
+        annot = reg2annot_dic[reg_id][0]
+        data_dic[annot][0] += 1
+
+    df = pd.DataFrame(data_dic)
+    # # Remove annotation columns with no counts.
+    # df = df.loc[:, (df != 0).any(axis=0)]
+
+    if not annot2color_dic:
+        annot2color_dic = {}
+        hex_colors = get_hex_colors_list(min_len=len(annot_dic))
+        idx = 0
+        for annot in sorted(annot_dic, reverse=False):
+            annot2color_dic[annot] = hex_colors[idx]
+            idx += 1
+
+    ax = df.set_index('data_id').plot(kind='barh', stacked=True, legend=False, color=annot2color_dic, edgecolor="none", figsize=(fwidth, fheight))
+
+    plt.xlabel('Annotation overlap')
+    ax.set_ylabel('')
+    ax.yaxis.grid(False)
+    ax.xaxis.grid(True)
+    ax.set_axisbelow(True)
+
+    # Remove border lines.
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+
+    plt.legend(bbox_to_anchor=(1.01, 1), loc='upper left')
+
+    if plot_pdf and plot_out.endswith('.png'):
+        pdf_out = plot_out[:-4] + '.pdf'
+        plt.savefig(pdf_out, dpi=110, bbox_inches='tight')
+
+    plt.savefig(plot_out, dpi=110, bbox_inches='tight')
+    plt.close()
 
 
 ################################################################################
@@ -7595,6 +14299,7 @@ def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg
                                                plot_out="annotation_stacked_bars_plot.png",
                                                annot2color_dic=False,
                                                add_all_reg_bar=True,
+                                               plot_pdf=False,
                                                all_regions_id="All"):
     """
     Create a stacked bars plot, with each bar showing the annotations for one RBPs,
@@ -7690,7 +14395,7 @@ def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg
             annot2color_dic[annot] = hex_colors[idx]
             idx += 1
 
-    # idx = 0^
+    # idx = 0
     # for annot in sorted(annot_with_hits_dic, reverse=False):
     #     # hc = hex_colors[idx]
     #     # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
@@ -7716,6 +14421,11 @@ def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg
     plt.legend(bbox_to_anchor=(1.01, 1), loc='upper left')
 
     plt.savefig(plot_out, dpi=110, bbox_inches='tight')
+
+    if plot_pdf and plot_out.endswith('.png'):
+        pdf_out = plot_out[:-4] + '.pdf'
+        plt.savefig(pdf_out, dpi=110, bbox_inches='tight')
+
     plt.close()
 
 
@@ -7936,8 +14646,6 @@ def log_tf_df(df,
                     df.iloc[i, j] = ltf_pval
 
 
-
-
 ################################################################################
 
 def make_pos_freq_matrix(seqs_dic, 
@@ -8051,35 +14759,34 @@ def plot_nt_distribution_zero_pos(ppm, ext_lr,
 
 ################################################################################
 
-def search_generate_html_motif_plots(search_rbps_dic, 
+def search_generate_html_motif_plots(args, search_rbps_dic, 
                                      seq_motif_blocks_dic, str_motif_blocks_dic,
-                                     out_folder, benchlib_path, motif2db_dic,
-                                     motif_db_str=False,
+                                     benchlib_path, motif2db_dic,
                                      rbp2motif2annot2c_dic=False,
+                                     rbp2motif2annot2normc_dic=False,
                                      annot2color_dic=False,
                                      mrna_reg_occ_dic=False,
                                      norm_mrna_reg_dic=False,
-                                     regex_id="regex",
                                      html_report_out="motif_plots.rbpbench_search.html",
-                                     plot_abs_paths=False,
-                                     sort_js_mode=1,
                                      rbpbench_mode="search --plot-motifs",
-                                     report_header=False,
-                                     fimo_pval=0.001,
-                                     c_in_regions=0,
                                      reg_seq_str="regions",
+                                     goa_results_df=False,
+                                     goa_stats_dic=False,
+                                     goa_results_tsv="goa_results.tsv",
                                      plots_subfolder="html_motif_plots"):
     """
     Create motif plots for selected RBPs.
 
     """
+
+    out_folder = args.out_folder
     # Use absolute paths?
-    if plot_abs_paths:
+    if args.plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
     
     plots_folder = plots_subfolder
     plots_out_folder = out_folder + "/" + plots_folder
-    if plot_abs_paths:
+    if args.plot_abs_paths:
         plots_folder = plots_out_folder
 
     # Delete plots if already present.
@@ -8103,9 +14810,9 @@ def search_generate_html_motif_plots(search_rbps_dic,
         site_type_uc = "Sequence"
         site_type = "sequence"
 
-    report_header_info = ""
-    if report_header:
-        report_header_info = "RBPBench "
+    report_header_info = "Motif Plots and Hit Statistics"
+    if args.report_header:
+        report_header_info = "RBPBench Motif Plots and Hit Statistics"
 
     """
     Setup sorttable.js to make tables in HTML sortable.
@@ -8114,11 +14821,11 @@ def search_generate_html_motif_plots(search_rbps_dic,
     sorttable_js_path = benchlib_path + "/content/sorttable.js"
     assert os.path.exists(sorttable_js_path), "sorttable.js not at %s" %(sorttable_js_path)
     sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
-    if sort_js_mode == 2:
+    if args.sort_js_mode == 2:
         shutil.copy(sorttable_js_path, plots_out_folder)
         sorttable_js_path = plots_folder + "/sorttable.js"
         sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
-    elif sort_js_mode == 3:
+    elif args.sort_js_mode == 3:
         js_code = read_file_content_into_str_var(sorttable_js_path)
         sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
 
@@ -8128,6 +14835,21 @@ def search_generate_html_motif_plots(search_rbps_dic,
 <html>
 <head>
 <title>RBPBench - Motif Plots and Hit Statistics</title>
+
+<style>
+    th, td {
+        border: 1px solid black;
+        padding: 8px;
+        text-align: center;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+    .page {
+        page-break-after: always;
+    }
+</style>
+
 </head>
 <body>
 """ 
@@ -8142,13 +14864,16 @@ def search_generate_html_motif_plots(search_rbps_dic,
     # Markdown part.
     mdtext = """
 
-# %sMotif Plots and Hit Statistics
+# %s
 
 List of available motif hit statistics and motif plots generated
 by RBPBench (rbpbench %s):
 
 - [Motif hit statistics](#motif-hit-stats)
 """ %(report_header_info, rbpbench_mode)
+
+    if args.run_goa:
+        mdtext += "- [Motif hit GO enrichment analysis results](#goa-results)\n"
 
     motif_plot_ids_dic = {}
     idx = 0
@@ -8158,8 +14883,19 @@ by RBPBench (rbpbench %s):
         motif_plot_ids_dic[rbp_id] = tab_id
         mdtext += "- [%s motifs](#%s)\n" %(rbp_id, tab_id)
 
+    add_head_info = ""
+    if args.bed_sc_thr is not None:
+        add_head_info = " BED score threshold (--bed-sc-thr) = %s" %(str(args.bed_sc_thr))
+        if args.bed_sc_thr_rev_filter:
+            add_head_info += " (reverse filtering applied, i.e., the lower the better)."
+        else:
+            add_head_info += "."
 
-    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s. # input %s = %i.\n" %(str(fimo_pval), reg_seq_str, c_in_regions)
+    mdtext += "\nFIMO p-value threshold (--fimo-pval) = %s.%s # considered input %s = %i." %(str(args.fimo_pval), add_head_info, reg_seq_str, args.c_regions)
+    if args.ext_up is not None:
+        mdtext += " Region extension (upstream, downstream) = (%i, %i).\n" %(args.ext_up, args.ext_down)
+    mdtext += "\n"
+
     mdtext += "\n&nbsp;\n"
 
 
@@ -8175,23 +14911,202 @@ and respective number of motif hits found in supplied %s regions.
 
 """ %(site_type)
 
-    mdtext += '| &nbsp; RBP ID &nbsp; | &nbsp; Motif ID &nbsp; | Motif database | # motif hits |' + " \n"
-    mdtext += "| :-: | :-: | :-: | :-: |\n"
+    # mdtext += '| &nbsp; RBP ID &nbsp; | &nbsp; Motif ID &nbsp; | Motif database | # motif hits |' + " \n"
+    # mdtext += "| :-: | :-: | :-: | :-: |\n"
+
+    mdtext += '<table style="max-width: 750px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+    mdtext += "<thead>\n"
+    mdtext += "<tr>\n"
+    mdtext += "<th>RBP ID</th>\n"
+    mdtext += "<th>Motif ID</th>\n"
+    mdtext += "<th>Motif database</th>\n"
+    mdtext += "<th># motif hits</th>\n"
+    mdtext += "</tr>\n"
+    mdtext += "</thead>\n"
+    mdtext += "<tbody>\n"
+
     for rbp_id, rbp in sorted(search_rbps_dic.items()):
         for idx, motif_id in enumerate(rbp.seq_motif_ids):
             c_motif_hits = rbp.seq_motif_hits[idx]
             motif_db = motif2db_dic[motif_id]
-            mdtext += "| %s | %s | %s | %i |\n" %(rbp_id, motif_id, motif_db, c_motif_hits)
+            # mdtext += "| %s | %s | %s | %i |\n" %(rbp_id, motif_id, motif_db, c_motif_hits)
+            mdtext += "<tr>\n"
+            mdtext += "<td>%s</td>\n" %(rbp_id)
+            mdtext += "<td>%s</td>\n" %(motif_id)
+            mdtext += "<td>%s</td>\n" %(motif_db)
+            mdtext += "<td>%i</td>\n" %(c_motif_hits)
+            mdtext += "</tr>\n"
+
         for idx, motif_id in enumerate(rbp.str_motif_ids):
             c_motif_hits = rbp.str_motif_hits[idx]
             motif_db = motif2db_dic[motif_id]
-            mdtext += "| %s | %s | %s | %i |\n" %(rbp_id, motif_id, motif_db, c_motif_hits)
+            # mdtext += "| %s | %s | %s | %i |\n" %(rbp_id, motif_id, motif_db, c_motif_hits)
+            mdtext += "<tr>\n"
+            mdtext += "<td>%s</td>\n" %(rbp_id)
+            mdtext += "<td>%s</td>\n" %(motif_id)
+            mdtext += "<td>%s</td>\n" %(motif_db)
+            mdtext += "<td>%i</td>\n" %(c_motif_hits)
+            mdtext += "</tr>\n"
+            
+    mdtext += "</tbody>\n"
+    mdtext += "</table>\n"
+
     mdtext += "\n&nbsp;\n&nbsp;\n"
     mdtext += "\nColumn IDs have the following meanings: "
     mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
     mdtext += "**Motif ID** -> Motif ID from database or user-defined, "
     mdtext += "**Motif database** -> Motif database used for search run, "
     mdtext += '**# motif hits** -> number of unique individual motif hits (i.e., unique hits for motif with motif ID).' + "\n"
+    mdtext += "\n&nbsp;\n"
+
+    """
+    GOA results on transcripts (underlying genes) with motif hits.
+
+    """
+
+    if args.run_goa:
+
+        mdtext += """
+## Motif hit GO enrichment analysis results ### {#goa-results}
+
+"""
+        c_goa_results = 0
+        if isinstance(goa_results_df, pd.DataFrame) and not goa_results_df.empty:
+            c_goa_results = len(goa_results_df)
+
+        filter_purified_info = "GO terms with significantly higher and lower concentration ([e,p]) in study group are shown."
+        filter_purified_info2 = "significant"
+        if args.goa_filter_purified:
+            filter_purified_info = "Only GO terms with significantly higher concentration in study group are shown."
+            filter_purified_info2 = "significantly enriched"
+            c_goa_results = len(goa_results_df[goa_results_df["enrichment"] == "e"])
+
+        filter_further_info = ""
+        if args.goa_max_child is not None: 
+            filter_further_info += " Only GO terms with <= %i children are shown." %(args.goa_max_child)
+        if args.goa_min_depth is not None:
+            filter_further_info += " Only GO terms with >= %i depth are shown." %(args.goa_min_depth)
+        if filter_further_info:
+            filter_further_info += " Note that additional filters (children + depth) can result in an empty table. For all significant GO terms (i.e., unfiltered results) check *%s* output table." %(goa_results_tsv)
+
+        goa_rna_region_info = "transcripts"
+        if args.goa_rna_region == 1:
+            goa_rna_region_info = "transcripts"
+        elif args.goa_rna_region == 2:
+            goa_rna_region_info = "3'UTR regions"
+        elif args.goa_rna_region == 3:
+            goa_rna_region_info = "CDS regions"
+        elif args.goa_rna_region == 4:
+            goa_rna_region_info = "5'UTR regions"
+
+        goa_only_cooc_info = ""
+        if args.goa_cooc_mode == 2:
+            goa_only_cooc_info = " Only target genes with motif hits from any specified RBP (including regex) are considered."
+        elif args.goa_cooc_mode == 3:
+            goa_only_cooc_info = " Only target genes with motif hits from all specified RBPs (including regex) are considered."
+
+
+        if c_goa_results > 0:
+
+            mdtext += """
+**Table:** GO enrichment analysis results for %s with motif hits, taking the corresponding genes for analysis. # of %s GO terms found: %i. Filter p-value threshold (on corrected p-value) = %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i. 
+%s %s %s
+
+""" %(goa_rna_region_info, filter_purified_info2, c_goa_results, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"], goa_only_cooc_info, filter_purified_info, filter_further_info)
+
+            mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.9;">' + "\n"
+            mdtext += "<thead>\n"
+            mdtext += "<tr>\n"
+            mdtext += "<th>GO</th>\n"
+            mdtext += "<th>Term</th>\n"
+            mdtext += "<th>Class</th>\n"
+            mdtext += "<th>p-value</th>\n"
+            mdtext += "<th>[e,p]</th>\n"
+            mdtext += "<th>Depth</th>\n"
+            mdtext += "<th># child</th>\n"
+            mdtext += "<th># genes</th>\n"
+            mdtext += "<th># study</th>\n"
+            mdtext += "<th>% genes</th>\n"
+            mdtext += "</tr>\n"
+            mdtext += "</thead>\n"
+            mdtext += "<tbody>\n"
+
+            for index, row in goa_results_df.iterrows():
+
+                go_id = row['GO']
+                go_term = row['term']
+                go_class = row['class']
+                go_p = row['p']
+                go_p_corr = row['p_corr']
+                go_enrichment = row['enrichment']
+                go_depth = row['depth']
+                go_n_genes = row['n_genes']
+                go_n_study = row['n_study']
+                go_perc_genes = row['perc_genes']
+                go_n_children = row['n_children']
+
+                if args.goa_filter_purified:
+                    if go_enrichment == "p":
+                        continue
+                if args.goa_max_child is not None:
+                    if go_n_children > args.goa_max_child:
+                        continue
+                if args.goa_min_depth is not None:
+                    if go_depth < args.goa_min_depth:
+                        continue
+
+                mdtext += '<tr>' + "\n"
+                mdtext += "<td>" + go_id + "</td>\n"
+                mdtext += "<td>" + go_term + "</td>\n"
+                mdtext += "<td>" + go_class + "</td>\n"
+                mdtext += "<td>" + str(go_p_corr) + "</td>\n"
+                mdtext += "<td>" + go_enrichment + "</td>\n"
+                mdtext += "<td>" + str(go_depth) + "</td>\n"
+                mdtext += "<td>" + str(go_n_children) + "</td>\n"
+                mdtext += "<td>" + str(go_n_genes) + "</td>\n"
+                mdtext += "<td>" + str(go_n_study) + "</td>\n"
+                mdtext += "<td>" + str(go_perc_genes) + "</td>\n"
+                mdtext += '</tr>' + "\n"
+
+            mdtext += '</tbody>' + "\n"
+            mdtext += '</table>' + "\n"
+            
+            mdtext += "\n&nbsp;\n&nbsp;\n"
+            mdtext += "\nColumn IDs have the following meanings: "
+            mdtext += "**GO** -> gene ontology (GO) ID, "
+            mdtext += "**Term** -> GO term / name, "
+            mdtext += "**Class** -> GO term class (biological_process, molecular_function, or cellular_component), "
+            mdtext += "**p-value** -> multiple testing corrected (BH) p-value, "
+            mdtext += "**[e,p]** -> e: enriched, i.e., GO term with significantly higher concentration, p: purified, GO term with significantly lower concentration), "
+            mdtext += "**Depth** -> depth / level of GO term in GO hierarchy (the higher number, the more specific), "
+            mdtext += "**# child** -> number of GO term children, "
+            mdtext += "**# genes** -> number of genes associated with GO term, "
+            mdtext += "**# study** -> number of genes in study (i.e., target genes), "
+            mdtext += "**% genes** -> percentage of study genes associated with GO term." + "\n"
+            mdtext += "\n&nbsp;\n"
+
+        else:
+
+            if "c_target_genes_goa" in goa_stats_dic:
+
+                mdtext += """
+
+No %s GO terms found given p-value threshold of %s. # of target genes used for GOA: %i. # of background genes used for GOA: %i.
+
+&nbsp;
+
+""" %(filter_purified_info2, str(goa_stats_dic["pval_thr"]), goa_stats_dic["c_target_genes_goa"], goa_stats_dic["c_background_genes_goa"])
+
+            else:
+
+                mdtext += """
+
+No significant GO terms found due to no GO IDs associated with target genes. # of initial target genes (i.e., genes overlapping with --in regions): %i.
+
+&nbsp;
+
+""" %(goa_stats_dic["c_target_genes_pre_filter"])
+
 
     """
     Motif plots.
@@ -8220,7 +15135,7 @@ and respective number of motif hits found in supplied %s regions.
             seq_motif_info = "RBP \"%s\" sequence motif plots and mRNA region annotations for motif hits." %(rbp_id)
 
         # RBP has sequence motifs?
-        if rbp.seq_motif_ids and rbp_id != regex_id:
+        if rbp.seq_motif_ids and rbp_id != args.regex_id:
             mdtext += """
 ## %s motifs ### {#%s}
 
@@ -8228,7 +15143,7 @@ and respective number of motif hits found in supplied %s regions.
 
 """ %(rbp_id, tab_id, seq_motif_info)
 
-        elif rbp.seq_motif_ids and rbp_id == regex_id:
+        elif rbp.seq_motif_ids and rbp_id == args.regex_id:
 
             motif_id = rbp.seq_motif_ids[0]
             c_motif_hits = rbp.seq_motif_hits[0]
@@ -8258,6 +15173,7 @@ RBP "%s" only contains structure motifs, which are currently not available for p
 
             create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic, 
                                         annot2color_dic, mrna_occ_stacked_plot_out,
+                                        plot_pdf=args.plot_pdf,
                                         rbp_id=rbp_id)
 
             plots_path = plots_folder + "/" + mrna_occ_stacked_plot
@@ -8267,13 +15183,14 @@ RBP "%s" only contains structure motifs, which are currently not available for p
             mdtext += """
 **Figure:** mRNA region motif hit coverage profiles for RBP "%s" motif hits.
 Motif hit coverage profiles are shown for all motifs of RBP "%s" combined, as well as single motifs (unless there is only one motif), over 5'UTR, CDS, and 3'UTR regions of mRNA.
-x-axis is the motif hit coverage, i.e., how many motif hits found over the mRNA regions. 
-mRNA region lengths used for plotting are the %s region lengths obtained from the GTF file (5'UTR = %i, CDS = %i, 3'UTR = %i).
+x-axis is the motif hit coverage, i.e., how many motif hits found over the mRNA regions.
+Only motif hit center positions are used for annotation.
+mRNA region lengths used for plotting are the %s region lengths obtained from the GTF file (5'UTR = %s, CDS = %s, 3'UTR = %s).
 Number of mRNA sequences used for prediction and plot generation: %i.
 
 &nbsp;
 
-""" %(rbp_id, rbp_id, norm_mrna_reg_dic["mode"], norm_mrna_reg_dic["5'UTR"], norm_mrna_reg_dic["CDS"], norm_mrna_reg_dic["3'UTR"], norm_mrna_reg_dic["c_mrna_seqs"])
+""" %(rbp_id, rbp_id, norm_mrna_reg_dic["mode"], str(norm_mrna_reg_dic["5'UTR"]), str(norm_mrna_reg_dic["CDS"]), str(norm_mrna_reg_dic["3'UTR"]), norm_mrna_reg_dic["c_mrna_seqs"])
 
         # If there are motif hit region annotations and hits for the RBP.
         if rbp2motif2annot2c_dic and c_total_rbp_hits:
@@ -8284,13 +15201,15 @@ Number of mRNA sequences used for prediction and plot generation: %i.
             annot_stacked_bars_plot_out = plots_out_folder + "/" + annot_stacked_bars_plot
 
             create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, annot2color_dic,
-                                                annot_stacked_bars_plot_out)
+                                                annot_stacked_bars_plot_out,
+                                                plot_pdf=args.plot_pdf,
+                                                x_label="Annotation overlap")
 
             plot_path = plots_folder + "/" + annot_stacked_bars_plot
 
-            mdtext += '<img src="' + plot_path + '" alt="Annotation stacked bars plot"' + "\n"
+            mdtext += '<img src="' + plot_path + '" alt="Region annotations plot"' + "\n"
             # mdtext += 'title="Annotation stacked bars plot" width="800" />' + "\n"
-            mdtext += 'title="Annotation stacked bars plot" />' + "\n"
+            mdtext += 'title="Region annotations plot" width="1050" />' + "\n"
             mdtext += """
 **Figure:** Genomic region annotations for RBP "%s" motif hits.
 %s motif hit regions are overlapped with genomic regions from GTF file and genomic region feature with highest overlap
@@ -8301,7 +15220,39 @@ Genomic annotations are shown for all motifs of RBP "%s" combined, as well as fo
 
 """ %(rbp_id, site_type_uc, rbp_id)
 
-        if rbp_id == regex_id:
+
+        # If there are motif hit region annotations and hits for the RBP.
+        if rbp2motif2annot2normc_dic and c_total_rbp_hits:
+
+            assert annot2color_dic, "given rbp2motif2annot2normc_dic but annot2color_dic is empty"
+
+            annot_stacked_bars_plot =  "annotation_stacked_bars_plo.normc.%s.png" %(rbp_id)
+            annot_stacked_bars_plot_out = plots_out_folder + "/" + annot_stacked_bars_plot
+
+            create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2normc_dic, annot2color_dic,
+                                                annot_stacked_bars_plot_out,
+                                                no_x_labels=True,
+                                                plot_pdf=args.plot_pdf,
+                                                x_label="Normalized annotation overlap")
+
+            plot_path = plots_folder + "/" + annot_stacked_bars_plot
+
+            mdtext += '<img src="' + plot_path + '" alt="Region annotations normalized counts plot"' + "\n"
+            # mdtext += 'title="Annotation stacked bars plot" width="800" />' + "\n"
+            mdtext += 'title="Region annotations normalized counts plot"  width="1050" />' + "\n"
+            mdtext += """
+**Figure:** Genomic region annotations for RBP "%s" motif hits, normalized by annotation region lengths in input regions.
+I.e., annotation counts from the above figure are normalized depending on how much the annotation covers the input regions.
+This removes annotation region length biases introduced in long genomic input regions and can give a better idea of 
+motif prevalences (given a reasonably large input size/number) in certain genomic regions (e.g. the motif tends to occur 
+more often in intron, 3'UTR etc.). Unique input regions size (nt): %i (i.e., overlapping regions merged).
+
+&nbsp;
+
+""" %(rbp_id, args.eff_in_reg_size)
+
+
+        if rbp_id == args.regex_id:
             continue
 
         for idx, motif_id in enumerate(rbp.seq_motif_ids):
@@ -8312,14 +15263,21 @@ Genomic annotations are shown for all motifs of RBP "%s" combined, as well as fo
             plot_path = plots_folder + "/" + motif_plot
 
             # Check if motif in motif database folder.
-            if motif_db_str:
-                db_motif_path = benchlib_path + "/content/%s_motif_plots/%s" %(motif_db_str, motif_plot)
+            if args.motif_db_str:
+                db_motif_path = benchlib_path + "/content/motif_plots/%s" %(motif_plot)
                 if os.path.exists(db_motif_path):
                     shutil.copy(db_motif_path, motif_plot_out)
+                    if args.plot_pdf:
+                        create_motif_plot(motif_id, seq_motif_blocks_dic,
+                                          motif_plot_out,
+                                          plot_pdf=True,
+                                          plot_png=False)
 
             if not os.path.exists(motif_plot_out):
                 create_motif_plot(motif_id, seq_motif_blocks_dic,
-                                  motif_plot_out)
+                                  motif_plot_out,
+                                  plot_pdf=args.plot_pdf,
+                                  plot_png=True)
 
             mdtext += '<img src="' + plot_path + '" alt="' + "sequence motif plot %s" %(motif_id) + "\n"
             mdtext += 'title="' + "sequence motif plot %s" %(motif_id) + '" width="500" />' + "\n"
@@ -8356,7 +15314,9 @@ Genomic annotations are shown for all motifs of RBP "%s" combined, as well as fo
 
 def create_motif_plot(motif_id, 
                       seq_motif_blocks_dic,
-                      motif_plot_out):
+                      motif_plot_out,
+                      plot_pdf=False,
+                      plot_png=True):
     """
     Create sequence motif plot from MEME XML motif block.
 
@@ -8404,24 +15364,31 @@ def create_motif_plot(motif_id,
     #logo.ax.set_yticks([])
     #plt.yticks(fontsize=7)
     logo.ax.set_ylabel("probability", labelpad=10, fontsize=10)
-    plt.savefig(motif_plot_out, dpi=100)
+    if plot_png:
+        plt.savefig(motif_plot_out, dpi=100)
+    if plot_pdf and motif_plot_out.endswith('.png'):
+        pdf_out = motif_plot_out[:-4] + '.pdf'
+        plt.savefig(pdf_out, dpi=100)
     plt.close()
 
 
 ################################################################################
 
-def compare_generate_html_report(compare_methods_dic, compare_datasets_dic,
+def compare_generate_html_report(args,
+                                 compare_methods_dic, compare_datasets_dic,
                                  rbp_stats_dic, motif_stats_dic,
-                                 out_folder, benchlib_path,
+                                 benchlib_path,
                                  html_report_out="report.rbpbench_compare.html",
-                                 plot_abs_paths=False,
-                                 sort_js_mode=1,
-                                 report_header=False,
                                  plots_subfolder="html_plots"):
     """
     Create comparison statistics and HTML report.
 
     """
+    out_folder = args.out_folder
+    plot_abs_paths = args.plot_abs_paths
+    sort_js_mode = args.sort_js_mode
+    report_header = args.report_header
+
     # Use absolute paths?
     if plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
@@ -8438,9 +15405,9 @@ def compare_generate_html_report(compare_methods_dic, compare_datasets_dic,
     if html_report_out:
         html_out = html_report_out
 
-    report_header_info = ""
+    report_header_info = "Comparison report"
     if report_header:
-        report_header_info = "RBPBench "
+        report_header_info = "RBPBench comparison report"
 
     """
     Setup sorttable.js to make tables in HTML sortable.
@@ -8462,6 +15429,21 @@ def compare_generate_html_report(compare_methods_dic, compare_datasets_dic,
 <html>
 <head>
 <title>RBPBench - Motif Search Comparison Report</title>
+
+<style>
+    th, td {
+        border: 1px solid black;
+        padding: 8px;
+        text-align: center;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+    .page {
+        page-break-after: always;
+    }
+</style>
+
 </head>
 <body>
 """ 
@@ -8476,7 +15458,7 @@ def compare_generate_html_report(compare_methods_dic, compare_datasets_dic,
     # Markdown part.
     mdtext = """
 
-# %sComparison Report
+# %s
 
 List of available comparison statistics generated
 by RBPBench (rbpbench compare):
@@ -8525,8 +15507,23 @@ by RBPBench (rbpbench compare):
 **Table:** RBP motif hit statistics for combined ID "%s" (includes data ID, motif database ID, RBP ID) over different methods (method ID column).
 
 """ %(comp_id, tab_id, comp_id)
-        mdtext += '| Method ID | # regions | # motif hits | % regions with motifs | % motif nucleotides | # motif hits per 1000 nt |' + " \n"
-        mdtext += "| :-: | :-: | :-: | :-: | :-: | :-: |\n"
+
+        # mdtext += '| Method ID | # regions | # motif hits | % regions with motifs | % motif nucleotides | # motif hits per 1000 nt |' + " \n"
+        # mdtext += "| :-: | :-: | :-: | :-: | :-: | :-: |\n"
+
+        mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>Method ID</th>\n"
+        mdtext += "<th># regions</th>\n"
+        mdtext += "<th># motif hits</th>\n"
+        mdtext += "<th>% regions with motifs</th>\n"
+        mdtext += "<th>% motif nucleotides</th>\n"
+        mdtext += "<th># motif hits per 1000 nt</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
+
         for method_id in method_dic:
             int_id = method_dic[method_id]
             c_regions = rbp_stats_dic[int_id].c_regions
@@ -8534,7 +15531,19 @@ by RBPBench (rbpbench compare):
             perc_reg_with_hits = rbp_stats_dic[int_id].perc_reg_with_hits
             perc_uniq_motif_nts_eff_reg = rbp_stats_dic[int_id].perc_uniq_motif_nts_eff_reg
             uniq_motif_hits_cal_1000nt = rbp_stats_dic[int_id].uniq_motif_hits_cal_1000nt
-            mdtext += "| %s | %i | %i | %.2f | %.2f | %.2f |\n" %(method_id, c_regions, c_uniq_motif_hits, perc_reg_with_hits, perc_uniq_motif_nts_eff_reg, uniq_motif_hits_cal_1000nt)
+            # mdtext += "| %s | %i | %i | %.2f | %.2f | %.2f |\n" %(method_id, c_regions, c_uniq_motif_hits, perc_reg_with_hits, perc_uniq_motif_nts_eff_reg, uniq_motif_hits_cal_1000nt)
+            mdtext += "<tr>\n"
+            mdtext += "<td>%s</td>\n" %(method_id)
+            mdtext += "<td>%i</td>\n" %(c_regions)
+            mdtext += "<td>%i</td>\n" %(c_uniq_motif_hits)
+            mdtext += "<td>%.2f</td>\n" %(perc_reg_with_hits)
+            mdtext += "<td>%.2f</td>\n" %(perc_uniq_motif_nts_eff_reg)
+            mdtext += "<td>%.2f</td>\n" %(uniq_motif_hits_cal_1000nt)
+            mdtext += "</tr>\n"
+        
+        mdtext += "</tbody>\n"
+        mdtext += "</table>\n"
+
         mdtext += "\n&nbsp;\n&nbsp;\n"
         mdtext += "\nColumn IDs have the following meanings: "
         mdtext += "**Method ID** -> method ID set for dataset (typically peak calling method ID), "
@@ -8567,23 +15576,26 @@ by RBPBench (rbpbench compare):
             create_venn2_diagram(int_ids[0], int_ids[1],
                             motif_stats_dic,
                             venn_plot_out,
+                            plot_pdf=args.plot_pdf,
                             set1_label=method_ids[0],
                             set2_label=method_ids[1])
         elif len(method_ids) == 3:
             create_venn3_diagram(int_ids[0], int_ids[1], int_ids[2],
                             motif_stats_dic,
                             venn_plot_out,
+                            plot_pdf=args.plot_pdf,
                             set1_label=method_ids[0],
                             set2_label=method_ids[1],
                             set3_label=method_ids[2])
         elif len(method_ids) > 3 and len(method_ids) <= 24:
             create_vennx_diagram(int_ids, method_ids,
-                            motif_stats_dic, venn_plot_out)
+                                 motif_stats_dic, venn_plot_out,
+                                 plot_pdf=args.plot_pdf)
         else:
             assert False, "two many methods to compare (comp_id: %s). Please use less methods for plotting (current limit: 24)" %(comp_id)
 
         mdtext += '<img src="' + plot_path + '" alt="' + "dataset comparison plot %s" %(comp_id) + "\n"
-        mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="700" />' + "\n"
+        mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="650" />' + "\n"
         mdtext += """
 
 **Figure:** Venn diagram of motif hit occurrences for the %i different methods (%s) with identical combined ID "%s" + corresponding percentages 
@@ -8610,8 +15622,22 @@ Any given motif hit can either be found only by one method, or be identified by 
 **Table:** RBP motif hit statistics for combined ID "%s" (includes method ID, motif database ID, RBP ID) over different datasets (data ID column).
 
 """ %(comp_id, tab_id, comp_id)
-        mdtext += '| Data ID | # regions | # motif hits | % regions with motifs | % motif nucleotides | # motif hits per 1000 nt |' + " \n"
-        mdtext += "| :-: | :-: | :-: | :-: | :-: | :-: |\n"
+        # mdtext += '| Data ID | # regions | # motif hits | % regions with motifs | % motif nucleotides | # motif hits per 1000 nt |' + " \n"
+        # mdtext += "| :-: | :-: | :-: | :-: | :-: | :-: |\n"
+
+        mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>Data ID</th>\n"
+        mdtext += "<th># regions</th>\n"
+        mdtext += "<th># motif hits</th>\n"
+        mdtext += "<th>% regions with motifs</th>\n"
+        mdtext += "<th>% motif nucleotides</th>\n"
+        mdtext += "<th># motif hits per 1000 nt</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
+
         for dataset_id in data_dic:
             int_id = data_dic[dataset_id]
             c_regions = rbp_stats_dic[int_id].c_regions
@@ -8619,7 +15645,19 @@ Any given motif hit can either be found only by one method, or be identified by 
             perc_reg_with_hits = rbp_stats_dic[int_id].perc_reg_with_hits
             perc_uniq_motif_nts_eff_reg = rbp_stats_dic[int_id].perc_uniq_motif_nts_eff_reg
             uniq_motif_hits_cal_1000nt = rbp_stats_dic[int_id].uniq_motif_hits_cal_1000nt
-            mdtext += "| %s | %i | %i | %.2f | %.2f | %.2f |\n" %(dataset_id, c_regions, c_uniq_motif_hits, perc_reg_with_hits, perc_uniq_motif_nts_eff_reg, uniq_motif_hits_cal_1000nt)
+            # mdtext += "| %s | %i | %i | %.2f | %.2f | %.2f |\n" %(dataset_id, c_regions, c_uniq_motif_hits, perc_reg_with_hits, perc_uniq_motif_nts_eff_reg, uniq_motif_hits_cal_1000nt)
+            mdtext += "<tr>\n"
+            mdtext += "<td>%s</td>\n" %(dataset_id)
+            mdtext += "<td>%i</td>\n" %(c_regions)
+            mdtext += "<td>%i</td>\n" %(c_uniq_motif_hits)
+            mdtext += "<td>%.2f</td>\n" %(perc_reg_with_hits)
+            mdtext += "<td>%.2f</td>\n" %(perc_uniq_motif_nts_eff_reg)
+            mdtext += "<td>%.2f</td>\n" %(uniq_motif_hits_cal_1000nt)
+            mdtext += "</tr>\n"
+        
+        mdtext += "</tbody>\n"
+        mdtext += "</table>\n"
+
         mdtext += "\n&nbsp;\n&nbsp;\n"
         mdtext += "\nColumn IDs have the following meanings: "
         mdtext += "**Data ID** -> data ID set for dataset (typically describing CLIP data, e.g. CLIP method + cell type combination), "
@@ -8652,25 +15690,28 @@ Any given motif hit can either be found only by one method, or be identified by 
             create_venn2_diagram(int_ids[0], int_ids[1],
                             motif_stats_dic,
                             venn_plot_out,
+                            plot_pdf=args.plot_pdf,
                             set1_label=data_ids[0],
                             set2_label=data_ids[1])
         elif len(data_ids) == 3:
             create_venn3_diagram(int_ids[0], int_ids[1], int_ids[2],
                             motif_stats_dic,
                             venn_plot_out,
+                            plot_pdf=args.plot_pdf,
                             set1_label=data_ids[0],
                             set2_label=data_ids[1],
                             set3_label=data_ids[2])
         elif len(data_ids) > 3 and len(data_ids) <= 24:
             create_vennx_diagram(int_ids, data_ids,
-                            motif_stats_dic, venn_plot_out)
+                                 motif_stats_dic, venn_plot_out,
+                                 plot_pdf=args.plot_pdf)
         else:
             assert False, "two many datasets to compare (comp_id: %s). Please use less datasets for plotting (current limit: 24)" %(comp_id)
 
         method_id = comp_id.split(",")[0]
 
         mdtext += '<img src="' + plot_path + '" alt="' + "dataset comparison plot %s" %(comp_id) + "\n"
-        mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="700" />' + "\n"
+        mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="650" />' + "\n"
         mdtext += """
 
 **Figure:** Venn diagram of motif hit occurrences for the %i different datasets (%s) with identical combined ID "%s" + corresponding percentages 
@@ -8715,6 +15756,7 @@ Any given motif hit can either be found only in one dataset, or be common to any
 def create_venn2_diagram(int_id1, int_id2,
                          motif_stats_dic,
                          out_plot,
+                         plot_pdf=False,
                          alpha=0.5,
                          set1_label="Set1",
                          set2_label="Set2"):
@@ -8746,8 +15788,14 @@ def create_venn2_diagram(int_id1, int_id2,
     venn2([set1, set2], #set_colors=('skyblue', 'salmon'), 
           alpha=alpha, set_labels = (set1_label, set2_label),
           subset_label_formatter=lambda x: str(x) + "\n(" + f"{(x/total):1.0%}" + ")")
-    plt.savefig(out_plot, dpi=150)
-    plt.clf()
+
+    plt.savefig(out_plot, dpi=150, bbox_inches='tight')
+
+    if plot_pdf and out_plot.endswith('.png'):
+        pdf_out = out_plot[:-4] + '.pdf'
+        plt.savefig(pdf_out, dpi=150, bbox_inches='tight')
+
+    plt.close()
 
 
 ################################################################################
@@ -8756,6 +15804,7 @@ def create_venn3_diagram(int_id1, int_id2, int_id3,
                          motif_stats_dic,
                          out_plot,
                          alpha=0.5,
+                         plot_pdf=False,
                          set1_label="Set1",
                          set2_label="Set2",
                          set3_label="Set3"):
@@ -8796,14 +15845,21 @@ def create_venn3_diagram(int_id1, int_id2, int_id3,
     venn3([set1, set2, set3], # set_colors=('#36e6e6', '#ee2a9a', '#f8e318'), 
           alpha=alpha, set_labels = (set1_label, set2_label, set3_label),
           subset_label_formatter=lambda x: str(x) + "\n(" + f"{(x/total):1.0%}" + ")")
-    plt.savefig(out_plot, dpi=150)
-    plt.clf()
+    plt.savefig(out_plot, dpi=150, bbox_inches='tight')
+
+    if plot_pdf and out_plot.endswith('.png'):
+        pdf_out = out_plot[:-4] + '.pdf'
+        plt.savefig(pdf_out, dpi=150, bbox_inches='tight')
+
+    # plt.clf()
+    plt.close()
 
 
 ################################################################################
 
 def create_vennx_diagram(int_ids, set_labels,
                          motif_stats_dic, out_plot,
+                         plot_pdf=False,
                          cmap="jet"):
     """
     Create Venn Diagram for x sets.
@@ -8832,8 +15888,13 @@ def create_vennx_diagram(int_ids, set_labels,
          cmap=cmap,
          # alpha=0.6,
          fmt="{size}"+"\n"+"{percentage:.1f}%")
-    plt.savefig(out_plot, dpi=100)
-    plt.clf()
+    plt.savefig(out_plot, dpi=150, bbox_inches='tight')
+
+    if plot_pdf and out_plot.endswith('.png'):
+        pdf_out = out_plot[:-4] + '.pdf'
+        plt.savefig(pdf_out, dpi=150, bbox_inches='tight')
+
+    plt.close()
 
 
 ################################################################################
@@ -8867,3 +15928,68 @@ def print_some_banner():
     return(a)
 
 ################################################################################
+
+
+"""
+
+
+   "We could not understand because we were too far and could not remember
+    because we were travelling in the night of first ages, of those ages
+    that are gone, leaving hardly a sign - and no memories." J.C.
+
+
+
+                 ^OMQQOO6|^OQQM6MOMMMOQQQQMMMMOMIQMQMQOOO6QO6O6QQMQQQMO6QMMOOQMMQQMQQOI66IOOQQMMM|QQO66
+                 OOQQM!I|6OMOQMOQOQQQOMQQOMMMMQMQQMQOQOOQI^QOMOQMQMMQMMOOQOQQOQMQMQMMOOOOQQMOMQMQOQQQOO!
+             .   .MOQQQM6OOQMMMMMMMOMQQQ66IQMMMMMQQOOMOIOO^6|QQMMQMQMOMQOOQOQQOOMQQMM6IOOQQMMQMMQMQQOQ6I
+             .|. I6Q6MQQMQOMMMMMMMMMMMMOO|6MMQQMMQ!O6MO|IQ6O6MMMMQMMI6I6QMQOQMOO6MMQQQMI6QOQQQMMMMQQOQOO
+                6|IQQOMMMMMMMMMMMMMQMQMO6O6MM6MQO|IOMOO6IMQQQMMMMQOOOQ6MQQMQMMMMQMMMMQMMQQQQMMQQQMMQOQOO
+             ..Q^OIIOMMMQQMQMMMMMMMMMMMQ6OOQOOQQQQ|MQQOQMMQMMMQMQO6|6OOMMQMMMMMMMMMMMMQMMMQOMMMQMMQQQQMQ|
+            |! QOMO6MMMQQ6QMQMMMMMQMMMQQMMQQQMMOQO||OQOQOMMMMMMOMQ6OQQMMMMMQMMMMQMMMMMMMQQMOQQQMMMMQMMQQ!^
+            OQMQQMMMMMMMQOQMMMQMMMMMQMOQOM6OQQMQ!!I66OOO66QMMMOQ|QOOMMMMMMMMMMMMMMMMMMMMMMMMQMMMMMMQMQOQOO      ..
+       .   !6 6MMMMMMMMMMMMQMMQQMQMQMMMMMQQQQOMO^I|IQOO^!|6QMMQOOO6OQMMMMMMMMQMMMMMMMMMMMMMMMMMMQMMQMOMQII^  Q^
+       .| . .Q6MMMMMMIQMMMQQMMMOQMQMMMMQMQMOQQ6I6!6QO|..^|6OQOOI6OMMQMQMMMMMMMMMQQ6I6OMQMMMQMMMMMQMMQQQMQQO6
+         M.OI666MMMMQOQMMQ6OMQOQQMMQQQMQMMQQQO!.OQQ|O..^!IOIIIOOQMMOQMQMMMMMMMQMMMMMMMMQQMQMMMMMMMMMQQ6OQMQ
+           QM6MMMMQMQQMMMMOMOQQMQMMMMMM6OQMO6|OI66O|^^!||II!^^!!6O6O6QMMMQMMMMMQQMQMMMMMMMMQI6QMMMMOQMIM.QQQ
+            |MMMOMQQ6MMMMQQMMMQQMMMMMMQOQ6|^!|6OI6O|!!|6I|!!^^^^!|I6OOOMQMQMMOQMMMMMMMMQMMQMQMQMMMMMQMQ|!6QII
+           O .M66MOQMMMMMMMMOMQMMMMQMOQO6I6|^I6I||666III|!^^.^^.^!|I6OOQMQMMMQQQMMMMMMOOOMMQMQMMMMMMMQMQQ  QM
+           I.6Q6OOOQQMMMMMMMQMMMMMMMMOQ6II6O66QQOOQOQOOI!^^^^.^^!I6OMQQMQQQMQQMMQMMMMMMQOMMMQMMMMMMMMQMMMQMOI
+           66MQQQOQQ6MMMMMOMMMMMMQMMQ6OO6OOMMQMMMMQMMOO6|^^.^^^!6QQMMMMMMMQMMMQQQMMMMMMQMQQQMMMMMMMMMMMMMMQQOI
+      |O^   QMQOQQOQ66QMQOOMQMQMQMMM6QO6666OO6OQMMO6OMQQI^.^.!|6QMMMMMMMMMOQMMQMMMMQQQQMMQQMMMMMMMMMMMMMMQMMOQ
+           |MQMQOMOOOO6QMQMMMMMMMMMQQM|^^.!6^^..I|^I6OOII....!6MMMMMQI!66II6OQMQOOQOQQM6OMQMMMMMMMMMMMMMMMQMQO^
+         66QQMMQQOQQMMMOQMMMMMMQMMQQMO!.. ..!!^!|||I!^^!^. .^!6OO66II|I6|66OO6666O6OQMQMMQMMMMMMMMMMQMMMMMMMQQ.
+      ^    OMMMQOQ6QOMOQMMMMMQMMMMQQM|^. . ...........^^..  .!66!|!^^^.^^!|!!|!||6OOQMMMMMMMMMMMMMMMMMMMMMMQMQ.
+           QQMMMMOQMQQOOMQ6MQOOQOQMMM|^..  ..  .. .. .^.... ^!I|!^!^..^^.^^^^^!|I66OQMQQMMMMMMMMQMMMMMMMMMMQMOO
+           OOOMMMQMMMMQMQQQMMMMMMMQMQ!........ .  . ...^..  .!I|I!^^.^^^^^^!^^!!|6OQQMMMMOOMMQMQMMMMMMMMMMMQM QO .
+           6|I6MMQMMQMOQQQMMMQMMMMMM6!^^^....... . ..^.^.^ ..^II!|!^^^^^^^!^!^!|6OOOQMQMMMMMMMMMMMMMMMMMQQMIMQ M^
+           I .66QQQMMMMQOOO6QQMMMMMMO|!^^...^.... ...^^^.^..^!I6|I|^^^^^^^!!^!|I6OOOQOQQMMMMMMMMQMMMMMOMMMQM OQ.6
+           .6  .6OOMMMMMQMMMMQMMMMMQQ|!^^^.^..^......^.^.^. ^!II|I6^^^^^!^!!!|IIOOOQOMMMMMMMMMMMMMMMMMMMMMOM| !M Q
+            O|Q. .MMMMQMMMMMMMMMMMMQQ|!^.^..^^..^...^.^^..^.^!||||I^.^!^^!||!II6OQQQQMOMMMMMMMMMMMMMMMMMMMMQO  |I|6
+          . .Q| ^^OMMMMMMMMMMMMMMMMMM|!^!^^^..^^...^.6QMI!^^!6OOQOO|^.^^^!!||6O6OQOMMMMMMMQMMMMMMMMMMMQMMMMQO   Q.Q
+         !  6.QOQMQQMMMMMMMMMMMMMMQMQ!!!^^^^^..^.....!6||OIOOQMMMMM6^^^^!^!!|6OOOQQMMMMMMMMMMMMMMQQMMMQMOMQOI   Q|!.
+              IOM. OMMMMMMMMMMMMQMQMM!!!!!^.^^... ...^^!^^IQMMMMQO6|^^^!!||I66OQOQQQMMMMMMMMMMMMMMMMMOQ6I|OMI QQQ
+             I^|6O.QMMMMMMMMMMMMMMMMM!^!||^^^... ...^^^^..!III|6I|^^^^^^!|I|66QQQOQQMMMMMMMMMMMMMMM|QOOI6Q6| |M Q
+         !.. I ^QMMMMMMMMMMMMMMMMMMMQ!^^||!!.^.^.^^...^..^^^..^!!^!^.^!!||6OOQOQOOQMMMMMMMMMMQMMQQOQMQQII|.|6Q.O^
+        .^^|IO6QOQMMMMQMMMMMMMMMMMMMQM|!!!!|!^^^.^^^..^.!^....|||^!!^!!|IIO6OQMQQOQMMMMMMMMMQQMQMQMMMQQMOI6QOM^
+         ^  66OQQQQMMMMMQOQMMMMMMMMMMMM|!!!||^!!!6QMQQQ66QOMMMMMMMQQQQQO6OOQQQQOOQQMMMMMMMMQQOQQMQQOOQMQQOO!O
+          !  O6Q6QMMQMMOMOMMMMMMMMMMMMMM|!!|I|!I!!^^.^^^. .....^|!|||III6OQOQQQOQQMMMMMMMMMMMQQMQMMQMMMQQMM|
+             OQQOQQQQO66QMMMMMMMQMMMMMMMM6|!|II!!^!^!^^!.^.^^^^|||6OO66OQOOQMQOQQMMMMMMQMMMQMQMMMQMQMMQMQ.M
+              QOM..^IQQMMQMMM!QMMMMMMMMMMMQI!||II|||6OOQQOOQOQQQQMQQQQOOOQQQQMQMMMMMMMMMMMQQQMOMQMO^OO QM.
+                6MQQOQQMMMMMIOMMMMMMMMMMMMMQO||!!||||!|I6OQQMQQMMQO6O6OOQQQMQQMMMMMMMMMMMMMMMQOMMMMM6QM
+                    .   QQQM6QMMMMMMMOQQMMMOOQ6||!^!^^....^^!^I|I!||I|OOOQQQMMMMMMMMMMMMMQMMMMMMQIIQOM6                     .^^!^!^^^!
+                        |OQMOQMMMMMQMM6QMMMIOOQQ|!!!!^^^^^^!!^^!!!|6I6OOQOMMMMMMMMMMMMMMMMMMMMMMMMMQM6!          .|I|!!!^^^^^^^^^.^.^^
+                         MMMMIMQMMMQMQ6QMMM6666OOI||!!!!!^||!|!|I|6IIOQQMMMMMMMMMMMMMMMMMMMMMMMQMOQMM6.       QO6|!^^^.^^.^..^...^^...
+                         QQMQQMMQMQIOOOQMMMOI6II6OO6I|IIIIII6II6II6OOQQMMMMMMMMMMMMMMMMMMMMMMMMMMMMM.      IQO6!^^^.^..^..^...^...^^.^
+                          MQOQMQMMMQQOMMMMMQ|I||I6OOQQOOQQOOOOQQQQQQMMMMMMMMMMMMMMQMMMMMMMMQMMMMMMMMI    6O66|!^.^^..^...........^...^
+.^^^^                   |I!MMMMQMMMQ6MOMMMMMIII|||I6OOQMMMQMMMQMMMMMMMMMMMMMMMMQQQQQMMMMMMMMMMMMMMMMQMO6QO6I|..^.........^......^.^..^
+^^^.^^^^^^^^               !QMMMMQOMMQQQMQMMO||!!!|IOOOQMQMQMMMMMMQMMMMMMMMMMMQQOOOOQQMQQMMMMMMMMMMMMQQQO6I!^.^...............^.....^^
+. .^...^^..^^^^^             .^|Q6MOMMMMQQMQI!!|!^!|II66OQQQQMQMQMQMMMMMMMMMQQOOOOOOOOOQ6OQMQQQMMMMQMMQ6||!^.......... ........!..^^.^
+  .........^.^.^!^^|I!           ^OMMQMMMMOQ!!!!!^!^|!|66OQQQQQMQMMMMMMMMMMQOQO6O6O66OOOQ6O66QQOOQQ6I|!!^....... ....  .......^..^.^^!
+.. . ....  ....^.^^^!|III6|          6QQQOQ6!!!!^^!!^!|I66OQQQMQQMMMMMMMMQQOOOOO6O66666^QI66I66I|!^^^...^^.^.^^^...... . ......^^.^!^!
+  ..  . ... ......^^^^!!||II6|.   !QMMMMOQOI|^^^!^!^!!!!I666QOQQOQMQMQMQQOOO66O6666I6III6|IIIII||!^!^^^!!!^.^.......... .....^..^.^!^!
+ . . .  ..  .....^.^^^^!^!||||6O6OMQMMQMOQ6I!!!^!^^^^^^!^|I66O6OOOOQOOOO6666I6I6IIII|I 6I|I||I|I||!!!!!!^^^^..^................^.^^^^!
+. . .  ..   . ......^^^!!!!^!!!|IOOQQQ6Q6|||!!^!!^^^^^^!^!||II666O6666666I666II|I!|||IO|!|I|!||!!!^!^^^^^^....... this is the end
+                                                                                                                  beautiful friend ...
+
+
+"""

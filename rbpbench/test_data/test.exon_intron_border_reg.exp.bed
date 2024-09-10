@@ -1,0 +1,16 @@
+chr1	1100	1350	us_ib	0	+
+chr1	1750	2000	ds_ib	0	+
+chr1	1050	1150	eib	0	+
+chr1	1950	2050	eib	0	+
+chr1	2100	2350	us_ib	0	+
+chr1	2750	3000	ds_ib	0	+
+chr1	2050	2150	eib	0	+
+chr1	2950	3050	eib	0	+
+chr1	2750	3000	us_ib	0	-
+chr1	2100	2350	ds_ib	0	-
+chr1	2050	2150	eib	0	-
+chr1	2950	3050	eib	0	-
+chr1	1750	2000	us_ib	0	-
+chr1	1100	1350	ds_ib	0	-
+chr1	1050	1150	eib	0	-
+chr1	1950	2050	eib	0	-

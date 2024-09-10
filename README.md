@@ -90,7 +90,7 @@ More information will be added soon.
 
 ## Documentation
 
-This documentation provides further details on RBPBench (version 0.9).
+This documentation provides further details on RBPBench (version 0.9.1).
 
 ### Program modes
 
