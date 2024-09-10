@@ -360,7 +360,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Supply file with transcript IDs (one ID per row) to define which transcripts to use from --gtf for genomic annoation of input regions")
+                   help = "Supply file with transcript IDs (one ID per row) to define which transcripts to use from --gtf for genomic annotation of input regions")
     p_s.add_argument("--tr-types",
                    dest="tr_types_list",
                    type=str,
@@ -490,6 +490,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Store plot files with absolute paths in HTML files. Default is relative paths (default: False)")
+    p_s.add_argument("--plot-pdf",
+                   dest="plot_pdf",
+                   default = False,
+                   action = "store_true",
+                   help = "Also output .png plots as .pdf in plotting subfolder (default: False)")
     p_s.add_argument("--meme-no-check",
                    dest="meme_disable_check",
                    default = False,
@@ -833,6 +838,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Store plot files with absolute paths in HTML files. Default is relative paths (default: False)")
+    p_b.add_argument("--plot-pdf",
+                   dest="plot_pdf",
+                   default = False,
+                   action = "store_true",
+                   help = "Also output .png plots as .pdf in plotting subfolder (default: False)")
     p_b.add_argument("--plotly-js-mode",
                    dest="plotly_js_mode",
                    type=int,
@@ -888,6 +898,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Store plot files with absolute paths in HTML files. Default is relative paths (default: False)")
+    p_c.add_argument("--plot-pdf",
+                   dest="plot_pdf",
+                   default = False,
+                   action = "store_true",
+                   help = "Also output .png plots as .pdf in plotting subfolder (default: False)")
     p_c.add_argument("--report-header",
                    dest="report_header",
                    default = False,
@@ -1076,6 +1091,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Store plot files with absolute paths in HTML files. Default is relative paths (default: False)")
+    p_ss.add_argument("--plot-pdf",
+                   dest="plot_pdf",
+                   default = False,
+                   action = "store_true",
+                   help = "Also output .png plots as .pdf in plotting subfolder (default: False)")
     p_ss.add_argument("--report-header",
                    dest="report_header",
                    default = False,
@@ -1354,6 +1374,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Store plot files with absolute paths in HTML report. Default is relative paths (default: False)")
+    p_sl.add_argument("--plot-pdf",
+                   dest="plot_pdf",
+                   default = False,
+                   action = "store_true",
+                   help = "Also output .png plots as .pdf in plotting subfolder (default: False)")
     p_sl.add_argument("--meme-no-check",
                    dest="meme_disable_check",
                    default = False,
@@ -1748,6 +1773,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Store plot files with absolute paths in HTML report. Default is relative paths (default: False)")
+    p_scr.add_argument("--plot-pdf",
+                   dest="plot_pdf",
+                   default = False,
+                   action = "store_true",
+                   help = "Also output .png plots as .pdf in plotting subfolder (default: False)")
     p_scr.add_argument("--meme-no-check",
                    dest="meme_disable_check",
                    default = False,
@@ -2035,6 +2065,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Store plot files with absolute paths in HTML report. Default is relative paths (default: False)")
+    p_smr.add_argument("--plot-pdf",
+                   dest="plot_pdf",
+                   default = False,
+                   action = "store_true",
+                   help = "Also output .png plots as .pdf in plotting subfolder (default: False)")
     p_smr.add_argument("--meme-no-check",
                    dest="meme_disable_check",
                    default = False,
@@ -2388,6 +2423,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Store plot files with absolute paths in HTML files. Default is relative paths (default: False)")
+    p_em.add_argument("--plot-pdf",
+                   dest="plot_pdf",
+                   default = False,
+                   action = "store_true",
+                   help = "Also output .png plots as .pdf in plotting subfolder (default: False)")
     p_em.add_argument("--meme-no-check",
                    dest="meme_disable_check",
                    default = False,
@@ -2741,6 +2781,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Store plot files with absolute paths in HTML files. Default is relative paths (default: False)")
+    p_nm.add_argument("--plot-pdf",
+                   dest="plot_pdf",
+                   default = False,
+                   action = "store_true",
+                   help = "Also output .png plots as .pdf in plotting subfolder (default: False)")
     p_nm.add_argument("--meme-no-check",
                    dest="meme_disable_check",
                    default = False,
@@ -10747,6 +10792,7 @@ def main_searchlong(args):
 
     rbp2motif2annot2c_dic = {}  # rbp_id -> motif_id -> annot -> count
     rbp2motif2annot2normc_dic = {}  # rbp_id -> motif_id -> annot -> norm_count
+    args.eff_in_reg_size = 0
 
     if args.in_gtf:
 
@@ -10847,13 +10893,18 @@ def main_searchlong(args):
         counts, whereas the filtered_sites_bed can overlap with different annotations
         (all the annotations in intron_exon_out_bed).
 
+        eff_in_reg_size:
+            Effective input regions size (i.e., overlapping regions merged).
+
         """
 
         print("Get normalized annotation counts ... ")
-        rbp2motif2annot2normc_dic = benchlib.get_normnalized_annot_counts(
+        rbp2motif2annot2normc_dic, eff_in_reg_size = benchlib.get_normnalized_annot_counts(
                                         filtered_sites_bed, intron_exon_out_bed,
                                         rbp2motif2annot2c_dic, reg2pol_dic, 
                                         args.out_folder)
+
+        args.eff_in_reg_size = eff_in_reg_size
 
     """
     Get annotation to color dictionary, which is needed for region annotation plots in HTML reports.
@@ -21449,14 +21500,12 @@ def main_compare(args):
     benchlib_path = os.path.dirname(benchlib.__file__)
 
     # Generate report.
-    benchlib.compare_generate_html_report(compare_methods_dic,
+    benchlib.compare_generate_html_report(args,
+                                          compare_methods_dic,
                                           compare_datasets_dic,
                                           rbp_stats_dic, motif_stats_dic,
-                                          args.out_folder, benchlib_path,
+                                          benchlib_path,
                                           html_report_out=html_report_out,
-                                          plot_abs_paths=args.plot_abs_paths,
-                                          sort_js_mode=args.sort_js_mode,
-                                          report_header=args.report_header,
                                           plots_subfolder=plots_subfolder)
 
     """

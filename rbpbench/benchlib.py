@@ -4415,7 +4415,7 @@ def get_normnalized_annot_counts(filtered_sites_bed, intron_exon_out_bed,
                 norm_c = annot_c / annot_len_1000
                 rbp2motif2annot2normc_dic[rbp_id][motif_id][annot_id] = norm_c
     
-    return rbp2motif2annot2normc_dic
+    return rbp2motif2annot2normc_dic, eff_reg_size
 
 
 ################################################################################
@@ -9941,11 +9941,6 @@ No plot generated since < 4 datasets were provided.
 """
 
 
-
-
-
-
-
     """
     Region annotation plots for each dataset.
 
@@ -9993,7 +9988,8 @@ No plot generated since no regions for plotting.
                 # print(reg2annot_dic)
 
                 create_batch_annotation_stacked_bars_plot(internal_id, id2infos_dic, id2reg_annot_dic, id2hit_reg_annot_dic,
-                                                          annot2color_dic, annot_stacked_bars_plot_out)
+                                                          annot2color_dic, annot_stacked_bars_plot_out,
+                                                          plot_pdf=args.plot_pdf)
 
                 plot_path = plots_folder + "/" + annot_stacked_bars_plot
 
@@ -10175,6 +10171,7 @@ No significant GO terms found due to no GO IDs associated with target genes. # o
 def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic, 
                                 annot2color_dic, plot_out,
                                 same_y_scale=True,
+                                plot_pdf=False,
                                 rbp_id=False):
     """
     Create mRNA region occupancy stacked line plot for rbp_id and associated 
@@ -10255,6 +10252,10 @@ def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic,
     # # Show plot
     # plt.show()
 
+    if plot_pdf and plot_out.endswith('.png'):
+        pdf_out = plot_out[:-4] + '.pdf'
+        plt.savefig(pdf_out, dpi=110, bbox_inches='tight')
+
     plt.savefig(plot_out, dpi=110, bbox_inches='tight')  # 110
     plt.close()
 
@@ -10264,6 +10265,8 @@ def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic,
 def create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, 
                                         annot2color_dic, plot_out,
                                         x_label="Annotation overlap",
+                                        no_x_labels=False,
+                                        plot_pdf=False,
                                         y_label=""):
     """
     Do the motif hit genomic region annotations stacked bars plot.
@@ -10328,6 +10331,10 @@ def create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic,
     ax.xaxis.grid(True)
     ax.set_axisbelow(True)
 
+    if no_x_labels:
+        ax.set_xticklabels([])
+        ax.tick_params(axis='x', which='both', bottom=False, top=False)
+
     # Remove border lines.
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
@@ -10337,6 +10344,10 @@ def create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic,
     # plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.5)
     plt.legend(bbox_to_anchor=(1.01, 1), loc='upper left')
 
+    if plot_pdf and plot_out.endswith('.png'):
+        pdf_out = plot_out[:-4] + '.pdf'
+        plt.savefig(pdf_out, dpi=110, bbox_inches='tight')
+
     plt.savefig(plot_out, dpi=110, bbox_inches='tight')
     plt.close()
 
@@ -10344,7 +10355,8 @@ def create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic,
 ################################################################################
 
 def create_batch_annotation_stacked_bars_plot(internal_id, id2infos_dic, id2reg_annot_dic, id2hit_reg_annot_dic,
-                                              annot2color_dic, plot_out):
+                                              annot2color_dic, plot_out,
+                                              plot_pdf=False):
     """
     Created stacked genomic region annotation plot.
 
@@ -10387,6 +10399,11 @@ def create_batch_annotation_stacked_bars_plot(internal_id, id2infos_dic, id2reg_
     plt.legend(bbox_to_anchor=(1.01, 1), loc='upper left')
 
     plt.savefig(plot_out, dpi=110, bbox_inches='tight')
+
+    if plot_pdf and plot_out.endswith('.png'):
+        pdf_out = plot_out[:-4] + '.pdf'
+        plt.savefig(pdf_out, dpi=110, bbox_inches='tight')
+
     plt.close()
 
 
@@ -10864,9 +10881,17 @@ For full motif results list regardless of significance, see *motif_enrichment_st
             motif_path = benchlib_path + "/content/motif_plots/%s" %(motif_plot)
             if os.path.exists(motif_path):
                 shutil.copy(motif_path, motif_plot_out)
+                if args.plot_pdf:
+                    create_motif_plot(motif_id, seq_motif_blocks_dic,
+                                      motif_plot_out,
+                                      plot_pdf=True,
+                                      plot_png=False)
+
             if not os.path.exists(motif_plot_out):
                 create_motif_plot(motif_id, seq_motif_blocks_dic,
-                                    motif_plot_out)
+                                  motif_plot_out,
+                                  plot_pdf=args.plot_pdf,
+                                  plot_png=True)
 
             plot_str = '<image src = "' + plot_path + '" width="300px"></image>'
 
@@ -11124,6 +11149,7 @@ No motif similarity vs significance plot generated since there are < 3 significa
         create_enmo_annotation_bar_plot(pos_reg2annot_dic, 
                                         annot2color_dic=annot2color_dic,
                                         data_id="",
+                                        plot_pdf=args.plot_pdf,
                                         plot_out=annot_bar_plot_out)
 
         plot_path = plots_folder + "/" + annot_bar_plot
@@ -11145,6 +11171,7 @@ No motif similarity vs significance plot generated since there are < 3 significa
         create_enmo_annotation_bar_plot(neg_reg2annot_dic,
                                         annot2color_dic=annot2color_dic,
                                         data_id="",
+                                        plot_pdf=args.plot_pdf,
                                         plot_out=annot_bar_plot_out)
 
         plot_path = plots_folder + "/" + annot_bar_plot
@@ -11643,9 +11670,17 @@ Wilcoxon rank sum (WRS) test is applied.
             motif_path = benchlib_path + "/content/motif_plots/%s" %(motif_plot)
             if os.path.exists(motif_path):
                 shutil.copy(motif_path, motif_plot_out)
+                if args.plot_pdf:
+                    create_motif_plot(motif_id, seq_motif_blocks_dic,
+                                      motif_plot_out,
+                                      plot_pdf=True,
+                                      plot_png=False)
+
             if not os.path.exists(motif_plot_out):
                 create_motif_plot(motif_id, seq_motif_blocks_dic,
-                                    motif_plot_out)
+                                  motif_plot_out,
+                                  plot_pdf=args.plot_pdf,
+                                  plot_png=True)
 
             motif_plot_str = '<image src = "' + plot_path + '" width="300px"></image>'
 
@@ -11674,9 +11709,13 @@ Wilcoxon rank sum (WRS) test is applied.
         plot_path = plots_folder + "/" + dist_plot
 
         plt.savefig(dist_plot_out)
+
+        if args.plot_pdf and dist_plot_out.endswith('.png'):
+            pdf_out = dist_plot_out[:-4] + '.pdf'
+            plt.savefig(pdf_out)
+
         plt.close()
         dist_plot_str = '<image src = "' + plot_path + '" width="300px"></image>'
-
 
         mdtext += '<tr>' + "\n"
         mdtext += "<td>" + rbp_id + "</td>\n"
@@ -12063,6 +12102,7 @@ No motif similarity vs direction plot generated since there are < 3 significant 
         create_enmo_annotation_bar_plot(pos_reg2annot_dic, 
                                         annot2color_dic=annot2color_dic,
                                         data_id="",
+                                        plot_pdf=args.plot_pdf,
                                         plot_out=annot_bar_plot_out)
 
         plot_path = plots_folder + "/" + annot_bar_plot
@@ -12084,6 +12124,7 @@ No motif similarity vs direction plot generated since there are < 3 significant 
         create_enmo_annotation_bar_plot(neg_reg2annot_dic,
                                         annot2color_dic=annot2color_dic,
                                         data_id="",
+                                        plot_pdf=args.plot_pdf,
                                         plot_out=annot_bar_plot_out)
 
         plot_path = plots_folder + "/" + annot_bar_plot
@@ -12910,6 +12951,7 @@ No plot generated since no motif hits found in input regions.
             create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
                                                        plot_out=annot_stacked_bars_plot_out,
                                                        annot2color_dic=annot2color_dic,
+                                                       plot_pdf=args.plot_pdf,
                                                        add_all_reg_bar=args.add_all_reg_bar)
 
             plot_path = plots_folder + "/" + annot_stacked_bars_plot
@@ -12975,6 +13017,7 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
 
         create_mrna_region_occ_plot([plot_id], mrna_reg_occ_dic,
                                     annot2color_dic, mrna_prof_plot_out,
+                                    plot_pdf=args.plot_pdf,
                                     rbp_id=False)
 
         plots_path = plots_folder + "/" + mrna_prof_plot
@@ -13054,6 +13097,11 @@ mRNA region lengths used for plotting are derived from the %i mRNA regions, usin
         plot_path = plots_folder + "/" + eib_stats_plot
 
         plt.savefig(eib_stats_plot_out, dpi=125)
+
+        if args.plot_pdf and eib_stats_plot_out.endswith('.png'):
+            pdf_out = eib_stats_plot_out[:-4] + '.pdf'
+            plt.savefig(pdf_out, dpi=125)
+
         plt.close()
         mdtext += '<image src = "' + plot_path + '" width="900px"></image>'  + "\n"
         # mdtext += '<img src="' + plots_path + '" alt="Exon intron overlap plot"' + "\n"
@@ -13111,6 +13159,7 @@ exon/intron overlap can vary or even be relatively low.
                                     max_subset_rank=args.upset_plot_max_subset_rank,
                                     min_rbp_count=args.upset_plot_min_rbp_count,
                                     max_rbp_rank=args.upset_plot_max_rbp_rank,
+                                    plot_pdf=args.plot_pdf,
                                     plot_out=rbp_reg_occ_upset_plot_out)
 
 
@@ -13381,10 +13430,17 @@ Each RBP with a pair count (definition see table above) of >= %i is shown, and t
                     db_motif_path = benchlib_path + "/content/motif_plots/%s" %(motif_plot)
                     if os.path.exists(db_motif_path):
                         shutil.copy(db_motif_path, motif_plot_out)
+                        if args.plot_pdf:
+                            create_motif_plot(motif_id, seq_motif_blocks_dic,
+                                            motif_plot_out,
+                                            plot_pdf=True,
+                                            plot_png=False)
 
                 if not os.path.exists(motif_plot_out):
                     create_motif_plot(motif_id, seq_motif_blocks_dic,
-                                      motif_plot_out)
+                                      motif_plot_out,
+                                      plot_pdf=args.plot_pdf,
+                                      plot_png=True)
 
                 mdtext += '<img src="' + plot_path + '" alt="' + "sequence motif plot %s" %(motif_id) + "\n"
                 mdtext += 'title="' + "sequence motif plot %s" %(motif_id) + '" width="500" />' + "\n"
@@ -13441,10 +13497,17 @@ In case of an empty table, try to lower --motif-min-pair-count (current value: %
                             db_motif_path = benchlib_path + "/content/motif_plots/%s" %(motif_plot)
                             if os.path.exists(db_motif_path):
                                 shutil.copy(db_motif_path, motif_plot_out)
+                                if args.plot_pdf:
+                                    create_motif_plot(motif_id, seq_motif_blocks_dic,
+                                                    motif_plot_out,
+                                                    plot_pdf=True,
+                                                    plot_png=False)
 
                         if not os.path.exists(motif_plot_out):
                             create_motif_plot(other_motif_id, seq_motif_blocks_dic,
-                                              motif_plot_out)
+                                              motif_plot_out,
+                                              plot_pdf=args.plot_pdf,
+                                              plot_png=True)
 
                         plot_str = '<image src = "' + plot_path + '" width="300px"></image>'
 
@@ -13976,6 +14039,7 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
                                   min_rbp_count=0,
                                   max_rbp_rank=None,
                                   annot2color_dic=False,
+                                  plot_pdf=False,
                                   plot_out="rbp_region_occupancies.upset_plot.png"):
     """
     Create upset plot for RBP region occupancies.
@@ -14152,6 +14216,11 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
         upset.plot()
 
     plt.savefig(plot_out, dpi=125, bbox_inches='tight')
+
+    if plot_pdf and plot_out.endswith('.png'):
+        pdf_out = plot_out[:-4] + '.pdf'
+        plt.savefig(pdf_out, dpi=125, bbox_inches='tight')
+
     plt.close()
     return True, "yowza", 0
 
@@ -14161,6 +14230,7 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
 def create_enmo_annotation_bar_plot(reg2annot_dic, 
                                     annot2color_dic=False,
                                     data_id="Input",
+                                    plot_pdf=False,
                                     plot_out="enmo_annotation_bar_plot.png"):
     """
     Plot gene region annotations bar plot for input or backgroud set.
@@ -14215,6 +14285,10 @@ def create_enmo_annotation_bar_plot(reg2annot_dic,
 
     plt.legend(bbox_to_anchor=(1.01, 1), loc='upper left')
 
+    if plot_pdf and plot_out.endswith('.png'):
+        pdf_out = plot_out[:-4] + '.pdf'
+        plt.savefig(pdf_out, dpi=110, bbox_inches='tight')
+
     plt.savefig(plot_out, dpi=110, bbox_inches='tight')
     plt.close()
 
@@ -14225,6 +14299,7 @@ def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg
                                                plot_out="annotation_stacked_bars_plot.png",
                                                annot2color_dic=False,
                                                add_all_reg_bar=True,
+                                               plot_pdf=False,
                                                all_regions_id="All"):
     """
     Create a stacked bars plot, with each bar showing the annotations for one RBPs,
@@ -14320,7 +14395,7 @@ def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg
             annot2color_dic[annot] = hex_colors[idx]
             idx += 1
 
-    # idx = 0^
+    # idx = 0
     # for annot in sorted(annot_with_hits_dic, reverse=False):
     #     # hc = hex_colors[idx]
     #     # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
@@ -14346,6 +14421,11 @@ def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg
     plt.legend(bbox_to_anchor=(1.01, 1), loc='upper left')
 
     plt.savefig(plot_out, dpi=110, bbox_inches='tight')
+
+    if plot_pdf and plot_out.endswith('.png'):
+        pdf_out = plot_out[:-4] + '.pdf'
+        plt.savefig(pdf_out, dpi=110, bbox_inches='tight')
+
     plt.close()
 
 
@@ -15093,6 +15173,7 @@ RBP "%s" only contains structure motifs, which are currently not available for p
 
             create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic, 
                                         annot2color_dic, mrna_occ_stacked_plot_out,
+                                        plot_pdf=args.plot_pdf,
                                         rbp_id=rbp_id)
 
             plots_path = plots_folder + "/" + mrna_occ_stacked_plot
@@ -15121,6 +15202,7 @@ Number of mRNA sequences used for prediction and plot generation: %i.
 
             create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2c_dic, annot2color_dic,
                                                 annot_stacked_bars_plot_out,
+                                                plot_pdf=args.plot_pdf,
                                                 x_label="Annotation overlap")
 
             plot_path = plots_folder + "/" + annot_stacked_bars_plot
@@ -15149,6 +15231,8 @@ Genomic annotations are shown for all motifs of RBP "%s" combined, as well as fo
 
             create_annotation_stacked_bars_plot(rbp_id, rbp2motif2annot2normc_dic, annot2color_dic,
                                                 annot_stacked_bars_plot_out,
+                                                no_x_labels=True,
+                                                plot_pdf=args.plot_pdf,
                                                 x_label="Normalized annotation overlap")
 
             plot_path = plots_folder + "/" + annot_stacked_bars_plot
@@ -15161,11 +15245,11 @@ Genomic annotations are shown for all motifs of RBP "%s" combined, as well as fo
 I.e., annotation counts from the above figure are normalized depending on how much the annotation covers the input regions.
 This removes annotation region length biases introduced in long genomic input regions and can give a better idea of 
 motif prevalences (given a reasonably large input size/number) in certain genomic regions (e.g. the motif tends to occur 
-more often in intron, 3'UTR etc.).
+more often in intron, 3'UTR etc.). Unique input regions size (nt): %i (i.e., overlapping regions merged).
 
 &nbsp;
 
-""" %(rbp_id)
+""" %(rbp_id, args.eff_in_reg_size)
 
 
         if rbp_id == args.regex_id:
@@ -15183,10 +15267,17 @@ more often in intron, 3'UTR etc.).
                 db_motif_path = benchlib_path + "/content/motif_plots/%s" %(motif_plot)
                 if os.path.exists(db_motif_path):
                     shutil.copy(db_motif_path, motif_plot_out)
+                    if args.plot_pdf:
+                        create_motif_plot(motif_id, seq_motif_blocks_dic,
+                                          motif_plot_out,
+                                          plot_pdf=True,
+                                          plot_png=False)
 
             if not os.path.exists(motif_plot_out):
                 create_motif_plot(motif_id, seq_motif_blocks_dic,
-                                  motif_plot_out)
+                                  motif_plot_out,
+                                  plot_pdf=args.plot_pdf,
+                                  plot_png=True)
 
             mdtext += '<img src="' + plot_path + '" alt="' + "sequence motif plot %s" %(motif_id) + "\n"
             mdtext += 'title="' + "sequence motif plot %s" %(motif_id) + '" width="500" />' + "\n"
@@ -15223,7 +15314,9 @@ more often in intron, 3'UTR etc.).
 
 def create_motif_plot(motif_id, 
                       seq_motif_blocks_dic,
-                      motif_plot_out):
+                      motif_plot_out,
+                      plot_pdf=False,
+                      plot_png=True):
     """
     Create sequence motif plot from MEME XML motif block.
 
@@ -15271,24 +15364,31 @@ def create_motif_plot(motif_id,
     #logo.ax.set_yticks([])
     #plt.yticks(fontsize=7)
     logo.ax.set_ylabel("probability", labelpad=10, fontsize=10)
-    plt.savefig(motif_plot_out, dpi=100)
+    if plot_png:
+        plt.savefig(motif_plot_out, dpi=100)
+    if plot_pdf and motif_plot_out.endswith('.png'):
+        pdf_out = motif_plot_out[:-4] + '.pdf'
+        plt.savefig(pdf_out, dpi=100)
     plt.close()
 
 
 ################################################################################
 
-def compare_generate_html_report(compare_methods_dic, compare_datasets_dic,
+def compare_generate_html_report(args,
+                                 compare_methods_dic, compare_datasets_dic,
                                  rbp_stats_dic, motif_stats_dic,
-                                 out_folder, benchlib_path,
+                                 benchlib_path,
                                  html_report_out="report.rbpbench_compare.html",
-                                 plot_abs_paths=False,
-                                 sort_js_mode=1,
-                                 report_header=False,
                                  plots_subfolder="html_plots"):
     """
     Create comparison statistics and HTML report.
 
     """
+    out_folder = args.out_folder
+    plot_abs_paths = args.plot_abs_paths
+    sort_js_mode = args.sort_js_mode
+    report_header = args.report_header
+
     # Use absolute paths?
     if plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
@@ -15476,18 +15576,21 @@ by RBPBench (rbpbench compare):
             create_venn2_diagram(int_ids[0], int_ids[1],
                             motif_stats_dic,
                             venn_plot_out,
+                            plot_pdf=args.plot_pdf,
                             set1_label=method_ids[0],
                             set2_label=method_ids[1])
         elif len(method_ids) == 3:
             create_venn3_diagram(int_ids[0], int_ids[1], int_ids[2],
                             motif_stats_dic,
                             venn_plot_out,
+                            plot_pdf=args.plot_pdf,
                             set1_label=method_ids[0],
                             set2_label=method_ids[1],
                             set3_label=method_ids[2])
         elif len(method_ids) > 3 and len(method_ids) <= 24:
             create_vennx_diagram(int_ids, method_ids,
-                            motif_stats_dic, venn_plot_out)
+                                 motif_stats_dic, venn_plot_out,
+                                 plot_pdf=args.plot_pdf)
         else:
             assert False, "two many methods to compare (comp_id: %s). Please use less methods for plotting (current limit: 24)" %(comp_id)
 
@@ -15587,18 +15690,21 @@ Any given motif hit can either be found only by one method, or be identified by 
             create_venn2_diagram(int_ids[0], int_ids[1],
                             motif_stats_dic,
                             venn_plot_out,
+                            plot_pdf=args.plot_pdf,
                             set1_label=data_ids[0],
                             set2_label=data_ids[1])
         elif len(data_ids) == 3:
             create_venn3_diagram(int_ids[0], int_ids[1], int_ids[2],
                             motif_stats_dic,
                             venn_plot_out,
+                            plot_pdf=args.plot_pdf,
                             set1_label=data_ids[0],
                             set2_label=data_ids[1],
                             set3_label=data_ids[2])
         elif len(data_ids) > 3 and len(data_ids) <= 24:
             create_vennx_diagram(int_ids, data_ids,
-                            motif_stats_dic, venn_plot_out)
+                                 motif_stats_dic, venn_plot_out,
+                                 plot_pdf=args.plot_pdf)
         else:
             assert False, "two many datasets to compare (comp_id: %s). Please use less datasets for plotting (current limit: 24)" %(comp_id)
 
@@ -15650,6 +15756,7 @@ Any given motif hit can either be found only in one dataset, or be common to any
 def create_venn2_diagram(int_id1, int_id2,
                          motif_stats_dic,
                          out_plot,
+                         plot_pdf=False,
                          alpha=0.5,
                          set1_label="Set1",
                          set2_label="Set2"):
@@ -15681,8 +15788,14 @@ def create_venn2_diagram(int_id1, int_id2,
     venn2([set1, set2], #set_colors=('skyblue', 'salmon'), 
           alpha=alpha, set_labels = (set1_label, set2_label),
           subset_label_formatter=lambda x: str(x) + "\n(" + f"{(x/total):1.0%}" + ")")
+
     plt.savefig(out_plot, dpi=150, bbox_inches='tight')
-    plt.clf()
+
+    if plot_pdf and out_plot.endswith('.png'):
+        pdf_out = out_plot[:-4] + '.pdf'
+        plt.savefig(pdf_out, dpi=150, bbox_inches='tight')
+
+    plt.close()
 
 
 ################################################################################
@@ -15691,6 +15804,7 @@ def create_venn3_diagram(int_id1, int_id2, int_id3,
                          motif_stats_dic,
                          out_plot,
                          alpha=0.5,
+                         plot_pdf=False,
                          set1_label="Set1",
                          set2_label="Set2",
                          set3_label="Set3"):
@@ -15732,13 +15846,20 @@ def create_venn3_diagram(int_id1, int_id2, int_id3,
           alpha=alpha, set_labels = (set1_label, set2_label, set3_label),
           subset_label_formatter=lambda x: str(x) + "\n(" + f"{(x/total):1.0%}" + ")")
     plt.savefig(out_plot, dpi=150, bbox_inches='tight')
-    plt.clf()
+
+    if plot_pdf and out_plot.endswith('.png'):
+        pdf_out = out_plot[:-4] + '.pdf'
+        plt.savefig(pdf_out, dpi=150, bbox_inches='tight')
+
+    # plt.clf()
+    plt.close()
 
 
 ################################################################################
 
 def create_vennx_diagram(int_ids, set_labels,
                          motif_stats_dic, out_plot,
+                         plot_pdf=False,
                          cmap="jet"):
     """
     Create Venn Diagram for x sets.
@@ -15768,7 +15889,12 @@ def create_vennx_diagram(int_ids, set_labels,
          # alpha=0.6,
          fmt="{size}"+"\n"+"{percentage:.1f}%")
     plt.savefig(out_plot, dpi=150, bbox_inches='tight')
-    plt.clf()
+
+    if plot_pdf and out_plot.endswith('.png'):
+        pdf_out = out_plot[:-4] + '.pdf'
+        plt.savefig(pdf_out, dpi=150, bbox_inches='tight')
+
+    plt.close()
 
 
 ################################################################################
