@@ -906,7 +906,7 @@ def read_in_tomtom_sim_results(sim_out_tsv,
 
     pair2sim_dic = {}
 
-    if re.search(".+\.gz$", sim_out_tsv):
+    if re.search(r".+\.gz$", sim_out_tsv):
         f = gzip.open(sim_out_tsv, 'rt')
     else:
         f = open(sim_out_tsv, "r")
@@ -1206,7 +1206,7 @@ def dir_get_files(file_dir,
     if file_ending:
         new_files = []
         for df in dir_files:
-            if re.search(".+\.%s" %(file_ending), df):
+            if re.search(r".+\.%s" %(file_ending), df):
                 new_files.append(df)
         if check:
             assert new_files, "no files left after filtering by file ending \"%s\"" %(file_ending)
@@ -1484,11 +1484,11 @@ def read_in_cm_blocks(cm_file,
 
     with open(cm_file) as f:
         for line in f:
-            if re.search("^INFERNAL", line):
+            if re.search(r"^INFERNAL", line):
                 blocks_list.append(line)
                 idx += 1
-            elif re.search("^ACC\s+\w+", line):
-                m = re.search("^ACC\s+(\w+)", line)
+            elif re.search(r"^ACC\s+\w+", line):
+                m = re.search(r"^ACC\s+(\w+)", line)
                 acc_id = m.group(1)
                 # Remove special characters from motif/accession ID.
                 new_acc_id = remove_special_chars_from_str(acc_id)
@@ -1597,8 +1597,8 @@ def read_cm_acc(in_cm):
 
     with open(in_cm) as f:
         for line in f:
-            if re.search("^ACC\s+\w+", line):
-                m = re.search("^ACC\s+(\w+)", line)
+            if re.search(r"^ACC\s+\w+", line):
+                m = re.search(r"^ACC\s+(\w+)", line)
                 acc_id = m.group(1)
                 if acc_id in acc_dic:
                     acc_dic[acc_id] += 1
@@ -1633,13 +1633,13 @@ def get_fasta_headers(in_fa,
 
     seq_ids_dic = {}
     for line in output.split('\n'):
-        if re.search("^>", line):
+        if re.search(r"^>", line):
             if full_header:
-                m = re.search("^>(.+)", line)
+                m = re.search(r"^>(.+)", line)
                 seq_id = m.group(1)
                 seq_ids_dic[seq_id] = 1
             else:
-                m = re.search("^>(\S+)", line)
+                m = re.search(r"^>(\S+)", line)
                 seq_id = m.group(1)
                 seq_ids_dic[seq_id] = 1
 
@@ -1974,17 +1974,15 @@ def read_fasta_into_dic(fasta_file,
                         id_check=True,
                         skip_data_id="set",
                         new_header_id="site",
-                        remove_regex=False,
+                        remove_regex=False,  # e.g. r"[ :\(\)]"
                         make_uniq_headers=False,
                         skip_n_seqs=True):
     """
-
     Read in FASTA sequences, store in dictionary and return dictionary.
     FASTA file can be plain text or gzipped (watch out for .gz ending).
 
     remove_regex:
         If regex given, use this to remove special characters from the header ID.
-        E.g. "[ :\(\)]"
     full_header:
         If true, use whole header (after >) as ID. By default, use ID up to 
         first space character.
@@ -2006,7 +2004,7 @@ def read_fasta_into_dic(fasta_file,
     n_pattern = re.compile(r"N", re.I)
 
     # Open FASTA either as .gz or as text file.
-    if re.search(".+\.gz$", fasta_file):
+    if re.search(r".+\.gz$", fasta_file):
         f = gzip.open(fasta_file, 'rt')
     else:
         f = open(fasta_file, "r")
@@ -2237,15 +2235,15 @@ def extract_motif_blocks(raw_text):
     motif_id = ""
     lines = raw_text.strip().split('\n')
     for l in lines:
-        if re.search("^MOTIF\s\w+", l):
-            m = re.search("MOTIF (\w+)", l)
+        if re.search(r"^MOTIF\s\w+", l):
+            m = re.search(r"MOTIF (\w+)", l)
             motif_id = m.group(1)
             new_motif_id = remove_special_chars_from_str(motif_id)
             assert new_motif_id, "no characters left after removal of special characters from motif ID \"%s\". Please use valid MEME XML motif IDs (i.e., modify MOTIF column strings in motifs xml file)" %(motif_id)
             motif_id = new_motif_id
         else:
             if motif_id and l:
-                if re.search("^URL", l):  # Skip URL rows e.g. from Ray2013 meme file. format: URL http:// ...
+                if re.search(r"^URL", l):  # Skip URL rows e.g. from Ray2013 meme file. format: URL http:// ...
                     continue
                 # Also remove <tab> characters from lines.
                 l = l.replace("\t", "")
@@ -2363,8 +2361,8 @@ def check_convert_chr_id(chr_id,
         return chr_id
 
     elif id_style == 1:
-        if re.search("^chr", chr_id):
-            if chr_id in add_chr_names_dic or re.search("^chr[\dMXY]+$", chr_id):
+        if re.search(r"^chr", chr_id):
+            if chr_id in add_chr_names_dic or re.search(r"^chr[\dMXY]+$", chr_id):
                 return chr_id
             else:
                 return False
@@ -2372,19 +2370,19 @@ def check_convert_chr_id(chr_id,
             # Convert to "chr" IDs.
             if chr_id == "MT": # special case MT -> chrM.
                 return "chrM"
-            if chr_id in add_chr_names_dic or re.search("^[\dXY]+$", chr_id):
+            if chr_id in add_chr_names_dic or re.search(r"^[\dXY]+$", chr_id):
                 return "chr" + chr_id
             else:
                 return False
 
     elif id_style == 2:
 
-        if re.search("^chr", chr_id):
+        if re.search(r"^chr", chr_id):
             if chr_id == "chrM": # special case chrM -> MT.
                 return "MT"
-            if chr_id in add_chr_names_dic or re.search("^chr[\dXY]+$", chr_id):
+            if chr_id in add_chr_names_dic or re.search(r"^chr[\dXY]+$", chr_id):
                 # Cut out chr suffix.
-                m = re.search("chr(.+)", chr_id)
+                m = re.search(r"chr(.+)", chr_id)
                 assert m, "no match for regex search"
                 chr_suffix = m.group(1)
                 return chr_suffix
@@ -2394,7 +2392,7 @@ def check_convert_chr_id(chr_id,
         else:
             if chr_id == "MT": # special case MT.
                 return chr_id
-            if chr_id in add_chr_names_dic or re.search("^[\dXY]+$", chr_id):
+            if chr_id in add_chr_names_dic or re.search(r"^[\dXY]+$", chr_id):
                 return chr_id
             else:
                 return False
@@ -2466,7 +2464,7 @@ def gtf_read_in_gene_infos(in_gtf,
     if skip_gene_biotype_dic is None:
         skip_gene_biotype_dic = {"TEC" : 1}
 
-    if re.search(".+\.gz$", in_gtf):
+    if re.search(r".+\.gz$", in_gtf):
         f = gzip.open(in_gtf, 'rt')
     else: 
         f = open(in_gtf, "r")
@@ -2567,7 +2565,7 @@ def gtf_read_in_gene_infos(in_gtf,
             if m:
                 tsl_id = m.group(1)
                 if re.search("assigned to previous", tsl_id):
-                    m = re.search("(.+?) \(", tsl_id)
+                    m = re.search(r"(.+?) \(", tsl_id)
                     tsl_id = m.group(1)
             # Dummy length for now.
             tr_length = 0
@@ -2642,7 +2640,7 @@ def gtf_read_in_transcript_infos(in_gtf,
     tid2tio_dic = {}
     tr_ids_seen_dic = {}
 
-    if re.search(".+\.gz$", in_gtf):
+    if re.search(r".+\.gz$", in_gtf):
         f = gzip.open(in_gtf, 'rt')
     else: 
         f = open(in_gtf, "r")
@@ -2704,7 +2702,7 @@ def gtf_read_in_transcript_infos(in_gtf,
             if m:
                 tsl_id = m.group(1)
                 if re.search("assigned to previous", tsl_id):
-                    m = re.search("(.+?) \(", tsl_id)
+                    m = re.search(r"(.+?) \(", tsl_id)
                     tsl_id = m.group(1)
 
             if tr_types_dic is not None:
@@ -2733,9 +2731,9 @@ def gtf_read_in_transcript_infos(in_gtf,
                 if tr_id not in tr_ids_dic:
                     continue
 
-            m = re.search('exon_number "(\d+?)"', infos)
+            m = re.search(r'exon_number "(\d+?)"', infos)
             if not m:
-                m = re.search('exon_number (\d+?);', infos)  # GENCODE encoding.
+                m = re.search(r'exon_number (\d+?);', infos)  # GENCODE encoding.
             assert m, "exon_number entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             exon_nr = int(m.group(1))
 
@@ -4954,7 +4952,7 @@ def gtf_check_exon_order(in_gtf):
 
     check = 6666
 
-    if re.search(".+\.gz$", in_gtf):
+    if re.search(r".+\.gz$", in_gtf):
         f = gzip.open(in_gtf, 'rt')
     else:
         f = open(in_gtf, "r")
@@ -4979,10 +4977,10 @@ def gtf_check_exon_order(in_gtf):
         assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
         transcript_id = m.group(1)
         # Exon number.
-        m = re.search('exon_number "(\d+?)"', infos)
+        m = re.search(r'exon_number "(\d+?)"', infos)
         # Try GENCODE encoding.
         if not m:
-            m = re.search('exon_number (\d+?);', infos)
+            m = re.search(r'exon_number (\d+?);', infos)
         assert m, "exon_number entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
         exon_nr = int(m.group(1))
 
@@ -5517,8 +5515,8 @@ def reg_get_core_id(reg_id):
     
     """
 
-    if re.search("\w+:\d+-\d+\([+|-]\)", reg_id):
-        m = re.search("(\w+):(\d+)-(\d+)\(", reg_id)
+    if re.search(r"\w+:\d+-\d+\([+|-]\)", reg_id):
+        m = re.search(r"(\w+):(\d+)-(\d+)\(", reg_id)
         core_id = "%s:%s-%s" %(m.group(1), m.group(2), m.group(3))
         return core_id
     else:
@@ -5540,8 +5538,8 @@ def get_hit_id_elements(hit_id):
     
     """
 
-    if re.search("^\w+?:\d+-\d+\([+|-]\)\w+", hit_id):
-        m = re.search("^(\w+?):(\d+)-(\d+)\(([+|-])\)(.+)", hit_id)
+    if re.search(r"^\w+?:\d+-\d+\([+|-]\)\w+", hit_id):
+        m = re.search(r"^(\w+?):(\d+)-(\d+)\(([+|-])\)(.+)", hit_id)
         id_elements = [m.group(1), m.group(2), m.group(3), m.group(4), m.group(5)]
         return id_elements
     else:
@@ -5774,8 +5772,8 @@ def extract_pol_from_seq_ids(out_seqs_dic):
     """
     reg2pol_dic = {}
     for seq_id in out_seqs_dic:
-        if re.search("\w+:\d+-\d+\([+|-]\)", seq_id):
-            m = re.search("\w+:\d+-\d+\(([+|-])\)", seq_id)
+        if re.search(r"\w+:\d+-\d+\([+|-]\)", seq_id):
+            m = re.search(r"\w+:\d+-\d+\(([+|-])\)", seq_id)
             reg2pol_dic[seq_id] = m.group(1)
         else:
             assert False, "region ID has invalid format (%s). Please contact developers" %(seq_id)
@@ -6349,8 +6347,8 @@ def seq_id_get_parts(seq_id):
 
     """
 
-    if re.search("\w+:\d+-\d+\([+|-]\)", seq_id):
-        m = re.search("(\w+):(\d+)-(\d+)\(([+|-])\)", seq_id)
+    if re.search(r"\w+:\d+-\d+\([+|-]\)", seq_id):
+        m = re.search(r"(\w+):(\d+)-(\d+)\(([+|-])\)", seq_id)
         chr_id = m.group(1)
         reg_s = int(m.group(2))
         reg_e = int(m.group(3))
@@ -6390,8 +6388,8 @@ def get_genomic_coords_from_seq_name(seq_name, motif_s, motif_e,
     
     """
 
-    if re.search("\w+:\d+-\d+\([+|-]\)", seq_name):
-        m = re.search("(\w+):(\d+)-(\d+)\(([+|-])\)", seq_name)
+    if re.search(r"\w+:\d+-\d+\([+|-]\)", seq_name):
+        m = re.search(r"(\w+):(\d+)-(\d+)\(([+|-])\)", seq_name)
         chr_id = m.group(1)
         reg_s = int(m.group(2))
         reg_e = int(m.group(3))
@@ -6425,8 +6423,8 @@ def get_length_from_seq_name(seq_name):
     100
 
     """
-    if re.search("\w+:\d+-\d+\(", seq_name):
-        m = re.search("\w+:(\d+)-(\d+)\(", seq_name)
+    if re.search(r"\w+:\d+-\d+\(", seq_name):
+        m = re.search(r"\w+:(\d+)-(\d+)\(", seq_name)
         reg_s = int(m.group(1))
         reg_e = int(m.group(2))
         return reg_e - reg_s
@@ -7824,7 +7822,7 @@ def join_motif_hits(motif_hits_list,
 ################################################################################
 
 def remove_special_chars_from_str(check_str,
-                                  reg_ex='[^A-Za-z0-9_-]+'):
+                                  reg_ex=r'[^A-Za-z0-9_-]+'):
     """
     Remove special characters from string.
 
@@ -7842,23 +7840,22 @@ def remove_special_chars_from_str(check_str,
     [] (square brackets)
     () (parentheses)
     | (pipe)
-    \ (backslash)
+    backslash
 
-    To remove these:
-    special_chars = r"[.^$*+?{}[\]()|\\]"
-
-    >>> check_str = "{_}[-](_)\V/"
+    >>> check_str = r"{_}[-](_)\\V/"
     >>> remove_special_chars_from_str(check_str)
     '_-_V'
     >>> check_str = ""
     >>> remove_special_chars_from_str(check_str)
     ''
     >>> check_str = "AC.+?GA[AC]A\\\\C(AAA)C;C.{2,8}AC"
-    >>> remove_special_chars_from_str(check_str, reg_ex="[ ;\(\)]")
+    >>> remove_special_chars_from_str(check_str, reg_ex=r"[ ;\\()]")
     'AC.+?GA[AC]ACAAACC.{2,8}AC'
 
     """
-    check_str = check_str.replace("\\t", "").replace("\\n", "").replace("\\", "")
+    # To remove special regex chars: r"[.^$*+?{}[\]()|\]"
+
+    check_str = check_str.replace(r"\t", "").replace(r"\n", "").replace("\\", "")
     clean_string = re.sub(reg_ex, '', check_str)
     return clean_string
 
@@ -7882,8 +7879,8 @@ def get_motif_id_from_str_repr(hit_str_repr):
 
     """
 
-    if re.search("^.+:\d+-\d+\([+|-]\).+", hit_str_repr):
-        m = re.search("^.+?\)(.+)", hit_str_repr)
+    if re.search(r"^.+:\d+-\d+\([+|-]\).+", hit_str_repr):
+        m = re.search(r"^.+?\)(.+)", hit_str_repr)
         motif_id = m.group(1)
         return motif_id
     else:
@@ -12366,8 +12363,8 @@ def create_kmer_sc_plotly_scatter_plot(pos_mer_dic, neg_mer_dic, k,
         max_perc = max_neg_perc
 
     # Find out how to round up max_perc.
-    if re.search("\d+\.\d+", str(max_perc)):
-        m = re.search("(\d+)\.(\d+)", str(max_perc))
+    if re.search(r"\d+\.\d+", str(max_perc)):
+        m = re.search(r"(\d+)\.(\d+)", str(max_perc))
         left = str(m.group(1))
         right = str(m.group(2))
     else:
@@ -13108,7 +13105,7 @@ mRNA region lengths used for plotting are derived from the %i mRNA regions, usin
         # mdtext += '<img src="' + plots_path + '" alt="Exon intron overlap plot"' + "\n"
         # mdtext += 'title="mRNA region occupancy plot" />' + "\n"
 
-        mdtext += """
+        mdtext += r"""
 **Figure:** Exon, intron + border region overlap statistics. \# input regions = %i. 
 \# input regions overlapping with exon regions = %i.
 \# input regions overlapping with intron regions = %i.
