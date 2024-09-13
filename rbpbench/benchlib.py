@@ -377,7 +377,7 @@ def get_gid2go_mapping(gid2go_file,
             columns = line.strip().split('\t')
             gene_id = columns[0]
             if remove_version_numbers:
-                gene_id = re.sub("\.\d+$", "", gene_id)
+                gene_id = re.sub(r"\.\d+$", "", gene_id)
 
             go_ids = columns[1].split(",")
             filtered_go_ids = []
@@ -482,7 +482,7 @@ def output_target_reg_annot(target_genes_dic, gene_infos_file, target_reg_annot_
         gene_id_full = gene_id
 
         if remove_version_numbers:
-            gene_id = re.sub("\.\d+$", "", gene_id)
+            gene_id = re.sub(r"\.\d+$", "", gene_id)
 
         gene_name = "-"
         gene_synonyms = "-"
@@ -597,7 +597,7 @@ def run_go_analysis(target_genes_dic, background_genes_dic,
     target_genes = []
     for gene_id in target_genes_dic:
         if id_has_version:
-            gene_id = re.sub("\.\d+$", "", gene_id)
+            gene_id = re.sub(r"\.\d+$", "", gene_id)
         if gene_id in gid2go_dic:  # Can only work with genes that have associated GO terms.
             target_genes.append(gene_id)
     background_genes = []
@@ -605,7 +605,7 @@ def run_go_analysis(target_genes_dic, background_genes_dic,
     for gene_id in background_genes_dic:
         new_gene_id = gene_id
         if id_has_version:
-            new_gene_id = re.sub("\.\d+$", "", gene_id)
+            new_gene_id = re.sub(r"\.\d+$", "", gene_id)
         gid2gn_dic[new_gene_id] = background_genes_dic[gene_id]
         if new_gene_id in gid2go_dic:
             background_genes.append(new_gene_id)
@@ -12418,7 +12418,8 @@ def decimal_ceil(a, prec):
     >>> decimal_ceil(a, 2)
     0.01
     """
-    return np.round(a + 0.5 * 10**(-prec), prec)
+    a_rounded = np.round(a + 0.5 * 10**(-prec), prec)
+    return float(a_rounded)
 
 
 ################################################################################

@@ -4670,7 +4670,7 @@ def main_search(args):
     rbp2regidx_dic = {}
     OUTOCC = open(rbp_reg_occ_table_out,"w")
 
-    occ_header = "#region_id \ rbp_id"
+    occ_header = r"#region_id \ rbp_id"
     for rbp_id, hit_list in sorted(reg_hits_dic.items()):
         occ_header += "\t%s" %(rbp_id)
         rbp2regidx_dic[rbp_id] = []
@@ -6195,8 +6195,8 @@ def main_batch(args):
 
         for bed_file in bed_list:
             rbp_id = False
-            if re.search(".+\.bed", bed_file):
-                m = re.search("(.+)\.bed", bed_file)
+            if re.search(r".+\.bed", bed_file):
+                m = re.search(r"(.+)\.bed", bed_file)
                 fn = m.group(1)
                 fnp = fn.split("_")
                 rbp_id = fnp[0]
@@ -8785,7 +8785,7 @@ def main_searchseq(args):
                                        new_header_id=args.header_id,
                                        make_uniq_headers=args.make_uniq_headers,
                                        report=1,
-                                       remove_regex="[ :\(\)]",
+                                       remove_regex=r"[ :\(\)]",
                                        skip_n_seqs=False)
 
     assert in_seqs_dic, "no sequences read in from --in FASTA file. Make sure to provide a FASTA formatted file with DNA or RNA sequences"
@@ -9226,7 +9226,7 @@ def main_searchseq(args):
     rbp2regidx_dic = {}
     OUTOCC = open(rbp_reg_occ_table_out,"w")
 
-    occ_header = "#region_id \ rbp_id"
+    occ_header = r"#region_id \ rbp_id"
     for rbp_id, hit_list in sorted(reg_hits_dic.items()):
         occ_header += "\t%s" %(rbp_id)
         rbp2regidx_dic[rbp_id] = []
@@ -12399,7 +12399,7 @@ def main_searchrna(args):
     rbp2regidx_dic = {}
     OUTOCC = open(rbp_reg_occ_table_out,"w")
 
-    occ_header = "#region_id \ rbp_id"
+    occ_header = r"#region_id \ rbp_id"
     for rbp_id, hit_list in sorted(reg_hits_dic.items()):
         occ_header += "\t%s" %(rbp_id)
         rbp2regidx_dic[rbp_id] = []
