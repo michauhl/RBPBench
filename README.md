@@ -133,50 +133,56 @@ options:
 ##### Single and batch motif search
 
 `rbpbench search` can be used to search for RBP motifs in genomic regions, selecting 
-any number of RBPs (database or user-defined (sequence), or regular expressions) and to look at motif 
-enrichment and co-occurrences.
+any number of RBPs (database or user-defined (sequence or structure), or regular expressions) 
+and to look at motif enrichment and co-occurrences.
 `rbpbench batch` is `rbpbench search` extended to multiple input files (BED files containing 
 genomic regions), with one RBP to search for each input file. Informative HTML reports are produced 
 in most of the modes, e.g. for `rbpbench batch` the input datasets are compared via 
-various interactive plots and statistics to learn more about common features and specialities. 
+various interactive plots and statistics to learn more about common as well as dataset-specific 
+features. 
 
 ##### Compare search results
 
 `rbpbench search` and `rbpbench batch` produce the RPB and motif hit statistics files which can 
 then be input into `rbpbench compare` in order to benchmark peak callers, or generate comparisons 
-between different cell types and CLIP-seq protocols.
+between different cell types and CLIP-seq protocols. Again an HTML report is produced with plots 
+for each possible comparison found in the input files.
+
 
 ##### Additional motif search modes
 
-Additional more specialised search modes are available:
+Additional more specialised search modes are available as well:
 `rbpbench searchseq` allows inputting FASTA sequences to search for motifs.
 `rbpbench searchregex` allows regular expression (regex) search in genomic regions or sequences. 
-The regular expression can be a simple sequence string like `AATAAA`, 
-or complex ones like `[CA]CA[CT].{10,25}CGGAC`.
+The regular expression can be a simple sequence motif string like `AATAAA`, 
+or complex ones like `[CA]CA[CT].{10,25}CGGAC`. Note that regex search is also possible in 
+the other search modes, e.g. combined with the database sequence and structure motifs.
 `rbpbench searchlong` allows searching long genomic regions for RBP motifs and visualize 
 motif prevalences in genomic regions (e.g. whether a motif tends to occur more often in introns, 
 5'UTRs, 3'UTRs, etc.).
-`rbpbench searchrna` enables RBP motif search in transcript regions, i.e., spliced transcripts.
+`rbpbench searchrna` enables RBP motif search in transcript regions, i.e., in spliced transcripts, 
+which can be useful for studying e.g. RBP binding on mRNAs.
 `rbpbench searchlongrna` similarly allows for RBP motif search in spliced transcripts, but broadens 
-the search to all transcripts (or a user-defined set) of the GTF transriptome (optionally only on mRNAs),
-and e.g. outputs mRNA region preferrences of the specified motifs (5'UTR, CDS, 3'UTR coverages).
+the search to all transcripts (or a user-defined set) of the GTF provided transriptome (optionally only on mRNAs),
+and e.g. outputs mRNA region preferences of the specified motifs (5'UTR, CDS, 3'UTR coverages).
 
 ##### Single motif enrichment search modes
 
 The next two modes, `rbpbench enmo` and `rbpbench nemo`, further zoom in on single motif level 
 analysis of motif enrichment and co-occurrence. 
 While `rbpbench enmo` looks at enriched motifs over background sequences in general, 
-`rbpbench nemo` goes one step further and searchs for significantly enriched neighboring motifs. 
+`rbpbench nemo` goes one step further and searches for significantly enriched neighboring motifs. 
 I.e., given some genomic or transcript positions, `rbpbench nemo` checks whether there are enriched 
-motifs up- or downstream of the input positions, and also tests for statitical preferrence regarding
-up- or downstream occurrrence.
+motifs up- or downstream of the input positions, and also tests for statistical preference regarding
+up- or downstream occurrence.
 
 ##### Checking for similar database motifs
 
-If you have one or more sequence motifs of interest (or a regex) and want to know if there are similar motifs 
-in the database, you can use `rbpbench tomtom` (using MEME SUITE TOMTOM). This mode also informs us whether 
-the reported motif hits are enriched in certain RBP functions (e.g. for regex input `--in TTTTTT`, 
-the top 3 enriched functions are: splicing regulation, translation regulation, and RNA stability & decay). 
+If you have one or more sequence motifs of interest (or even a regex!) and want to know if there are similar motifs 
+in the database, you can run `rbpbench tomtom` (including MEME SUITE TOMTOM). 
+This mode also informs us whether the reported motif hits are enriched in certain RBP functions (e.g., 
+for regex input `--in TTTTTT`, the top 3 enriched functions are: splicing regulation, 
+translation regulation, and RNA stability & decay). 
 
 ##### More modes
 
@@ -201,7 +207,7 @@ can again be used as input regions for the other modes, allowing for easily refi
 
 Motifs for search can be sequence motifs ([MEME motif format](https://meme-suite.org/meme/doc/meme-format.html)), 
 structure motifs (covariance models obtained through [Infernal](https://github.com/EddyRivasLab/infernal)),
-or regular expressions (e.g., a simple sequence string like `AATAAA` or more complex ones like `[CA]CA[CT].{10,25}CGGAC`).
+or regular expressions (e.g., a simple sequence motif string like `AATAAA` or more complex ones like `[CA]CA[CT].{10,25}CGGAC`).
 Search motifs are selected via `--rbps`, e.g., to select PUM1 (sequence) and SLBP (structure) motifs `--rbps PUM1 SLBP`.
 To select all database motifs, set `--rbps ALL` (internal motif database can be changed via `--motif-db`, 
 a custom motif database can be supplied too). Additionally, a regular expression (regex) (e.g. `AATAAA`) can be added to 
