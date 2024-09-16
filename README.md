@@ -196,12 +196,13 @@ and ```rbpbench info``` informs about database RBP motifs and annotated RBP func
 
 ##### Connecting modes
 
-All motif search modes additionally output motif hits in BED format. This way, the motif hit regions themselves 
+All motif search modes additionally output motif hits in BED format. These files for each hit also contain the matched sequence, 
+plus the genomic region annotation (if a GTF file was supplied). This way, the motif hit regions themselves 
+(or a subset of interest after filtering, e.g. certain matched sequences or e.g. only motifs residing in 3'UTRs)
 can again be used as input regions for the other modes, allowing for easily refined hypothesis checking.
 
 
 ### Inputs
-
 
 #### Motifs
 
@@ -265,7 +266,7 @@ ENST00000561978	450	500	s3	0	+
 
 The defined transcript IDs need to be present in the supplied GTF file (`--gtf`).
 This allows motif search and subsequent statistics (enrichment, co-occurrence, GO term analysis etc.) 
-directly on the transcript regions, which allows us to examine motif binding directly on the 
+directly on the transcript regions, which enables us to examine motif binding directly on the 
 spliced transcripts.
 
 #### Genomic sequences
@@ -278,6 +279,104 @@ To download in the command line and unpack:
 wget https://hgdownload.cse.ucsc.edu/goldenpath/hg38/bigZips/hg38.fa.gz
 gunzip hg38.fa.gz
 ```
+
+#### Genomic annotations
+
+Many of the statistics require a genomic annotations file in GTF format in order to be generated. 
+RBPBench was tested mainly using GTF files downloaded from [Ensembl](http://www.ensembl.org/info/data/ftp/index.html), 
+but you can also provide a GTF file from  e.g. [GENCODE](https://www.gencodegenes.org/human/). 
+For the examples we downloaded the following GTF file:
+
+```
+get https://ftp.ensembl.org/pub/release-112/gtf/homo_sapiens/Homo_sapiens.GRCh38.112.gtf.gz
+```
+
+
+#### User-provided motif search
+
+Both sequence (MEME XML format) and structure (covariance model .cm) motifs can be supplied by the user 
+on top of the database RBPs (using `-rbps USER` option together with `-user-meme-xml` or `--user-cm`).
+This way, the motifs can be used together with the database motifs for search and comparative statistics.
+For example, to supply a structure motif (SLBP) via `--user-cm` (the example motif files can be found in the RBPBench repository subfolder `RBPBench/test`):
+
+```
+rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps USER --out SLBP_user_search_out --genome hg38.fa --user-cm path_to_test/SLBP_USER.cm  --user-rbp-id SLBP_USER
+```
+
+In the same way, we can supply sequence motif(s) (PUM1) via `--user-meme-xml`, and e.g. also combine it with any of the database RBPs (here PUM2 and RBFOX2):
+
+```
+rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps USER PUM2 RBFOX2 --out PUM1_user_search_out --genome hg38.fa --user-meme-xml path_to_test/PUM1_USER.xml --user-rbp-id PUM1_USER
+```
+
+#### Custom motif database
+
+Apart from the built-in motif database and the option of user-supplied RBP motifs, 
+it is also possible to define a custom motif database, which can then be applied just like the built-in motif database. 
+The following command line parameters deal with defining a custom motif database:
+
+```
+  --custom-db str       Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme-xml, --custom-
+                        db-cm, --custom-db-info
+  --custom-db-id str    Set ID/name for provided custom motif database via --custom-db (default: "custom")
+  --custom-db-meme-xml str
+                        Provide custom motif database MEME/DREME XML file containing sequence motifs
+  --custom-db-cm str    Provide custom motif database covariance model (.cm) file containing covariance model(s)
+  --custom-db-info str  Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments
+```
+
+The database can be input as a folder (`--custom-db db_folder_path`), which needs to contain an `info.txt` file, 
+as well as a sequence motifs file (`seq_motifs.meme`, MEME motif format), and/or
+a structure motifs file (`str_motifs.cm`, covariance model format). 
+The `info.txt` is a table file containing the RBP ID to motif ID mappings. 
+Here is an example of a valid `info.txt` (minimum 3 columns required: RBP_motif_ID, RBP_name, Motif_type) file content:
+
+```
+$ cat db_folder_path/info.txt
+RBP_motif_ID	RBP_name	Motif_type
+A1CF_1	A1CF	meme_xml	human
+A1CF_2	A1CF	meme_xml	human
+ACIN1_1	ACIN1	meme_xml	human
+ACIN1_2	ACIN1	meme_xml	human
+ACO1_1	ACO1	meme_xml	human
+RF00032	SLBP	cm	human
+```
+
+`Motif_type` defines whether a motif is a sequence motif (expected to be found in `seq_motifs.meme`), 
+or a structure motif (expected to be found in `str_motifs.cm`).
+An ID / name for the custom database can be defined as well via `--custom-db-id`.
+Alternatively, the files can be input separately via `--custom-db-info`, 
+`--custom-db-meme-xml`, and `--custom-db-cm`.
+
+If you have some short sequences or regular expressions (regexes), you can also quickly create a MEME format motif 
+database out of these. Only thing needed is a table file containing regexes and associated RBP/motif IDs:
+
+```
+$ cat custom_motifs.tsv
+rbp_id	motif_id	regex
+RBPX	RBPX_1	AAA[CG]A
+RBPX	RBPX_2	AAA[CGT]C
+RBPY	RBPY_1	ACGT[ACGT]
+```
+
+To create the database folder, we use one of the helper scripts:
+
+```
+create_custom_meme_motif_db.py --in custom_motifs.tsv --out custom_db_out
+```
+
+Afterwards the folder can be used as described above via `--custom-db` option, and you can specify any RBPs or motifs you want to search for from the database:
+
+```
+rbpbench search --in genomic_regions.bed --genome /path/to/hg38.fa --gtf /path/to/Homo_sapiens.GRCh38.112.gtf.gz --rbps ALL --custom-db custom_db_out --out custom_db_search_out --ext 10 --plot-motifs --fimo-pval 0.005
+```
+
+Here we used `--plot-motifs` to visualize the motifs and `--rbps ALL`, meaning all motifs from the custom database are included in search. To search only for specific motifs from the specified database, simply add `--motifs RBPX_1 RBPX_2`. Note that RBPBench's default FIMO threshold to filter out motif hits is optimized for 6-nt or longer sequence motifs. If your motifs are shorter, consider setting a more relaxed threshold (e.g., like in the example `--fimo-pval 0.005`). However, keep in mind that a relaxed setting also results in predicting more non-perfect hits, especially for longer motifs.
+You can easily check by inputting sequences with motifs you expect to be predicted into `rbpbench searchseq` with `--custom-db` option.
+
+
+#### FIMO nucleotide frequencies 
+
 
 ### Handling genomic overlaps
 
@@ -293,7 +392,6 @@ of different peak callers. Another interesting statistic (full list of statistic
 is e.g. the number of unique motif hits over 1000 nt of called and effective region size. 
 This gives us an idea of how many motifs are included in the regions, normalized over 
 the total size of the regions (called or effective size).
-
 
 
 ### Outputs
@@ -364,7 +462,44 @@ Some useful options are: `--goa-max-child` (e.g. `--goa-max-child 200` to filter
 or `--goa-pval` (set GOA p-value threshold).
 
 
+
+#### Most-prominent transcript extraction
+
+
+
 ### Helper scripts
 
-Various helper scripts are included as well on the command line. 
+Various helper scripts are included as well on the command line:
+
+```
+bed_print_first_n_pos.py
+bed_print_last_n_pos.py
+bed_shift_regions.py
+create_custom_meme_motif_db.py
+gtf_extract_exon_intron_border_bed.py
+gtf_extract_exon_intron_region_bed.py
+gtf_extract_gene_region_bed.py
+gtf_extract_mpt_region_bed.py
+gtf_get_gene_region_nt_freqs.py
+gtf_get_mpt_nt_freqs.py
+gtf_get_mpt_with_introns_nt_freqs.py
+```
+To can call their help pages to get more infos on what they do and how to use them (e.g., `bed_print_first_n_pos.py -h`).
+To get a quick overview: 
+`bed_print_first_n_pos.py` prints the first n positions of each region from the provided BED file.
+`bed_print_last_n_pos.py` prints the last n positions of each region from the provided BED file.
+`bed_shift_regions.py` shifts all regions from the provided BED file a given number of nucleotides up- or downstream.
+`create_custom_meme_motif_db.py` as described above generates a custom sequence motifs database which can be used in all search modes via `--custom-db`.
+`gtf_extract_exon_intron_border_bed.py` extracts exon-intron border positions from a GTF file and stores them in a BED file, 
+which can be used as input e.g. in `rbpbench nemo`.
+`gtf_extract_exon_intron_region_bed.py` extracts exon or intron regions from a GTF file and stores them in a BED file.
+`gtf_extract_gene_region_bed.py` extracts gene regions from a GTF file and stores them in a BED file.
+`gtf_extract_mpt_region_bed.py` extracts most prominent transcript regions from a GTF file and stores them in a BED file. 
+Additionally, mRNA regions (5'UTR, CDS, 3'UTR) can be output to a separate BED file.
+`gtf_get_gene_region_nt_freqs.py` calculates nucleotide frequencies from all gene regions extracted from a GTF and the corresponding genome FASTA.
+FIMO can be given this information as a nucleotide frequencies file (see options `--fimo-ntf-file`, `--fimo-ntf-mode`).
+`gtf_get_mpt_nt_freqs.py` calculates nucleotide frequencies of from all most prominent transcript (MPT) sequences (introns excluded) 
+extracted from a GTF and the corresponding genome FASTA.
+`gtf_get_mpt_with_introns_nt_freqs.py` calculates nucleotide frequencies of from all most prominent transcript (MPT) sequences (introns included) 
+extracted from a GTF and the corresponding genome FASTA.
 

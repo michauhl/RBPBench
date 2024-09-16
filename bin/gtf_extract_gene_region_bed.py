@@ -108,7 +108,7 @@ def check_convert_chr_id(chr_id,
 
     elif chr_id_style == 2:
         if re.search("^chr", chr_id):
-            if chr_id in add_chr_names_dic or re.search("^chr[\dMXY]+$", chr_id):
+            if chr_id in add_chr_names_dic or re.search(r"^chr[\dMXY]+$", chr_id):
                 return chr_id
             else:
                 return False
@@ -116,7 +116,7 @@ def check_convert_chr_id(chr_id,
             # Convert to "chr" IDs.
             if chr_id == "MT": # special case MT -> chrM.
                 return "chrM"
-            if chr_id in add_chr_names_dic or re.search("^[\dXY]+$", chr_id):
+            if chr_id in add_chr_names_dic or re.search(r"^[\dXY]+$", chr_id):
                 return "chr" + chr_id
             else:
                 return False
@@ -126,7 +126,7 @@ def check_convert_chr_id(chr_id,
         if re.search("^chr", chr_id):
             if chr_id == "chrM": # special case chrM -> MT.
                 return "MT"
-            if chr_id in add_chr_names_dic or re.search("^chr[\dXY]+$", chr_id):
+            if chr_id in add_chr_names_dic or re.search(r"^chr[\dXY]+$", chr_id):
                 # Cut out chr suffix.
                 m = re.search("chr(.+)", chr_id)
                 assert m, "no match for regex search"
@@ -138,7 +138,7 @@ def check_convert_chr_id(chr_id,
         else:
             if chr_id == "MT": # special case MT.
                 return chr_id
-            if chr_id in add_chr_names_dic or re.search("^[\dXY]+$", chr_id):
+            if chr_id in add_chr_names_dic or re.search(r"^[\dXY]+$", chr_id):
                 return chr_id
             else:
                 return False
@@ -168,7 +168,7 @@ def gtf_output_gene_regions_to_bed(in_gtf, out_bed,
     OUTBED = open(out_bed, "w")
     c_gene_regions = 0
 
-    if re.search(".+\.gz$", in_gtf):
+    if re.search(r".+\.gz$", in_gtf):
         f = gzip.open(in_gtf, 'rt')
     else: 
         f = open(in_gtf, "r")
@@ -194,15 +194,15 @@ def gtf_output_gene_regions_to_bed(in_gtf, out_bed,
 
         if feature == "gene":
 
-            m = re.search('gene_id "(.+?)"', infos)
+            m = re.search(r'gene_id "(.+?)"', infos)
             assert m, "gene_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             gene_id = m.group(1)
-            m = re.search('gene_name "(.+?)"', infos)
+            m = re.search(r'gene_name "(.+?)"', infos)
             gene_name = "-"  # optional.
             if m:
                 gene_name = m.group(1)
             gene_biotype = "-"  # # optional.
-            m = re.search('gene_biotype "(.+?)"', infos)
+            m = re.search(r'gene_biotype "(.+?)"', infos)
             if not m:
                 m = re.search('gene_type "(.+?)"', infos)
             if m:
