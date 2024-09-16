@@ -23,7 +23,8 @@ setup(
              'bin/gtf_extract_mpt_region_bed.py', 
              'bin/bed_print_first_n_pos.py', 
              'bin/bed_print_last_n_pos.py',
-             'bin/gtf_extract_exon_intron_border_bed.py'
+             'bin/gtf_extract_exon_intron_border_bed.py',
+             'bin/create_custom_meme_motif_db.py'
              ],
     packages=['rbpbench'],
     package_data={'rbpbench': ['content/*', 'content/motif_plots/*']},

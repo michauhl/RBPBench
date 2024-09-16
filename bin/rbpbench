@@ -19962,7 +19962,7 @@ def main_tomtom(args):
         regex = args.motif_in
         assert benchlib.is_valid_regex(regex), "given --in \"%s\" is not a valid regular expression. Please provide valid expression (e.g. --in AC[AC]GTA)" % (args.regex)
         # Only allow a subset of regexes, namely with square brackets: AC[ACG]AC.
-        special_chars = r"[.^$*+?{}()|\\]"
+        special_chars = r"[,\d.^$*+?{}()|\\]"
 
         regex = benchlib.remove_special_chars_from_str(regex,
                                                        reg_ex=special_chars)

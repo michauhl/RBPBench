@@ -2258,10 +2258,16 @@ def extract_motif_blocks(raw_text):
 ################################################################################
 
 def blocks_to_xml_string(motif_blocks_dic, motif_ids_dic,
+                         mid2rid_dic=None,
                          out_xml=False):
     """
     Return MEME XML string based on given motif IDs dictionary and available
     motif blocks dictionary.
+
+    mid2rid_dic:
+        motif ID -> RBP ID mapping dictionary.
+        Adds RBP ID to motif ID in MEME XML output.
+
     """
 
     header = """MEME version 5
@@ -2283,7 +2289,11 @@ A 0.250000 C 0.250000 G 0.250000 T 0.250000
         if motif_id in motif_blocks_dic: # Only for sequence motifs.
             block = motif_blocks_dic[motif_id]
             block_str = "\n".join(block)
-            block_str_final = "MOTIF " + motif_id + " \n" + block_str + "\n\n"
+            motif_str = motif_id
+            if mid2rid_dic is not None:  # if motif ID to RBP ID mapping given.
+                if motif_id in mid2rid_dic:
+                    motif_str = motif_id + " " + mid2rid_dic[motif_id]
+            block_str_final = "MOTIF " + motif_str + " \n" + block_str + "\n\n"
             xml_str += block_str_final
             c_added_motifs += 1
             if out_xml:
@@ -6542,6 +6552,52 @@ class NemoStats:
         self.wrs_pval_less = wrs_pval_less
         self.wrs_test_stat_less = wrs_test_stat_less
         self.dist_plot_counts_dic = dist_plot_counts_dic
+
+
+################################################################################
+
+class MotifInfos:
+    """
+    Stores database motif inofs.
+
+    Actual motifs (MEME motif format sequence motif, covariance  structure model) 
+    are currently provided in separate file(s).
+    
+    Mandatory infos:
+    RBP_motif_ID
+    RBP_name
+    Motif_type	
+    Optional infos:
+    Organism
+    Gene_ID
+    Function_IDs
+    Reference
+    Experiment
+    Comments
+
+    """
+    def __init__(self,
+                 rbp_id: str,
+                 motif_id: str,
+                 motif_type = str,
+                 organism = "-",
+                 gene_id = "-",
+                 reference = "-",
+                 experiment = "-",
+                 comments = "-",
+                 function_ids = None) -> None:
+        self.rbp_id = rbp_id
+        self.motif_id = motif_id
+        self.motif_type = motif_type
+        self.organism = organism
+        self.gene_id = gene_id
+        self.reference = reference
+        self.experiment = experiment
+        self.comments = comments
+        if function_ids is None:
+            self.function_ids = []
+        else:
+            self.function_ids = function_ids
 
 
 ################################################################################
