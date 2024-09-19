@@ -82,6 +82,39 @@ RBPBench is also available as a webserver on Galaxy (more infos soon).
 More information will be added soon.
 
 
+
+### Motif search in single input dataset
+
+
+
+
+### Compare search results
+
+
+
+
+```
+unzip batch_compare_test.zip
+```
+
+```
+$ cat batch_compare_test.batch_in.txt
+PUM1	clipper_rep1	k562_eclip	batch_compare_test/PUM1.k562_eclip.clipper_rep1.bed
+PUM1	clipper_rep2	k562_eclip	batch_compare_test/PUM1.k562_eclip.clipper_rep2.bed
+PUM1	clipper_idr	k562_eclip	batch_compare_test/PUM1.k562_eclip.clipper_idr.bed
+PUM1	dewseq_w100_s5	k562_eclip	batch_compare_test/PUM1.k562_eclip.dewseq_w100_s5.bed
+RBFOX2	clipper_idr	hepg2_eclip	batch_compare_test/RBFOX2.hepg2_eclip.clipper_idr.bed
+RBFOX2	clipper_idr	k562_eclip	batch_compare_test/RBFOX2.k562_eclip.clipper_idr.bed
+
+
+rbpbench batch --bed batch_compare_test.batch_in.txt --genome hg38.fa --out batch_test_out
+rbpbench compare --in batch_test_out --out compare_test_out
+```
+
+
+
+
+
 ## Documentation
 
 This documentation provides further details on RBPBench (version 1.0).
@@ -214,7 +247,7 @@ To select all database motifs, set `--rbps ALL` (internal motif database can be 
 a custom motif database can be supplied too). Additionally, a regular expression (regex) (e.g. `AATAAA`) can be added to 
 search by `--regex AATAAA`. To search only for a regular expression, set `--rbps REGEX --regex AATTA`. Co-occurrence 
 and enrichment statistics are calculated on the RBP level in all modes, except `rbpbench enmo` and `rbpbench nemo`, 
-which enable enrichment and co-occurrence statistics on single motif level. 
+which enable enrichment and co-occurrence statistics on single motif level ([details](#co-occurrence-statistics)). 
 Alternatively, single motifs for search can be selected via `--motifs`, e.g. `--motifs CSTF1_1 DDX3X_1`.
 To list and visualize all selected motifs, use `--plot-motifs` (in some modes automatically output).
 RBP motifs can also be filtered by their annotated RBP functions. To only inlcude RBPs with e.g. annotated 3' end processing
@@ -382,22 +415,6 @@ are used. You can change the preset via `--fimo-ntf-mode` (other options: transc
 Alternatively, you can provide your own background frequencies file via `--fimo-ntf-file`.
 
 
-### Handling genomic overlaps
-
-As input genomic regions can overlap (also due to extending them via `--ext`), RBPBench 
-considers both the called genomic region size as well as the effective genomic 
-region size. While the called size ignores overlaps, the effective size 
-only counts unique input regions (i.e., merging overlapping parts, only counting
-them once). This also holds for the reported motif hits, where **unique** counts 
-refer to effective counts. For example, a motif at a specific genomic location 
-can appear several times in the input data. The unique count takes care of this 
-and counts it only once. This is important e.g. when comparing the results 
-of different peak callers. Another interesting statistic (full list of statistics and descriptions [here](#hit-statistics-table-files)) 
-is e.g. the number of unique motif hits over 1000 nt of called and effective region size. 
-This gives us an idea of how many motifs are included in the regions, normalized over 
-the total size of the regions (called or effective size).
-
-
 ### Outputs
 
 RBPBench depending on the mode outputs various useful output files (e.g. motif hits BED, 
@@ -527,7 +544,7 @@ for each pair of RBPs. This is done on the RBP level (`rbpbench search`, `rbpben
 meaning that all motifs assigned to the same RBP are aggregated in the statistic, 
 but can also be done on the single motif level for a more fine-grained analysis (`rbpbench enmo`, `rbpbench nemo`). 
 Co-occurrence results are output as interactive heat maps into the respective HTML reports.
-Co-occurence p-value threshold and multiple testing correction method can be adapted via 
+Co-occurrence p-value threshold and multiple testing correction method can be adapted via 
 `--cooc-pval-thr` and `--cooc-pval-mode` (default: Benjamini Hochberg). 
 Moreover, Fisher exact test alternative hypothesis can be changed (`--fisher-mode`) from greater to 
 two-sided or less, so instead of reporting
@@ -540,8 +557,8 @@ This allows us to ignore significant co-occurrences between very similar motifs
 is to filter the input regions by their region score (if the score is meaningful), which can 
 be done via `--bed-sc-thr`.
 
-Considering the single motif level co-ocurrences (`rbpbench enmo`, `rbpbench nemo`), 
-co-occurrence is more strict, since it is only checked for motifs which are significantly enriched 
+Considering the single motif level co-occurrences (`rbpbench enmo`, `rbpbench nemo`), 
+co-occurrence attribution is more strict, since it is only checked for motifs which are significantly enriched 
 in the input regions (details [here](#input-region-motif_enrichment-statistics)). 
 Furthermore, in addition to `--min-motif-dist`, co-occurrences can be filtered 
 by motif pair similarity (only for MEME motif formatted sequence motifs, `--motif-sim-thr`), which 
@@ -550,7 +567,7 @@ allows us to focus on co-occurrences with more dissimilar motifs.
 
 #### Input region motif enrichment statistics
 
-Not to be confused with the region score statistic [above](#input-region-score-motif_enrichment-statistics)), 
+Not to be confused with the region score statistic [above](#input-region-score-motif_enrichment-statistics), 
 input region motif enrichment statistics are calculated in the modes `rbpbench enmo`, `rbpbench nemo`, 
 using the motif occurrences in the input region dataset and comparing it to their occurrences 
 in a background dataset (again via Fisher's exact test). The background set can be generated in 
@@ -568,7 +585,22 @@ can be adapted (`--enmo-pval-thr`, `--enmo-pval-mode`, `--nemo-pval-thr`, `--nem
 and `--fisher-mode` is also available.
 
 
-### Additional functions
+### Additional information
+
+#### Handling genomic overlaps
+
+As input genomic regions can overlap (also due to extending them via `--ext`), RBPBench 
+considers both the called genomic region size as well as the effective genomic 
+region size. While the called size ignores overlaps, the effective size 
+only counts unique input regions (i.e., merging overlapping parts, only counting
+them once). This also holds for the reported motif hits, where **unique** counts 
+refer to effective counts. For example, a motif at a specific genomic location 
+can appear several times in the input data. The unique count takes care of this 
+and counts it only once. This is important e.g. when comparing the results 
+of different peak callers. Another interesting statistic (full list of statistics and descriptions [here](#hit-statistics-table-files)) 
+is e.g. the number of unique motif hits over 1000 nt of called and effective region size. 
+This gives us an idea of how many motifs are included in the regions, normalized over 
+the total size of the regions (called or effective size).
 
 #### RBP functions
 

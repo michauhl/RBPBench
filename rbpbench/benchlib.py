@@ -2441,6 +2441,68 @@ add_chr_names_dic = {
 
 ################################################################################
 
+def gtf_tr_feat_to_bed(in_gtf, out_bed, tr_feat,
+                       chr_style=0,
+                       tr_ids_dic=False):
+    """
+    Extract transcript feature regions to BED file.
+
+    tr_ids_dic:
+        If transcript IDs dictionary given, only extract regions for these.
+    chr_style:
+        0: do not change
+        1: change to chr1, chr2 ...
+        2: change to 1, 2, 3, ...
+    
+    """
+
+    OUTBED = open(out_bed, "w")
+
+    if re.search(r".+\.gz$", in_gtf):
+        f = gzip.open(in_gtf, 'rt')
+    else: 
+        f = open(in_gtf, "r")
+    
+    for line in f:
+
+        if line.startswith("#"):
+            continue
+
+        cols = line.strip().split("\t")
+        feature = cols[2]
+        if feature != tr_feat:
+            continue
+
+        chr_id = cols[0]
+        feat_s = int(cols[3])
+        feat_e = int(cols[4])
+        feat_pol = cols[6]
+        infos = cols[8]
+
+        chr_id = check_convert_chr_id(chr_id, id_style=chr_style)
+        # If not one of standard chromosomes, continue.
+        if not chr_id:
+            continue
+
+        assert feat_e >= feat_s, "feature end < feature start in GTF file \"%s\", line \"%s\". Since both coordinates are expected to have 1-based index, this should not happen" %(in_gtf, line)
+
+        m = re.search('transcript_id "(.+?)"', infos)
+        assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
+        tr_id = m.group(1)
+        if tr_ids_dic:
+            if tr_id not in tr_ids_dic:
+                continue
+
+        out_id = tr_id + ";" + tr_feat
+
+        OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" %(chr_id, feat_s-1, feat_e, out_id, feat_pol))
+
+    f.close()
+    OUTBED.close()
+
+
+################################################################################
+
 def gtf_read_in_gene_infos(in_gtf,
                            tr2gid_dic=None,
                            tr_types_dic=None,

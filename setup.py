@@ -24,7 +24,8 @@ setup(
              'bin/bed_print_first_n_pos.py', 
              'bin/bed_print_last_n_pos.py',
              'bin/gtf_extract_exon_intron_border_bed.py',
-             'bin/create_custom_meme_motif_db.py'
+             'bin/create_custom_meme_motif_db.py',
+             'bin/gtf_extract_tr_feat_bed.py'
              ],
     packages=['rbpbench'],
     package_data={'rbpbench': ['content/*', 'content/motif_plots/*']},
