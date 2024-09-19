@@ -114,6 +114,34 @@ rbpbench compare --in batch_test_out --out compare_test_out
 
 
 
+#### Plot nucleotide distribution at genomic positions
+
+We can use `rbpbench dist` to plot the nucleotide distribution at genomic positions.
+This can be used e.g. to check for potential nucleotide biases at CLIP-seq crosslink positions.
+
+
+For illustration, we extract genomic stop codon positions from our ENSEMBL GTF file using 
+the [helper script](#helper-scripts) `gtf_extract_tr_feat_bed.py`, 
+and run `rbpbench dist` on the obtained stop codons BED file:
+
+```
+gtf_extract_tr_feat_bed.py --feat stop_codon --gtf Homo_sapiens.GRCh38.112.gtf.gz --out stop_codons.Homo_sapiens.GRCh38.112.bed --uniq-reg
+rbpbench dist --in stop_codons.Homo_sapiens.GRCh38.112.bed --genome hg38.fa --out test_dist_out --ext 5
+```
+
+By default the upstream start position of the genomic input regions is used as 
+position zero in the plot (change with `--cp-mode` option). The amount of up- and 
+downstream context added is defined by `--ext`. 
+The generated plot (`test_dist_out/nt_dist_zero_pos.png`) looks the following:
+
+<img src="docs/nt_dist_zero_pos.stop_codons.png" alt="Nucleotide distribution at stop codons"
+	title="Nucleotide distribution at stop codons" width="500" />
+
+**Figure:** Nucleotide distribution (position probability matrix) at genomic stop codon positions (human transcript annotations, ENSEMBL GRCh38 release 112).
+
+We can clearly identify the known stop codon triplet sequences (in DNA: TAA, TAG, TGA), starting 
+at position 0.
+
 
 ## Documentation
 
@@ -685,6 +713,7 @@ gtf_extract_exon_intron_border_bed.py
 gtf_extract_exon_intron_region_bed.py
 gtf_extract_gene_region_bed.py
 gtf_extract_mpt_region_bed.py
+gtf_extract_tr_feat_bed.py
 gtf_get_gene_region_nt_freqs.py
 gtf_get_mpt_nt_freqs.py
 gtf_get_mpt_with_introns_nt_freqs.py
@@ -701,10 +730,10 @@ which can be used as input e.g. in `rbpbench nemo`.
 `gtf_extract_gene_region_bed.py` extracts gene regions from a GTF file and stores them in a BED file.
 `gtf_extract_mpt_region_bed.py` extracts most prominent transcript regions from a GTF file and stores them in a BED file. 
 Additionally, mRNA regions (5'UTR, CDS, 3'UTR) can be output to a separate BED file.
+`gtf_extract_tr_feat_bed.py` extracts transcript feature regions from a GTF file and stores them in a BED file (e.g. stop_codon).
 `gtf_get_gene_region_nt_freqs.py` calculates nucleotide frequencies from all gene regions extracted from a GTF and the corresponding genome FASTA.
 FIMO can be given this information as a nucleotide frequencies file (see options `--fimo-ntf-file`, `--fimo-ntf-mode`).
 `gtf_get_mpt_nt_freqs.py` calculates nucleotide frequencies of from all most prominent transcript (MPT) sequences (introns excluded) 
 extracted from a GTF and the corresponding genome FASTA.
 `gtf_get_mpt_with_introns_nt_freqs.py` calculates nucleotide frequencies of from all most prominent transcript (MPT) sequences (introns included) 
 extracted from a GTF and the corresponding genome FASTA.
-
