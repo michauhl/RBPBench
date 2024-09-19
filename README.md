@@ -132,7 +132,7 @@ options:
 
 ##### Single and batch motif search
 
-`rbpbench search` can be used to search for RBP motifs in genomic regions, selecting 
+`rbpbench search` can be used to search for RBP binding motifs in genomic regions, selecting 
 any number of RBPs (database or user-defined (sequence or structure), or regular expressions) 
 and to look at motif enrichment and co-occurrences.
 `rbpbench batch` is `rbpbench search` extended to multiple input files (BED files containing 
@@ -178,15 +178,15 @@ up- or downstream occurrence.
 
 ##### Checking for similar database motifs
 
-If you have one or more sequence motifs of interest (or even a regex!) and want to know if there are similar motifs 
-in the database, you can run `rbpbench tomtom` (including MEME SUITE TOMTOM). 
+If you have one or more sequence motifs of interest (MEME format or regex) and want to know if there are similar motifs 
+in the database, you can run `rbpbench tomtom` (incorporating MEME's TOMTOM). 
 This mode also informs us whether the reported motif hits are enriched in certain RBP functions (e.g., 
 for regex input `--in TTTTTT`, the top 3 enriched functions are: splicing regulation, 
 translation regulation, and RNA stability & decay). 
 
 ##### More modes
 
-```rbpbench streme``` allows us to discover new motifs using STREME from MEME suite. 
+```rbpbench streme``` allows to discover new motifs using STREME from MEME suite. 
 ```rbpbench goa``` enables us to run GO term enrichment analysis (GOA) on a set of genes, e.g. obtained 
 from the output tables of other modes (like genes covered by input regions from ```rbpbench search```
 or ```rbpbench batch```). Note that some of the modes also can run GOA, optimized for the specific mode
@@ -196,9 +196,9 @@ and ```rbpbench info``` informs about database RBP motifs and annotated RBP func
 
 ##### Connecting modes
 
-All motif search modes additionally output motif hits in BED format. These files for each hit also contain the matched sequence, 
+All motif search modes additionally output motif hit regions in BED format. These files for each hit also contain the matched sequence, 
 plus the genomic region annotation (if a GTF file was supplied). This way, the motif hit regions themselves 
-(or a subset of interest after filtering, e.g. certain matched sequences or e.g. only motifs residing in 3'UTRs)
+(or a subset of interest after filtering, e.g. certain matched sequences or only motifs residing in 3'UTRs)
 can again be used as input regions for the other modes, allowing for easily refined hypothesis checking.
 
 
@@ -215,11 +215,11 @@ a custom motif database can be supplied too). Additionally, a regular expression
 search by `--regex AATAAA`. To search only for a regular expression, set `--rbps REGEX --regex AATTA`. Co-occurrence 
 and enrichment statistics are calculated on the RBP level in all modes, except `rbpbench enmo` and `rbpbench nemo`, 
 which enable enrichment and co-occurrence statistics on single motif level. 
-Alternatively, single motifs for search can be selected via `--motifs`.
+Alternatively, single motifs for search can be selected via `--motifs`, e.g. `--motifs CSTF1_1 DDX3X_1`.
 To list and visualize all selected motifs, use `--plot-motifs` (in some modes automatically output).
 RBP motifs can also be filtered by their annotated RBP functions. To only inlcude RBPs with e.g. annotated 3' end processing
 function, set `--functions TEP` (for available functions and annotations, run `rbpbench info`).
-Moreover, if you have a motif of interest (or a regex) and want to know if there are similar motifs in the database, you can 
+Moreover, if you have a motif of interest (or a regex), and want to know if there are similar motifs in the database, you can 
 use `rbpbench tomtom` (using MEME SUITE TOMTOM). This mode also informs us whether the reported motif hits 
 are enriched in certain RBP functions (e.g. for regex input `--in TTTTTT`, the top 3 enriched functions are:
 splicing regulation, translation regulation, and RNA stability & decay). 
@@ -290,7 +290,6 @@ For the examples we downloaded the following GTF file:
 ```
 get https://ftp.ensembl.org/pub/release-112/gtf/homo_sapiens/Homo_sapiens.GRCh38.112.gtf.gz
 ```
-
 
 #### User-provided motif search
 
@@ -375,7 +374,12 @@ Here we used `--plot-motifs` to visualize the motifs and `--rbps ALL`, meaning a
 You can easily check by inputting sequences with motifs you expect to be predicted into `rbpbench searchseq` with `--custom-db` option.
 
 
-#### FIMO nucleotide frequencies 
+#### FIMO nucleotide frequencies
+
+What p-value a motif hit reported by FIMO gets depends on the set background nucleotide frequencies (FIMO option: `--bfile`). 
+By default, frequencies obtained from human ENSEMBL transcripts (excluding introns, A most prominent nucleotide)
+are used. You can change the preset via `--fimo-ntf-mode` (other options: transcripts including introns, or uniform distribution). 
+Alternatively, you can provide your own background frequencies file via `--fimo-ntf-file`.
 
 
 ### Handling genomic overlaps
@@ -396,17 +400,172 @@ the total size of the regions (called or effective size).
 
 ### Outputs
 
-Output descriptions
+RBPBench depending on the mode outputs various useful output files (e.g. motif hits BED, 
+region annotations, hit statistics files, HTML reports with statistics and visualizations).
 
+#### Hit statistics table files
+
+RBPBench's motif search modes (e.g. `rbpbench search`, `rbpbench batch`) 
+output hit statistics table files which can later be used to 
+do comparisons between peak callers or other specified conditions (e.g., cell types, CLIP-seq protocols).
+RBPBench  outputs the RBP binding motif hit statistics into two table files 
+stored in the results output folder (`--out`):
+
+```
+RBP hit stats .tsv:
+results_output_folder/rbp_hit_stats.tsv
+Motif hit stats .tsv:
+results_output_folder/motif_hit_stats.tsv
+```
+
+The first file (RBP hit stats) contains comprehensive hit statistics for each RBP 
+(one row per RBP), 
+while the motif hits stats file contains hit statistics for each single motif hit 
+(one row per motif hit).
+
+The RBP hit statistics file `rbp_hit_stats.tsv` contains the following columns:
+
+
+| Column name | Description |
+|:--------------:|:--------------:|
+| data_id | Set Data ID (`--data-id`). More [here](#adding-more-information-for-comparisons) |
+| method_id | Set method ID (`--method-id`). More [here](#adding-more-information-for-comparisons) |
+| run_id | Set run ID (`--run-id`) |
+| motif_db | Selected motif database for search (`--motif-db`) |
+| rbp_id | RBP ID (i.e., RBP name), e.g. `PUM1` |
+| c_regions | Number of input genomic regions used for search (after filtering and extension operations) |
+| mean_reg_len | Mean length of genomic regions |
+| median_reg_len | Median length of genomic regions |
+| median_reg_len | Median length of genomic regions |
+| min_reg_len | Minimum length of genomic regions |
+| called_reg_size | Called size of genomic regions (including overlaps) |
+| effective_reg_size | Effective size of genomic regions (removed overlaps) |
+| c_reg_with_hits | Number of regions with motif hits from rbp_id |
+| perc_reg_with_hits | Percentage of regions with motif hits from rbp_id |
+| c_motif_hits | Total number of motif hits from rbp_id |
+| c_uniq_motif_hits | Number of unique motif hits from rbp_id (removed double counts) |
+| c_uniq_motif_nts | Number of unique motif nucleotides from rbp_id (removed overlaps) |
+| perc_uniq_motif_nts_cal_reg | Percentage of unique motif nucleotides over called region size |
+| perc_uniq_motif_nts_eff_reg | Percentage of unique motif nucleotides over effective region size |
+| uniq_motif_hits_cal_1000nt | Number of motif hits over 1000 nt of called region size |
+| uniq_motif_hits_eff_1000nt | Number of motif hits over 1000 nt of effective region size |
+| wc_pval | [Wilcoxon rank-sum test p-value](#informative-statistics) to test whether motif hit regions tend to feature higher scores | 
+| seq_motif_ids | Sequence motif IDs. Empty (`-`) if rbp_id has not sequence motifs  | 
+| seq_motif_hits | Sequence motif hit counts (count for each motif ID) | 
+| str_motif_ids | Structure motif IDs. Empty (`-`) if rbp_id has not structure motifs  | 
+| str_motif_hits | Structure motif hit counts (count for each motif ID) | 
+| internal_id | Internal ID (unique for each rbp_id run), used for connecting table results  | 
+
+
+The motif hit statistics file `motif_hit_stats.tsv` contains the following columns:
+
+| Column name | Description |
+|:--------------:|:--------------:|
+| data_id | Set Data ID (`--data-id`). More [here](#adding-more-information-for-comparisons) |
+| method_id | Set method ID (`--method-id`). More [here](#adding-more-information-for-comparisons) |
+| run_id | Set run ID (`--run-id`) |
+| motif_db | Selected motif database for search (`--motif-db`) |
+| region_id | Genomic region ID containing the hit, e.g. `chr1:228458485-228458560(+)` |
+| rbp_id | RBP ID (i.e., RBP name), e.g. `SLBP` |
+| motif_id | Motif ID |
+| chr_id | chromosome ID |
+| gen_s | genomic motif hit start (1-based) |
+| gen_e | genomic motif hit end (1-based) |
+| strand | Chromosome strand (+ or - strand) |
+| region_s | region motif hit start (1-based) |
+| region_e | region motif hit end (1-based) |
+| region_len | Region length |
+| uniq_count | Unique motif hit count |
+| fimo_score | FIMO score (for sequence motif hits) |
+| fimo_pval | FIMO p-value (for sequence motif hits) |
+| cms_score | cmsearch score (for structure motif hits) |
+| cms_eval | cmsearch e-value (for structure motif hits) |
+| matched_seq | matched motif hit sequence |
+| internal_id | Internal ID (unique for each rbp_id run), used for connecting table results  | 
+
+
+#### Motif hits BED files
+
+Motif hits are also output in BED format in each search mode. 
+This together with the input regions BED allows for quick studying of motif occurrences 
+in a genome viewer (e.g., [IGV](https://software.broadinstitute.org/software/igv/)). 
+Additionally, the motif hits BED file can be further filtered by matched sequence (BED column 12) 
+or genomic region annotation (BED column 11 if `--gtf` was provided, e.g. filter by `3'UTR` to keep only
+3'UTR hits). These motif hit regions can then again be used as search mode input regions, allowing 
+for refined hypothesis testing.
+
+There are various settings for controlling motif hit search. E.g., a FIMO p-value threshold for reporting
+sequence motif hits (`--fimo-pval`), or a CMSEARCH bit score threshold for reporting structure motif 
+hits (`--cmsearch-bs`, also see `--cmsearch-mode`). Furthermore, `--greatest-hits` enabled 
+results in only the best hit (lowest p-value, highest bit score) being reported for each input region.
 
 
 
 ### Statistics
 
-Wilcoxon rank sum test
-co-occurrence motif enrichment ...
+#### Input region score motif enrichment statistics
+
+Given a set of input regions with associated scores (by default BED column 5 is used, change via `--bed-score-col`),
+RBPBench for each selected RBP checks whether motif-containing input regions 
+have significantly higher scores (using Wilcoxon rank sum test).
+This means that a low test p-value for a given RBP indicates that higher-scoring regions are more likely to contain motif hits of the respective RBP. If we assume that the score (e.g. log2 fold change) is somehow correlated with RBP binding affinity,
+the test thus can give clues on which RBPs preferentially bind to the provided regions.
+Note that the test is only informative if the scores are themselves informative w.r.t. RBP binding (e.g., not all the same), 
+or e.g. if not all or too many of the input regions contain motif hits. 
+
+The test results are output in the [output tables](#hit-statistics-table-files), as well as in the HTML reports.
+The test can also check for significantly lower scores (change via `--wrs-mode`). Moreover, in `rbpbench batch`, 
+the test can be applied for a user-defined regex (via `--regex`). This conveniently allows us to check, 
+e.g. over all eCLIP datasets, whether a given regex is significantly enriched in any dataset (results again output to HTML report).
 
 
+#### Co-occurrence statistics
+
+To test for the co-occurrence of RBP motifs in a set of input regions, 
+Fisher's exact test is applied, effectively counting the number of occupied and non-occupied regions 
+for each pair of RBPs. This is done on the RBP level (`rbpbench search`, `rbpbench searchrna`),
+meaning that all motifs assigned to the same RBP are aggregated in the statistic, 
+but can also be done on the single motif level for a more fine-grained analysis (`rbpbench enmo`, `rbpbench nemo`). 
+Co-occurrence results are output as interactive heat maps into the respective HTML reports.
+Co-occurence p-value threshold and multiple testing correction method can be adapted via 
+`--cooc-pval-thr` and `--cooc-pval-mode` (default: Benjamini Hochberg). 
+Moreover, Fisher exact test alternative hypothesis can be changed (`--fisher-mode`) from greater to 
+two-sided or less, so instead of reporting
+significantly higher co-occurrences, we can e.g. instead report significantly lower co-occurrences 
+(i.e., the RBPs or motifs that tend NOT to co-occur together).
+Since reported motifs between RBPs can often be very similar, we can further set a minimum mean distance 
+between the motif hits required for them to be reported as significant (`--min-motif-dist`). 
+This allows us to ignore significant co-occurrences between very similar motifs 
+(i.e., they are reported as not significant in the heat map). Another way of influencing co-occurrences
+is to filter the input regions by their region score (if the score is meaningful), which can 
+be done via `--bed-sc-thr`.
+
+Considering the single motif level co-ocurrences (`rbpbench enmo`, `rbpbench nemo`), 
+co-occurrence is more strict, since it is only checked for motifs which are significantly enriched 
+in the input regions (details [here](#input-region-motif_enrichment-statistics)). 
+Furthermore, in addition to `--min-motif-dist`, co-occurrences can be filtered 
+by motif pair similarity (only for MEME motif formatted sequence motifs, `--motif-sim-thr`), which 
+allows us to focus on co-occurrences with more dissimilar motifs. 
+
+
+#### Input region motif enrichment statistics
+
+Not to be confused with the region score statistic [above](#input-region-score-motif_enrichment-statistics)), 
+input region motif enrichment statistics are calculated in the modes `rbpbench enmo`, `rbpbench nemo`, 
+using the motif occurrences in the input region dataset and comparing it to their occurrences 
+in a background dataset (again via Fisher's exact test). The background set can be generated in 
+various ways, either by shuffling the input sequences (`--bg-mode 2`), or by sampling background 
+regions from the genome or transcriptome (default: `--bg-mode 1`if input regions are on transcripts).
+Various options to modify background set generation exist: 
+`--bg-min-size` to sample additional background regions; 
+`--bg-mask-bed` to define regions from which no background regions should be sampled;
+`--bg-incl-bed` to define regions from which to sample background regions;
+`--bg-shuff-factor`, `--bg-shuff-k` to customize shuffling;
+and some more options (`--bg-mask-blacklist`, `--bg-ada-sampling`, `--random-seed`, 
+check `rbpbench enmo -h` for details).
+Similar to the co-occurrence statistics, p-value threshold and multiple testing correction method 
+can be adapted (`--enmo-pval-thr`, `--enmo-pval-mode`, `--nemo-pval-thr`, `--nemo-pval-mode`), 
+and `--fisher-mode` is also available.
 
 
 ### Additional functions
@@ -442,7 +601,6 @@ specify in any search mode `--rbps ALL --functions TEP RSD`.
 To see which RBPs are assigned to which functions, run `rbpbench info`. 
 
 
-
 #### GO term analysis
 
 GO term (enrichment) analysis (GOA) can also be performed with RBPBench (see `--goa` and related options). 
@@ -462,12 +620,27 @@ Some useful options are: `--goa-max-child` (e.g. `--goa-max-child 200` to filter
 or `--goa-pval` (set GOA p-value threshold).
 
 
+#### Most-prominent transcript selection
 
-#### Most-prominent transcript extraction
+In order to obtain genomic region annotations on the transcript level, 
+by default one representative transript (i.e., the most prominent transcript (MPT))
+is chosen for each gene in the GTF file. MPT selection aims to select the transcript 
+with the strongest experimental support. Currently, for a pair of transcripts from 
+the same gene, to decide which one is "more prominent":
+
+1. Chose transcript with "basic" tag
+2. If both have "basic" tag, chose transcript with higher transcript support level (TSL)
+3. If same TSL, chose transcript with "Ensembl_canonical" tag
+4. If both have "Ensembl_canonical" tag, chose the longer transcript as current MPT
+
+This is done for all possible pairs, which leaves one transcript as MPT in the end for each gene.
+Regions that do not overlap with the selected transcript regions are assigned to "intergenic".
+Alternatively, a list of transcript IDs can be supplied `--tr-list`, bypassing the MPT selection.
+Which region annotations are to be considered can be further defined via `--tr-types`, and the 
+minimum region annotation overlap can be set via `--gtf-feat-min-overlap`.
 
 
-
-### Helper scripts
+#### Helper scripts
 
 Various helper scripts are included as well on the command line:
 
