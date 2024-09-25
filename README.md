@@ -79,11 +79,55 @@ RBPBench is also available as a webserver on Galaxy (more infos soon).
 
 ## Example runs
 
-More information will be added soon.
-
-
+To run the examples, we change to the cloned repository subfolder `RBPBench\test`
+and download the genome FASTA file ([details](#genomic-sequences)) and a 
+fitting GTF file from Ensembl ([details](#genomic-annotations)).
 
 ### Motif search in single input dataset
+
+For motif search in a single set of genomic input regions (typically CLIP-seq), we can use ``
+
+
+
+rbpbench search --in eclip_clipper_idr/SLBP_K562_IDR_peaks.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_slbp_out  --rbps ALL --ext 10 --functions TEP --regex AATAAA --bed-sc-thr 3 --cooc-pval-thr 0.001 --min-motif-dist 5 --add-all-reg-bar
+rbpbench search --in eclip_clipper_idr/SLBP_K562_IDR_peaks.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_slbp_out  --rbps ALL --ext 10 --functions TEP --regex AATAAA --bed-sc-thr 3 --cooc-pval-thr 0.05 --min-motif-dist 5 --add-all-reg-bar
+
+What table to see which genes have hnrnpk motif hits ?
+
+Run parameter settings:
+test_search_slbp_out/settings.rbpbench_search.out
+RBP co-occurrence stats .tsv:
+test_search_slbp_out/rbp_cooc_stats.tsv
+Filtered input regions .bed:
+test_search_slbp_out/in_sites.filtered.bed
+Filtered input regions .fa:
+test_search_slbp_out/in_sites.filtered.fa
+Motif hits .bed:
+test_search_slbp_out/motif_hits.rbpbench_search.bed
+RBP region occupancies .tsv:
+test_search_slbp_out/rbp_region_occupancies.tsv
+RBP hit stats .tsv:
+test_search_slbp_out/rbp_hit_stats.tsv
+Motif hit stats .tsv:
+test_search_slbp_out/motif_hit_stats.tsv
+Region annotations .tsv:
+test_search_slbp_out/region_annotations.tsv
+Search report .html:
+test_search_slbp_out/report.rbpbench_search.html
+
+
+region_annotations.tsv
+
+region_id	gene_id	gene_name	transcript_id	region_annotation	transcript_biotype
+chr9:127813745-127813823(+)	ENSG00000136877	FPGS	ENST00000373247	3'UTR	protein_coding
+chr6:26021705-26021766(+)	ENSG00000278637	H4C1	ENST00000617569	CDS	protein_coding
+Add:
+RBP_motifs
+
+
+
+
+Then go for enmo/nemo
 
 
 

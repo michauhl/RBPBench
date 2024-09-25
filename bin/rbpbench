@@ -3239,6 +3239,11 @@ def setup_argument_parser():
                    metavar='int',
                    default=10,
                    help="Up- and downstream extension of defined genomic positions (define via --cp-mode) in nucleotides (nt). Set e.g. --ext 20 for 20 nt on both sides (default: 10)")
+    p_d.add_argument("--no-uniq-check",
+                   dest="no_uniq_reg_check",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable checking for unique input regions and positions (defined by --cp-mode). By default, duplicate input regions are removed, and encountering identical genomic positions (defined by --cp-mode) for plotting results in an assert error (default: False)")
     p_d.add_argument("--plot-pdf",
                    dest="plot_pdf",
                    default = False,
@@ -21212,12 +21217,17 @@ def main_dist(args):
     print("Get --genome FASTA headers ... ")
     chr_ids_dic = benchlib.get_fasta_headers(args.in_genome)
 
+    remove_dupl = True
+    if args.no_uniq_reg_check:
+        print("Do not filter out --in duplicated regions ... ")
+        remove_dupl = False
+
     # Filter / extend --in BED.
     print("Preprocess --in sites ... ")
     reg_stats_dic = benchlib.bed_extend_bed(args.in_sites, filtered_sites_bed,
                                           ext_lr=args.ext_up_down,
                                           cp_mode=args.cp_mode,
-                                          remove_dupl=True,
+                                          remove_dupl=remove_dupl,
                                           chr_ids_dic=chr_ids_dic)
 
     print("# --in regions pre-filtering:  ", reg_stats_dic["c_in"])
@@ -21258,10 +21268,17 @@ def main_dist(args):
     Get FASTA sequences and sequence lengths.
     """
 
+    id_check = True
+    make_uniq_headers = False
+    if args.no_uniq_reg_check:
+        id_check = False
+        make_uniq_headers = True
+
     out_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
                                        dna=True,
                                        all_uc=True,
-                                       id_check=True,
+                                       id_check=id_check,
+                                       make_uniq_headers=make_uniq_headers,
                                        empty_check=False,
                                        skip_n_seqs=False)
 
