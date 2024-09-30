@@ -5408,12 +5408,21 @@ def get_rbp_id_mappings(rbp2ids_file,
     A1CF_1	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	34086933	-	-
     A1CF_2	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	34086933	-	-
     ACIN1_1	ACIN1	meme_xml	human	-	-	34086933	-	-
-    
+
+    RBPBench v1.01 updated (more pubmed IDs + experiment infos):
+    RBP_motif_ID	RBP_name	Motif_type	Organism	Gene_ID	Function_IDs	Reference	Experiment	Comments
+    A1CF_1	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	31724725;10669759	RBNS_ENCODE;RBPDB	-
+    A1CF_2	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	31724725	RBNS_ENCODE	-
+    ACIN1_1	ACIN1	meme_xml	human	ENSG00000100813	-	27365209	iCLIP	-
+    ACIN1_2	ACIN1	meme_xml	human	ENSG00000100813	-	27365209	iCLIP	-
+        
     """
     name2ids_dic = {}
     name2gid_dic = {}
     id2type_dic = {}
     name2fids_dic = {}
+    id2pids_dic = {}
+    id2exp_dic = {}
     # id2org_dic = {}
 
     with open(rbp2ids_file) as f:
@@ -5447,6 +5456,8 @@ def get_rbp_id_mappings(rbp2ids_file,
                 # id2org_dic[motif_id] = organism
                 gene_id = cols[4]
                 function_ids = cols[5]
+                pids = cols[6]
+                exp = cols[7]
 
                 fids_list = []
                 if function_ids != "-":
@@ -5457,11 +5468,18 @@ def get_rbp_id_mappings(rbp2ids_file,
                 name2gid_dic[rbp_name] = gene_id
                 name2fids_dic[rbp_name] = fids_list
 
+                # Split pids.
+                pids_list = pids.split(';')
+                exp_list = exp.split(';')
+
+                id2pids_dic[motif_id] = pids_list
+                id2exp_dic[motif_id] = exp_list
+
     f.closed
 
     assert name2ids_dic, "no RBP IDs read in from %s" %(rbp2ids_file)
 
-    return name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic
+    return name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic
 
 
 ################################################################################
@@ -14917,6 +14935,8 @@ def search_generate_html_motif_plots(args, search_rbps_dic,
                                      goa_results_df=False,
                                      goa_stats_dic=False,
                                      goa_results_tsv="goa_results.tsv",
+                                     id2pids_dic=False,
+                                     id2exp_dic=False,
                                      plots_subfolder="html_motif_plots"):
     """
     Create motif plots for selected RBPs.
@@ -15423,15 +15443,43 @@ more often in intron, 3'UTR etc.). Unique input regions size (nt): %i (i.e., ove
                                   plot_pdf=args.plot_pdf,
                                   plot_png=True)
 
+            motif_pids_info = "-"
+            if id2pids_dic:
+                pid_list = []
+                if motif_id in id2pids_dic:
+                    for pid in id2pids_dic[motif_id]:
+                        if pid == "-":
+                            continue
+                        elif pid.startswith("http"):
+                            pid_str = '<a href="%s">DOI</a>' %(pid)
+                            pid_list.append(pid_str)
+                        else:
+                            try:
+                                int(pid)
+                                pid_str = '<a href="https://pubmed.ncbi.nlm.nih.gov/%s">%s</a>' %(pid, pid)
+                                pid_list.append(pid_str)
+                            except ValueError:
+                                continue
+
+                if pid_list:
+                    motif_pids_info = ",".join(pid_list)
+
+            motif_exp_info = "-"
+            if id2exp_dic:
+                if motif_id in id2exp_dic:
+                    motif_exp_list = id2exp_dic[motif_id]
+                    motif_exp_info = ",".join(motif_exp_list)
+
             mdtext += '<img src="' + plot_path + '" alt="' + "sequence motif plot %s" %(motif_id) + "\n"
             mdtext += 'title="' + "sequence motif plot %s" %(motif_id) + '" width="500" />' + "\n"
             mdtext += """
 
 **Figure:** Sequence motif plot for motif ID "%s" (RBP ID: %s, motif database ID: %s). X-axis: motif position. Y-axis: nucleotide probability. Number of %s unique motif hits in supplied %s regions: %i.
+Motif references (PubMed, DOI): %s. Motif source database / experiments: %s.
 
 &nbsp;
 
-""" %(motif_id, rbp_id, motif_db, motif_id, site_type, c_motif_hits)
+""" %(motif_id, rbp_id, motif_db, motif_id, site_type, c_motif_hits, motif_pids_info, motif_exp_info)
 
 
         for idx, motif_id in enumerate(rbp.str_motif_ids):

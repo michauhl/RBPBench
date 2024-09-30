@@ -3485,7 +3485,8 @@ def main_search(args):
     "A1CF" -> ["RM", "RSD", "RE"]
 
     """
-    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -5986,6 +5987,8 @@ def main_search(args):
                                          annot2color_dic=annot2color_dic,
                                          html_report_out=html_motif_plots_out,
                                          reg_seq_str="regions",
+                                         id2pids_dic=id2pids_dic,
+                                         id2exp_dic=id2exp_dic,
                                          plots_subfolder=plots_subfolder)
 
 
@@ -6275,7 +6278,8 @@ def main_batch(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -8403,7 +8407,8 @@ def main_searchseq(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -9448,6 +9453,8 @@ def main_searchseq(args):
                                          html_report_out=html_motif_plots_out,
                                          rbpbench_mode="searchseq --plot-motifs",
                                          reg_seq_str="sequences",
+                                         id2pids_dic=id2pids_dic,
+                                         id2exp_dic=id2exp_dic,
                                          plots_subfolder=plots_subfolder)
 
 
@@ -9600,7 +9607,8 @@ def main_searchlong(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -10976,6 +10984,8 @@ def main_searchlong(args):
                                         html_report_out=html_motif_plots_out,
                                         rbpbench_mode="searchlong --plot-motifs",
                                         reg_seq_str="regions",
+                                        id2pids_dic=id2pids_dic,
+                                        id2exp_dic=id2exp_dic,
                                         plots_subfolder=plots_subfolder)
 
 
@@ -11135,7 +11145,8 @@ def main_searchrna(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -13068,6 +13079,8 @@ def main_searchrna(args):
                                          html_report_out=html_motif_plots_out,
                                          rbpbench_mode="searchrna --plot-motifs",
                                          reg_seq_str="regions",
+                                         id2pids_dic=id2pids_dic,
+                                         id2exp_dic=id2exp_dic,
                                          plots_subfolder=plots_subfolder)
 
     """
@@ -13229,7 +13242,8 @@ def main_searchlongrna(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -14804,6 +14818,8 @@ def main_searchlongrna(args):
                                         goa_results_tsv="goa_results_on_motif_hit_transcripts.tsv",
                                         goa_results_df=goa_results_df,
                                         goa_stats_dic=goa_stats_dic,
+                                        id2pids_dic=id2pids_dic,
+                                        id2exp_dic=id2exp_dic,
                                         plots_subfolder=plots_subfolder)
 
     """
@@ -14998,7 +15014,8 @@ def main_enmo(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -17350,7 +17367,8 @@ def main_nemo(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -19916,8 +19934,9 @@ def main_tomtom(args):
     id2name_dic = {}
 
     if rbp2ids_file:
-        name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file,
-                                                                                              only_meme_xml=True)
+        name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file,
+                                                                                                                       only_meme_xml=True)
+
         # Motif ID -> RBP name (== RBP ID) mapping.
         for rbp_id in name2ids_dic:
             for motif_id in name2ids_dic[rbp_id]:
@@ -20589,7 +20608,8 @@ def main_optex(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbpid in name2ids_dic:
@@ -21127,7 +21147,8 @@ def main_info(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     c_motif_ids = 0
