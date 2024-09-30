@@ -391,6 +391,23 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.5,
                    help="Minimum amount of overlap required for a region to be considered in mRNA region site coverage profile (i.e., overlap with mRNA exons) (default: 0.5)")
+    p_s.add_argument("--exp-gene-list",
+                   dest="exp_gene_list",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Supply file with gene IDs (one ID per row) of expressed genes for filtering selected RBPs (supported gene ID format: ENSG00000100320, no version numbers). E.g. if --rbps ALL selected, using --exp-gene-list allows filtering RBPs by expression (default: False)")
+    p_s.add_argument("--exp-gene-filter",
+                   dest="exp_gene_filter",
+                   default = False,
+                   action = "store_true",
+                   help = "Filter out --in regions not overlapping with --exp-gene-list gene regions. Note that --exp-gene-list gene IDs have to be compatible with --gtf file (default: False)")
+    p_s.add_argument("--exp-gene-filter-mode",
+                   dest="exp_gene_filter_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help = "Define --exp-gene-filter behavior. 1: filter out --in regions NOT OVERLAPPING with --exp-gene-list gene regions. 2: filter out --in regions OVERLAPPING with --exp-gene-list gene regions (default: 1)")
     p_s.add_argument("--mrna-norm-mode",
                    dest="mrna_norm_mode",
                    type=int,
@@ -3903,6 +3920,71 @@ def main_search(args):
         print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
         print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
 
+
+    """
+    If --exp-gene-list set, filter RBPs by gene IDs from list, 
+    such that only RBPs for search are kept whose gene IDs are in --exp-gene-list.
+    Keep regex motif if set.
+    AALAMO
+            
+    """
+    if args.exp_gene_list:
+
+        print("Filter selected RBPs by --exp-gene-list ... ")
+
+        assert os.path.exists(args.exp_gene_list), "given --exp-gene-list file \"%s\" not found" % (args.exp_gene_list)
+
+        exp_gene_ids_dic = benchlib.read_ids_into_dic(args.exp_gene_list,
+                                                      check_dic=False)
+
+        assert exp_gene_ids_dic, "no gene IDs read in from --exp-gene-list. Please provide gene IDs in a text file, one ID per line"
+
+        filtered_rbps_dic = {}
+        filtered_motif_ids_dic = {}
+        filtered_name2ids_dic = {}
+        
+        for rbp_id in loaded_rbps_dic:
+
+            if rbp_id == regex_id:  # keep regex if set.
+                filtered_rbps_dic[regex_id] = regex_id
+                if args.motif_regex_id:
+                    filtered_motif_ids_dic[regex_id] = regex_id
+                    filtered_name2ids_dic[regex_id] = [regex_id]
+                else:
+                    filtered_motif_ids_dic[regex] = regex_id
+                    filtered_name2ids_dic[regex_id] = [regex]
+                continue
+
+            if rbp_id not in name2gid_dic:
+                continue
+
+            rbp_gene_id = name2gid_dic[rbp_id]
+
+            if rbp_gene_id in exp_gene_ids_dic:
+                set_db_str = loaded_rbps_dic[rbp_id]
+                filtered_rbps_dic[rbp_id] = set_db_str
+                for motif_id in name2ids_dic[rbp_id]:
+                    set_db_str = loaded_motif_ids_dic[motif_id]
+                    filtered_motif_ids_dic[motif_id] = set_db_str
+                filtered_name2ids_dic[rbp_id] = name2ids_dic[rbp_id]
+
+
+        c_loaded_rbps_pre = len(loaded_rbps_dic)
+        c_loaded_rbps_post = len(filtered_rbps_dic)
+        loaded_rbps_dic = filtered_rbps_dic
+
+        print("# RBPs pre-filtering by --exp-gene-list: ", c_loaded_rbps_pre)
+        print("# RBPs post-filtering by --exp-gene-list:", c_loaded_rbps_post)
+
+        if args.regex and len(loaded_rbps_dic) == 1:
+            print("WARNING: only regex motif left after filtering by --exp-gene-list ...")
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by --exp-gene-list. Please provide compatible gene IDs in --exp-gene-list (supported gene ID format: ENSG00000100320, no version numbers!) and at least one RBP via --rbps that is in --exp-gene-list"
+
+        loaded_motif_ids_dic = filtered_motif_ids_dic
+        name2ids_dic = filtered_name2ids_dic
+
+
     """
     Load RBP data, store in RBP() class.
 
@@ -5553,6 +5635,8 @@ def main_search(args):
 
             print("Read in background genes from --goa-gb-gene-list ... ")
 
+            assert os.path.exists(args.goa_bg_gene_list), "given --goa-bg-gene-list file \"%s\" not found" % (args.goa_bg_gene_list)
+
             bg_gene_ids_dic = benchlib.read_ids_into_dic(args.goa_bg_gene_list,
                                                          check_dic=False)
 
@@ -6536,6 +6620,8 @@ def main_batch(args):
         if args.goa_bg_gene_list:
 
             print("Read in background genes from --goa-gb-gene-list ... ")
+
+            assert os.path.exists(args.goa_bg_gene_list), "given --goa-bg-gene-list file \"%s\" not found" % (args.goa_bg_gene_list)
 
             bg_gene_ids_dic = benchlib.read_ids_into_dic(args.goa_bg_gene_list,
                                                          check_dic=False)
@@ -11757,6 +11843,8 @@ def main_searchrna(args):
         if args.goa_bg_gene_list:
 
             print("Read in background genes from --goa-gb-gene-list ... ")
+
+            assert os.path.exists(args.goa_bg_gene_list), "given --goa-bg-gene-list file \"%s\" not found" % (args.goa_bg_gene_list)
 
             bg_gene_ids_dic = benchlib.read_ids_into_dic(args.goa_bg_gene_list,
                                                     check_dic=False)
@@ -20358,6 +20446,8 @@ def main_goa(args):
     if args.goa_bg_gene_list:
 
         print("Read in background genes from --goa-gb-gene-list ... ")
+
+        assert os.path.exists(args.goa_bg_gene_list), "given --goa-bg-gene-list file \"%s\" not found" % (args.goa_bg_gene_list)
 
         bg_gene_ids_dic = benchlib.read_ids_into_dic(args.goa_bg_gene_list,
                                                      check_dic=False)
