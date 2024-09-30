@@ -6014,7 +6014,6 @@ def main_search(args):
     if os.path.exists(cmstat_tmp_out):
         os.remove(cmstat_tmp_out)
 
-
     """
     Inform about outputs.
 
