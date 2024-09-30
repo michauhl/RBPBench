@@ -5109,6 +5109,96 @@ def gtf_check_exon_order(in_gtf):
     return check
 
 
+
+################################################################################
+
+def gtf_output_gene_regions_to_bed(in_gtf, out_bed,
+                                   bed_col6_infos=1,
+                                   gids_dic=False,
+                                   chr_id_style=0):
+    """
+    Read in gene infos into GeneInfo objects, including information on 
+    transcript isoforms for the gene. Note that only features on standard 
+    chromosomes (1,2,...,X Y MT) are currently used.
+
+    Assuming gtf file with order: gene,transcript(s),exon(s) ...
+
+    chr_style:
+        0: do not change
+        1: change to chr1, chr2 ...
+        2: change to 1, 2, 3, ...
+
+    AALAMO
+
+    """
+
+    OUTBED = open(out_bed, "w")
+    c_gene_regions = 0
+
+    if re.search(r".+\.gz$", in_gtf):
+        f = gzip.open(in_gtf, 'rt')
+    else: 
+        f = open(in_gtf, "r")
+    for line in f:
+
+        # Skip header.
+        if line.startswith("#"):
+            continue
+
+        cols = line.strip().split("\t")
+        feature = cols[2]
+        if feature != "gene":
+            continue
+
+        chr_id = cols[0]
+        feat_s = int(cols[3])  # 1-based index (see e.g. start_codon feature for proof).
+        feat_e = int(cols[4])
+        feat_pol = cols[6]
+        infos = cols[8]
+
+        chr_id = check_convert_chr_id(chr_id, id_style=chr_id_style)
+        # If not one of standard chromosomes, continue.
+        if not chr_id:
+            continue
+
+        assert feat_e >= feat_s, "feature end < feature start in GTF file \"%s\", line \"%s\". Since both coordinates are expected to have 1-based index, this should not happen" %(in_gtf, line)
+
+        m = re.search(r'gene_id "(.+?)"', infos)
+        assert m, "gene_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
+        gene_id = m.group(1)
+
+        if gids_dic:
+            if gene_id not in gids_dic:
+                continue
+
+        m = re.search(r'gene_name "(.+?)"', infos)
+        gene_name = "-"  # optional.
+        if m:
+            gene_name = m.group(1)
+        gene_biotype = "-"  # # optional.
+        m = re.search(r'gene_biotype "(.+?)"', infos)
+        if not m:
+            m = re.search('gene_type "(.+?)"', infos)
+        if m:
+            gene_biotype = m.group(1)
+
+        if bed_col6_infos == 1:
+            bed_col6_str = gene_id
+        elif bed_col6_infos == 2:
+            bed_col6_str = gene_id + ";" + gene_name
+        elif bed_col6_infos == 3:
+            bed_col6_str = gene_id + ";" + gene_name + ";" + gene_biotype
+
+        OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" %(chr_id, feat_s-1, feat_e, bed_col6_str, feat_pol))
+
+        c_gene_regions += 1
+
+    f.close()
+    OUTBED.close()
+
+    return c_gene_regions
+
+
 ################################################################################
 
 def select_more_prominent_tid(tid1, tid2, tid2tio_dic):

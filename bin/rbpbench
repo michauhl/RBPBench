@@ -3928,6 +3928,8 @@ def main_search(args):
     AALAMO
             
     """
+    exp_gene_ids_dic = {}
+
     if args.exp_gene_list:
 
         print("Filter selected RBPs by --exp-gene-list ... ")
@@ -3967,7 +3969,6 @@ def main_search(args):
                     set_db_str = loaded_motif_ids_dic[motif_id]
                     filtered_motif_ids_dic[motif_id] = set_db_str
                 filtered_name2ids_dic[rbp_id] = name2ids_dic[rbp_id]
-
 
         c_loaded_rbps_pre = len(loaded_rbps_dic)
         c_loaded_rbps_post = len(filtered_rbps_dic)
@@ -4038,6 +4039,64 @@ def main_search(args):
     chr_ids_dic = benchlib.get_fasta_headers(args.in_genome)
 
     """
+    Guess chromosome ID style.
+
+    chr_style:
+        1: chr1, chr2, ..., chrX, chrM
+        2: 1, 2, ... , X, MT
+
+    AALAMO
+    
+    """
+    print("Guess chromosome ID style (based on --genome FASTA headers) ... ")
+    chr_style = benchlib.guess_chr_id_style(chr_ids_dic)
+    
+
+    """
+    Optionally filter --in regions by --exp-gene-list (if --exp-gene-filter set).
+    
+    """
+
+    in_reg_bed = args.in_sites
+
+    if args.exp_gene_filter:
+
+        assert exp_gene_ids_dic, "--exp-gene-filter set but no gene IDs provided via --exp-gene-list. Please provide gene IDs in a text file, one ID per line"
+        assert args.in_gtf, "--exp-gene-filter set but no --gtf file provided. Please provide a GTF file with compatible gene annotations (compatible to --exp-gene-list gene IDs)"
+        assert os.path.exists(args.in_gtf), "--gtf file \"%s\" not found" % (args.in_gtf)
+
+        print("Extract --exp-gene-list gene regions from --gtf file ... ")
+        
+        tmp_gene_reg_bed = args.out_folder + "/gene_regions.exp_gene_list.bed"
+        c_out_gene_reg = benchlib.gtf_output_gene_regions_to_bed(args.in_gtf, tmp_gene_reg_bed,
+                                                                 gids_dic=exp_gene_ids_dic,
+                                                                 chr_id_style=chr_style)
+
+        assert c_out_gene_reg, "no gene regions extracted from --gtf file. Please provide a valid GTF file with gene annotations compatible with --exp-gene-list gene IDs"
+
+        print("Filter --in regions by --exp-gene-list gene regions ... ")
+        tmp_in_filtered_bed = args.out_folder + "/in_sites.exp_gene_list.filtered.bed"
+
+        params = "-u -s"
+        if args.exp_gene_filter_mode == 2:  # Keep --in regions not overlapping with --exp-gene-list gene regions.
+            params = "-v -s"
+
+        c_in_reg_pre_flt = benchlib.count_lines_in_file(args.in_sites)
+
+        benchlib.bed_intersect_files(args.in_sites, tmp_gene_reg_bed, tmp_in_filtered_bed,
+                                     params=params)
+
+        c_in_reg_post_flt = benchlib.count_lines_in_file(tmp_in_filtered_bed)
+
+        print("# --in regions pre-filtering: ", c_in_reg_pre_flt)
+        print("# --in regions post-filtering:", c_in_reg_post_flt)
+
+        assert c_in_reg_post_flt, "no --in regions remain after filtering by --exp-gene-list gene regions. Please provide compatible files or change --exp-gene-filter settings"
+
+        in_reg_bed = tmp_in_filtered_bed
+
+
+    """
     Filter / extend --in genomic regions BED file.
 
     """
@@ -4069,7 +4128,7 @@ def main_search(args):
     print("Preprocess --in sites ... ")
     reg2sc_dic = {}  # Used to store region scores for Wilcoxon rank-sum test.
     bed_chr_ids_dic = {}
-    reg_stats_dic = benchlib.bed_filter_extend_bed(args.in_sites, filtered_sites_bed,
+    reg_stats_dic = benchlib.bed_filter_extend_bed(in_reg_bed, filtered_sites_bed,
                                           ext_up=ext_up,
                                           ext_down=ext_down,
                                           remove_dupl=True,
@@ -4089,18 +4148,6 @@ def main_search(args):
     print("# regions filtered by score:   ", reg_stats_dic["c_sc_thr"])
 
     assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID (or optionally score) filtering. If caused by invalid chr_id filtering, make sure chromosome IDs in --genome FASTA and --in BED files are compatible (i.e., \"chr1\" vs. \"1\" notation). If --in regions are on transcripts, use rbpbench searchrna"
-
-    """
-    Guess chromosome ID style.
-
-    chr_style:
-        1: chr1, chr2, ..., chrX, chrM
-        2: 1, 2, ... , X, MT
-
-    """
-    print("Guess chromosome ID style (based on --genome FASTA headers) ... ")
-    chr_style = benchlib.guess_chr_id_style(chr_ids_dic)
-    
 
     """
     Calculate effective size of genomic regions.
