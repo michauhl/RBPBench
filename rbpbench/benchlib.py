@@ -2987,16 +2987,25 @@ def get_intron_exon_ol_counts(overlap_ei_regions_bed):
     """
     Get exon + intron overlap counts
 
-    overlap_ei_regions_bed format:
+    overlap_ei_regions_bed format (old):
     chr1	3385286	3396490	intron;ENST00000270722	0	+
     chr1	3396593	3402790	intron;ENST00000270722	0	+
-        
+
+    overlap_ei_regions_bed format:
+    $ intersectBed -a intron_exon_regions.tmp.bed -b in_sites.filtered.bed -s -f 0.5 -F 0.5 -e  -wb
+    chr1	21727871	21728037	intron;ENST00000308271	0	-	chr1	21727871	21728037	chr1:21727871-21728037(-)	6.18043979583829	-
+    chr5	138561019	138561076	intron;ENST00000297185	0	-	chr5	138561019	138561076	chr5:138561019-138561076(-)	3.36528644625518	-
+    chr6	16265910	16265991	intron;ENST00000259727	0	+	chr6	16265910	16265991	chr6:16265910-16265991(+)	3.80557689731445	+
+    chr6	16265981	16266114	intron;ENST00000259727	0	+	chr6	16265981	16266114	chr6:16265981-16266114(+)	3.39282576293052	+
+
     """
 
     assert os.path.exists(overlap_ei_regions_bed), "file \"%s\" does not exist" %(overlap_ei_regions_bed)
 
     c_exon_ol = 0
     c_intron_ol = 0
+    reg2exc_dic = {}  # only count a region once as exon region.
+    reg2inc_dic = {}  # only count a region once as intron region.
 
     with open(overlap_ei_regions_bed, "r") as f:
         for line in f:
@@ -3005,11 +3014,16 @@ def get_intron_exon_ol_counts(overlap_ei_regions_bed):
                 continue
             cols = line.split("\t")
             reg_tr_id = cols[3]
-            reg_id = reg_tr_id.split(";")[0]
-            if reg_id == "intron":
-                c_intron_ol += 1
+            reg_id = cols[9]
+            reg_annot = reg_tr_id.split(";")[0]
+            if reg_annot == "intron":
+                if reg_id not in reg2inc_dic:
+                    c_intron_ol += 1
+                    reg2inc_dic[reg_id] = 1
             else:
-                c_exon_ol += 1
+                if reg_id not in reg2exc_dic:
+                    c_exon_ol += 1
+                    reg2exc_dic[reg_id] = 1
 
     return c_exon_ol, c_intron_ol
 
@@ -3020,6 +3034,23 @@ def get_eib_ol_counts(overlap_eib_regions_bed):
     """
     Get exon-intron border overlap counts.
 
+    overlap_eib_regions_bed old format:
+    chr1	231373978	231374002	eib	0	-
+    chr1	244408941	244408985	ds_ib	0	-
+    chr1	151266003	151266053	eib	0	+
+    chr1	161157671	161157694	eib	0	+
+    chr1	110952350	110952391	us_ib	0	-
+    chr1	66958933	66958983	eib	0	+
+
+    New format:
+    chr1	231373978	231374002	eib	0	-	chr1	231373978	231374002	chr1:231373978-231374002(-)	6.6772932452923	-
+    chr1	244408941	244408985	ds_ib	0	-	chr1	244408941	244408985	chr1:244408941-244408985(-)	3.84108057430655	-
+    chr1	151266003	151266053	eib	0	+	chr1	151266003	151266058	chr1:151266003-151266058(+)	3.62307325778397	+
+    chr1	161157671	161157694	eib	0	+	chr1	161157671	161157694	chr1:161157671-161157694(+)	5.94342578410804	+
+    chr1	27907232	27907277	eib	0	-	chr1	27907225	27907277	chr1:27907225-27907277(-)	4.17126552599614	-
+    chr1	110407601	110407635	eib	0	-	chr1	110407601	110407660	chr1:110407601-110407660(-)	3.33819938009558	-
+    chr1	110952350	110952391	us_ib	0	-	chr1	110952350	110952391	chr1:110952350-110952391(-)	3.3312393913757	-
+
     """
 
     assert os.path.exists(overlap_eib_regions_bed), "file \"%s\" does not exist" %(overlap_eib_regions_bed)
@@ -3027,6 +3058,9 @@ def get_eib_ol_counts(overlap_eib_regions_bed):
     c_eib_ol = 0
     c_us_ib_ol = 0
     c_ds_ib_ol = 0
+    reg2eib_dic = {}  # only count a region once as eib region.
+    reg2usib_dic = {}  # only count a region once as us_ib region.
+    reg2dsib_dic = {}  # only count a region once as ds_ib region.
 
     with open(overlap_eib_regions_bed, "r") as f:
         for line in f:
@@ -3034,15 +3068,22 @@ def get_eib_ol_counts(overlap_eib_regions_bed):
             if not line:
                 continue
             cols = line.split("\t")
-            reg_id = cols[3]
-            if reg_id == "eib":
-                c_eib_ol += 1
-            elif reg_id == "us_ib":
-                c_us_ib_ol += 1
-            elif reg_id == "ds_ib":
-                c_ds_ib_ol += 1
+            reg_annot = cols[3]
+            reg_id = cols[9]
+            if reg_annot == "eib":
+                if reg_id not in reg2eib_dic:
+                    c_eib_ol += 1
+                    reg2eib_dic[reg_id] = 1
+            elif reg_annot == "us_ib":
+                if reg_id not in reg2usib_dic:
+                    c_us_ib_ol += 1
+                    reg2usib_dic[reg_id] = 1
+            elif reg_annot == "ds_ib":
+                if reg_id not in reg2dsib_dic:
+                    c_ds_ib_ol += 1
+                    reg2dsib_dic[reg_id] = 1
             else:
-                assert False, "invalid region ID \"%s\" found in line \"%s\"" %(reg_id, line)
+                assert False, "invalid region ID \"%s\" found in line \"%s\"" %(reg_annot, line)
 
     return c_eib_ol, c_us_ib_ol, c_ds_ib_ol
 
@@ -4519,6 +4560,7 @@ def get_normnalized_annot_counts(filtered_sites_bed, intron_exon_out_bed,
 ################################################################################
 
 def bed_get_effective_reg_bed(in_bed, out_bed, reg2pol_dic,
+                              reg2sc_dic=False,
                               reg_len_dic=None):
     """
     Convert regions BED file into effective regions BED file.
@@ -4559,7 +4601,14 @@ def bed_get_effective_reg_bed(in_bed, out_bed, reg2pol_dic,
         if reg_len_dic is not None:
             reg_len_dic[reg_ids_str] = reg_len
         c_out += 1
-        BEDOUT.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, reg_s, reg_e, reg_ids_str, reg_strand))
+        comb_reg_sc = 0  # Combined region score.
+        reg_sc_list = []
+        if reg2sc_dic:
+            for reg_id in reg_ids_list:
+                reg_sc_list.append(float(reg2sc_dic[reg_id]))
+            comb_reg_sc = sum(reg_sc_list) / len(reg_sc_list)
+
+        BEDOUT.write("%s\t%i\t%i\t%s\t%s\t%s\n" % (chr_id, reg_s, reg_e, reg_ids_str, str(comb_reg_sc), reg_strand))
 
     BEDOUT.close()
 
@@ -6478,7 +6527,10 @@ def bed_filter_extend_bed(in_bed, out_bed,
                     else:
                         c_dupl_filter += 1
                         continue
-                
+                else:
+                    if reg_id not in reg2sc_dic:
+                        reg2sc_dic[reg_id] = reg_sc
+
                 """
                 Add stats separately for strands.
                 This could be adapted, counting only once per two-strand region.
@@ -6521,6 +6573,9 @@ def bed_filter_extend_bed(in_bed, out_bed,
                     else:
                         c_dupl_filter += 1
                         continue
+                else:
+                    if reg_id not in reg2sc_dic:
+                        reg2sc_dic[reg_id] = reg_sc
 
                 reg_len = new_e - new_s
                 reg_len_sum += reg_len
@@ -9526,7 +9581,7 @@ Input dataset ID format: %s. %s
 ## Input datasets exon-intron overlap statistics ### {#ei-ol-stats}
 
 **Table:** Exon, intron + border region overlap statistics for each input dataset.
-Minimum overlap with exon/intron region for input region to be counted as overlapping = %s%%.
+Minimum overlap with exon/intron region for input region to be counted as overlapping = %s%% (change via --gtf-eib-min-overlap).
 Considered intron border region length = %i nt. Considered exon-intron border region = +/- %i nt relative to border.
 %s
 
@@ -9602,18 +9657,12 @@ Considered intron border region length = %i nt. Considered exon-intron border re
         mdtext += '**%% exon-intron border regions** -> %% of input regions overlapping with exon-intron borders (+/- %i nt of exon-intron borders). ' %(eib_len)
         mdtext += "Note that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered. " %(2*ib_len, ib_len)
         mdtext += "Also note that the overlap is calculated between (optionally extended) input regions and transcript regions (one representative transcript, i.e., transcript with highest experimental support, chosen for each gene region, unless --tr-list provided). "
-        mdtext += "Thus, depending on set parameters (minimum overlap amount etc.) and characteristics of input dataset, exon/intron overlap can vary or even be relatively low.\n"
+        mdtext += "Thus, depending on set parameters (minimum overlap amount etc.), occasional overlap of annotated gene regions, and characteristics of input dataset, exon/intron overlap can vary, doesn't have to add up to 100, and can also be relatively low.\n"
         mdtext += "\n&nbsp;\n"
 
 
 
     """
-
-Also note that the overlap is calculated between (optionally extended) input regions and transcript regions 
-(one representative transcript, i.e., transcript with highest experimental support, chosen for each gene region, unless --tr-list provided). 
-Thus, depending on set parameters (minimum overlap amount etc.) and characteristics of input dataset, 
-exon/intron overlap can vary or even be relatively low.
-
 
     Input datasets RBP region score motif enrichment statistics.
 
@@ -13363,7 +13412,7 @@ mRNA region lengths used for plotting are derived from the %i mRNA regions, usin
 **Figure:** Exon, intron + border region overlap statistics. \# input regions = %i. 
 \# input regions overlapping with exon regions = %i.
 \# input regions overlapping with intron regions = %i.
-Minimum overlap with exon/intron region for input region to be counted as overlapping = %s%%.
+Minimum overlap with exon/intron region for input region to be counted as overlapping = %s%% (change via --gtf-eib-min-overlap).
 Categories:
 **Exon regions** -> %% of input regions overlapping with exon regions.
 **Intron regions** -> %% of input regions overlapping with intron regions.
@@ -13374,8 +13423,8 @@ Categories:
 Note that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered. 
 Also note that the overlap is calculated between (optionally extended) input regions and transcript regions 
 (one representative transcript, i.e., transcript with highest experimental support, chosen for each gene region, unless --tr-list provided). 
-Thus, depending on set parameters (minimum overlap amount etc.) and characteristics of input dataset, 
-exon/intron overlap can vary or even be relatively low.
+Thus, depending on set parameters (minimum overlap amount etc.), occasional overlap of annotated gene regions, 
+and characteristics of input dataset, exon/intron overlap can vary, doesn't have to add up to 100, and can also be relatively low.
 
 &nbsp;
 

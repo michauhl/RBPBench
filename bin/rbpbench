@@ -5612,7 +5612,7 @@ def main_search(args):
 
         # Overlap with input regions.
         print("Overlap exon + intron regions with input regions ... ")
-        params = "-s -f %s -F %s -e " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
+        params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
         overlap_ei_regions_bed = args.out_folder + "/overlap_ei_regions.tmp.bed"
         benchlib.bed_intersect_files(intron_exon_out_bed, filtered_sites_bed,
                                      overlap_ei_regions_bed,
@@ -5624,7 +5624,7 @@ def main_search(args):
         print("# intron overlap regions: %i" %(c_intron_ol))
 
         print("Overlap exon + intron border regions with input regions ... ")
-        params = "-s -f %s -F %s -e " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
+        params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
         overlap_eib_regions_bed = args.out_folder + "/overlap_eib_regions.tmp.bed"
         benchlib.bed_intersect_files(intron_exon_border_out_bed, filtered_sites_bed,
                                      overlap_eib_regions_bed,
@@ -5646,7 +5646,6 @@ def main_search(args):
                                                           c_tr_ids_with_sites=len(tids_with_sites_dic))
         
         ei_ol_stats_dic["rbpbench_search"] = exon_intron_ol_stats
-
 
         # If only target genes with RBP motifs hits for all RBPs should be considered.
         if args.goa_cooc_mode == 2:
@@ -7656,7 +7655,7 @@ def main_batch(args):
 
             # Overlap with input regions.
             print("Overlap exon + intron regions with input regions ... ")
-            params = "-s -f %s -F %s -e " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
+            params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
             overlap_ei_regions_bed = args.out_folder + "/overlap_ei_regions.tmp.bed"
             benchlib.bed_intersect_files(intron_exon_out_bed, filtered_sites_bed,
                                          overlap_ei_regions_bed,
@@ -7668,7 +7667,7 @@ def main_batch(args):
             # print("# intron overlap regions: %i" %(c_intron_ol))
 
             print("Overlap exon + intron border regions with input regions ... ")
-            params = "-s -f %s -F %s -e " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
+            params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
             overlap_eib_regions_bed = args.out_folder + "/overlap_eib_regions.tmp.bed"
             benchlib.bed_intersect_files(intron_exon_border_out_bed, filtered_sites_bed,
                                          overlap_eib_regions_bed,

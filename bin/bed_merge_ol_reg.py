@@ -13,7 +13,9 @@ def setup_argument_parser():
     Given --in BED file, merge bookend or overlapping regions and output merged 
     regions to --out BED file. Optionally, extend --in regions by --ext
     nucleotides up- and/or downstream before merging. Note that new unique BED
-    column 4 region IDs will be generated, unless disabled.
+    column 4 region IDs will be generated, unless disabled. Also note that 
+    BED column 5 scores will be averaged for merged regions, i.e. new merged 
+    region gets average score assigned.
 
     """
     # Define argument parser.
@@ -50,6 +52,12 @@ def setup_argument_parser():
                    metavar='str',
                    default = "s",
                    help="New core BED column 4 region ID, so by default new region IDs will have format s1, s2, s3, ... (default: s)")
+    p.add_argument("--bed-score-col",
+                   dest="bed_score_col",
+                   type=int,
+                   metavar='int',
+                   default=5,
+                   help="--in BED score column BED score (default: 5)")
     p.add_argument("--disable-new-ids",
                    dest="disable_new_ids",
                    default = False,
@@ -89,6 +97,7 @@ if __name__ == '__main__':
     print("Preprocess --in regions ... ")
 
     reg2pol_dic = {}
+    reg2sc_dic = {}
 
     new_reg_ids = True
     if args.disable_new_ids:
@@ -98,7 +107,9 @@ if __name__ == '__main__':
                                           ext_up=ext_up,
                                           ext_down=ext_down,
                                           remove_dupl=False,
+                                          reg2sc_dic=reg2sc_dic,
                                           reg2pol_dic=reg2pol_dic,
+                                          score_col=args.bed_score_col,
                                           core_reg_id=args.core_reg_id,
                                           new_reg_ids=new_reg_ids)
 
@@ -111,7 +122,8 @@ if __name__ == '__main__':
     assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID (or optionally score) filtering. If caused by invalid chr_id filtering, make sure chromosome IDs in --genome FASTA and --in BED files are compatible (i.e., \"chr1\" vs. \"1\" notation). If --in regions are on transcripts, use rbpbench searchrna"
 
     print("Merge overlapping and bookend regions ... ")
-    benchlib.bed_get_effective_reg_bed(tmp_bed, args.out_bed, reg2pol_dic)
+    benchlib.bed_get_effective_reg_bed(tmp_bed, args.out_bed, reg2pol_dic,
+                                       reg2sc_dic=reg2sc_dic)
 
     c_merged_reg = benchlib.count_lines_in_file(args.out_bed)
 
