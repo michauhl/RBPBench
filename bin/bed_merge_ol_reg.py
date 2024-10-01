@@ -113,8 +113,11 @@ if __name__ == '__main__':
     print("Merge overlapping and bookend regions ... ")
     benchlib.bed_get_effective_reg_bed(tmp_bed, args.out_bed, reg2pol_dic)
 
+    c_merged_reg = benchlib.count_lines_in_file(args.out_bed)
+
     # Delete temporary BED file.
     os.remove(tmp_bed)
 
-    print("Merged regions written to --out BED file:", args.out_bed)
+    print("# merged regions:              ", c_merged_reg)
+    print("Merged regions written to --out BED file:\n", args.out_bed)
                

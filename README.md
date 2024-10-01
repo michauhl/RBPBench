@@ -79,14 +79,63 @@ RBPBench is also available as a webserver on Galaxy (more infos soon).
 
 ## Example runs
 
-To run the examples, we change to the cloned repository subfolder `RBPBench\test`
+To run the examples, we change to the cloned repository subfolder `RBPBench/test`
 and download the genome FASTA file ([details](#genomic-sequences)) and a 
-fitting GTF file from Ensembl ([details](#genomic-annotations)).
+fitting GTF file, e.g. from Ensembl ([details](#genomic-annotations)):
+
+```
+cd test/
+wget https://hgdownload.cse.ucsc.edu/goldenpath/hg38/bigZips/hg38.fa.gz
+gunzip hg38.fa.gz
+wget https://ftp.ensembl.org/pub/release-112/gtf/homo_sapiens/Homo_sapiens.GRCh38.112.gtf.gz
+```
+
+We also unzip the collection of [ENCODE](https://www.encodeproject.org/) eCLIP CLIPper IDR peak 
+region BED files (i.e., genomic RBP binding regions determined by CLIPper IDR method on RBP specific eCLIP data, 
+which we will use as example input files for the various RBPBench modes:
+
+```
+unzip eclip_clipper_idr.zip
+```
+
+The folder content looks like this:
+
+```
+ls -1 eclip_clipper_idr
+AGGF1_HepG2_IDR_peaks.bed
+AGGF1_K562_IDR_peaks.bed
+AKAP1_HepG2_IDR_peaks.bed
+AKAP1_K562_IDR_peaks.bed
+...
+```
+
+We can see that we have a total of 172 genomic region files to work with, comprised of 88 for K562 cell line, 
+84 for HepG2 cell line, and a total of 110 different RBPs over the two cell lines:
+
+```
+ls -1 eclip_clipper_idr | wc -l
+172
+ls -1 eclip_clipper_idr | grep -c "K562"
+88
+ls -1 eclip_clipper_idr | grep -c "HepG2"
+84
+ls eclip_clipper_idr | cut -d'_' -f1 | sort | uniq | wc -l
+110
+```
+
 
 ### Motif search in single input dataset
 
-For motif search in a single set of genomic input regions (typically CLIP-seq), we can use ``
+AALAMO
 
+For motif search in a single set of genomic input regions (typically CLIP-seq peak regions), 
+we can use `rbpbench search` mode. This mode contains many useful functions 
+and command line options (please check out the help prompt `rbpbench search -h` 
+as well as the [documentation](#documentation) below for more details on the 
+various functionalities of the different modes).
+
+
+rbpbench search --in eclip_clipper_idr/PUM2_K562_IDR_peaks.bed  --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_pum2_out --rbps ALL --functions TR RSD --regex AATAAA  --cooc-pval-thr 0.001 --min-motif-dist 5  --add-all-reg-bar
 
 
 rbpbench search --in eclip_clipper_idr/SLBP_K562_IDR_peaks.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_slbp_out  --rbps ALL --ext 10 --functions TEP --regex AATAAA --bed-sc-thr 3 --cooc-pval-thr 0.001 --min-motif-dist 5 --add-all-reg-bar
@@ -121,8 +170,9 @@ region_annotations.tsv
 region_id	gene_id	gene_name	transcript_id	region_annotation	transcript_biotype
 chr9:127813745-127813823(+)	ENSG00000136877	FPGS	ENST00000373247	3'UTR	protein_coding
 chr6:26021705-26021766(+)	ENSG00000278637	H4C1	ENST00000617569	CDS	protein_coding
-Add:
-RBP_motifs
+rbp_region_occupancies.tsv
+#region_id \ rbp_id	CPEB1	CPEB4	CPSF6	CPSF7	CSTF2	CSTF2T	FIP1L1	HNRNPH2	HNRNPK	LSM11	MTPAP	NELFE	NOVA1	PABPN1	SLBP	SNRPA	SRSF3	SRSF7	SSB	SUPV3L1	regex
+chr11:119094825-119094878(-)	0	0	0	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	0	0	0
 
 
 
@@ -393,7 +443,7 @@ but you can also provide a GTF file from  e.g. [GENCODE](https://www.gencodegene
 For the examples we downloaded the following GTF file:
 
 ```
-get https://ftp.ensembl.org/pub/release-112/gtf/homo_sapiens/Homo_sapiens.GRCh38.112.gtf.gz
+wget https://ftp.ensembl.org/pub/release-112/gtf/homo_sapiens/Homo_sapiens.GRCh38.112.gtf.gz
 ```
 
 #### User-provided motif search
@@ -485,6 +535,24 @@ What p-value a motif hit reported by FIMO gets depends on the set background nuc
 By default, frequencies obtained from human ENSEMBL transcripts (excluding introns, A most prominent nucleotide)
 are used. You can change the preset via `--fimo-ntf-mode` (other options: transcripts including introns, or uniform distribution). 
 Alternatively, you can provide your own background frequencies file via `--fimo-ntf-file`.
+
+#### Filtering by expressed genes
+
+In `rbpbench search`, the specified RBP motifs can be further filtered by a list of expressed genes,
+provided via `--exp-gene-list`. This way, only RBPs are selected for search which are also expressed 
+in a specific condition. The format of the given `--exp-gene-list` file should be one gene ID per line, 
+and the gene ID needs to be from ENSEMBL with no version numbers. For example:
+
+```
+$ cat expressed_genes.txt
+ENSG00000099783
+ENSG00000100320
+...
+```
+
+Furthermore, the genomic input regions BED file (`--in`) can be filtered by those regions (`--exp-gene-filter`), 
+to only keep `--in` regions overlapping with the expressed genes. In some cases it might also be interesting 
+to only keep `--in` regions that do NOT overlap with the expressed genes (`--exp-gene-mode 2`).
 
 
 ### Outputs
@@ -749,6 +817,7 @@ minimum region annotation overlap can be set via `--gtf-feat-min-overlap`.
 Various helper scripts are included as well on the command line:
 
 ```
+bed_merge_ol_reg.py
 bed_print_first_n_pos.py
 bed_print_last_n_pos.py
 bed_shift_regions.py
@@ -762,8 +831,9 @@ gtf_get_gene_region_nt_freqs.py
 gtf_get_mpt_nt_freqs.py
 gtf_get_mpt_with_introns_nt_freqs.py
 ```
-To can call their help pages to get more infos on what they do and how to use them (e.g., `bed_print_first_n_pos.py -h`).
+To can call their help pages to get more infos on what they do and how to use them (e.g., `bed_merge_ol_reg.py -h`).
 To get a quick overview: 
+`bed_merge_ol_reg.py` takes a BED file and merges bookend or overlapping regions outputs the merged regions to a new BED file.
 `bed_print_first_n_pos.py` prints the first n positions of each region from the provided BED file.
 `bed_print_last_n_pos.py` prints the last n positions of each region from the provided BED file.
 `bed_shift_regions.py` shifts all regions from the provided BED file a given number of nucleotides up- or downstream.
