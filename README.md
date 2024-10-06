@@ -226,7 +226,7 @@ To take a closer look at how motif hits are distributed around a specific RBP, w
 rbpbench search --in eclip_clipper_idr/SLBP_K562_IDR_peaks.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_slbp_tr_rsd_tep_gh_out --functions TR RSD TEP  --rbps ALL --ext 20 --set-rbp-id SLBP --greatest-hits
 ```
 
-Here we also enable `--greatest-hits`, meaning that for each input region only the motif hit with the 
+Here we also enable `--greatest-hits`, meaning that for each input region and RBP only the motif hit with the 
 lowest p-value gets reported. This has an impact on the co-occurrence heat map statistics, namely through 
 changing the mean minimum motif distance (if we want to filter by this via setting `--min-motif-dist` to > 0, 
 [details](#co-occurrence-statistics)), but also on the distance plots that get produced in the example (**Fig. 4**).
