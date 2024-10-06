@@ -148,7 +148,7 @@ Note that apart from HTML reports, RBPBench also outputs various table files (e.
 more details e.g. [here](#hit-statistics-table-files)), which can be later used for comparison or again for motif search.
 
 
-<img src="docs/search.ex1.1.png" width="750" />
+<img src="docs/search.ex1.1.png" width="800" />
 
 **Fig. 1**: Example visualizations produced by `rbpbench search` (PUM2 example). 
 **a:** RBP motif co-occurrences heat map. 
@@ -197,7 +197,7 @@ Here we filter the selected RBPS (i.e., all RBPs) to keep only RBPS with annotat
 RNA stability & decay (RSD), and 3' end processing (TEP). This results in 91 RBPs for search (out of 257), 
 with 260 motifs (out of 599). 
 
-<img src="docs/search.ex2.1.png" width="750" />
+<img src="docs/search.ex2.1.png" width="800" />
 
 **Fig. 3**: Example visualizations and statistics produced by `rbpbench search` (SLBP example). 
 **a:** RBP motif co-occurrences heat map. 
@@ -233,7 +233,7 @@ changing the mean minimum motif distance (if we want to filter by this via setti
 This way we can focus for each RBP motif on the best motif hit for each input region (by default all 
 hits are included in the outputs and analysis).
 
-<img src="docs/search.ex3.1.png" width="750" />
+<img src="docs/search.ex3.1.png" width="800" />
 
 **Fig. 4**: Example visualizations and statistics produced by `rbpbench search` (SLBP example with `--set-rbp-id`). 
 **a:** Set RBP SLBP motif distances plot. 
@@ -301,7 +301,7 @@ For the example call above, the following statistics and plots are output in the
 Detailed explanations can be found in the corresponding table and plot legends in the HTML file. 
 **Fig. 5** shows the 4 plots produced by the above call:
 
-<img src="docs/batch.ex1.1.png" width="750" />
+<img src="docs/batch.ex1.1.png" width="800" />
 
 **Fig. 5**: Example visualizations and statistics produced by `rbpbench batch` (K562 eCLIP datasets example). 
 **a:** Input datasets k-mer frequencies comparative plot.
