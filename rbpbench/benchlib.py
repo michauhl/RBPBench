@@ -8386,7 +8386,7 @@ def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll,
     data_2d_pca = pca.fit_transform(annots_ll)
     df = pd.DataFrame(data_2d_pca, columns=['PC1', 'PC2'])
     df['Dataset ID'] = dataset_ids_list
-    df['Highest percentage annotation'] = highest_perc_annot_list
+    df['Highest % annotation'] = highest_perc_annot_list
     df['Annotation percentages'] = perc_annot_str_list
 
     explained_variance = pca.explained_variance_ratio_ * 100
@@ -8395,7 +8395,7 @@ def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll,
         df,  # Use the DataFrame directly
         x='PC1',
         y='PC2',
-        color='Highest percentage annotation',
+        color='Highest % annotation',
         color_discrete_map=annot2color_dic,
         # title='2D Visualization with Dataset IDs',
         labels={
@@ -8403,7 +8403,7 @@ def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll,
             'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
         },
         hover_name='Dataset ID',
-        hover_data=['Highest percentage annotation', 'Annotation percentages']
+        hover_data=['Highest % annotation', 'Annotation percentages']
     )
 
     fig.update_traces(
@@ -9581,7 +9581,7 @@ Input dataset ID format: %s. %s
 ## Input datasets exon-intron overlap statistics ### {#ei-ol-stats}
 
 **Table:** Exon, intron + border region overlap statistics for each input dataset.
-Minimum overlap with exon/intron region for input region to be counted as overlapping = %s%% (change via --gtf-eib-min-overlap).
+Minimum overlap between exon/intron region and input region to be counted as overlapping = %s%% (change via --gtf-eib-min-overlap).
 Considered intron border region length = %i nt. Considered exon-intron border region = +/- %i nt relative to border.
 %s
 
@@ -13377,7 +13377,7 @@ mRNA region lengths used for plotting are derived from the %i mRNA regions, usin
         categories = ['Exon\nregions', 'Intron\nregions', '%i nt us\nintron regions' %(intron_bl), '%i nt ds\nintron regions' %(intron_bl), '+/- 50 nt exon\nintron borders']
         percentages = [exon_sites_perc, intron_sites_perc, us_ib_sites_perc, ds_ib_sites_perc, eib_sites_perc]
 
-        fig, ax = plt.subplots(figsize=(8, 4))
+        fig, ax = plt.subplots(figsize=(7.5, 4))
 
         ax.bar(categories, percentages, color='lightgray', zorder=2)
 
@@ -13397,11 +13397,11 @@ mRNA region lengths used for plotting are derived from the %i mRNA regions, usin
         eib_stats_plot_out = plots_out_folder + "/" + eib_stats_plot
         plot_path = plots_folder + "/" + eib_stats_plot
 
-        plt.savefig(eib_stats_plot_out, dpi=125)
+        plt.savefig(eib_stats_plot_out, dpi=135)
 
         if args.plot_pdf and eib_stats_plot_out.endswith('.png'):
             pdf_out = eib_stats_plot_out[:-4] + '.pdf'
-            plt.savefig(pdf_out, dpi=125)
+            plt.savefig(pdf_out, dpi=135)
 
         plt.close()
         mdtext += '<image src = "' + plot_path + '" width="900px"></image>'  + "\n"
@@ -13412,7 +13412,7 @@ mRNA region lengths used for plotting are derived from the %i mRNA regions, usin
 **Figure:** Exon, intron + border region overlap statistics. \# input regions = %i. 
 \# input regions overlapping with exon regions = %i.
 \# input regions overlapping with intron regions = %i.
-Minimum overlap with exon/intron region for input region to be counted as overlapping = %s%% (change via --gtf-eib-min-overlap).
+Minimum overlap between exon/intron region and input region to be counted as overlapping = %s%% (change via --gtf-eib-min-overlap).
 Categories:
 **Exon regions** -> %% of input regions overlapping with exon regions.
 **Intron regions** -> %% of input regions overlapping with intron regions.
@@ -14620,7 +14620,9 @@ def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg
 
     # Scale plot height depending on # of features.
     c_ids = len(rbp2regidx_dic)
-    fheight = 0.8 * c_ids
+    if add_all_reg_bar:
+        c_ids += 1
+    fheight = 0.6 * c_ids
     fwidth = 10
 
     # Get all annotation IDs in dataset.

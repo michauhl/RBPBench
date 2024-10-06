@@ -283,8 +283,8 @@ def setup_argument_parser():
                    dest="cooc_pval_thr",
                    type=float,
                    metavar='float',
-                   default=0.05,
-                   help="RBP co-occurrence p-value threshold for reporting significant co-occurrences. NOTE that if --cooc-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.05)")
+                   default=0.005,
+                   help="RBP co-occurrence p-value threshold for reporting significant co-occurrences. NOTE that if --cooc-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.005)")
     p_s.add_argument("--cooc-pval-mode",
                    dest="cooc_pval_mode",
                    type=int,
@@ -377,8 +377,8 @@ def setup_argument_parser():
                    dest="gtf_eib_min_overlap",
                    type=float,
                    metavar='float',
-                   default=0.9,
-                   help="Minimum amount input region has to overlap with exon (e), intron (i), i + ei borders to be counted as overlapping with these (note that the amount is reciprocal, i.e., one of the overlapping parts meeting the minimum amount is enough) (default: 0.9)")
+                   default=0.5,
+                   help="Minimum amount input region has to overlap with exon (e), intron (i), i + ei borders to be counted as overlapping with these (note that the amount is reciprocal, i.e., one of the overlapping parts meeting the minimum amount is enough) (default: 0.5)")
     p_s.add_argument("--gtf-intron-border-len",
                    dest="gtf_intron_border_len",
                    type=int,
@@ -779,8 +779,8 @@ def setup_argument_parser():
                    dest="gtf_eib_min_overlap",
                    type=float,
                    metavar='float',
-                   default=0.9,
-                   help="Minimum amount input region has to overlap with exon (e), intron (i), i + ei borders to be counted as overlapping with these (note that the amount is reciprocal, i.e., one of the overlapping parts meeting the minimum amount is enough) (default: 0.9)")
+                   default=0.5,
+                   help="Minimum amount input region has to overlap with exon (e), intron (i), i + ei borders to be counted as overlapping with these (note that the amount is reciprocal, i.e., one of the overlapping parts meeting the minimum amount is enough) (default: 0.5)")
     p_b.add_argument("--gtf-intron-border-len",
                    dest="gtf_intron_border_len",
                    type=int,
@@ -1494,8 +1494,8 @@ def setup_argument_parser():
                    dest="cooc_pval_thr",
                    type=float,
                    metavar='float',
-                   default=0.05,
-                   help="RBP co-occurrence p-value threshold for reporting significant co-occurrences. NOTE that if --cooc-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.05)")
+                   default=0.005,
+                   help="RBP co-occurrence p-value threshold for reporting significant co-occurrences. NOTE that if --cooc-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.005)")
     p_scr.add_argument("--cooc-pval-mode",
                    dest="cooc_pval_mode",
                    type=int,
@@ -2398,8 +2398,8 @@ def setup_argument_parser():
                    dest="cooc_pval_thr",
                    type=float,
                    metavar='float',
-                   default=0.05,
-                   help="Motif co-occurrence p-value threshold for reporting significant motif co-occurrences. NOTE that if --cooc-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.05)")
+                   default=0.005,
+                   help="Motif co-occurrence p-value threshold for reporting significant motif co-occurrences. NOTE that if --cooc-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.005)")
     p_em.add_argument("--cooc-pval-mode",
                    dest="cooc_pval_mode",
                    type=int,
@@ -2756,8 +2756,8 @@ def setup_argument_parser():
                    dest="cooc_pval_thr",
                    type=float,
                    metavar='float',
-                   default=0.05,
-                   help="Motif co-occurrence p-value threshold for reporting significant motif co-occurrences. NOTE that if --cooc-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.05)")
+                   default=0.005,
+                   help="Motif co-occurrence p-value threshold for reporting significant motif co-occurrences. NOTE that if --cooc-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.005)")
     p_nm.add_argument("--cooc-pval-mode",
                    dest="cooc_pval_mode",
                    type=int,

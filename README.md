@@ -8,6 +8,7 @@ using a comprehensive collection of known RNA-binding protein (RBP) binding moti
 purposes, from RBP motif search (database or user-supplied RBPs) in genomic regions, 
 over motif enrichment and co-occurrence analysis, 
 to benchmarking CLIP-seq peak caller methods as well as comparisons across cell types and CLIP-seq protocols.
+ADD INFO FOR USER MOTIF SUPPORT
 
 ## Table of contents
 
@@ -124,60 +125,212 @@ ls eclip_clipper_idr | cut -d'_' -f1 | sort | uniq | wc -l
 ```
 
 
-### Motif search in single input dataset
+### Motif search with single input dataset
 
-AALAMO
+#### Search with selected RBPs
 
 For motif search in a single set of genomic input regions (typically CLIP-seq peak regions), 
 we can use `rbpbench search` mode. This mode contains many useful functions 
 and command line options (please check out the help prompt `rbpbench search -h` 
 as well as the [documentation](#documentation) below for more details on the 
-various functionalities of the different modes).
+various functionalities of the different modes). In this first example, we take 
+PUM2 eCLIP regions and search for motifs of PUM1, PUM2, RBFOX2 (see `rbpbench info` for 
+all available RBPs), as well as the regular expression `AATAAA` (known polyadenylation signal sequence, more on regex use [here](#motifs)):
+
+```
+rbpbench search --in eclip_clipper_idr/PUM2_K562_IDR_peaks.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_pum2_ex1_out --rbps PUM2 PUM1 RBFOX2 --ext 10 --regex AATAAA
+```
+
+Here we also extend the input regions by 10 nt up- and downstream (`--ext 10`, for different up- and downstream use e.g. `--ext 0,20`) before search. 
+Fig. 1 shows the plots generated in this example (found in HTML report file `report.rbpbench_search.html`, additional plots can be 
+generated e.g. via `--enable-upset-plot`, `--set-rbp-id`). Detailed explanations on plot contents can be found in the HTML file. 
+Note that apart from HTML reports, RBPBench also outputs various table files (e.g. motif hit regions, region annotations, RBP + motif hit statistics, 
+more details e.g. [here](#hit-statistics-table-files)), which can be later used for comparison or again for motif search.
 
 
-rbpbench search --in eclip_clipper_idr/PUM2_K562_IDR_peaks.bed  --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_pum2_out --rbps ALL --functions TR RSD --regex AATAAA  --cooc-pval-thr 0.001 --min-motif-dist 5  --add-all-reg-bar
+<img src="docs/search.ex1.1.png" width="700" />
+
+**Fig. 1**: Example visualizations produced by `rbpbench search` (PUM2 example). 
+**a:** RBP motif co-occurrences heat map. 
+**b:** Input sequence length distribution plot.
+**c:** Exon-intron overlap statistics.
+**d:** Region annotations per RBP.
+**e:** mRNA region coverage profile.
+Note that for plotting purposes the interactive plots (here and subsequent figures) appear more cramped than in the HTML reports.
+
+**Fig. 1a** shows the RBP motif co-occurrences heat map (color scale values are -log10 of Fisher's exact test p-value), 
+visualizing significant RBP motif co-occurrences ([details](#co-occurrence-statistics)). 
+We can see that PUM2 and PUM1 binding motifs frequently co-occur, which makes sense since their database motifs are very similar 
+(to visualize all selected RBP motifs in HMTL, add `--plot-motifs` and 
+inspect `motif_plots.rbpbench_search.html`, example entry shown in **Fig. 2**). 
+We also see significant co-occurrences of `AATAAA` regex hits with PUM2 and PUM1, which too is reasonable since 
+PUM2 binding sites tend to be in 3'UTR regions, often also towards their ends (as shown in **Fig. 1e**).
+In contrast, RBFOX2 motif hits are less frequent and show no significant co-occurrence (expected since RBFOX2 
+is known to be involved in splicing regulation). **Fig. 1b** shows the distribution of input sequence lengths, including 
+the sequences and motif hits for each sequence. **Fig. 1c** provides exon-intron overlap statistics of the input regions, 
+including exon-intron border regions. **Fig. 1d** shows genomic region annotations for all input regions (add `--add-all-reg-bar`), 
+as well as the regions with motif hits for each specified RBP. **Fig. 1e** displays the coverage of mRNA regions (5'UTR, CDS, 3'UTR) 
+by the input regions. All three plots (**Fig. 1c-e**) confirm PUM2's known binding preferences 
+(namely spliced exonic RNA, specifically 3'UTR regions).
+
+<img src="docs/search.ex1.2.png" width="550" />
+
+**Fig. 2**: Example entry for RBP RBFOX2 from `motif_plots.rbpbench_search.html`. 
+The `--plot-motifs` HTML report visualizes the selected motifs, provides literature references, 
+as well as motif hit counts and genomic region annotations for the motif hit regions themselves.
 
 
-rbpbench search --in eclip_clipper_idr/SLBP_K562_IDR_peaks.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_slbp_out  --rbps ALL --ext 10 --functions TEP --regex AATAAA --bed-sc-thr 3 --cooc-pval-thr 0.001 --min-motif-dist 5 --add-all-reg-bar
-rbpbench search --in eclip_clipper_idr/SLBP_K562_IDR_peaks.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_slbp_out  --rbps ALL --ext 10 --functions TEP --regex AATAAA --bed-sc-thr 3 --cooc-pval-thr 0.05 --min-motif-dist 5 --add-all-reg-bar
+#### Search with all RBPs
 
-What table to see which genes have hnrnpk motif hits ?
+To search with all database RBP motifs in a single set of genomic input regions, we can use `--rbps ALL`. 
+The motif database can be changed via `--motif-db` (details on motif selection [here](#motifs)), and the user can also define 
+own motifs or even a motif database ([details](#custom-motif-database). Moreover, RBPs can be filtered by
+annotated functions (`--functions`, [details](#rbp-functions)). For this example we use the SLBP eCLIP regions, 
+select all RBPs, further filter them by some annotated functions, and we also conduct a GO term enrichment analysis 
+on the input regions:
 
-Run parameter settings:
-test_search_slbp_out/settings.rbpbench_search.out
-RBP co-occurrence stats .tsv:
-test_search_slbp_out/rbp_cooc_stats.tsv
-Filtered input regions .bed:
-test_search_slbp_out/in_sites.filtered.bed
-Filtered input regions .fa:
-test_search_slbp_out/in_sites.filtered.fa
-Motif hits .bed:
-test_search_slbp_out/motif_hits.rbpbench_search.bed
-RBP region occupancies .tsv:
-test_search_slbp_out/rbp_region_occupancies.tsv
-RBP hit stats .tsv:
-test_search_slbp_out/rbp_hit_stats.tsv
-Motif hit stats .tsv:
-test_search_slbp_out/motif_hit_stats.tsv
-Region annotations .tsv:
-test_search_slbp_out/region_annotations.tsv
-Search report .html:
-test_search_slbp_out/report.rbpbench_search.html
+```
+rbpbench search --in eclip_clipper_idr/SLBP_K562_IDR_peaks.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_slbp_tr_rsd_tep_out --functions TR RSD TEP  --rbps ALL --ext 20 --goa
+```
+
+Here we filter the selected RBPS (i.e., all RBPs) to keep only RBPS with annotated functions translation regulation (TR),
+RNA stability & decay (RSD), and 3' end processing (TEP). This results in 91 RBPs for search (out of 257), 
+with 260 motifs (out of 599). 
+
+<img src="docs/search.ex2.1.png" width="700" />
+
+**Fig. 3**: Example visualizations and statistics produced by `rbpbench search` (SLBP example). 
+**a:** RBP motif co-occurrences heat map. 
+**b:** RBP region score motif enrichment statistics.
+**c:** GO enrichment analysis results.
+**d:** mRNA region coverage profile.
+
+**Fig. 3** shows some of the resulting plots and statistics from the HTML report. 
+**Fig. 3a** again shows the RBP motif co-occurrences heat map, this time between the 91 selected RBPs.
+**Fig. 3b** presents the RBP region score motif enrichment statistics table ([details](#input-region-score-motif-enrichment-statistics)).
+This in short checks whether any of the RBP motifs (on RBP level) tend to occur more often in higher scoring input regions. 
+As default, BED column 5 is used as score (change via `--bed-score-col`), which in the input examples is the log2 fold change of 
+the CLIP site. We can see that SLBP has the lowest p-value here, 
+as expected (assuming that the region score is to some extent indicative of binding site quality 
+or binding affinity), showing that the statistic can be useful e.g. to check for 
+dataset quality, or for co-enriched RBP motifs.
+**Fig. 3c** shows the GO term enrichment analysis results. 
+As expected for SLBP, we can see many chromatin related terms in the top GO terms (more on GOA settings [here](#go-term-analysis)).
+**Fig. 3d** again depicts the mRNA region coverage profile, this time for SLBP (see **Fig. 1e** for PUM2 profile). 
+Note that the relative mRNA region lengths in the plot can change, depending on the number of input regions and on 
+which mRNAs these map.
+
+To take a closer look at how motif hits are distributed around a specific RBP, we can specify the RBP to focus on via `set-rbp-id`:
+
+```
+rbpbench search --in eclip_clipper_idr/SLBP_K562_IDR_peaks.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_slbp_tr_rsd_tep_gh_out --functions TR RSD TEP  --rbps ALL --ext 20 --set-rbp-id SLBP --greatest-hits
+```
+
+Here we also enable `--greatest-hits`, meaning that for each input region only the motif hit with the 
+lowest p-value gets reported. This has an impact on the co-occurrence heat map statistics, namely through 
+changing the mean minimum motif distance (if we want to filter by this via setting `--min-motif-dist` to > 0, 
+[details](#co-occurrence-statistics)), but also on the distance plots that get produced in the example (**Fig. 4**).
+This way we can focus for each RBP motif on the best motif hit for each input region (by default all 
+hits are included in the outputs and analysis).
+
+<img src="docs/search.ex3.1.png" width="700" />
+
+**Fig. 4**: Example visualizations and statistics produced by `rbpbench search` (SLBP example with `--set-rbp-id`). 
+**a:** Set RBP SLBP motif distances plot. 
+**b:** Motif distance statistics table.
+
+**Fig. 4a** shows the distances of other RBP motifs relative to the set RBP (SLBP here), resulting in a 
+coverage plot for each RBP that passes the filter thresholds (default minimum motif pair count 10, set via `--rbp-min-pair-count`).  
+This plot is generated both on the RBP level, but also on the single RBP motif level (so for each motif associated 
+with the set RBP, **Fig. 4a** shows RBP level). 
+**Fig. 4b** shows the RBP motifs most frequently observed in the neighborhood of the set RBP (here on motif level).
+These plots give us an idea which motifs occur at which distances in the input regions. 
+To get a more fine-grained picture of co-occurrences on the single motif level, 
+including signifying motif enrichment in input regions, 
+we can use `rbpbench enmo` and `rbpbench nemo` (more details in examples below and [here](#motifs)).
 
 
-region_annotations.tsv
+### Motif search with multiple input datasets
 
-region_id	gene_id	gene_name	transcript_id	region_annotation	transcript_biotype
-chr9:127813745-127813823(+)	ENSG00000136877	FPGS	ENST00000373247	3'UTR	protein_coding
-chr6:26021705-26021766(+)	ENSG00000278637	H4C1	ENST00000617569	CDS	protein_coding
-rbp_region_occupancies.tsv
-#region_id \ rbp_id	CPEB1	CPEB4	CPSF6	CPSF7	CSTF2	CSTF2T	FIP1L1	HNRNPH2	HNRNPK	LSM11	MTPAP	NELFE	NOVA1	PABPN1	SLBP	SNRPA	SRSF3	SRSF7	SSB	SUPV3L1	regex
-chr11:119094825-119094878(-)	0	0	0	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	0	0	0
+RBPBench also supports batch processing of multiple input datasets (`rbpbench batch`), i.e., 
+to run motif search on multiple input datasets.
+This allows us to learn more about 
+general, group- or set-specific features for a large number of CLIPseq datasets, 
+by inspecting the generated HTML batch report plots and statistics.
+In addition, it can be used to generate the input files for benchmarking peak callers, 
+or to do CLIP protocol or cell type comparisons, using `rbpbench compare`.
+
+A batch of input BED regions can be provided to `rbpbench batch` in several ways, e.g. completely via the command line.
+However, for a large set of input datasets, the easiest way is to provide a table file where one specifies
+the RBP used for search, the method ID and the data ID (to define what gets compared in `rbpbench compare`), and the path 
+to the BED file. For example, the first three lines of our K562 (a cell type) eCLIP example table file look like this:
+
+```
+head -3 eclip_clipper_idr.k562.batch_in.txt
+AGGF1	clipper_idr	K562_eclip	eclip_clipper_idr/AGGF1_K562_IDR_peaks.bed
+AKAP1	clipper_idr	K562_eclip	eclip_clipper_idr/AKAP1_K562_IDR_peaks.bed
+BUD13	clipper_idr	K562_eclip	eclip_clipper_idr/BUD13_K562_IDR_peaks.bed
+```
+
+To run `rbpbench batch` on all the 88 K562 eCLIP sets (one line per set) specified in the table file:
+
+```
+rbpbench batch --bed eclip_clipper_idr.k562.batch_in.txt --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --ext 10 --out batch_K562_eclip_clipper_idr_out --regex AATAAA
+```
+
+Note that we again use a regex, which conveniently allows us to check enrichment and co-occurrences of this regex in all input datasets. 
+Also note that many of the generated batch statistics and plots are independent of motif hit statistics, i.e., they rather look 
+at genomic annotations, occupied genes, or sequence content of input regions. This makes `rbpbench batch` a great solution for 
+comparing a large number of existing CLIPseq datasets to a specific dataset of your interest (e.g., derived from CLIPseq or similar protocols), 
+to quickly check for differences and similarities between the datasets.
+The output results folder again contains several table files (e.g. the hit statistics files used as inputs to `rbpbench compare`, [details](#hit-statistics-table-files)),
+as well the HTML report file `report.rbpbench_batch.html`, containing various comparative plots and statistics. 
+For the example call above, the following statistics and plots are output in the HTML report file:
+
+1. Input datasets sequence length statistics table
+2. Input datasets exon-intron overlap statistics table
+3. Input datasets region score motif enrichment statistics table
+4. Regular expression region score motif enrichment statistics table
+5. Regular expression RBP motif co-occurrence statistics table
+6. Input datasets k-mer frequencies comparative plot
+7. Input datasets occupied gene regions comparative plot
+8. Input datasets occupied gene regions similarity heat map
+9. Input datasets genomic region annotations comparative plot
+10. Plus a genomic regions annotation plot for each input dataset
+
+Detailed explanations can be found in the corresponding table and plot legends in the HTML file. 
+**Fig. 5** shows the 4 plots produced by the above call:
+
+<img src="docs/batch.ex1.1.png" width="700" />
+
+**Fig. 5**: Example visualizations and statistics produced by `rbpbench batch` (K562 eCLIP datasets example). 
+**a:** Input datasets k-mer frequencies comparative plot.
+**b:** Input datasets occupied gene regions comparative plot.
+**c:** Input datasets occupied gene regions similarity heat map.
+**d:** Input datasets genomic region annotations comparative plot.
+
+**Fig. 5a** plot compares the input datasets by the k-mer frequencies of their site sequences 
+(by default 5-mer frequncies, change via `--kmer-size`, 3D-PCA dimensionality reduction). 
+In addition, for each dataset, the top 10 5-mer frequencies are given in the hover box. This way 
+we can quickly assess sequence similarities and dissimilarities between input datasets.
+**Fig. 5b** plot again uses 3D-PCA, this time on the occupied gene regions for each input dataset.
+Here we can quickly spot e.g. datasets with very low numbers of occupied genes, or in general 
+datasets with similar gene occupancy profiles.
+**Fig. 5c** further extends on occupied genes statistics, this time using the cosine similarity 
+to measure the similarity in occupied genes between datasets. In addition, the datasets are ordered 
+based on hierarchical clustering, resulting in similar datasets appearing close together on the axes.
+This allows us to spot groups of datasets which have similar occupancy profiles.
+**Fig. 5d** gives us the genomic region annotations for each input dataset, again using 3D-PCA to 
+reduce dimensions. Moreover, datasets are colored by the highest percentage annotation, allowing 
+us to identify groups of input datasets with similar binding characteristics (e.g. the blue dots 
+represent datasets whose regions primarily overlap with 3'UTR regions). If a regex is supplied, 
+this also shows up here, meaning over all datasets, the regex hit regions are annotated 
+and appear in the plot.
 
 
 
 
-Then go for enmo/nemo
+
 
 
 
