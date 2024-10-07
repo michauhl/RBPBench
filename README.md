@@ -164,7 +164,7 @@ We can see that PUM2 and PUM1 binding motifs frequently co-occur, which makes se
 (to visualize all selected RBP motifs in HMTL, add `--plot-motifs` and 
 inspect `motif_plots.rbpbench_search.html`, example entry shown in **Fig. 2**). 
 We also see significant co-occurrences of `AATAAA` regex hits with PUM2 and PUM1, which too is reasonable since 
-PUM2 binding sites tend to be in 3'UTR regions, often also towards their ends (as shown in **Fig. 1e**).
+PUM2 binding sites tend to be in 3'UTR regions, often also towards their ends (as showcased in **Fig. 1e**).
 In contrast, RBFOX2 motif hits are less frequent and show no significant co-occurrence (expected since RBFOX2 
 is known to be involved in splicing regulation). **Fig. 1b** shows the distribution of input sequence lengths, including 
 the sequences and motif hits for each sequence. **Fig. 1c** provides exon-intron overlap statistics of the input regions, 

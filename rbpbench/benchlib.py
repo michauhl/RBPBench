@@ -5158,7 +5158,6 @@ def gtf_check_exon_order(in_gtf):
     return check
 
 
-
 ################################################################################
 
 def gtf_output_gene_regions_to_bed(in_gtf, out_bed,
@@ -5176,8 +5175,6 @@ def gtf_output_gene_regions_to_bed(in_gtf, out_bed,
         0: do not change
         1: change to chr1, chr2 ...
         2: change to 1, 2, 3, ...
-
-    AALAMO
 
     """
 
@@ -12615,7 +12612,10 @@ percentage = 0.09765625. R2 = %.6f.
 ################################################################################
 
 def create_kmer_sc_plotly_scatter_plot(pos_mer_dic, neg_mer_dic, k,
-                                       out_html, plotly_js):
+                                       out_html, plotly_js,
+                                       pos_label="k-mer % input",
+                                       neg_label="k-mer % background",
+                                       kmer_label="k-mer"):
     """
     Create plotly graph plot, containing k-mer scores of positive
     and negative set, and store in .html file.
@@ -12636,9 +12636,6 @@ def create_kmer_sc_plotly_scatter_plot(pos_mer_dic, neg_mer_dic, k,
     assert neg_mer_dic, "given neg_mer_dic empty"
     assert len(pos_mer_dic) == len(neg_mer_dic), "len(pos_mer_dic) != len(neg_mer_dic)"
 
-    pos_label = "k-mer % input"
-    neg_label = "k-mer % background"
-    kmer_label = "k-mer"
     data = {pos_label : [], neg_label : [], kmer_label : []}
 
     max_pos_perc = 0
@@ -12750,6 +12747,146 @@ def calc_r2_corr_measure(scores1, scores2,
 
 ################################################################################
 
+def split_regions_by_sc(reg2sc_dic, top_n=False, bottom_n=False,
+                        rev_sort=True):
+    """
+    Split region -> score dictionary by score. Return top_n and bottom_n
+    regions.
+
+    If top_n and bottom_n not set, split regions sorted by score 
+    at the midpoint.
+    If top_n and not bottom_n, split regions at the top_n.
+    If bottom_n and not top_n, split regions at the bottom_n.
+    If top_n and bottom_n, return the top_n and bottom_n regions.
+    If any of top_n, bottom_n or top_n + bottom_n > len(reg2sc_dic),
+    split regions at midpoint.
+
+    rev_sort: 
+        If True, the regions are sorted in descending order of scores, 
+        so higher scores means better regions.
+
+    >>> reg2sc_dic = {}
+    >>> reg2sc_dic["reg1"] = 0.1
+    >>> reg2sc_dic["reg2"] = 0.2
+    >>> reg2sc_dic["reg3"] = 0.3
+    >>> reg2sc_dic["reg4"] = 0.4
+    >>> reg2sc_dic["reg5"] = 0.5
+    >>> reg2sc_dic["reg6"] = 0.6
+    >>> reg2sc_dic["reg7"] = 0.7
+    >>> reg2sc_dic["reg8"] = 0.8
+    >>> split_regions_by_sc(reg2sc_dic)
+    (['reg8', 'reg7', 'reg6', 'reg5'], ['reg4', 'reg3', 'reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, top_n=2)
+    (['reg8', 'reg7'], ['reg6', 'reg5', 'reg4', 'reg3', 'reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, top_n=10)
+    (['reg8', 'reg7', 'reg6', 'reg5'], ['reg4', 'reg3', 'reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, bottom_n=2)
+    (['reg8', 'reg7', 'reg6', 'reg5', 'reg4', 'reg3'], ['reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, bottom_n=10)
+    (['reg8', 'reg7', 'reg6', 'reg5'], ['reg4', 'reg3', 'reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, top_n=2, bottom_n=2)
+    (['reg8', 'reg7'], ['reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, top_n=10, bottom_n=10)
+    (['reg8', 'reg7', 'reg6', 'reg5'], ['reg4', 'reg3', 'reg2', 'reg1'])
+    >>> reg2sc_dic = {}
+    >>> reg2sc_dic["reg1"] = 0.1
+    >>> reg2sc_dic["reg2"] = 0.2
+    >>> reg2sc_dic["reg3"] = 0.3
+    >>> reg2sc_dic["reg4"] = 0.4
+    >>> reg2sc_dic["reg5"] = 0.5
+    >>> reg2sc_dic["reg6"] = 0.6
+    >>> reg2sc_dic["reg7"] = 0.7
+    >>> split_regions_by_sc(reg2sc_dic)
+    (['reg7', 'reg6', 'reg5'], ['reg4', 'reg3', 'reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, top_n=2)
+    (['reg7', 'reg6'], ['reg5', 'reg4', 'reg3', 'reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, top_n=10)
+    (['reg7', 'reg6', 'reg5'], ['reg4', 'reg3', 'reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, bottom_n=2)
+    (['reg7', 'reg6', 'reg5', 'reg4', 'reg3'], ['reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, bottom_n=10)
+    (['reg7', 'reg6', 'reg5'], ['reg4', 'reg3', 'reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, top_n=2, bottom_n=2)
+    (['reg7', 'reg6'], ['reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, top_n=10, bottom_n=10)
+    (['reg7', 'reg6', 'reg5'], ['reg4', 'reg3', 'reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, rev_sort=False)
+    (['reg1', 'reg2', 'reg3'], ['reg4', 'reg5', 'reg6', 'reg7'])
+    >>> split_regions_by_sc(reg2sc_dic, top_n=2, bottom_n=2, rev_sort=False)
+    (['reg1', 'reg2'], ['reg6', 'reg7'])
+    >>> split_regions_by_sc(reg2sc_dic, bottom_n=2, rev_sort=False)
+    (['reg1', 'reg2', 'reg3', 'reg4', 'reg5'], ['reg6', 'reg7'])
+    
+    """
+
+    sorted_reg2sc = sorted(reg2sc_dic.items(), key=lambda item: item[1], reverse=rev_sort)
+
+    midpoint = len(sorted_reg2sc) // 2
+    top = []
+    bottom = []
+
+    if top_n and bottom_n:
+        if top_n + bottom_n > len(sorted_reg2sc):
+            top = sorted_reg2sc[:midpoint]
+            bottom = sorted_reg2sc[midpoint:]
+        else:
+            top = sorted_reg2sc[:top_n]
+            bottom = sorted_reg2sc[-bottom_n:]
+    elif top_n and not bottom_n:
+        if top_n > len(sorted_reg2sc):
+            top = sorted_reg2sc[:midpoint]
+            bottom = sorted_reg2sc[midpoint:]
+        else:
+            top = sorted_reg2sc[:top_n]
+            bottom = sorted_reg2sc[top_n:]
+    elif bottom_n and not top_n:
+        if bottom_n > len(sorted_reg2sc):
+            top = sorted_reg2sc[:midpoint]
+            bottom = sorted_reg2sc[midpoint:]
+        else:
+            top = sorted_reg2sc[:-bottom_n]
+            bottom = sorted_reg2sc[-bottom_n:]
+    else:
+        top = sorted_reg2sc[:midpoint]
+        bottom = sorted_reg2sc[midpoint:]
+
+    top_ids = [item[0] for item in top]
+    bottom_ids = [item[0] for item in bottom]
+
+    return top_ids, bottom_ids
+
+
+################################################################################
+
+def calc_exp_kmer_perc(kmer_k):
+    """
+    Calculate k-mer percentage in case of a  uniform distribution.
+    E.g.
+    kmer_k = 1
+    4^1 = 4 possible kmers
+    1/4 = 0.25 = 25 kmer percentage (return this value).
+    
+    >>> calc_exp_kmer_perc(1)
+    25.0
+    >>> calc_exp_kmer_perc(2)
+    6.25
+    >>> calc_exp_kmer_perc(3)
+    1.5625
+    >>> calc_exp_kmer_perc(4)
+    0.390625
+    >>> calc_exp_kmer_perc(5)
+    0.09765625
+    >>> calc_exp_kmer_perc(0)
+    100.0
+
+    """
+
+    kmer_perc = 1 / (4 ** kmer_k) * 100
+    return kmer_perc
+
+
+################################################################################
+
 def search_generate_html_report(args,
                                 df_pval, pval_cont_lll,
                                 search_rbps_dic,
@@ -12773,6 +12910,8 @@ def search_generate_html_report(args,
                                 rbpbench_mode="search --report",
                                 disable_motif_enrich_table=False,
                                 reg_seq_str="regions",
+                                reg2seq_dic=False,
+                                reg2sc_dic=False,
                                 plots_subfolder="html_report_plots"):
     """
     Create additional hit statistics for selected RBPs, 
@@ -12919,6 +13058,10 @@ def search_generate_html_report(args,
     motif_enrich_info = "- [RBP region score motif enrichment statistics](#rbp-enrich-stats)"
     if disable_motif_enrich_table:
         motif_enrich_info = ""
+    if motif_enrich_info and args.kmer_plot:
+        motif_enrich_info += "\n- [Top vs bottom scoring regions k-mer distribution](#kmer-dist)"
+    elif not motif_enrich_info and args.kmer_plot:
+        motif_enrich_info = "- [Top vs bottom scoring regions k-mer distribution](#kmer-dist)"
 
     # Markdown part.
     mdtext = """
@@ -13066,16 +13209,95 @@ By default, BED genomic regions input file column 5 is used as the score column 
         mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
         mdtext += "\n&nbsp;\n"
 
+    """
+    Top vs bottom scoring regions k-mer distribution
+    #kmer-dist
+
+    reg2sc_dic:
+        region ID -> score dictionary.
+
+    """
+    if args.kmer_plot:
+
+        top_seqs_dic = {}
+        bottom_seqs_dic = {}
+
+        rev_sort = True  # True if scores (i.e. the higher the better site quality).
+        if args.bed_sc_thr_rev_filter:  # If scores are e.g. p-values, reverse filtering.
+            rev_sort = False
+
+        top_ids, bottom_ids = split_regions_by_sc(reg2sc_dic, 
+                                                  top_n=args.kmer_plot_top_n, 
+                                                  bottom_n=args.kmer_plot_bottom_n,
+                                                  rev_sort=rev_sort)
+
+        c_top_sites = len(top_ids)
+        c_bottom_sites = len(bottom_ids)
+
+        for reg_id in top_ids:
+            top_seqs_dic[reg_id] = reg2seq_dic[reg_id]
+        for reg_id in bottom_ids:
+            bottom_seqs_dic[reg_id] = reg2seq_dic[reg_id]
+
+        top_kmer_dic = seqs_dic_count_kmer_freqs(top_seqs_dic, args.kmer_plot_k, 
+                                                 rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
+                                                 convert_to_uc=True)
+        bottom_kmer_dic = seqs_dic_count_kmer_freqs(bottom_seqs_dic, args.kmer_plot_k, 
+                                                    rna=False,
+                                                    return_ratios=True,
+                                                    perc=True,
+                                                    report_key_error=False,
+                                                    skip_non_dic_keys=True,
+                                                    convert_to_uc=True)
 
 
-    #     mdtext += "\n&nbsp;\n&nbsp;\n"
-    #     mdtext += "\nColumn IDs have the following meanings: "
-    #     mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
-    #     mdtext += '**# hit regions** -> number of input genomic regions with motif hits (after filtering and optional extension), '
-    #     mdtext += '**% hit regions** -> percentage of hit regions over all regions (i.e. how many input regions contain >= 1 RBP binding motif), '
-    #     mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
-    #     mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
-    #     mdtext += "\n&nbsp;\n"
+
+        mdtext += """
+## Top vs bottom scoring regions k-mer distribution ### {#kmer-dist}
+
+"""
+
+        plotly_kmer_plot = "plotly_scatter_kmer.html"
+        plotly_kmer_plot_out = plots_out_folder + "/" + plotly_kmer_plot
+
+        # Create k-mer plotly scatter plot.
+        create_kmer_sc_plotly_scatter_plot(top_kmer_dic, bottom_kmer_dic, args.kmer_plot_k,
+                                           plotly_kmer_plot_out, plotly_js_path,
+                                           pos_label=f"{args.kmer_plot_k}-mer % top scoring sites",
+                                           neg_label=f"{args.kmer_plot_k}-mer % bottom scoring sites",
+                                           kmer_label=f"{args.kmer_plot_k}-mer")
+
+        # Plot paths inside html report.
+        plotly_kmer_plot_path = plots_folder + "/" + plotly_kmer_plot
+
+        # R2 score.
+        r2_kmer = calc_r2_corr_measure(top_kmer_dic, bottom_kmer_dic,
+                                       is_dic=True)
+
+        # Expected k-mer percentage.
+        exp_kmer_perc = calc_exp_kmer_perc(args.kmer_plot_k)
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            js_code = read_file_content_into_str_var(plotly_kmer_plot_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:800px; width:800px;")
+            mdtext += js_code + "\n"
+        else:
+            mdtext += "<div>\n"
+            mdtext += '<iframe src="' + plotly_kmer_plot_path + '" width="800" height="800"></iframe>' + "\n"
+            mdtext += '</div>'
+
+        mdtext += """
+
+**Figure:** Sequence %i-mer percentages in the top %i scoring and bottom %i scoring input sites. In case of
+a uniform distribution with all %i-mers present, each %i-mer would have a percentage = %s. R2 = %.6f.
+
+&nbsp;
+
+""" %(args.kmer_plot_k, c_top_sites, c_bottom_sites, args.kmer_plot_k, args.kmer_plot_k, str(exp_kmer_perc), r2_kmer)
 
 
     """

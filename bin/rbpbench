@@ -308,6 +308,29 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Disable input sequence length distribution plot in HTML report (default: False)")
+    p_s.add_argument("--kmer-plot",
+                   dest="kmer_plot",
+                   default = False,
+                   action = "store_true",
+                   help = "Generate k-mer distribution plot, comparing input top scoring sites vs bottom scoring sites. By default, split point is the middle point, i.e., top 50 percent vs bottom 50 percent scoring sites (default: False)")
+    p_s.add_argument("--kmer-plot-top-n",
+                   dest="kmer_plot_top_n",
+                   type=int,
+                   metavar='int',
+                   default=False,
+                   help="Set number of top scoring sites to use for --kmer-plot. By default, top and bottom is split in half (default: False)")
+    p_s.add_argument("--kmer-plot-bottom-n",
+                   dest="kmer_plot_bottom_n",
+                   type=int,
+                   metavar='int',
+                   default=False,
+                   help="Set number of bottom scoring sites to use for --kmer-plot. By default, top and bottom is split in half (default: False)")
+    p_s.add_argument("--kmer-plot-k",
+                   dest="kmer_plot_k",
+                   type=int,
+                   metavar='int',
+                   default=5,
+                   help="Define k for --kmer-plot (default: 5)")
     p_s.add_argument("--enable-upset-plot",
                    dest="enable_upset_plot",
                    default = False,
@@ -3396,6 +3419,8 @@ def main_search(args):
     assert benchlib.boundary_check(args.gtf_eib_min_overlap, 1E-9, 1.0), "set --gtf-eib-min-overlap expected to be >= 1E-9 and <= 1.0"
     assert benchlib.boundary_check(args.gtf_intron_border_len, 1, 1000), "set --gtf-intron-border-eln expected to be >= 1 and <= 1000"
     assert benchlib.boundary_check(args.min_motif_dist, 0, 1000), "set --min-motif-dist expected to be >= 0 and <= 1000"
+    assert benchlib.boundary_check(args.kmer_plot_k, 1, 7), "set --kmer-plot-k expected to be >= 1 and <= 7"
+
     # if args.in_gtf:
     #     assert args.report, "set --gtf requires --report to be effective"
     assert args.upset_plot_min_rbp_count >= 0, "set --upset-plot-min-rbp-count needs to be >= 0"
@@ -6084,6 +6109,8 @@ def main_search(args):
                                         goa_stats_dic=goa_stats_dic,
                                         html_report_out=html_report_out,
                                         reg_seq_str="regions",
+                                        reg2seq_dic=out_seqs_dic,
+                                        reg2sc_dic=reg2sc_dic,
                                         plots_subfolder=plots_subfolder)
 
 
