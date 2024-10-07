@@ -9029,8 +9029,8 @@ def goa_generate_html_report(goa_results_df, goa_stats_dic,
     assert os.path.exists(sorttable_js_path), "sorttable.js not at %s" %(sorttable_js_path)
     sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
     if sort_js_mode == 2:
-        shutil.copy(sorttable_js_path, plots_out_folder)
-        sorttable_js_path = plots_folder + "/sorttable.js"
+        shutil.copy(sorttable_js_path, out_folder)
+        sorttable_js_path = out_folder + "/sorttable.js"
         sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
     elif sort_js_mode == 3:
         js_code = read_file_content_into_str_var(sorttable_js_path)

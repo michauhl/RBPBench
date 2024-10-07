@@ -247,7 +247,14 @@ with the set RBP, **Fig. 4a** shows RBP level).
 These plots give us an idea which motifs occur at which distances in the input regions. 
 To get a more fine-grained picture of co-occurrences on the single motif level, 
 including signifying motif enrichment in input regions, 
-we can use `rbpbench enmo` and `rbpbench nemo` (more details in examples below and [here](#motifs)).
+we can use `rbpbench enmo` and `rbpbench nemo` (more details in examples below and [here](#motifs)). 
+Alternatively, single motifs can be selected in the various search modes using `--motifs` followed 
+by the motif ID(s) of interest. For example, to select only the first two PUM2 motifs out of all PUM2 motifs 
+for search:
+
+```
+rbpbench search --in eclip_clipper_idr/PUM2_K562_IDR_peaks.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_pum2_1_2_out --rbps PUM2 --ext 10 --motifs PUM2_1 PUM2_2
+```
 
 
 ### Motif search with multiple input datasets
@@ -336,55 +343,110 @@ and appear in the plot.
 
 ### Compare search results
 
+To compare peak calling methods or conditions based on motif hit results, we can use the RBPBench search modes 
+(typically `rbpbench search` or `rbpbench batch`).
+For example, we can take the following input table for `rbpbench batch`:
+
 ```
 cat batch_compare_test.batch_in.txt
-PUM1	clipper_rep1	k562_eclip	batch_compare_test/PUM1.k562_eclip.clipper_rep1.bed
-PUM1	clipper_rep2	k562_eclip	batch_compare_test/PUM1.k562_eclip.clipper_rep2.bed
 PUM1	clipper_idr	k562_eclip	batch_compare_test/PUM1.k562_eclip.clipper_idr.bed
 PUM1	dewseq_w100_s5	k562_eclip	batch_compare_test/PUM1.k562_eclip.dewseq_w100_s5.bed
 RBFOX2	clipper_idr	hepg2_eclip	batch_compare_test/RBFOX2.hepg2_eclip.clipper_idr.bed
 RBFOX2	clipper_idr	k562_eclip	batch_compare_test/RBFOX2.k562_eclip.clipper_idr.bed
 ```
+
+Here we essentially have two comparisons defined for us (details how to define comparisons [here](#comparisons-between-search-results)):
+
+1. compare the two peak calling methods `clipper_idr`, `dewseq_w100_s5` based on common RBP ID `PUM1` and condition `k562_eclip`
+2. compare the two conditions `hepg2_eclip`, `k562_eclip` based on common RBP ID `RBFOX2` and peak calling method `clipper_idr`
+
+We thus first run `rbpbench batch` to search for motifs in these datasets:
 
 ```
 rbpbench batch --bed batch_compare_test.batch_in.txt --genome hg38.fa --ext 10 --out test_batch_out
 ```
 
+Then we simply provide the batch search output folder to `rbpbench compare` (multiple folders can be supplied as well), 
+and `rbpbench compare` will find all compatible combinations in these folders and do the comparisons by:
+
 ```
 rbpbench compare --in test_batch_out --out test_compare_out
 ```
 
+Each comparison (two in this example) gets its own section in the output HTML report file `test_compare_out/report.rbpbench_compare.html`. 
+For each comparison, a comparison statistics table and a Venn diagram is created. The table has the following format:
 
-Comparisons between search results
+| Column name | Description |
+|:--------------:|:--------------:|
+| Method/Data ID | Method/Data ID that gets compared (typically peak calling method or condition) |
+| # regions | Number of input regions used for motif search |
+| # motif hits | Number of unique motif hits in input regions (removed double counts) |
+| % regions with motifs | Percentage of input regions with motif hits |
+| % motif nucleotides | Percentage of unique motif nucleotides over effective input region size (overlapping regions merged) |
+| # motif hits per 1000 nt | Number of motif hits over 1000 nt of called input region size (overlapping regions NOT merged) |
+
+This information sums up the performance of the peak calling method, using the motif hit statistics
+as performance metrics. More infos on motif hit statistics can be found [here](#handling-genomic-overlaps) (on unique hits) and [here](#hit-statistics-table-files) (on motif hit statistics). For the `PUM1` comparison:, we get the following table:
+
+| Method ID | # regions | # motif hits | % regions with motifs | % motif nucleotides | # motif hits per 1000 nt |
+|:--------------:|:--------------:|:--------------:|:--------------:|:--------------:|:--------------:|
+| clipper_idr | 2661 | 438 | 12.33 | 1.52 | 2.04 |
+| dewseq_w100_s5 | 1583 | 664 | 23.88 | 1.65 | 2.31 |
+
+Note that the number of hits (in `rbpbench search`, `rbpbench batch ` etc.) is influenced by various search parameters, 
+e.g., the input region extension (here `--ext 10`), or the motif hit threshold (for FIMO sequence motif search change via `--fimo-pval`). 
+Longer input regions and more relaxed thresholds naturally lead to more motifs hits, and thus can change the comparison results, 
+although the basic trends tend to stay similar. 
+In this example, we can see that for the PUM1 dataset, 23.88 % of DEWSeq peak regions contain >= 1 PUM1 motif hit (CLIPper IDR 12.33 %). We can also see that the number of motif hits over 1,000 nt called peak region size is higher for DEWSeq (2.31 vs. 2.04).
+
+As for second comparison (RBP ID: `RBFOX2`, peak calling method: `clipper_idr`, comparing conditions / cell types HepG2 + K562), we get this table:
+
+| Data ID | # regions | # motif hits | % regions with motifs | % motif nucleotides | # motif hits per 1000 nt |
+|:--------------:|:--------------:|:--------------:|:--------------:|:--------------:|:--------------:|
+| hepg2_eclip | 7477 | 7118 | 41.25 | 3.26 | 10.44 |
+| k562_eclip | 3525 | 2768 | 32.94 | 2.55 | 8.27 |
+
+We can see that the eCLIP data from the HepG2 cell type in general contains more 
+motif hits (absolute and percentage-wise), 
+which can hint at the quality of the experimental data.
+
+As any given genomic motif hit can either be found only by one method, or be identified by any set (>=2) of methods, it makes sense to visualize this information as a Venn diagram.
+For the two comparisons, the produced Venn diagrams looks like this:
+
+<img src="docs/compare.ex1.1.png" width="800" />
+
+**Fig. 6**: Venn diagrams produced by `rbpbench compare`.
+**a:** Comparing motif hit overlap between peak calling methods `clipper_idr` and `dewseq_w100_s5` (PUM1 K562 ECLIP).
+**b:** Comparing motif hit overlap between conditions `hepg2_eclip` and `k562_eclip` (i.e., RBFOX2 eCLIP in two different cell types HepG2, K562).
+Motif hit numbers and percentages of total motif hits are shown for each Venn diagram area (method exclusive and intersection).
+
+We can see that for the peak calling comparison (**Fig. 6a**), 31 % of each method's unique motif hits overlap. 
+In the second comparison (**Fig. 6b**, comparing cell types), we get an even lower overlap of 15 %.
+Both of these are interesting observations, which help us to better understand and interpret the data.
 
 
 
+### Single motif enrichment and co-occurrences
+
+To get enrichment and co-occurrence statistics on single motif level, we can use 
+
+Diff between enmo nemo (special mode of enmo), check neighboring or for individual up- and downstream motif analysis.
+
+E.g. we center on found motif hits from other motif searches, and want to find out what is in the neighborhood
+(look at up- and downstream)
+
+Table plot
++ cooc heat map
++ motifs by similarity and significance
+(+ for nemo based on up- down ...)
+
+Some words on background set
+
+Update links/delete in documentation
 
 
 
-
-```
-unzip batch_compare_test.zip
-```
-
-```
-$ cat batch_compare_test.batch_in.txt
-PUM1	clipper_rep1	k562_eclip	batch_compare_test/PUM1.k562_eclip.clipper_rep1.bed
-PUM1	clipper_rep2	k562_eclip	batch_compare_test/PUM1.k562_eclip.clipper_rep2.bed
-PUM1	clipper_idr	k562_eclip	batch_compare_test/PUM1.k562_eclip.clipper_idr.bed
-PUM1	dewseq_w100_s5	k562_eclip	batch_compare_test/PUM1.k562_eclip.dewseq_w100_s5.bed
-RBFOX2	clipper_idr	hepg2_eclip	batch_compare_test/RBFOX2.hepg2_eclip.clipper_idr.bed
-RBFOX2	clipper_idr	k562_eclip	batch_compare_test/RBFOX2.k562_eclip.clipper_idr.bed
-
-
-rbpbench batch --bed batch_compare_test.batch_in.txt --genome hg38.fa --out batch_test_out
-rbpbench compare --in batch_test_out --out compare_test_out
-```
-
-
-
-
-#### Plot nucleotide distribution at genomic positions
+### Plot nucleotide distribution at genomic positions
 
 We can use `rbpbench dist` to plot the nucleotide distribution at genomic positions.
 This can be used e.g. to check for potential nucleotide biases at CLIP-seq crosslink positions.
@@ -1027,6 +1089,20 @@ Regions that do not overlap with the selected transcript regions are assigned to
 Alternatively, a list of transcript IDs can be supplied `--tr-list`, bypassing the MPT selection.
 Which region annotations are to be considered can be further defined via `--tr-types`, and the 
 minimum region annotation overlap can be set via `--gtf-feat-min-overlap`.
+
+
+#### Comparing top scoring and bottom scoring sites via k-mer distribution
+
+In `rbpbench search`, we can further analyze the input regions by looking at their k-mer contents.
+Specifically, we can split the input sequences based on their site scores, and see if the k-mer 
+distributions differ between the top scoring and bottom scoring sites. This usually works well 
+if the BED region scores (default in column 5, change via `--bed-score-col`) are somehow indicative 
+of the binding site quality, and thus also the presence of known binding motifs. This presence 
+(or change in k-mer contents) can then be observed in the k-mer distribution plot. Further options 
+include setting k (`--kmer-plot-k`), or change the splitting behavior via setting `--kmer-plot-top-n`
+and/or `--kmer-plot-bottom-n`. This way, we can e.g. compare the top 1000 scoring (`--kmer-plot-top-n 1000`) 
+with the bottom 1000 scoring (`--kmer-plot-bottom-n 1000`) sites.
+
 
 
 #### Helper scripts
