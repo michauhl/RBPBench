@@ -334,8 +334,31 @@ and appear in the plot.
 
 
 
-
 ### Compare search results
+
+```
+cat batch_compare_test.batch_in.txt
+PUM1	clipper_rep1	k562_eclip	batch_compare_test/PUM1.k562_eclip.clipper_rep1.bed
+PUM1	clipper_rep2	k562_eclip	batch_compare_test/PUM1.k562_eclip.clipper_rep2.bed
+PUM1	clipper_idr	k562_eclip	batch_compare_test/PUM1.k562_eclip.clipper_idr.bed
+PUM1	dewseq_w100_s5	k562_eclip	batch_compare_test/PUM1.k562_eclip.dewseq_w100_s5.bed
+RBFOX2	clipper_idr	hepg2_eclip	batch_compare_test/RBFOX2.hepg2_eclip.clipper_idr.bed
+RBFOX2	clipper_idr	k562_eclip	batch_compare_test/RBFOX2.k562_eclip.clipper_idr.bed
+```
+
+```
+rbpbench batch --bed batch_compare_test.batch_in.txt --genome hg38.fa --ext 10 --out test_batch_out
+```
+
+```
+rbpbench compare --in test_batch_out --out test_compare_out
+```
+
+
+Comparisons between search results
+
+
+
 
 
 
@@ -894,6 +917,47 @@ of different peak callers. Another interesting statistic (full list of statistic
 is e.g. the number of unique motif hits over 1000 nt of called and effective region size. 
 This gives us an idea of how many motifs are included in the regions, normalized over 
 the total size of the regions (called or effective size).
+
+
+#### Comparisons between search results
+
+Both single (`rbpbench search`) and batch search (`rbpbench batch`) results 
+(i.e., their output folders) can be combined and compared using `rbpbench compare`. 
+What search results are going to be compared is defined by the set method and 
+data IDs (in `rbpbench search` via `--method-id`, `--data-id`, 
+in `rbpbench batch` best to use input table via `--bed`, see example [above](#motif-search-with-multiple-input-datasets)).
+`rbpbench compare` essentially looks for compatible combinations in the provided search output folders.
+There are two types of possible comparisons:
+
+1. compare search results based on common data ID and RBP ID (thus comparing different methods IDs)
+2. compare search results based on common data ID and RBP ID (thus comparing different data IDs)
+
+So whenever there are search results encountered in the provided search output folders, 
+`rbpbench compare` looks for cases where the RBP ID is the same, plus either the 
+method ID or the data ID being fixed. For example, suppose we have the following table
+that we can use as input to `rbpbench batch`:
+
+```
+cat batch_compare_test.batch_in.txt
+PUM1	clipper_idr	k562_eclip	batch_compare_test/PUM1.k562_eclip.clipper_idr.bed
+PUM1	dewseq_w100_s5	k562_eclip	batch_compare_test/PUM1.k562_eclip.dewseq_w100_s5.bed
+RBFOX2	clipper_idr	hepg2_eclip	batch_compare_test/RBFOX2.hepg2_eclip.clipper_idr.bed
+RBFOX2	clipper_idr	k562_eclip	batch_compare_test/RBFOX2.k562_eclip.clipper_idr.bed
+```
+Column 1 is the RBP ID, column 2 the method ID, column 3 the data ID, and column 4 the path 
+to the BED file containing the genomic regions (typically binding regions of the RBP determined through CLIPseq).
+In this example, method ID describes the peak calling methods, while data ID describes the CLIP protocol+cell type 
+combination. From these, we ge the following to comparisons:
+
+1. compare the peak calling methods (i.e., their results) `clipper_idr`, `dewseq_w100_s5` with 
+common data ID `k562_eclip` and RBP ID `PUM1`
+2. compare the conditions (i.e., eCLIP on two cell types HepG2 and K562) `hepg2_eclip`, `k562_eclip` with common method ID `clipper_idr` and RBP ID `RBFOX2`
+
+For the first comparison, we thus have two datasets (i.e., two different peak calling methods) that get compared, 
+and for the second two datasets (i.e., two different conditions). Each comparison is output by `rbpbench compare` 
+in a separate section of the output HTML file.
+
+
 
 #### RBP functions
 
