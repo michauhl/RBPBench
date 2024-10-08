@@ -213,8 +213,9 @@ As default, BED column 5 is used as score (change via `--bed-score-col`), which 
 the CLIP site. We can see that SLBP has the lowest p-value here, 
 as expected (assuming that the region score is to some extent indicative of binding site quality 
 or binding affinity), showing that the statistic can be useful e.g. to check for 
-dataset quality, or for co-enriched RBP motifs.
-**Fig. 3c** shows the GO term enrichment analysis results. 
+dataset quality, or for co-enriched RBP motifs. Region scores can be further taken advantage of by comparing k-mer distributions 
+of top and bottom scoring input regions ([details](#comparing-top-scoring-and-bottom-scoring-sites-via-k-mer-distribution))).
+**Fig. 3c** shows the GO term enrichment analysis results.
 As expected for SLBP, we can see many chromatin related terms in the top GO terms (more on GOA settings [here](#go-term-analysis)).
 **Fig. 3d** again depicts the mRNA region coverage profile, this time for SLBP (see **Fig. 1e** for PUM2 profile). 
 Note that the relative mRNA region lengths in the plot can change, depending on the number of input regions and on 
@@ -336,12 +337,7 @@ and appear in the plot.
 
 
 
-
-
-
-
-
-### Compare search results
+### Comparisons between search results
 
 To compare peak calling methods or conditions based on motif hit results, we can use the RBPBench search modes 
 (typically `rbpbench search` or `rbpbench batch`).
