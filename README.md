@@ -466,7 +466,7 @@ position zero in the plot (change with `--cp-mode` option). The amount of up- an
 downstream context added is defined by `--ext`. 
 The generated plot (`test_dist_out/nt_dist_zero_pos.png`) looks the following:
 
-<img src="docs/nt_dist_zero_pos.stop_codons.png" alt="Nucleotide distribution at stop codons"
+<img src="docs/dist.ext1.1.png" alt="Nucleotide distribution at stop codons"
 	title="Nucleotide distribution at stop codons" width="500" />
 
 **Figure:** Nucleotide distribution (position probability matrix) at genomic stop codon positions (human transcript annotations, ENSEMBL GRCh38 release 112).
