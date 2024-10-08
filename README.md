@@ -249,11 +249,11 @@ To get a more fine-grained picture of co-occurrences on the single motif level,
 including signifying motif enrichment in input regions, 
 we can use `rbpbench enmo` and `rbpbench nemo` (more details in examples below and [here](#motifs)). 
 Alternatively, single motifs can be selected in the various search modes using `--motifs` followed 
-by the motif ID(s) of interest. For example, to select only the first two PUM2 motifs out of all PUM2 motifs 
-for search:
+by the motif ID(s) of interest. For example, to select only the first two PUM2 motifs for search out of 
+all selected RBP motifs:
 
 ```
-rbpbench search --in eclip_clipper_idr/PUM2_K562_IDR_peaks.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_pum2_1_2_out --rbps PUM2 --ext 10 --motifs PUM2_1 PUM2_2
+rbpbench search --in eclip_clipper_idr/PUM2_K562_IDR_peaks.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_pum2_1_2_out --rbps ALL --ext 10 --motifs PUM2_1 PUM2_2
 ```
 
 
