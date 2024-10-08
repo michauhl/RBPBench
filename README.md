@@ -424,22 +424,98 @@ Both of these are interesting observations, which help us to better understand a
 
 ### Single motif enrichment and co-occurrences
 
-To get enrichment and co-occurrence statistics on single motif level, we can use 
+#### ENMO mode
 
-Diff between enmo nemo (special mode of enmo), check neighboring or for individual up- and downstream motif analysis.
+To get enrichment and co-occurrence statistics on single motif level, we can use `rbpbench enmo` and `rbpbench nemo`.
+The difference is that `rbpbench enmo` checks for enriched motifs in the input regions, while 
+`rbpbench nemo` checks for neighboring motifs in the input regions, including up- and downstream motif analysis. 
+This makes `rbpbench nemo` well suited for anaylysing e.g. motif hit regions that were obtained from one of the 
+other search modes, which optionally can be included or excluded in the motif prediction. To check for enriched motifs
+and their co-occurrences in a set of input regions on a single motif level using `rbpbench enmo`:
 
-E.g. we center on found motif hits from other motif searches, and want to find out what is in the neighborhood
-(look at up- and downstream)
 
-Table plot
-+ cooc heat map
-+ motifs by similarity and significance
-(+ for nemo based on up- down ...)
+```
+rbpbench enmo --in eclip_clipper_idr/PUM2_K562_IDR_peaks.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_enmo_pum2_out --rbps ALL --ext 10 --min-motif-dist 10 --motif-sim-thr 2
+```
+Note that only the enriched motifs (passing the set p-value threshold `--enmo-pval-thr`) are reported and 
+then included in the following co-occurrence analysis. Also note that reported p-values can differ between 
+runs (due to random background set generation, to keep results same use `--random-seed`). **Fig. 7** shows 
+the generated visualizations:
 
-Some words on background set
+<img src="docs/enmo.ex1.1.png" width="800" />
 
-Update links/delete in documentation
+**Fig. 7**: Example visualizations and statistics produced by `rbpbench enmo`.
+**a:** Motif enrichment statistics, showing significantly enriched motifs in input regions.
+**b:** Single motif co-occurrences heat map, showing significant co-occurrences between enriched motifs. 
+**c:** Sequence motif similarity vs significance PCA plot. 
+**d:** Sequence 5-mer percentages in the input and background dataset. 
 
+As we can see in **Fig. 7a** (top 10 enriched motifs), the PUM2 motifs (+ one highly similar PUM1 motif) 
+are the most enriched motifs in the input dataset, as expected. **Fig. 7b** shows the co-occurrence 
+heat map for the enriched motifs. Note that we can further control what motifs are reported as significant here 
+by additional parameters, most importantly `--cooc-pval-thr`, `--min-motif-dist`, and `--motif-sim-thr`.
+The first is simply the p-value threshold (by default Benjamini-Hochberg corrected, change `--cooc-pval-mode`), 
+while `--min-motif-dist` is the mean minimum motif distance between the pair of motifs in all input regions, 
+and `--motif-sim-thr` is the maximum motif pair similarity (calculated using TOMTOM). The later two thus allow 
+us to e.g. focus on motif pairs that are on average not not close to each other, and also are not too similar 
+to each other. Note that for pairs that do not meet the set thresholds, their hover box in the heat map informs 
+about the reason for filtering out the pair. **Fig. 7c** plots the motifs arranged by their similarity and 
+colored by their significance, allowing us to identify groups of motifs with similar motifs.
+**Fig. 7d** compares the k-mer (here 5-mer) distribution between the input and the generated background regions.
+Here we can also see that 5-mers similar to the PUM2 motifs appear more frequently in the input regions.
+Generation of the background regions can be controlled with various parameters (see `rbpbench enmo -h` for more details).
+For example, `--bg-mode` allows us to either use shuffled negatives (from input set), or randomly sampled negatives 
+from genomic or transcript regions (depending on the type of input regions). Moreover, the size of background 
+set can be increased (`--bg-min-size`), plus the user can tell RBPBench from which genomic (or transcript) regions
+to sample (`--bg-incl-bed`) and to not sample (`--bg-mask-bed`).
+
+
+#### NEMO mode
+
+To do motif enrichment analysis on regions neighboring some genomic regions or even single positions of interest, 
+we can use `rbpbench nemo`.
+By default, motif hits overlapping the input regions are not included in the analysis (change with `--allow-overlaps`).
+Otherwise, available arguments are very much the same as for `rbpbench enmo`.
+In this example, we will use the mRNA region end positions, and look at the adjacent up- and downstream regions. 
+To get these, we will use some helper scripts that come along with RBPBench (details on available helper scripts [here](#helper-scripts)):
+
+```
+gtf_extract_mpt_region_bed.py --gtf Homo_sapiens.GRCh38.112.gtf.gz --out mrna_regions_hg38_out --only-mrna
+bed_print_last_n_pos.py --in mrna_regions_hg38_out/mpt_regions.bed --ext 1 > mrna_region_end_pos.bed
+```
+
+Now let's run `rbpbench nemo` with an up- and downstream extension of `--ext 30` to the supplied mRNA end positions. Further we allow overlaps and restrict search to RBPs with annotated functions in 3' end processing (TEP), RNA stability & decay (RSD), and translation regulation (TR) (91 RBPs):
+
+```
+rbpbench nemo --in mrna_region_end_pos.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_nemo_mrna_ends_out --rbps ALL --ext 40 --min-motif-dist 10 --motif-sim-thr 2 --allow-overlaps --functions TEP RSD TR
+```
+
+**Fig. 9** shows us the resulting neighboring motif enrichment statistics table (only top 10 enriched motifs shown):
+
+<img src="docs/nemo.ex1.1.png" width="800" />
+
+**Fig. 9**: Neighboring motif enrichment statistics table (top 10 results) produced by `rbpbench nemo`.
+
+We can see that the table is slightly expanded compared to the `rbpbench enmo` table. I.e., we now have additional 
+info on whether motif hits tend to occur more in up- or downstream regions relative to the input regions (signified by 
+Wilcoxon rank sum (WRS) p-value, as well as a motif distance plot showing motif hit center locations relative to the centered input regions).
+A low WRS p-value in this table means that there is a preference for up- or downstream binding (two-sided test).
+The top enriched motifs are the motifs essentially describing the polyadenylation signal sequence (AATAAA), which is known 
+to occur often near 3'UTR ends. This preference we can also nicely see in the motif distance plots (plus it is significant w.r.t. WRS p-value).
+Looking at the regions downstream the annotated mRNA ends, we see a preference of T and GT-rich motifs (which continues as we would go further 
+down than the top 10). These GT-rich (or actually GU-rich in RNA) elements (GREs) are too known to frequently occur at transcript ends, 
+namely downstream the polyadenylation signal. Both elements have well known roles in the regulation of mRNA stability and degradation. 
+The different sequence preferences up- and downstream can also be seen in the sequence motif similarities vs direction PCA plot (**Fig. 10**):
+
+<img src="docs/nemo.ex2.1.png" width="500" />
+
+**Fig. 10**: Sequence motif similarity vs direction PCA plot produced by `rbpbench nemo`.
+
+This plot again shows us the motif arranged by their similarity, but this time colored by the up- or downstream 
+direction preference (e.g., the more negative the higher the upstream preference). As an example for a significant 
+downstream preference, the hover box shows CSTF2_2 motif (from CSTF2 protein). CSTF2 is known to be a member of 
+the cleavage stimulation factor (CSTF) complex, which recognizes GU-rich elements at mRNA ends and is involved 
+in the 3' end cleavage and polyadenylation of pre-mRNAs.
 
 
 ### Plot nucleotide distribution at genomic positions
