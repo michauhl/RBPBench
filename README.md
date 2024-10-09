@@ -328,7 +328,7 @@ datasets with similar gene occupancy profiles.
 to measure the similarity in occupied genes between datasets. In addition, the datasets are ordered 
 based on hierarchical clustering, resulting in similar datasets appearing close together on the axes.
 This allows us to spot groups of datasets which have similar occupancy profiles.
-**Fig. 5d** gives us the genomic region annotations for each input dataset, again using 3D-PCA to 
+**Fig. 5d** gives us the genomic region annotations for each input dataset, using 2D-PCA to 
 reduce dimensions. Moreover, datasets are colored by the highest percentage annotation, allowing 
 us to identify groups of input datasets with similar binding characteristics (e.g. the blue dots 
 represent datasets whose regions primarily overlap with 3'UTR regions). If a regex is supplied, 
@@ -518,11 +518,57 @@ the cleavage stimulation factor (CSTF) complex, which recognizes GU-rich element
 in the 3' end cleavage and polyadenylation of pre-mRNAs.
 
 
+### Visualizing global motif preferences
+
+To visualize motif preferences on a transcriptome-wide scale, e.g. for all mRNAs, we can use `rbpbench searchlongrna`.
+This mode allows us to do predictions specifically on spliced full transcripts (similar to `rbpbench searchrna` on 
+spliced transcript regions, description of all available modes [here](#program-modes)). For this first example, 
+we again use the polyadenylation signal sequence, which we can provide as regex (--regex AATAAA), or by defining 
+the sequence motif from the example [above](#nemo-mode). As sequence motif search with FIMO is faster than regex search,
+we will use the `CSTF2_1` motif:
+
+```
+rbpbench searchlongrna --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_searchlongrna_mrna_pas_out --rbps ALL --motifs CSTF2_1 --mrna-only
+```
+
+The resulting motif hit coverage profile for `CSTF2_1` (AATAAA) over all mRNAs is shown in **Fig. 11**:
+
+
+<img src="docs/searchlongrna.ex1.1.png" width="600" />
+
+**Fig. 11**: mRNA region motif hit coverage profile for motif `CSTF2_1`, produced by `rbpbench nemo`.
+Number of mRNAs used for plotting: 20476 mRNAs. Median lengths of mRNA regions: 5'UTR = 127.0, CDS = 1215.0, 3'UTR = 914.0.
+
+By default, all annotated mRNAs are used from the provided GTF file. However, we can also restrict the set of used mRNAs (by supplying our own transcript ID list via `--tr-list`). Note that we need to specify `--mrna-only`, otherwise we will not get the coverage profile plot. The mode is still useful though, 
+as one can filter the resulting motif hits BED file e.g. by `3'UTR`, to obtain only 3'UTR hits, and use these hit regions as input to `rbpbench searchrna` (transcript region search), or any of the single motif enrichment modes (`rbpbench enmo`, `rbpbench nemo`). We can clearly 
+see the strong prevalence of the AATAAA sequence at the end of 3'UTRs.
+
+As an alternative example, let's use DDX3X which can be seen in **Fig. 5d** (if we would hover over its data point) 
+as predominantly 5'UTR binding (followed by CDS). This predominance in **Fig. 5d** is based on the DDX3X CLIPseq region coverage, 
+but we can also check whether this is true for its motifs:
+
+```
+rbpbench searchlongrna --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_searchlongrna_mrna_ddx3x_out --rbps DDX3X --mrna-only
+```
+
+**Fig. 12**
+
+Makes sense since it is a helicase ? (GC rich motif, hinting at it)
+
+
+CSTF2_1
+
+rbpbench searchlongrna --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_searchlongrna_mrna_ddx3x_out --rbps DDX3X --mrna-only
+
+
+### Additional modes
+
+
+
 ### Plot nucleotide distribution at genomic positions
 
 We can use `rbpbench dist` to plot the nucleotide distribution at genomic positions.
 This can be used e.g. to check for potential nucleotide biases at CLIP-seq crosslink positions.
-
 
 For illustration, we extract genomic stop codon positions from our ENSEMBL GTF file using 
 the [helper script](#helper-scripts) `gtf_extract_tr_feat_bed.py`, 
