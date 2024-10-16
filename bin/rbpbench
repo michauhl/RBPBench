@@ -5520,6 +5520,7 @@ def main_search(args):
                                     basic_tag=False,  # do not be strict (only_tsl=False too).
                                     ensembl_canonical_tag=False,
                                     prior_basic_tag=True,  # Prioritize basic tag transcript.
+                                    prior_mane_select=True,  # mane select if set trumps all.
                                     only_tsl=False)
             assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
             print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
@@ -6629,6 +6630,7 @@ def main_batch(args):
                                     basic_tag=False,  # do not be strict (only_tsl=False too).
                                     ensembl_canonical_tag=False,
                                     prior_basic_tag=True,  # Prioritize basic tag transcript.
+                                    prior_mane_select=True,  # mane select if set trumps all.
                                     only_tsl=False)
             assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
             print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
@@ -10282,6 +10284,7 @@ def main_searchlong(args):
                                         basic_tag=False,  # do not be strict (only_tsl=False too).
                                         ensembl_canonical_tag=False,
                                         prior_basic_tag=True,  # Prioritize basic tag transcript.
+                                        prior_mane_select=True,  # mane select if set trumps all.
                                         only_tsl=False)
                 assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
                 print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
@@ -11081,7 +11084,7 @@ def main_searchlong(args):
 
     if rbp2motif2annot2c_dic:
 
-        annot_dic = {}
+        annot_dic = {"3'UTR" : 0, "5'UTR" : 0, "CDS" : 0, "lncRNA" : 0, "intron" : 0, "intergenic" : 0}
 
         if rbp2motif2annot2c_dic:
             for rbp_id in rbp2motif2annot2c_dic:
@@ -13891,6 +13894,7 @@ def main_searchlongrna(args):
                                 basic_tag=False,  # do not be strict (only_tsl=False too).
                                 ensembl_canonical_tag=False,
                                 prior_basic_tag=True,  # Prioritize basic tag transcript.
+                                prior_mane_select=True,  # mane select if set trumps all.
                                 only_tsl=False)
         assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
         print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
@@ -15704,6 +15708,7 @@ def main_enmo(args):
                                 basic_tag=False,  # do not be strict (only_tsl=False too).
                                 ensembl_canonical_tag=False,
                                 prior_basic_tag=True,  # Prioritize basic tag transcript.
+                                prior_mane_select=True,  # mane select if set trumps all.
                                 only_tsl=False)
         assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
         print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
@@ -18053,6 +18058,7 @@ def main_nemo(args):
                                 basic_tag=False,  # do not be strict (only_tsl=False too).
                                 ensembl_canonical_tag=False,
                                 prior_basic_tag=True,  # Prioritize basic tag transcript.
+                                prior_mane_select=True,  # mane select if set trumps all.
                                 only_tsl=False)
         assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
         print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))

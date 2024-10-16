@@ -2658,6 +2658,11 @@ def gtf_read_in_gene_infos(in_gtf,
             m = re.search('tag "Ensembl_canonical"', infos)
             if m:
                 ensembl_canonical = 1
+            # MANE select.
+            mane_select = 0
+            m = re.search('tag "MANE_Select"', infos)
+            if m:
+                mane_select = 1
             # Transcript support level (TSL).
             # transcript_support_level "NA (assigned to previous version 1)"
             m = re.search('transcript_support_level "(.+?)"', infos)
@@ -2675,6 +2680,7 @@ def gtf_read_in_gene_infos(in_gtf,
             gid2gio_dic[gene_id].tr_biotypes.append(tr_biotype)
             gid2gio_dic[gene_id].tr_basic_tags.append(basic_tag)
             gid2gio_dic[gene_id].tr_ensembl_canonical_tags.append(ensembl_canonical)
+            gid2gio_dic[gene_id].tr_mane_select_tags.append(mane_select)
             gid2gio_dic[gene_id].tr_tsls.append(tsl_id)
             gid2gio_dic[gene_id].tr_lengths.append(tr_length)
 
@@ -2795,6 +2801,11 @@ def gtf_read_in_transcript_infos(in_gtf,
             m = re.search('tag "Ensembl_canonical"', infos)
             if m:
                 ensembl_canonical = 1
+            # MANE select.
+            mane_select = 0
+            m = re.search('tag "MANE_Select"', infos)
+            if m:
+                mane_select = 1
             # Transcript support level (TSL).
             # transcript_support_level "NA (assigned to previous version 1)"
             m = re.search('transcript_support_level "(.+?)"', infos)
@@ -2814,7 +2825,8 @@ def gtf_read_in_transcript_infos(in_gtf,
             tr_infos = TranscriptInfo(tr_id, tr_biotype, chr_id, feat_s, feat_e, feat_pol, gene_id,
                                       tr_length=0,
                                       basic_tag=basic_tag,  # int
-                                      ensembl_canonical=ensembl_canonical,  # str
+                                      ensembl_canonical=ensembl_canonical,  # int
+                                      mane_select=mane_select,  # int
                                       tsl_id=tsl_id,  # int
                                       exon_c=0)
             assert tr_id not in tid2tio_dic, "transcript feature with transcript ID %s already encountered in GTF file \"%s\"" %(tr_id, in_gtf)
@@ -3754,6 +3766,7 @@ class TranscriptInfo:
                  exon_c: Optional[int] = None,
                  basic_tag: Optional[int] = None,
                  ensembl_canonical: Optional[int] = None,
+                 mane_select: Optional[int] = None,
                  tsl_id: Optional[str] = None,
                  cds_s: Optional[int] = None,
                  cds_e: Optional[int] = None,
@@ -3774,6 +3787,7 @@ class TranscriptInfo:
         self.total_intron_len = total_intron_len
         self.basic_tag = basic_tag
         self.ensembl_canonical = ensembl_canonical
+        self.mane_select = mane_select
         self.tsl_id = tsl_id
 
         if intron_coords is None:
@@ -3816,6 +3830,7 @@ chr1	HAVANA	exon	11869	12227	.	+	.	gene_id "ENSG00000290825.1"; transcript_id "E
                  tr_biotypes=None,
                  tr_basic_tags=None,
                  tr_ensembl_canonical_tags=None,
+                 tr_mane_select_tags=None,
                  tr_lengths=None,
                  tr_tsls=None) -> None:
         self.gene_id = gene_id
@@ -3841,6 +3856,10 @@ chr1	HAVANA	exon	11869	12227	.	+	.	gene_id "ENSG00000290825.1"; transcript_id "E
             self.tr_ensembl_canonical_tags = []
         else:
             self.tr_ensembl_canonical_tags = tr_ensembl_canonical_tags
+        if tr_mane_select_tags is None:
+            self.tr_mane_select_tags = []
+        else:
+            self.tr_mane_select_tags = tr_mane_select_tags
         if tr_lengths is None:
             self.tr_lengths = []
         else:
@@ -5298,8 +5317,10 @@ def select_more_prominent_tid(tid1, tid2, tid2tio_dic):
 def select_mpts_from_gene_infos(gid2gio_dic,
                                 basic_tag=True,
                                 ensembl_canonical_tag=False,
+                                mane_select_tag=False,
                                 only_tsl=False,
                                 prior_basic_tag=True,
+                                prior_mane_select=False,
                                 tr_min_len=False
                                 ):
     """
@@ -5315,12 +5336,17 @@ def select_mpts_from_gene_infos(gid2gio_dic,
         If True only report transcripts with "basic" tag.
     ensembl_canonical_tag:
         If True only report transcripts with "Ensembl_canonical" tag.
+    mane_select_tag:
+        If True only report transcripts with "MANE_Select" tag.
     only_tsl:
         If True only report transcripts with TSL 1-5 (excluding "NA").
     tr_min_len:
         If length set, only report transcripts with length >= tr_min_len.
-
-
+    prior_mane_select:
+        If True, MANE_Select tag trumps all other tags. According to manual,
+        the MANE select is a default transcript per human gene, present in RefSeq
+        and Ensembl databases.
+        
     >>> test_gtf = "test_data/test_mpt_selection.gtf"
     >>> gid2gio_dic = gtf_read_in_gene_infos(test_gtf)
     >>> tr_ids_dic = select_mpts_from_gene_infos(gid2gio_dic, basic_tag=False, ensembl_canonical_tag=False, only_tsl=False)
@@ -5356,12 +5382,14 @@ def select_mpts_from_gene_infos(gid2gio_dic,
         mpt_len = 0
         mpt_bt = 0
         mpt_ec = 0
+        mpt_ms = 0
 
         for idx, tr_id in enumerate(gene_info.tr_ids):
             # print("mpt_id:", mpt_id, "tr_id:", tr_id)
             tr_tsl = gene_info.tr_tsls[idx]  # 1-5 or NA
             tr_bt = gene_info.tr_basic_tags[idx]  # 0 or 1
             tr_ec = gene_info.tr_ensembl_canonical_tags[idx]  # 0 or 1
+            tr_ms = gene_info.tr_mane_select_tags[idx]  # 0 or 1
             tr_length = gene_info.tr_lengths[idx]
 
             # print(tr_id, "BT:", tr_bt, "TSL:", tr_tsl)
@@ -5372,11 +5400,23 @@ def select_mpts_from_gene_infos(gid2gio_dic,
             if ensembl_canonical_tag:
                 if not tr_ec:
                     continue
+            if mane_select_tag:
+                if not tr_ms:
+                    continue
             if only_tsl:
                 if tr_tsl == "NA":
                     continue
             if tr_min_len:
                 if tr_length < tr_min_len:
+                    continue
+            if prior_mane_select:
+                if tr_ms > mpt_ms:
+                    mpt_id = tr_id
+                    mpt_tsl = tr_tsl
+                    mpt_len = tr_length
+                    mpt_bt = tr_bt
+                    mpt_ec = tr_ec
+                    mpt_ms = tr_ms
                     continue
 
             if id2sc[tr_tsl] < id2sc[mpt_tsl]:
@@ -5387,12 +5427,14 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                         mpt_len = tr_length
                         mpt_bt = tr_bt
                         mpt_ec = tr_ec
+                        mpt_ms = tr_ms
                 else:
                     mpt_id = tr_id
                     mpt_tsl = tr_tsl
                     mpt_len = tr_length
                     mpt_bt = tr_bt
                     mpt_ec = tr_ec
+                    mpt_ms = tr_ms
 
             elif id2sc[tr_tsl] == id2sc[mpt_tsl]:
                 # print("Now equal, comparing tr_id %s with mpt_id %s" %(tr_id, mpt_id))
@@ -5403,6 +5445,7 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                     mpt_len = tr_length
                     mpt_bt = tr_bt
                     mpt_ec = tr_ec
+                    mpt_ms = tr_ms
                     continue
                 # If transcript has Ensembl canonical tag, use this.
                 if tr_ec > mpt_ec:
@@ -5411,6 +5454,7 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                     mpt_len = tr_length
                     mpt_bt = tr_bt
                     mpt_ec = tr_ec
+                    mpt_ms = tr_ms
                     continue
                 # If same basic/Ensembl canonical tag combination.
                 if tr_ec == mpt_ec and tr_bt == mpt_bt:
@@ -5420,6 +5464,7 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                         mpt_len = tr_length
                         mpt_bt = tr_bt
                         mpt_ec = tr_ec
+                        mpt_ms = tr_ms
             else:
                 # If transcript has worse TSL but basic tag and current MPT has not.
                 if prior_basic_tag and tr_bt > mpt_bt:
@@ -5428,6 +5473,7 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                     mpt_len = tr_length
                     mpt_bt = tr_bt
                     mpt_ec = tr_ec
+                    mpt_ms = tr_ms
 
         if not mpt_len:
             continue

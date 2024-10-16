@@ -4,11 +4,14 @@
 [![Bioconda](https://anaconda.org/bioconda/rbpbench/badges/version.svg)](https://anaconda.org/bioconda/rbpbench)
 
 RBPBench is multi-function tool to evaluate CLIP-seq and other genomic region data 
-using a comprehensive collection of known RNA-binding protein (RBP) binding motifs. RBPBench can be used for a variety of
-purposes, from RBP motif search (database or user-supplied RBPs) in genomic regions, 
-over motif enrichment and co-occurrence analysis, 
-to benchmarking CLIP-seq peak caller methods as well as comparisons across cell types and CLIP-seq protocols.
-ADD INFO FOR USER MOTIF SUPPORT
+using a comprehensive collection of known RNA-binding protein (RBP) binding motifs. 
+RBPBench can be used for a variety of purposes, from RBP motif search (database or 
+user-supplied RBPs) in genomic regions, over motif enrichment and co-occurrence analysis, 
+to benchmarking CLIP-seq peak caller methods as well as comparisons across cell types 
+and CLIP-seq protocols. RBPBench supports both sequence and structure motifs,
+as well as regular expressions. Moreover, users can easily provide their own 
+motif collections.
+
 
 ## Table of contents
 
@@ -16,9 +19,19 @@ ADD INFO FOR USER MOTIF SUPPORT
     - [Conda](#conda)
     - [Conda package installation](#conda-package-installation)
     - [Manual installation](#manual-installation)
-    - [RBPBench webserver](#rbpbench-webserver)
 - [Example runs](#example-runs)
+    - [Motif search with single input dataset](#motif-search-with-single-input-dataset)
+    - [Motif search with multiple input datasets](#motif-search-with-multiple-input-datasets)
+    - [Comparisons between search results](#comparisons-between-search-results)
+    - [Single motif enrichment and co-occurrences](#single-motif-enrichment-and-co-occurrences)
+    - [Visualizing global motif preferences](#visualizing-global-motif-preferences)
+    - [Additional modes](#additional-modes)
 - [Documentation](#documentation)
+    - [Program modes](#program-modes)
+    - [Inputs](#inputs)
+    - [Outputs](#outputs)
+    - [Statistics](#statistics)
+    - [Additional information](#additional-information)
 
 ## Installation
 
@@ -92,8 +105,8 @@ wget https://ftp.ensembl.org/pub/release-112/gtf/homo_sapiens/Homo_sapiens.GRCh3
 ```
 
 We also unzip the collection of [ENCODE](https://www.encodeproject.org/) eCLIP CLIPper IDR peak 
-region BED files (i.e., genomic RBP binding regions determined by CLIPper IDR method on RBP specific eCLIP data, 
-which we will use as example input files for the various RBPBench modes:
+region BED files (i.e., genomic RBP binding regions determined by CLIPper IDR method on RBP-specific eCLIP data), 
+which we will use as example input files to demonstrate the various RBPBench modes:
 
 ```
 unzip eclip_clipper_idr.zip
@@ -142,10 +155,10 @@ rbpbench search --in eclip_clipper_idr/PUM2_K562_IDR_peaks.bed --genome hg38.fa 
 ```
 
 Here we also extend the input regions by 10 nt up- and downstream (`--ext 10`, for different up- and downstream use e.g. `--ext 0,20`) before search. 
-Fig. 1 shows the plots generated in this example (found in HTML report file `report.rbpbench_search.html`, additional plots can be 
-generated e.g. via `--enable-upset-plot`, `--set-rbp-id`). Detailed explanations on plot contents can be found in the HTML file. 
-Note that apart from HTML reports, RBPBench also outputs various table files (e.g. motif hit regions, region annotations, RBP + motif hit statistics, 
-more details e.g. [here](#hit-statistics-table-files)), which can be later used for comparison or again for motif search.
+**Fig. 1** shows the plots generated in this example (found in HTML report file `report.rbpbench_search.html`, additional plots can be 
+generated e.g. via `--enable-upset-plot`, `--set-rbp-id`). Detailed explanations on plot contents can be found in the generated HTML file. 
+Note that apart from HTML reports, RBPBench also outputs various table files (e.g., motif hit regions, region annotations, RBP + motif hit statistics, 
+more details e.g. [here](#hit-statistics-table-files)), which can later be used for comparing search results or again as input regions for motif search.
 
 
 <img src="docs/search.ex1.1.png" width="800" />
@@ -184,24 +197,24 @@ as well as motif hit counts and genomic region annotations for the motif hit reg
 
 To search with all database RBP motifs in a single set of genomic input regions, we can use `--rbps ALL`. 
 The motif database can be changed via `--motif-db` (details on motif selection [here](#motifs)), and the user can also define 
-own motifs or even a motif database ([details](#custom-motif-database). Moreover, RBPs can be filtered by
+own motifs or even a motif database ([details](#custom-motif-database)). Moreover, the selected RBPs can be filtered by
 annotated functions (`--functions`, [details](#rbp-functions)). For this example we use the SLBP eCLIP regions, 
-select all RBPs, further filter them by some annotated functions, and we also conduct a GO term enrichment analysis 
+select all RBPs, further filter them by some annotated functions, and also conduct a GO term enrichment analysis 
 on the input regions:
 
 ```
 rbpbench search --in eclip_clipper_idr/SLBP_K562_IDR_peaks.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_slbp_tr_rsd_tep_out --functions TR RSD TEP  --rbps ALL --ext 20 --goa
 ```
 
-Here we filter the selected RBPS (i.e., all RBPs) to keep only RBPS with annotated functions translation regulation (TR),
-RNA stability & decay (RSD), and 3' end processing (TEP). This results in 91 RBPs for search (out of 257), 
+Here we filter the selected RBPS (i.e., all RBPs) to keep only RBPs with the following annotated functions: translation regulation (TR),
+RNA stability & decay (RSD), 3' end processing (TEP). This results in 91 RBPs for search (out of 257), 
 with 260 motifs (out of 599). 
 
 <img src="docs/search.ex2.1.png" width="800" />
 
 **Fig. 3**: Example visualizations and statistics produced by `rbpbench search` (SLBP example). 
 **a:** RBP motif co-occurrences heat map. 
-**b:** RBP region score motif enrichment statistics.
+**b:** RBP region score motif enrichment statistics (top 10).
 **c:** GO enrichment analysis results.
 **d:** mRNA region coverage profile.
 
@@ -210,16 +223,18 @@ with 260 motifs (out of 599).
 **Fig. 3b** presents the RBP region score motif enrichment statistics table ([details](#input-region-score-motif-enrichment-statistics)).
 This in short checks whether any of the RBP motifs (on RBP level) tend to occur more often in higher scoring input regions. 
 As default, BED column 5 is used as score (change via `--bed-score-col`), which in the input examples is the log2 fold change of 
-the CLIP site. We can see that SLBP has the lowest p-value here, 
+the CLIP-seq peak region. We can see that SLBP has the lowest p-value here, 
 as expected (assuming that the region score is to some extent indicative of binding site quality 
 or binding affinity), showing that the statistic can be useful e.g. to check for 
 dataset quality, or for co-enriched RBP motifs. Region scores can be further taken advantage of by comparing k-mer distributions 
-of top and bottom scoring input regions ([details](#comparing-top-scoring-and-bottom-scoring-sites-via-k-mer-distribution))).
+of top and bottom scoring input regions ([details](#comparing-top-scoring-and-bottom-scoring-sites-via-k-mer-distribution)).
 **Fig. 3c** shows the GO term enrichment analysis results.
 As expected for SLBP, we can see many chromatin related terms in the top GO terms (more on GOA settings [here](#go-term-analysis)).
 **Fig. 3d** again depicts the mRNA region coverage profile, this time for SLBP (see **Fig. 1e** for PUM2 profile). 
 Note that the relative mRNA region lengths in the plot can change, depending on the number of input regions and on 
-which mRNAs these map.
+which mRNAs these map. Also note that this plot becomes less informative if the percentage of input regions mapping to mRNA regions 
+gets lower (info given in HTML figure legend, here: 79.5%). Most often, this is the case for intron-binding RBPs, where you typically
+have low percentages of exonic regions and thus also low mRNA coverage.
 
 To take a closer look at how motif hits are distributed around a specific RBP, we can specify the RBP to focus on via `set-rbp-id`:
 
@@ -248,7 +263,7 @@ with the set RBP, **Fig. 4a** shows RBP level).
 These plots give us an idea which motifs occur at which distances in the input regions. 
 To get a more fine-grained picture of co-occurrences on the single motif level, 
 including signifying motif enrichment in input regions, 
-we can use `rbpbench enmo` and `rbpbench nemo` (more details in examples below and [here](#motifs)). 
+we can use `rbpbench enmo` or `rbpbench nemo` (more details in the examples below and [here](#motifs)). 
 Alternatively, single motifs can be selected in the various search modes using `--motifs` followed 
 by the motif ID(s) of interest. For example, to select only the first two PUM2 motifs for search out of 
 all selected RBP motifs:
@@ -263,10 +278,10 @@ rbpbench search --in eclip_clipper_idr/PUM2_K562_IDR_peaks.bed --genome hg38.fa 
 RBPBench also supports batch processing of multiple input datasets (`rbpbench batch`), i.e., 
 to run motif search on multiple input datasets.
 This allows us to learn more about 
-general, group- or set-specific features for a large number of CLIPseq datasets, 
+general, group- or set-specific features for a large number of CLIP-seq (or similar methods) datasets, 
 by inspecting the generated HTML batch report plots and statistics.
 In addition, it can be used to generate the input files for benchmarking peak callers, 
-or to do CLIP protocol or cell type comparisons, using `rbpbench compare`.
+or to e.g. do CLIP-seq protocol or cell type comparisons, using `rbpbench compare`.
 
 A batch of input BED regions can be provided to `rbpbench batch` in several ways, e.g. completely via the command line.
 However, for a large set of input datasets, the easiest way is to provide a table file where one specifies
@@ -289,11 +304,11 @@ rbpbench batch --bed eclip_clipper_idr.k562.batch_in.txt --genome hg38.fa --gtf 
 Note that we again use a regex, which conveniently allows us to check enrichment and co-occurrences of this regex in all input datasets. 
 Also note that many of the generated batch statistics and plots are independent of motif hit statistics, i.e., they rather look 
 at genomic annotations, occupied genes, or sequence content of input regions. This makes `rbpbench batch` a great solution for 
-comparing a large number of existing CLIPseq datasets to a specific dataset of your interest (e.g., derived from CLIPseq or similar protocols), 
+comparing a large number of existing CLIP-seq datasets to a specific dataset of your interest (e.g., also derived from CLIP-seq or similar protocols), 
 to quickly check for differences and similarities between the datasets.
-The output results folder again contains several table files (e.g. the hit statistics files used as inputs to `rbpbench compare`, [details](#hit-statistics-table-files)),
+The output results folder again contains several table files (e.g., the hit statistics files used as inputs to `rbpbench compare`, [details](#hit-statistics-table-files)),
 as well the HTML report file `report.rbpbench_batch.html`, containing various comparative plots and statistics. 
-For the example call above, the following statistics and plots are output in the HTML report file:
+For the example call above, the following statistics and plots are included in the HTML report file:
 
 1. Input datasets sequence length statistics table
 2. Input datasets exon-intron overlap statistics table
@@ -320,17 +335,18 @@ Detailed explanations can be found in the corresponding table and plot legends i
 **Fig. 5a** plot compares the input datasets by the k-mer frequencies of their site sequences 
 (by default 5-mer frequncies, change via `--kmer-size`, 3D-PCA dimensionality reduction). 
 In addition, for each dataset, the top 10 5-mer frequencies are given in the hover box. This way 
-we can quickly assess sequence similarities and dissimilarities between input datasets.
+we can quickly assess sequence similarities and dissimilarities between input datasets, 
+or e.g. spot interesting outliers.
 **Fig. 5b** plot again uses 3D-PCA, this time on the occupied gene regions for each input dataset.
-Here we can quickly spot e.g. datasets with very low numbers of occupied genes, or in general 
+Here we can quickly identify e.g. datasets with very low numbers of occupied genes, or in general 
 datasets with similar gene occupancy profiles.
-**Fig. 5c** further extends on occupied genes statistics, this time using the cosine similarity 
+**Fig. 5c** further expands on occupied genes statistics, this time using the cosine similarity 
 to measure the similarity in occupied genes between datasets. In addition, the datasets are ordered 
 based on hierarchical clustering, resulting in similar datasets appearing close together on the axes.
-This allows us to spot groups of datasets which have similar occupancy profiles.
+This allows us to identify groups of datasets which have similar occupancy profiles.
 **Fig. 5d** gives us the genomic region annotations for each input dataset, using 2D-PCA to 
 reduce dimensions. Moreover, datasets are colored by the highest percentage annotation, allowing 
-us to identify groups of input datasets with similar binding characteristics (e.g. the blue dots 
+us to identify groups of input datasets with similar binding characteristics (e.g., the blue dots 
 represent datasets whose regions primarily overlap with 3'UTR regions). If a regex is supplied, 
 this also shows up here, meaning over all datasets, the regex hit regions are annotated 
 and appear in the plot.
@@ -339,7 +355,7 @@ and appear in the plot.
 
 ### Comparisons between search results
 
-To compare peak calling methods or conditions based on motif hit results, we can use the RBPBench search modes 
+To compare peak calling methods or in general conditions based on motif hit results, we can use the RBPBench search modes 
 (typically `rbpbench search` or `rbpbench batch`).
 For example, we can take the following input table for `rbpbench batch`:
 
@@ -351,7 +367,7 @@ RBFOX2	clipper_idr	hepg2_eclip	batch_compare_test/RBFOX2.hepg2_eclip.clipper_idr
 RBFOX2	clipper_idr	k562_eclip	batch_compare_test/RBFOX2.k562_eclip.clipper_idr.bed
 ```
 
-Here we essentially have two comparisons defined for us (details how to define comparisons [here](#comparisons-between-search-results)):
+Here we essentially have two comparisons defined for us (details on how to define comparisons [here](#comparing-different-search-results)):
 
 1. compare the two peak calling methods `clipper_idr`, `dewseq_w100_s5` based on common RBP ID `PUM1` and condition `k562_eclip`
 2. compare the two conditions `hepg2_eclip`, `k562_eclip` based on common RBP ID `RBFOX2` and peak calling method `clipper_idr`
@@ -363,7 +379,7 @@ rbpbench batch --bed batch_compare_test.batch_in.txt --genome hg38.fa --ext 10 -
 ```
 
 Then we simply provide the batch search output folder to `rbpbench compare` (multiple folders can be supplied as well), 
-and `rbpbench compare` will find all compatible combinations in these folders and do the comparisons by:
+and `rbpbench compare` will find all compatible combinations in these folders and do the comparisons via:
 
 ```
 rbpbench compare --in test_batch_out --out test_compare_out
@@ -409,7 +425,7 @@ which can hint at the quality of the experimental data.
 As any given genomic motif hit can either be found only by one method, or be identified by any set (>=2) of methods, it makes sense to visualize this information as a Venn diagram.
 For the two comparisons, the produced Venn diagrams looks like this:
 
-<img src="docs/compare.ex1.1.png" width="800" />
+<img src="docs/compare.ex1.1.png" width="700" />
 
 **Fig. 6**: Venn diagrams produced by `rbpbench compare`.
 **a:** Comparing motif hit overlap between peak calling methods `clipper_idr` and `dewseq_w100_s5` (PUM1 K562 ECLIP).
@@ -428,9 +444,9 @@ Both of these are interesting observations, which help us to better understand a
 
 To get enrichment and co-occurrence statistics on single motif level, we can use `rbpbench enmo` and `rbpbench nemo`.
 The difference is that `rbpbench enmo` checks for enriched motifs in the input regions, while 
-`rbpbench nemo` checks for neighboring motifs in the input regions, including up- and downstream motif analysis. 
-This makes `rbpbench nemo` well suited for anaylysing e.g. motif hit regions that were obtained from one of the 
-other search modes, which optionally can be included or excluded in the motif prediction. To check for enriched motifs
+`rbpbench nemo` checks for neighboring motifs in the input regions, including differential up- and downstream motif analysis. 
+This makes `rbpbench nemo` well suited for analysing e.g. motif hit regions that were obtained from one of the 
+other search modes, which optionally can be included or excluded in the motif search space. To check for enriched motifs
 and their co-occurrences in a set of input regions on a single motif level using `rbpbench enmo`:
 
 
@@ -439,7 +455,7 @@ rbpbench enmo --in eclip_clipper_idr/PUM2_K562_IDR_peaks.bed --genome hg38.fa --
 ```
 Note that only the enriched motifs (passing the set p-value threshold `--enmo-pval-thr`) are reported and 
 then included in the following co-occurrence analysis. Also note that reported p-values can differ between 
-runs (due to random background set generation, to keep results same use `--random-seed`). **Fig. 7** shows 
+runs (due to random background set generation, to keep results same set `--random-seed`). **Fig. 7** shows 
 the generated visualizations:
 
 <img src="docs/enmo.ex1.1.png" width="800" />
@@ -454,10 +470,10 @@ As we can see in **Fig. 7a** (top 10 enriched motifs), the PUM2 motifs (+ one hi
 are the most enriched motifs in the input dataset, as expected. **Fig. 7b** shows the co-occurrence 
 heat map for the enriched motifs. Note that we can further control what motifs are reported as significant here 
 by additional parameters, most importantly `--cooc-pval-thr`, `--min-motif-dist`, and `--motif-sim-thr`.
-The first is simply the p-value threshold (by default Benjamini-Hochberg corrected, change `--cooc-pval-mode`), 
+The first is simply the p-value threshold (by default Benjamini-Hochberg corrected, change via `--cooc-pval-mode`), 
 while `--min-motif-dist` is the mean minimum motif distance between the pair of motifs in all input regions, 
 and `--motif-sim-thr` is the maximum motif pair similarity (calculated using TOMTOM). The later two thus allow 
-us to e.g. focus on motif pairs that are on average not not close to each other, and also are not too similar 
+us to e.g. focus on motif pairs that are on average not so close to each other, and also are not too similar 
 to each other. Note that for pairs that do not meet the set thresholds, their hover box in the heat map informs 
 about the reason for filtering out the pair. **Fig. 7c** plots the motifs arranged by their similarity and 
 colored by their significance, allowing us to identify groups of motifs with similar motifs.
@@ -465,19 +481,19 @@ colored by their significance, allowing us to identify groups of motifs with sim
 Here we can also see that 5-mers similar to the PUM2 motifs appear more frequently in the input regions.
 Generation of the background regions can be controlled with various parameters (see `rbpbench enmo -h` for more details).
 For example, `--bg-mode` allows us to either use shuffled negatives (from input set), or randomly sampled negatives 
-from genomic or transcript regions (depending on the type of input regions). Moreover, the size of background 
-set can be increased (`--bg-min-size`), plus the user can tell RBPBench from which genomic (or transcript) regions
-to sample (`--bg-incl-bed`) and to not sample (`--bg-mask-bed`).
+from genomic or transcript regions (depending on the type of input regions). Moreover, the background set size 
+can be increased (`--bg-min-size`), plus the user can tell RBPBench from which genomic (or transcript) regions
+to sample (`--bg-incl-bed`) or not to sample (`--bg-mask-bed`).
 
 
 #### NEMO mode
 
-To do motif enrichment analysis on regions neighboring some genomic regions or even single positions of interest, 
-we can use `rbpbench nemo`.
+To do motif enrichment analysis on regions neighboring the input regions (ideally short motif regions or single 
+positions of interest), we can use `rbpbench nemo`.
 By default, motif hits overlapping the input regions are not included in the analysis (change with `--allow-overlaps`).
 Otherwise, available arguments are very much the same as for `rbpbench enmo`.
 In this example, we will use the mRNA region end positions, and look at the adjacent up- and downstream regions. 
-To get these, we will use some helper scripts that come along with RBPBench (details on available helper scripts [here](#helper-scripts)):
+To get these, we will use some helper scripts that come bundled with RBPBench (details on available helper scripts [here](#helper-scripts)):
 
 ```
 gtf_extract_mpt_region_bed.py --gtf Homo_sapiens.GRCh38.112.gtf.gz --out mrna_regions_hg38_out --only-mrna
@@ -498,12 +514,12 @@ rbpbench nemo --in mrna_region_end_pos.bed --genome hg38.fa --gtf Homo_sapiens.G
 
 We can see that the table is slightly expanded compared to the `rbpbench enmo` table. I.e., we now have additional 
 info on whether motif hits tend to occur more in up- or downstream regions relative to the input regions (signified by 
-Wilcoxon rank sum (WRS) p-value, as well as a motif distance plot showing motif hit center locations relative to the centered input regions).
-A low WRS p-value in this table means that there is a preference for up- or downstream binding (two-sided test).
+Wilcoxon rank sum (WRS) p-value, as well as a motif distance plot showing the distribution of motif hit center locations relative to the centered input regions).
+A low WRS p-value in this table means that there is a preference for either up- or downstream binding (two-sided test).
 The top enriched motifs are the motifs essentially describing the polyadenylation signal sequence (AATAAA), which is known 
 to occur often near 3'UTR ends. This preference we can also nicely see in the motif distance plots (plus it is significant w.r.t. WRS p-value).
-Looking at the regions downstream the annotated mRNA ends, we see a preference of T and GT-rich motifs (which continues as we would go further 
-down than the top 10). These GT-rich (or actually GU-rich in RNA) elements (GREs) are too known to frequently occur at transcript ends, 
+Looking at the regions downstream the annotated mRNA ends, we see a preference of T and GT-rich motifs (which continues as we would go beyond 
+the top 10). These GT-rich (or actually GU-rich in RNA) elements (GREs) are too known to frequently occur at transcript ends, 
 namely downstream the polyadenylation signal. Both elements have well known roles in the regulation of mRNA stability and degradation. 
 The different sequence preferences up- and downstream can also be seen in the sequence motif similarities vs direction PCA plot (**Fig. 10**):
 
@@ -511,7 +527,7 @@ The different sequence preferences up- and downstream can also be seen in the se
 
 **Fig. 10**: Sequence motif similarity vs direction PCA plot produced by `rbpbench nemo`.
 
-This plot again shows us the motif arranged by their similarity, but this time colored by the up- or downstream 
+This plot again shows us the motifs arranged by their similarity, but this time colored by the up- or downstream 
 direction preference (e.g., the more negative the higher the upstream preference). As an example for a significant 
 downstream preference, the hover box shows CSTF2_2 motif (from CSTF2 protein). CSTF2 is known to be a member of 
 the cleavage stimulation factor (CSTF) complex, which recognizes GU-rich elements at mRNA ends and is involved 
@@ -520,10 +536,12 @@ in the 3' end cleavage and polyadenylation of pre-mRNAs.
 
 ### Visualizing global motif preferences
 
+#### Motif preferences in spliced full transcripts
+
 To visualize motif preferences on a transcriptome-wide scale, e.g. for all mRNAs, we can use `rbpbench searchlongrna`.
-This mode allows us to do predictions specifically on spliced full transcripts (similar to `rbpbench searchrna` on 
+This mode allows us to find motifs specifically on spliced full transcripts (similar to `rbpbench searchrna` on 
 spliced transcript regions, description of all available modes [here](#program-modes)). For this first example, 
-we again use the polyadenylation signal sequence, which we can provide as regex (--regex AATAAA), or by defining 
+we again use the polyadenylation signal sequence, which we can provide as regex (`--regex AATAAA`), or by defining 
 the sequence motif from the example [above](#nemo-mode). As sequence motif search with FIMO is faster than regex search,
 we will use the `CSTF2_1` motif:
 
@@ -534,45 +552,86 @@ rbpbench searchlongrna --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --o
 The resulting motif hit coverage profile for `CSTF2_1` (AATAAA) over all mRNAs is shown in **Fig. 11**:
 
 
-<img src="docs/searchlongrna.ex1.1.png" width="600" />
+<img src="docs/searchlongrna.ex1.1.png" width="750" />
 
 **Fig. 11**: mRNA region motif hit coverage profile for motif `CSTF2_1`, produced by `rbpbench nemo`.
-Number of mRNAs used for plotting: 20476 mRNAs. Median lengths of mRNA regions: 5'UTR = 127.0, CDS = 1215.0, 3'UTR = 914.0.
+Number of mRNAs used for plotting: 20,476 mRNAs. Median lengths of mRNA regions: 5'UTR = 127.0, CDS = 1215.0, 3'UTR = 914.0.
 
-By default, all annotated mRNAs are used from the provided GTF file. However, we can also restrict the set of used mRNAs (by supplying our own transcript ID list via `--tr-list`). Note that we need to specify `--mrna-only`, otherwise we will not get the coverage profile plot. The mode is still useful though, 
-as one can filter the resulting motif hits BED file e.g. by `3'UTR`, to obtain only 3'UTR hits, and use these hit regions as input to `rbpbench searchrna` (transcript region search), or any of the single motif enrichment modes (`rbpbench enmo`, `rbpbench nemo`). We can clearly 
-see the strong prevalence of the AATAAA sequence at the end of 3'UTRs.
+By default, all annotated mRNAs are used from the provided GTF file. However, we can also restrict the set of used mRNAs (by supplying our own transcript IDs list via `--tr-list`). Note that we need to specify `--mrna-only`, otherwise we will not get the coverage profile plot. The mode is still useful though, 
+as one can filter the resulting motif hits BED file e.g. by `3'UTR`, to obtain only 3'UTR hits, and use these hit regions as input to `rbpbench searchrna` (transcript region search), or any of the single motif enrichment modes (`rbpbench enmo`, `rbpbench nemo`). As expected, we can clearly make out the strong prevalence of the AATAAA sequence at the end of 3'UTRs. In addition, we can see a smaller peak at the 3'UTR start, which is due to the partial match with the stop codon UAA (i.e., TAA). As the stop codon is not annotated as part of the CDS in GTF files (unlike the start codon), RBPBench currently annotates it as the first three 3'UTR positions.
 
 As an alternative example, let's use DDX3X which can be seen in **Fig. 5d** (if we would hover over its data point) 
-as predominantly 5'UTR binding (followed by CDS). This predominance in **Fig. 5d** is based on the DDX3X CLIPseq region coverage, 
-but we can also check whether this is true for its motifs:
+as predominantly 5'UTR binding (followed by CDS). This trend in **Fig. 5d** is based on the DDX3X eCLIP region coverage, but we can also check whether this is true for its motifs:
 
 ```
 rbpbench searchlongrna --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_searchlongrna_mrna_ddx3x_out --rbps DDX3X --mrna-only
 ```
 
-**Fig. 12**
+<img src="docs/searchlongrna.ex2.1.png" width="750" />
 
-Makes sense since it is a helicase ? (GC rich motif, hinting at it)
+**Fig. 12**: mRNA region motif hit coverage profiles for all DDX3X motifs, produced by `rbpbench nemo`.
+
+We can see that the DDX3X motifs are also found predominantly in 5'UTRs, as well as decreasingly in frequency along the CDS. Since we have more than one motif for DDX3X (i.e., two: `DDX3X_1`, `DDX3X_2`), profiles are plotted for each motif and then also the sum of profiles for the RBP in total. Furthermore, the motif hit coverage profile fits to what is known about DDX3X, namely that it is an RNA helicase involved e.g. in translation initiation. **Fig. 13** shows the two motifs:
 
 
-CSTF2_1
+<img src="docs/searchlongrna.ex2.2.png" width="400" />
 
-rbpbench searchlongrna --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_searchlongrna_mrna_ddx3x_out --rbps DDX3X --mrna-only
+**Fig. 13**: DDX3X database motifs together with literature references, produced by `rbpbench nemo`.
+
+We can see that the motifs (identified from eCLIP data), show a preference for GC-rich sequences, underlining DDX3X`s role as an RNA helicase resolving RNA structure.
+
+
+#### Motif preferences in long genomic regions
+
+To get motif hits for and look at motif preferences (GTF file needed) in long genomic regions (e.g. whole gene regions), 
+we can utilize `rbpbench searchlong`. 
+Besides visualizing the genomic region annotations for motif hits on the defined genomic regions, it also visualizes the normalized 
+annotations. This means that the motif hit counts are normalized by the annotation region lengths found in the input regions. 
+In other words, annotation counts are normalized depending on how much the annotation covers the input regions. This removes 
+annotation region length biases introduced in long genomic input regions and can give a better idea of motif prevalences 
+(given a reasonably large input size/number) in certain genomic regions (e.g., the motif tends to occur more often in introns, 3'UTR etc.).
+Suppose we want to visualize this for two genomic regions (PUM2 + PCAT-1 transcript regions, introns included), together having a region length of 
+837,078 nt:
+
+```
+cat tr_list.txt
+ENST00000361078
+ENST00000645463
+```
+
+Let's use these regions to find motifs, again for DDX3X as in the above **Fig. 12** example, and visualize both annotations with `rbpbench searchlong`:
+```
+rbpbench searchlong --in tr_list.txt --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --rbps DDX3X --out searchlong_test_ddx3x_out
+```
+
+The resulting visualizations (stored in `searchlong_test_ddx3x_out/motif_plots.rbpbench_searchlong.html`) look the following:
+
+<img src="docs/searchlong.ex1.1.png" width="700" />
+
+**Fig. 14**: Genomic region annotations for DDX3X motif hits (standard vs normalized), produced by `rbpbench searchlong`. 
+**a:** Genomic region annotations (standard, i.e., not normalized by annotation region lengths found in the input regions).
+**b:** Genomic region annotations (normalized by annotation region lengths found in the input regions).
+
+We can see that almost all DDX3X motif hits are located in intron regions (**Fig. 14a**). 
+However, this does not tell us much about the prevalence of the motifs in certain regions, as the length of 
+intron annotations is much longer than the length of exonic annotations in the input regions.
+For this we can look at the normalized annotations (**Fig. 14b**): now we can clearly see that the DDX3X 
+motifs have a strong prevalence in 5'UTR regions, in agreement with the **Fig. 12** results.
+
+
 
 
 ### Additional modes
 
 
-
-### Plot nucleotide distribution at genomic positions
+#### Plot nucleotide distribution at genomic positions
 
 We can use `rbpbench dist` to plot the nucleotide distribution at genomic positions.
 This can be used e.g. to check for potential nucleotide biases at CLIP-seq crosslink positions.
 
 For illustration, we extract genomic stop codon positions from our ENSEMBL GTF file using 
 the [helper script](#helper-scripts) `gtf_extract_tr_feat_bed.py`, 
-and run `rbpbench dist` on the obtained stop codons BED file:
+and run `rbpbench dist` on the obtained stop codon regions BED file:
 
 ```
 gtf_extract_tr_feat_bed.py --feat stop_codon --gtf Homo_sapiens.GRCh38.112.gtf.gz --out stop_codons.Homo_sapiens.GRCh38.112.bed --uniq-reg
@@ -587,7 +646,7 @@ The generated plot (`test_dist_out/nt_dist_zero_pos.png`) looks the following:
 <img src="docs/dist.ext1.1.png" alt="Nucleotide distribution at stop codons"
 	title="Nucleotide distribution at stop codons" width="500" />
 
-**Figure:** Nucleotide distribution (position probability matrix) at genomic stop codon positions (human transcript annotations, ENSEMBL GRCh38 release 112).
+**Figure 15:** Nucleotide distribution (position probability matrix) at genomic stop codon positions (human transcript annotations, ENSEMBL GRCh38 release 112).
 
 We can clearly identify the known stop codon triplet sequences (in DNA: TAA, TAG, TGA), starting 
 at position 0.
@@ -595,7 +654,7 @@ at position 0.
 
 ## Documentation
 
-This documentation provides further details on RBPBench (version 1.0).
+This documentation provides further details on RBPBench (version 1.0.x).
 
 ### Program modes
 
@@ -810,13 +869,13 @@ This way, the motifs can be used together with the database motifs for search an
 For example, to supply a structure motif (SLBP) via `--user-cm` (the example motif files can be found in the RBPBench repository subfolder `RBPBench/test`):
 
 ```
-rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps USER --out SLBP_user_search_out --genome hg38.fa --user-cm path_to_test/SLBP_USER.cm  --user-rbp-id SLBP_USER
+rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps USER --out SLBP_user_search_out --genome hg38.fa --user-cm SLBP_USER.cm  --user-rbp-id SLBP_USER
 ```
 
 In the same way, we can supply sequence motif(s) (PUM1) via `--user-meme-xml`, and e.g. also combine it with any of the database RBPs (here PUM2 and RBFOX2):
 
 ```
-rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps USER PUM2 RBFOX2 --out PUM1_user_search_out --genome hg38.fa --user-meme-xml path_to_test/PUM1_USER.xml --user-rbp-id PUM1_USER
+rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps USER PUM2 RBFOX2 --out PUM1_user_search_out --genome hg38.fa --user-meme-xml PUM1_USER.xml --user-rbp-id PUM1_USER
 ```
 
 #### Custom motif database
@@ -1099,7 +1158,7 @@ This gives us an idea of how many motifs are included in the regions, normalized
 the total size of the regions (called or effective size).
 
 
-#### Comparisons between search results
+#### Comparing different search results
 
 Both single (`rbpbench search`) and batch search (`rbpbench batch`) results 
 (i.e., their output folders) can be combined and compared using `rbpbench compare`. 
@@ -1197,7 +1256,8 @@ is chosen for each gene in the GTF file. MPT selection aims to select the transc
 with the strongest experimental support. Currently, for a pair of transcripts from 
 the same gene, to decide which one is "more prominent":
 
-1. Chose transcript with "basic" tag
+1. Choose transcript with "MANE_select" ([details](http://www.ensembl.org/info/genome/genebuild/mane.html)) tag if present
+1. If "MANE_select" tag not present, choose transcript with "basic" tag
 2. If both have "basic" tag, chose transcript with higher transcript support level (TSL)
 3. If same TSL, chose transcript with "Ensembl_canonical" tag
 4. If both have "Ensembl_canonical" tag, chose the longer transcript as current MPT
