@@ -13601,11 +13601,11 @@ originate from an intron binding RBP, making the plot less informative (since th
 Minimum overlap amount with mRNA exons required for input region to be counted as overlapping = %s%% (set via --gtf-min-mrna-overlap).
 All overlapping input region positions are used for the coverage calculation.
 Only mRNA regions overlapping with input regions are used for plot generation (# mRNAs with input regions = %i).
-mRNA region lengths used for plotting are derived from the %i mRNA regions, using their  %s region lengths (5'UTR = %s, CDS = %s, 3'UTR = %s).
+mRNA region lengths used for plotting are derived from the occupied mRNA regions, using their %s region lengths (5'UTR = %s, CDS = %s, 3'UTR = %s).
 
 &nbsp;
 
-""" %(c_all_sites, c_ol_sites, str(perc_ol_sites), str(perc_min_overlap), c_ol_mrnas, c_ol_mrnas, norm_mode, str(utr5_len_norm), str(cds_len_norm), str(utr3_len_norm))
+""" %(c_all_sites, c_ol_sites, str(perc_ol_sites), str(perc_min_overlap), c_ol_mrnas, norm_mode, str(utr5_len_norm), str(cds_len_norm), str(utr3_len_norm))
 
 
 
@@ -15757,7 +15757,7 @@ RBP "%s" only contains structure motifs, which are currently not available for p
 **Figure:** mRNA region motif hit coverage profiles for RBP "%s" motif hits.
 Motif hit coverage profiles are shown for all motifs of RBP "%s" combined, as well as single motifs (unless there is only one motif), over 5'UTR, CDS, and 3'UTR regions of mRNA.
 x-axis is the motif hit coverage, i.e., how many motif hits found over the mRNA regions.
-Only motif hit center positions are used for annotation.
+Only motif hit center positions are used for the annotation and coverage profile.
 mRNA region lengths used for plotting are the %s region lengths obtained from the GTF file (5'UTR = %s, CDS = %s, 3'UTR = %s).
 Number of mRNA sequences used for prediction and plot generation: %i.
 

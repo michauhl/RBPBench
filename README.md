@@ -203,7 +203,7 @@ select all RBPs, further filter them by some annotated functions, and also condu
 on the input regions:
 
 ```
-rbpbench search --in eclip_clipper_idr/SLBP_K562_IDR_peaks.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_slbp_tr_rsd_tep_out --functions TR RSD TEP  --rbps ALL --ext 20 --goa
+rbpbench search --in eclip_clipper_idr/SLBP_K562_IDR_peaks.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_slbp_tr_rsd_tep_out --functions TR RSD TEP --rbps ALL --ext 20 --goa
 ```
 
 Here we filter the selected RBPS (i.e., all RBPs) to keep only RBPs with the following annotated functions: translation regulation (TR),
@@ -233,7 +233,7 @@ As expected for SLBP, we can see many chromatin related terms in the top GO term
 **Fig. 3d** again depicts the mRNA region coverage profile, this time for SLBP (see **Fig. 1e** for PUM2 profile). 
 Note that the relative mRNA region lengths in the plot can change, depending on the number of input regions and on 
 which mRNAs these map. Also note that this plot becomes less informative if the percentage of input regions mapping to mRNA regions 
-gets lower (info given in HTML figure legend, here: 79.5%). Most often, this is the case for intron-binding RBPs, where you typically
+gets lower (info given in HTML figure legend, here: 82.0%). Most often, this is the case for intron-binding RBPs, where you typically
 have low percentages of exonic regions and thus also low mRNA coverage.
 
 To take a closer look at how motif hits are distributed around a specific RBP, we can specify the RBP to focus on via `set-rbp-id`:
@@ -409,7 +409,7 @@ Note that the number of hits (in `rbpbench search`, `rbpbench batch ` etc.) is i
 e.g., the input region extension (here `--ext 10`), or the motif hit threshold (for FIMO sequence motif search change via `--fimo-pval`). 
 Longer input regions and more relaxed thresholds naturally lead to more motifs hits, and thus can change the comparison results, 
 although the basic trends tend to stay similar. 
-In this example, we can see that for the PUM1 dataset, 23.88 % of DEWSeq peak regions contain >= 1 PUM1 motif hit (CLIPper IDR 12.33 %). We can also see that the number of motif hits over 1,000 nt called peak region size is higher for DEWSeq (2.31 vs. 2.04).
+In this example, we can see that for the PUM1 dataset, 23.88% of DEWSeq peak regions contain >= 1 PUM1 motif hit (CLIPper IDR 12.33%). We can also see that the number of motif hits over 1,000 nt called peak region size is higher for DEWSeq (2.31 vs. 2.04).
 
 As for second comparison (RBP ID: `RBFOX2`, peak calling method: `clipper_idr`, comparing conditions / cell types HepG2 + K562), we get this table:
 
@@ -432,8 +432,8 @@ For the two comparisons, the produced Venn diagrams looks like this:
 **b:** Comparing motif hit overlap between conditions `hepg2_eclip` and `k562_eclip` (i.e., RBFOX2 eCLIP in two different cell types HepG2, K562).
 Motif hit numbers and percentages of total motif hits are shown for each Venn diagram area (method exclusive and intersection).
 
-We can see that for the peak calling comparison (**Fig. 6a**), 31 % of each method's unique motif hits overlap. 
-In the second comparison (**Fig. 6b**, comparing cell types), we get an even lower overlap of 15 %.
+We can see that for the peak calling comparison (**Fig. 6a**), 31% of each method's unique motif hits overlap. 
+In the second comparison (**Fig. 6b**, comparing cell types), we get an even lower overlap of 15%.
 Both of these are interesting observations, which help us to better understand and interpret the data.
 
 

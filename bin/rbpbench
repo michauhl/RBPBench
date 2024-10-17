@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import statistics
+import numpy as np
 import sys
 from itertools import combinations
 
@@ -5766,7 +5767,6 @@ def main_search(args):
         if c_ol_mrna_sites:
             exon2pcl_dic = benchlib.get_exon_pos_count_list_dic(tid2tio_dic, tr_ids_dic=ol_mrna_tids_dic)
             benchlib.fill_exon_pos_count_lists(mrna_exon_sites_overlap_bed, tid2tio_dic, exon2pcl_dic)
-            # print("exon2pcl_dic:", exon2pcl_dic)
 
             tr2pcl_dic = {}
             tid2ol_regl_dic = {}
@@ -5788,62 +5788,121 @@ def main_search(args):
 
             # print("tr2pcl_dic:", tr2pcl_dic)
 
+            # print("tr2pcl_dic[ENST00000644773]:", tr2pcl_dic["ENST00000644773"])
+
             c_ol_mrnas = len(tid2ol_regl_dic)
             c_mrnas = len(tid2regl_dic)
             print("# of mRNA transcripts:            %i" %(c_mrnas))
             print("# of mRNA transcripts with sites: %i" %(c_ol_mrnas))
 
+            # Get normalized mRNA region lengths.
             utr5_len_norm, cds_len_norm, utr3_len_norm, norm_mode = benchlib.get_mrna_reg_norm_len(
                                                         tid2ol_regl_dic,
                                                         mrna_norm_mode=args.mrna_norm_mode)
-
-
 
             utr5_pc_list = [0] * round(utr5_len_norm)
             cds_pc_list = [0] * round(cds_len_norm)
             utr3_pc_list = [0] * round(utr3_len_norm)
 
+            len_norm_utr5_list = len(utr5_pc_list)
+            len_norm_cds_list = len(cds_pc_list)
+            len_norm_utr3_list = len(utr3_pc_list)
+
+            # print("norm_len:", utr5_len_norm, cds_len_norm, utr3_len_norm)
+
             for tid in tr2pcl_dic:
 
                 tr_len = tid2tio_dic[tid].tr_length  # spliced transcript length.
+
+                # print("tid2regl_dic[tid]:", tid2regl_dic[tid])
 
                 utr5_len = tid2regl_dic[tid][0]
                 cds_len = tid2regl_dic[tid][1]
                 utr3_len = tid2regl_dic[tid][2]
 
-                utr5_e = utr5_len
-                cds_s = utr5_e
-                cds_e = cds_s + cds_len
-                utr3_s = cds_e
-                utr3_e = utr3_s + utr3_len
+                reg_len_sum = utr5_len + cds_len + utr3_len
+                assert reg_len_sum == len(tr2pcl_dic[tid]), "mRNA region length sum %i != position count list length %i for transcript ID %s" %(reg_len_sum, len(tr2pcl_dic[tid]), tid)
+                
+                if utr5_len:
+                    utr5_part = tr2pcl_dic[tid][:utr5_len]
+                    utr5_orig_pos = np.linspace(0, len(utr5_part) - 1, len(utr5_part))
+                    utr5_new_pos = np.linspace(0, len(utr5_part) - 1, len_norm_utr5_list)
+                    utr5_new_part = np.interp(utr5_new_pos, utr5_orig_pos, utr5_part)
+                    utr5_new_part_int = list(np.round(utr5_new_part).astype(int))
+                    assert len(utr5_new_part_int) == len(utr5_pc_list), "length of utr5_new_part_int %i != length of utr5_pc_list %i for transcript ID %s" %(len(utr5_new_part_int), len(utr5_pc_list), tid)
+                    for i in range(len_norm_utr5_list):
+                        utr5_pc_list[i] += utr5_new_part_int[i]
+                    
+                if cds_len:
+                    cds_part = tr2pcl_dic[tid][utr5_len:utr5_len+cds_len]
+                    cds_orig_pos = np.linspace(0, len(cds_part) - 1, len(cds_part))
+                    cds_new_pos = np.linspace(0, len(cds_part) - 1, len_norm_cds_list)
+                    cds_new_part = np.interp(cds_new_pos, cds_orig_pos, cds_part)
+                    cds_new_part_int = list(np.round(cds_new_part).astype(int))
+                    assert len(cds_new_part_int) == len(cds_pc_list), "length of cds_new_part_int %i != length of cds_pc_list %i for transcript ID %s" %(len(cds_new_part_int), len(cds_pc_list), tid)
+                    for i in range(len_norm_cds_list):
+                        cds_pc_list[i] += cds_new_part_int[i]
+                
+                if utr3_len:
+                    utr3_part = tr2pcl_dic[tid][utr5_len+cds_len:]
+                    utr3_orig_pos = np.linspace(0, len(utr3_part) - 1, len(utr3_part))
+                    utr3_new_pos = np.linspace(0, len(utr3_part) - 1, len_norm_utr3_list)
+                    utr3_new_part = np.interp(utr3_new_pos, utr3_orig_pos, utr3_part)
+                    utr3_new_part_int = list(np.round(utr3_new_part).astype(int))
+                    assert len(utr3_new_part_int) == len(utr3_pc_list), "length of utr3_new_part_int %i != length of utr3_pc_list %i for transcript ID %s" %(len(utr3_new_part_int), len(utr3_pc_list), tid)
+                    for i in range(len_norm_utr3_list):
+                        utr3_pc_list[i] += utr3_new_part_int[i]
 
-                for pos, pc in enumerate(tr2pcl_dic[tid]):
+                # print("tid:", tid, "utr5_len:", utr5_len, "cds_len:", cds_len, "utr3_len:", utr3_len)
 
-                    center_pos = pos + 1  # make 1-based.
+                # utr5_e = utr5_len
+                # cds_s = utr5_e
+                # cds_e = cds_s + cds_len
+                # utr3_s = cds_e
+                # utr3_e = utr3_s + utr3_len
+                # occ_pos_seen_dic = {}  # Check if a position already received a count.
 
-                    if center_pos <= utr5_e:  # In 5'UTR.
+                # for pos, pc in enumerate(tr2pcl_dic[tid]):
 
-                        occ_pos = round((center_pos / utr5_len) * utr5_len_norm)
-                        if occ_pos > 0:
-                            occ_pos -= 1
-                        utr5_pc_list[occ_pos] += pc
+                #     center_pos = pos + 1  # make 1-based.
 
-                    elif center_pos > utr5_e and center_pos <= cds_e:  # In CDS.
+                #     if center_pos <= utr5_e:  # In 5'UTR.
 
-                        occ_pos = round(((center_pos - utr5_e) / cds_len) * cds_len_norm)
-                        if occ_pos > 0:
-                            occ_pos -= 1
-                        cds_pc_list[occ_pos] += pc
+                #         occ_pos = round((center_pos / utr5_len) * utr5_len_norm)
+                #         if occ_pos > 0:
+                #             occ_pos -= 1
+                #         # utr5_pc_list[occ_pos] += pc
+                #         occ_pos_str = "utr5;%i" %(occ_pos)
+                #         if occ_pos_str not in occ_pos_seen_dic:
+                #             utr5_pc_list[occ_pos] += pc
+                #             occ_pos_seen_dic[occ_pos_str] = 1
+                            
+                #     elif center_pos > utr5_e and center_pos <= cds_e:  # In CDS.
 
-                    elif center_pos > cds_e and center_pos <= utr3_e:  # In 3'UTR.
+                #         occ_pos = round(((center_pos - utr5_e) / cds_len) * cds_len_norm)
+                #         if occ_pos > 0:
+                #             occ_pos -= 1
+                #         # cds_pc_list[occ_pos] += pc
+                #         occ_pos_str = "cds;%i" %(occ_pos)
+                #         if occ_pos_str not in occ_pos_seen_dic:
+                #             cds_pc_list[occ_pos] += pc
+                #             occ_pos_seen_dic[occ_pos_str] = 1
 
-                        occ_pos = round(((center_pos - cds_e) / utr3_len) * utr3_len_norm)
-                        if occ_pos > 0:
-                            occ_pos -= 1
-                        utr3_pc_list[occ_pos] += pc
+                #     elif center_pos > cds_e and center_pos <= utr3_e:  # In 3'UTR.
 
-                    else:
-                        assert False, "center position %i not in 5'UTR, CDS or 3'UTR of transcript ID %s (transcript length: %i)" %(center_pos, tid, tr_len)
+                #         occ_pos = round(((center_pos - cds_e) / utr3_len) * utr3_len_norm)
+                #         if occ_pos > 0:
+                #             occ_pos -= 1
+                #         # utr3_pc_list[occ_pos] += pc
+                #         occ_pos_str = "utr3;%i" %(occ_pos)
+                #         if occ_pos_str not in occ_pos_seen_dic:
+                #             utr3_pc_list[occ_pos] += pc
+                #             occ_pos_seen_dic[occ_pos_str] = 1
+
+                #     else:
+                #         assert False, "center position %i not in 5'UTR, CDS or 3'UTR of transcript ID %s (transcript length: %i)" %(center_pos, tid, tr_len)
+
+                # # print(tid, utr3_pc_list)
 
             c_ol_sites = c_ol_mrna_sites
             c_all_sites = reg_stats_dic["c_out"]
@@ -5856,8 +5915,8 @@ def main_search(args):
             print("# of all input regions:      %i" %(c_all_sites))
             print("%% of input regions on mRNAs: %s" %(str(perc_ol_sites)))
 
-            mrna_profile = benchlib.MrnaRegionProfile("rbpbench_search", utr5_len_norm, cds_len_norm, 
-                                                      utr3_len_norm, norm_mode,
+            mrna_profile = benchlib.MrnaRegionProfile("rbpbench_search", len_norm_utr5_list, len_norm_cds_list, 
+                                                      len_norm_utr3_list, norm_mode,
                                                       c_ol_sites=c_ol_sites,
                                                       c_all_sites=c_all_sites,
                                                       c_ol_mrnas=c_ol_mrnas,
@@ -5865,8 +5924,18 @@ def main_search(args):
                                                       cds_pc_list=cds_pc_list,
                                                       utr3_pc_list=utr3_pc_list)
 
+            # mrna_profile = benchlib.MrnaRegionProfile("rbpbench_search", utr5_len_norm, cds_len_norm, 
+            #                                           utr3_len_norm, norm_mode,
+            #                                           c_ol_sites=c_ol_sites,
+            #                                           c_all_sites=c_all_sites,
+            #                                           c_ol_mrnas=c_ol_mrnas,
+            #                                           utr5_pc_list=utr5_pc_list, 
+            #                                           cds_pc_list=cds_pc_list,
+            #                                           utr3_pc_list=utr3_pc_list)
+
             mrna_prof_dic["rbpbench_search"] = mrna_profile
 
+            # print("utr3_pc_list:", utr3_pc_list)
 
     # elif args.in_gtf and not c_regions_with_hits:
     #     print("No need to read in --gtf since no motif hits found .. ")
@@ -6009,7 +6078,8 @@ def main_search(args):
 
     if reg2annot_dic or rbp2motif2annot2c_dic:
 
-        annot_dic = {}
+        annot_dic = {"3'UTR" : 0, "5'UTR" : 0, "CDS" : 0, "lncRNA" : 0, "intron" : 0, "intergenic" : 0}
+        # annot_dic = {}
 
         if reg2annot_dic:
             for reg_id in reg2annot_dic:
@@ -14488,6 +14558,8 @@ def main_searchlongrna(args):
             utr3_s = cds_e
             utr3_e = utr3_s + utr3_len
 
+            occ_pos_seen_dic = {}  # Check if a position already received a count.
+
             annot = ["intergenic", False]
 
             if center_pos <= utr5_e:  # In 5'UTR.
@@ -14495,8 +14567,15 @@ def main_searchlongrna(args):
                 occ_pos = round((center_pos / utr5_len) * utr5_len_norm)
                 if occ_pos > 0:
                     occ_pos -= 1
-                mrna_reg_occ_dic[rbp_id]["5'UTR"][occ_pos] += 1
-                mrna_reg_occ_dic[fh.motif_id]["5'UTR"][occ_pos] += 1
+
+                occ_pos_str = "utr5;%i" %(occ_pos)
+                if occ_pos_str not in occ_pos_seen_dic:
+                    mrna_reg_occ_dic[rbp_id]["5'UTR"][occ_pos] += 1
+                    mrna_reg_occ_dic[fh.motif_id]["5'UTR"][occ_pos] += 1
+                    occ_pos_seen_dic[occ_pos_str] = 1
+
+                # mrna_reg_occ_dic[rbp_id]["5'UTR"][occ_pos] += 1
+                # mrna_reg_occ_dic[fh.motif_id]["5'UTR"][occ_pos] += 1
 
                 annot = ["5'UTR", tr_id]
 
@@ -14505,8 +14584,15 @@ def main_searchlongrna(args):
                 occ_pos = round(((center_pos - utr5_e) / cds_len) * cds_len_norm)
                 if occ_pos > 0:
                     occ_pos -= 1
-                mrna_reg_occ_dic[rbp_id]["CDS"][occ_pos] += 1
-                mrna_reg_occ_dic[fh.motif_id]["CDS"][occ_pos] += 1
+
+                occ_pos_str = "cds;%i" %(occ_pos)
+                if occ_pos_str not in occ_pos_seen_dic:
+                    mrna_reg_occ_dic[rbp_id]["CDS"][occ_pos] += 1
+                    mrna_reg_occ_dic[fh.motif_id]["CDS"][occ_pos] += 1
+                    occ_pos_seen_dic[occ_pos_str] = 1
+
+                # mrna_reg_occ_dic[rbp_id]["CDS"][occ_pos] += 1
+                # mrna_reg_occ_dic[fh.motif_id]["CDS"][occ_pos] += 1
 
                 annot = ["CDS", tr_id]
             
@@ -14515,8 +14601,15 @@ def main_searchlongrna(args):
                 occ_pos = round(((center_pos - cds_e) / utr3_len) * utr3_len_norm)
                 if occ_pos > 0:
                     occ_pos -= 1
-                mrna_reg_occ_dic[rbp_id]["3'UTR"][occ_pos] += 1
-                mrna_reg_occ_dic[fh.motif_id]["3'UTR"][occ_pos] += 1
+
+                occ_pos_str = "utr3;%i" %(occ_pos)
+                if occ_pos_str not in occ_pos_seen_dic:
+                    mrna_reg_occ_dic[rbp_id]["3'UTR"][occ_pos] += 1
+                    mrna_reg_occ_dic[fh.motif_id]["3'UTR"][occ_pos] += 1
+                    occ_pos_seen_dic[occ_pos_str] = 1
+
+                # mrna_reg_occ_dic[rbp_id]["3'UTR"][occ_pos] += 1
+                # mrna_reg_occ_dic[fh.motif_id]["3'UTR"][occ_pos] += 1
 
                 annot = ["3'UTR", tr_id]
 
@@ -14916,7 +15009,9 @@ def main_searchlongrna(args):
     """
 
     annot2color_dic = {}
-    annot_dic = {"5'UTR" : 0, "CDS" : 0, "3'UTR" : 0, "intergenic" : 0}
+
+    # annot_dic = {"5'UTR" : 0, "CDS" : 0, "3'UTR" : 0, "intergenic" : 0}
+    annot_dic = {"3'UTR" : 0, "5'UTR" : 0, "CDS" : 0, "intron" : 0, "intergenic" : 0}
 
     if rbp2motif2annot2c_dic:
 
@@ -16338,7 +16433,7 @@ def main_enmo(args):
         assert pos_reg2annot_dic, "--bg-mode 1 set, but no input region annotations found. Please contact developers"
         assert neg_reg2annot_dic, "--bg-mode 1 set, but no background region annotations found. Please contact developers"
 
-        annot_dic = {}
+        annot_dic = {"3'UTR" : 0, "5'UTR" : 0, "CDS" : 0, "lncRNA" : 0, "intron" : 0, "intergenic" : 0}
 
         for reg_id in pos_reg2annot_dic:
             annot = pos_reg2annot_dic[reg_id][0]
@@ -18799,7 +18894,7 @@ def main_nemo(args):
         assert pos_reg2annot_dic, "--bg-mode 1 set, but no input region annotations found. Please contact developers"
         assert neg_reg2annot_dic, "--bg-mode 1 set, but no background region annotations found. Please contact developers"
 
-        annot_dic = {}
+        annot_dic = {"3'UTR" : 0, "5'UTR" : 0, "CDS" : 0, "lncRNA" : 0, "intron" : 0, "intergenic" : 0}
 
         for reg_id in pos_reg2annot_dic:
             annot = pos_reg2annot_dic[reg_id][0]
