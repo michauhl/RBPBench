@@ -7,7 +7,7 @@ from setuptools import setup
 
 setup(
     name='rbpbench',
-    version='1.0',
+    version='1.0.1',
     description='Evaluate CLIP-seq and other genomic region data using a comprehensive collection of known RBP binding motifs',
     long_description=open('README.md').read(),
     url='https://github.com/michauhl/RBPBench',
@@ -23,7 +23,10 @@ setup(
              'bin/gtf_extract_mpt_region_bed.py', 
              'bin/bed_print_first_n_pos.py', 
              'bin/bed_print_last_n_pos.py',
-             'bin/gtf_extract_exon_intron_border_bed.py'
+             'bin/gtf_extract_exon_intron_border_bed.py',
+             'bin/create_custom_meme_motif_db.py',
+             'bin/gtf_extract_tr_feat_bed.py',
+             'bin/bed_merge_ol_reg.py'
              ],
     packages=['rbpbench'],
     package_data={'rbpbench': ['content/*', 'content/motif_plots/*']},

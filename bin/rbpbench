@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import statistics
+import numpy as np
 import sys
 from itertools import combinations
 
@@ -16,7 +17,7 @@ from scipy.stats import mannwhitneyu
 from scipy.stats import false_discovery_control  # Benjamini-Hochberg correction.
 
 
-__version__ = "1.0"
+__version__ = "1.0.1"
 
 
 ################################################################################
@@ -127,7 +128,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (257 RBPs, 599 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (277 RBPs, 622 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_s.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -283,8 +284,8 @@ def setup_argument_parser():
                    dest="cooc_pval_thr",
                    type=float,
                    metavar='float',
-                   default=0.05,
-                   help="RBP co-occurrence p-value threshold for reporting significant co-occurrences. NOTE that if --cooc-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.05)")
+                   default=0.005,
+                   help="RBP co-occurrence p-value threshold for reporting significant co-occurrences. NOTE that if --cooc-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.005)")
     p_s.add_argument("--cooc-pval-mode",
                    dest="cooc_pval_mode",
                    type=int,
@@ -308,6 +309,29 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Disable input sequence length distribution plot in HTML report (default: False)")
+    p_s.add_argument("--kmer-plot",
+                   dest="kmer_plot",
+                   default = False,
+                   action = "store_true",
+                   help = "Generate k-mer distribution plot, comparing input top scoring sites vs bottom scoring sites. By default, split point is the middle point, i.e., top 50 percent vs bottom 50 percent scoring sites (default: False)")
+    p_s.add_argument("--kmer-plot-top-n",
+                   dest="kmer_plot_top_n",
+                   type=int,
+                   metavar='int',
+                   default=False,
+                   help="Set number of top scoring sites to use for --kmer-plot. By default, top and bottom is split in half (default: False)")
+    p_s.add_argument("--kmer-plot-bottom-n",
+                   dest="kmer_plot_bottom_n",
+                   type=int,
+                   metavar='int',
+                   default=False,
+                   help="Set number of bottom scoring sites to use for --kmer-plot. By default, top and bottom is split in half (default: False)")
+    p_s.add_argument("--kmer-plot-k",
+                   dest="kmer_plot_k",
+                   type=int,
+                   metavar='int',
+                   default=5,
+                   help="Define k for --kmer-plot (default: 5)")
     p_s.add_argument("--enable-upset-plot",
                    dest="enable_upset_plot",
                    default = False,
@@ -377,8 +401,8 @@ def setup_argument_parser():
                    dest="gtf_eib_min_overlap",
                    type=float,
                    metavar='float',
-                   default=0.9,
-                   help="Minimum amount input region has to overlap with exon (e), intron (i), i + ei borders to be counted as overlapping with these (note that the amount is reciprocal, i.e., one of the overlapping parts meeting the minimum amount is enough) (default: 0.9)")
+                   default=0.5,
+                   help="Minimum amount input region has to overlap with exon (e), intron (i), i + ei borders to be counted as overlapping with these (note that the amount is reciprocal, i.e., one of the overlapping parts meeting the minimum amount is enough) (default: 0.5)")
     p_s.add_argument("--gtf-intron-border-len",
                    dest="gtf_intron_border_len",
                    type=int,
@@ -391,6 +415,23 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.5,
                    help="Minimum amount of overlap required for a region to be considered in mRNA region site coverage profile (i.e., overlap with mRNA exons) (default: 0.5)")
+    p_s.add_argument("--exp-gene-list",
+                   dest="exp_gene_list",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Supply file with gene IDs (one ID per row) of expressed genes for filtering selected RBPs (supported gene ID format: ENSG00000100320, no version numbers). E.g. if --rbps ALL selected, using --exp-gene-list allows filtering RBPs by expression (default: False)")
+    p_s.add_argument("--exp-gene-filter",
+                   dest="exp_gene_filter",
+                   default = False,
+                   action = "store_true",
+                   help = "Filter out --in regions not overlapping with --exp-gene-list gene regions. Note that --exp-gene-list gene IDs have to be compatible with --gtf file (default: False)")
+    p_s.add_argument("--exp-gene-filter-mode",
+                   dest="exp_gene_filter_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help = "Define --exp-gene-filter behavior. 1: filter out --in regions NOT OVERLAPPING with --exp-gene-list gene regions. 2: filter out --in regions OVERLAPPING with --exp-gene-list gene regions (default: 1)")
     p_s.add_argument("--mrna-norm-mode",
                    dest="mrna_norm_mode",
                    type=int,
@@ -600,7 +641,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (257 RBPs, 599 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (277 RBPs, 622 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_b.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -762,8 +803,8 @@ def setup_argument_parser():
                    dest="gtf_eib_min_overlap",
                    type=float,
                    metavar='float',
-                   default=0.9,
-                   help="Minimum amount input region has to overlap with exon (e), intron (i), i + ei borders to be counted as overlapping with these (note that the amount is reciprocal, i.e., one of the overlapping parts meeting the minimum amount is enough) (default: 0.9)")
+                   default=0.5,
+                   help="Minimum amount input region has to overlap with exon (e), intron (i), i + ei borders to be counted as overlapping with these (note that the amount is reciprocal, i.e., one of the overlapping parts meeting the minimum amount is enough) (default: 0.5)")
     p_b.add_argument("--gtf-intron-border-len",
                    dest="gtf_intron_border_len",
                    type=int,
@@ -980,7 +1021,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (257 RBPs, 599 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (277 RBPs, 622 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_ss.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -1242,7 +1283,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (257 RBPs, 599 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (277 RBPs, 622 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_sl.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -1477,8 +1518,8 @@ def setup_argument_parser():
                    dest="cooc_pval_thr",
                    type=float,
                    metavar='float',
-                   default=0.05,
-                   help="RBP co-occurrence p-value threshold for reporting significant co-occurrences. NOTE that if --cooc-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.05)")
+                   default=0.005,
+                   help="RBP co-occurrence p-value threshold for reporting significant co-occurrences. NOTE that if --cooc-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.005)")
     p_scr.add_argument("--cooc-pval-mode",
                    dest="cooc_pval_mode",
                    type=int,
@@ -1520,7 +1561,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (257 RBPs, 599 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (277 RBPs, 622 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_scr.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -1888,7 +1929,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (257 RBPs, 599 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (277 RBPs, 622 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_smr.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -2174,7 +2215,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (257 RBPs, 599 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (277 RBPs, 622 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_em.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -2381,8 +2422,8 @@ def setup_argument_parser():
                    dest="cooc_pval_thr",
                    type=float,
                    metavar='float',
-                   default=0.05,
-                   help="Motif co-occurrence p-value threshold for reporting significant motif co-occurrences. NOTE that if --cooc-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.05)")
+                   default=0.005,
+                   help="Motif co-occurrence p-value threshold for reporting significant motif co-occurrences. NOTE that if --cooc-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.005)")
     p_em.add_argument("--cooc-pval-mode",
                    dest="cooc_pval_mode",
                    type=int,
@@ -2527,7 +2568,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (257 RBPs, 599 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (277 RBPs, 622 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_nm.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -2739,8 +2780,8 @@ def setup_argument_parser():
                    dest="cooc_pval_thr",
                    type=float,
                    metavar='float',
-                   default=0.05,
-                   help="Motif co-occurrence p-value threshold for reporting significant motif co-occurrences. NOTE that if --cooc-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.05)")
+                   default=0.005,
+                   help="Motif co-occurrence p-value threshold for reporting significant motif co-occurrences. NOTE that if --cooc-pval-mode Bonferroni is selected, this threshold gets further adjusted by Bonferroni correction (i.e. divided by number of tests). Threshold applies unchanged for BH corrected p-values as well as for disabled correction (default: 0.005)")
     p_nm.add_argument("--cooc-pval-mode",
                    dest="cooc_pval_mode",
                    type=int,
@@ -2919,7 +2960,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database used so search for motifs similar to --in. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database used so search for motifs similar to --in. 1: human RBP motifs (257 RBPs, 599 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (277 RBPs, 622 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_to.add_argument("--custom-db",
                    dest="custom_db_meme_xml",
                    type=str,
@@ -3122,7 +3163,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (257 RBPs, 599 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (277 RBPs, 622 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_oe.add_argument("--fimo-ntf-file",
                    dest="fimo_user_ntf_file",
                    type=str,
@@ -3239,6 +3280,11 @@ def setup_argument_parser():
                    metavar='int',
                    default=10,
                    help="Up- and downstream extension of defined genomic positions (define via --cp-mode) in nucleotides (nt). Set e.g. --ext 20 for 20 nt on both sides (default: 10)")
+    p_d.add_argument("--no-uniq-check",
+                   dest="no_uniq_reg_check",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable checking for unique input regions and positions (defined by --cp-mode). By default, duplicate input regions are removed, and encountering identical genomic positions (defined by --cp-mode) for plotting results in an assert error (default: False)")
     p_d.add_argument("--plot-pdf",
                    dest="plot_pdf",
                    default = False,
@@ -3258,7 +3304,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help="Built-in motif database to use. 1: human RBP motifs (259 RBPs, 605 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (279 RBPs, 628 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
+                   help="Built-in motif database to use. 1: human RBP motifs (257 RBPs, 599 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (277 RBPs, 622 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_i.add_argument("--custom-db",
                    dest="custom_db",
                    type=str,
@@ -3374,6 +3420,8 @@ def main_search(args):
     assert benchlib.boundary_check(args.gtf_eib_min_overlap, 1E-9, 1.0), "set --gtf-eib-min-overlap expected to be >= 1E-9 and <= 1.0"
     assert benchlib.boundary_check(args.gtf_intron_border_len, 1, 1000), "set --gtf-intron-border-eln expected to be >= 1 and <= 1000"
     assert benchlib.boundary_check(args.min_motif_dist, 0, 1000), "set --min-motif-dist expected to be >= 0 and <= 1000"
+    assert benchlib.boundary_check(args.kmer_plot_k, 1, 7), "set --kmer-plot-k expected to be >= 1 and <= 7"
+
     # if args.in_gtf:
     #     assert args.report, "set --gtf requires --report to be effective"
     assert args.upset_plot_min_rbp_count >= 0, "set --upset-plot-min-rbp-count needs to be >= 0"
@@ -3480,7 +3528,8 @@ def main_search(args):
     "A1CF" -> ["RM", "RSD", "RE"]
 
     """
-    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -3897,6 +3946,71 @@ def main_search(args):
         print("# motif IDs pre-filtering by functions: ", c_loaded_motif_ids_pre)
         print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
 
+
+    """
+    If --exp-gene-list set, filter RBPs by gene IDs from list, 
+    such that only RBPs for search are kept whose gene IDs are in --exp-gene-list.
+    Keep regex motif if set.
+  
+    """
+    exp_gene_ids_dic = {}
+
+    if args.exp_gene_list:
+
+        print("Filter selected RBPs by --exp-gene-list ... ")
+
+        assert os.path.exists(args.exp_gene_list), "given --exp-gene-list file \"%s\" not found" % (args.exp_gene_list)
+
+        exp_gene_ids_dic = benchlib.read_ids_into_dic(args.exp_gene_list,
+                                                      check_dic=False)
+
+        assert exp_gene_ids_dic, "no gene IDs read in from --exp-gene-list. Please provide gene IDs in a text file, one ID per line"
+
+        filtered_rbps_dic = {}
+        filtered_motif_ids_dic = {}
+        filtered_name2ids_dic = {}
+        
+        for rbp_id in loaded_rbps_dic:
+
+            if rbp_id == regex_id:  # keep regex if set.
+                filtered_rbps_dic[regex_id] = regex_id
+                if args.motif_regex_id:
+                    filtered_motif_ids_dic[regex_id] = regex_id
+                    filtered_name2ids_dic[regex_id] = [regex_id]
+                else:
+                    filtered_motif_ids_dic[regex] = regex_id
+                    filtered_name2ids_dic[regex_id] = [regex]
+                continue
+
+            if rbp_id not in name2gid_dic:
+                continue
+
+            rbp_gene_id = name2gid_dic[rbp_id]
+
+            if rbp_gene_id in exp_gene_ids_dic:
+                set_db_str = loaded_rbps_dic[rbp_id]
+                filtered_rbps_dic[rbp_id] = set_db_str
+                for motif_id in name2ids_dic[rbp_id]:
+                    set_db_str = loaded_motif_ids_dic[motif_id]
+                    filtered_motif_ids_dic[motif_id] = set_db_str
+                filtered_name2ids_dic[rbp_id] = name2ids_dic[rbp_id]
+
+        c_loaded_rbps_pre = len(loaded_rbps_dic)
+        c_loaded_rbps_post = len(filtered_rbps_dic)
+        loaded_rbps_dic = filtered_rbps_dic
+
+        print("# RBPs pre-filtering by --exp-gene-list: ", c_loaded_rbps_pre)
+        print("# RBPs post-filtering by --exp-gene-list:", c_loaded_rbps_post)
+
+        if args.regex and len(loaded_rbps_dic) == 1:
+            print("WARNING: only regex motif left after filtering by --exp-gene-list ...")
+
+        assert loaded_rbps_dic, "no remaining RBPs after filtering by --exp-gene-list. Please provide compatible gene IDs in --exp-gene-list (supported gene ID format: ENSG00000100320, no version numbers!) and at least one RBP via --rbps that is in --exp-gene-list"
+
+        loaded_motif_ids_dic = filtered_motif_ids_dic
+        name2ids_dic = filtered_name2ids_dic
+
+
     """
     Load RBP data, store in RBP() class.
 
@@ -3950,6 +4064,61 @@ def main_search(args):
     chr_ids_dic = benchlib.get_fasta_headers(args.in_genome)
 
     """
+    Guess chromosome ID style.
+
+    chr_style:
+        1: chr1, chr2, ..., chrX, chrM
+        2: 1, 2, ... , X, MT
+
+    """
+    print("Guess chromosome ID style (based on --genome FASTA headers) ... ")
+    chr_style = benchlib.guess_chr_id_style(chr_ids_dic)
+    
+    """
+    Optionally filter --in regions by --exp-gene-list (if --exp-gene-filter set).
+    
+    """
+
+    in_reg_bed = args.in_sites
+
+    if args.exp_gene_filter:
+
+        assert exp_gene_ids_dic, "--exp-gene-filter set but no gene IDs provided via --exp-gene-list. Please provide gene IDs in a text file, one ID per line"
+        assert args.in_gtf, "--exp-gene-filter set but no --gtf file provided. Please provide a GTF file with compatible gene annotations (compatible to --exp-gene-list gene IDs)"
+        assert os.path.exists(args.in_gtf), "--gtf file \"%s\" not found" % (args.in_gtf)
+
+        print("Extract --exp-gene-list gene regions from --gtf file ... ")
+        
+        tmp_gene_reg_bed = args.out_folder + "/gene_regions.exp_gene_list.bed"
+        c_out_gene_reg = benchlib.gtf_output_gene_regions_to_bed(args.in_gtf, tmp_gene_reg_bed,
+                                                                 gids_dic=exp_gene_ids_dic,
+                                                                 chr_id_style=chr_style)
+
+        assert c_out_gene_reg, "no gene regions extracted from --gtf file. Please provide a valid GTF file with gene annotations compatible with --exp-gene-list gene IDs"
+
+        print("Filter --in regions by --exp-gene-list gene regions ... ")
+        tmp_in_filtered_bed = args.out_folder + "/in_sites.exp_gene_list.filtered.bed"
+
+        params = "-u -s"
+        if args.exp_gene_filter_mode == 2:  # Keep --in regions not overlapping with --exp-gene-list gene regions.
+            params = "-v -s"
+
+        c_in_reg_pre_flt = benchlib.count_lines_in_file(args.in_sites)
+
+        benchlib.bed_intersect_files(args.in_sites, tmp_gene_reg_bed, tmp_in_filtered_bed,
+                                     params=params)
+
+        c_in_reg_post_flt = benchlib.count_lines_in_file(tmp_in_filtered_bed)
+
+        print("# --in regions pre-filtering: ", c_in_reg_pre_flt)
+        print("# --in regions post-filtering:", c_in_reg_post_flt)
+
+        assert c_in_reg_post_flt, "no --in regions remain after filtering by --exp-gene-list gene regions. Please provide compatible files or change --exp-gene-filter settings"
+
+        in_reg_bed = tmp_in_filtered_bed
+
+
+    """
     Filter / extend --in genomic regions BED file.
 
     """
@@ -3981,7 +4150,7 @@ def main_search(args):
     print("Preprocess --in sites ... ")
     reg2sc_dic = {}  # Used to store region scores for Wilcoxon rank-sum test.
     bed_chr_ids_dic = {}
-    reg_stats_dic = benchlib.bed_filter_extend_bed(args.in_sites, filtered_sites_bed,
+    reg_stats_dic = benchlib.bed_filter_extend_bed(in_reg_bed, filtered_sites_bed,
                                           ext_up=ext_up,
                                           ext_down=ext_down,
                                           remove_dupl=True,
@@ -4001,18 +4170,6 @@ def main_search(args):
     print("# regions filtered by score:   ", reg_stats_dic["c_sc_thr"])
 
     assert reg_stats_dic["c_out"], "no --in BED sites remain after chromosome ID (or optionally score) filtering. If caused by invalid chr_id filtering, make sure chromosome IDs in --genome FASTA and --in BED files are compatible (i.e., \"chr1\" vs. \"1\" notation). If --in regions are on transcripts, use rbpbench searchrna"
-
-    """
-    Guess chromosome ID style.
-
-    chr_style:
-        1: chr1, chr2, ..., chrX, chrM
-        2: 1, 2, ... , X, MT
-
-    """
-    print("Guess chromosome ID style (based on --genome FASTA headers) ... ")
-    chr_style = benchlib.guess_chr_id_style(chr_ids_dic)
-    
 
     """
     Calculate effective size of genomic regions.
@@ -4670,7 +4827,7 @@ def main_search(args):
     rbp2regidx_dic = {}
     OUTOCC = open(rbp_reg_occ_table_out,"w")
 
-    occ_header = "#region_id \ rbp_id"
+    occ_header = r"#region_id \ rbp_id"
     for rbp_id, hit_list in sorted(reg_hits_dic.items()):
         occ_header += "\t%s" %(rbp_id)
         rbp2regidx_dic[rbp_id] = []
@@ -5364,6 +5521,7 @@ def main_search(args):
                                     basic_tag=False,  # do not be strict (only_tsl=False too).
                                     ensembl_canonical_tag=False,
                                     prior_basic_tag=True,  # Prioritize basic tag transcript.
+                                    prior_mane_select=True,  # mane select if set trumps all.
                                     only_tsl=False)
             assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
             print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
@@ -5481,7 +5639,7 @@ def main_search(args):
 
         # Overlap with input regions.
         print("Overlap exon + intron regions with input regions ... ")
-        params = "-s -f %s -F %s -e " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
+        params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
         overlap_ei_regions_bed = args.out_folder + "/overlap_ei_regions.tmp.bed"
         benchlib.bed_intersect_files(intron_exon_out_bed, filtered_sites_bed,
                                      overlap_ei_regions_bed,
@@ -5493,7 +5651,7 @@ def main_search(args):
         print("# intron overlap regions: %i" %(c_intron_ol))
 
         print("Overlap exon + intron border regions with input regions ... ")
-        params = "-s -f %s -F %s -e " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
+        params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
         overlap_eib_regions_bed = args.out_folder + "/overlap_eib_regions.tmp.bed"
         benchlib.bed_intersect_files(intron_exon_border_out_bed, filtered_sites_bed,
                                      overlap_eib_regions_bed,
@@ -5515,7 +5673,6 @@ def main_search(args):
                                                           c_tr_ids_with_sites=len(tids_with_sites_dic))
         
         ei_ol_stats_dic["rbpbench_search"] = exon_intron_ol_stats
-
 
         # If only target genes with RBP motifs hits for all RBPs should be considered.
         if args.goa_cooc_mode == 2:
@@ -5546,6 +5703,8 @@ def main_search(args):
         if args.goa_bg_gene_list:
 
             print("Read in background genes from --goa-gb-gene-list ... ")
+
+            assert os.path.exists(args.goa_bg_gene_list), "given --goa-bg-gene-list file \"%s\" not found" % (args.goa_bg_gene_list)
 
             bg_gene_ids_dic = benchlib.read_ids_into_dic(args.goa_bg_gene_list,
                                                          check_dic=False)
@@ -5608,7 +5767,6 @@ def main_search(args):
         if c_ol_mrna_sites:
             exon2pcl_dic = benchlib.get_exon_pos_count_list_dic(tid2tio_dic, tr_ids_dic=ol_mrna_tids_dic)
             benchlib.fill_exon_pos_count_lists(mrna_exon_sites_overlap_bed, tid2tio_dic, exon2pcl_dic)
-            # print("exon2pcl_dic:", exon2pcl_dic)
 
             tr2pcl_dic = {}
             tid2ol_regl_dic = {}
@@ -5630,62 +5788,121 @@ def main_search(args):
 
             # print("tr2pcl_dic:", tr2pcl_dic)
 
+            # print("tr2pcl_dic[ENST00000644773]:", tr2pcl_dic["ENST00000644773"])
+
             c_ol_mrnas = len(tid2ol_regl_dic)
             c_mrnas = len(tid2regl_dic)
             print("# of mRNA transcripts:            %i" %(c_mrnas))
             print("# of mRNA transcripts with sites: %i" %(c_ol_mrnas))
 
+            # Get normalized mRNA region lengths.
             utr5_len_norm, cds_len_norm, utr3_len_norm, norm_mode = benchlib.get_mrna_reg_norm_len(
                                                         tid2ol_regl_dic,
                                                         mrna_norm_mode=args.mrna_norm_mode)
-
-
 
             utr5_pc_list = [0] * round(utr5_len_norm)
             cds_pc_list = [0] * round(cds_len_norm)
             utr3_pc_list = [0] * round(utr3_len_norm)
 
+            len_norm_utr5_list = len(utr5_pc_list)
+            len_norm_cds_list = len(cds_pc_list)
+            len_norm_utr3_list = len(utr3_pc_list)
+
+            # print("norm_len:", utr5_len_norm, cds_len_norm, utr3_len_norm)
+
             for tid in tr2pcl_dic:
 
                 tr_len = tid2tio_dic[tid].tr_length  # spliced transcript length.
+
+                # print("tid2regl_dic[tid]:", tid2regl_dic[tid])
 
                 utr5_len = tid2regl_dic[tid][0]
                 cds_len = tid2regl_dic[tid][1]
                 utr3_len = tid2regl_dic[tid][2]
 
-                utr5_e = utr5_len
-                cds_s = utr5_e
-                cds_e = cds_s + cds_len
-                utr3_s = cds_e
-                utr3_e = utr3_s + utr3_len
+                reg_len_sum = utr5_len + cds_len + utr3_len
+                assert reg_len_sum == len(tr2pcl_dic[tid]), "mRNA region length sum %i != position count list length %i for transcript ID %s" %(reg_len_sum, len(tr2pcl_dic[tid]), tid)
+                
+                if utr5_len:
+                    utr5_part = tr2pcl_dic[tid][:utr5_len]
+                    utr5_orig_pos = np.linspace(0, len(utr5_part) - 1, len(utr5_part))
+                    utr5_new_pos = np.linspace(0, len(utr5_part) - 1, len_norm_utr5_list)
+                    utr5_new_part = np.interp(utr5_new_pos, utr5_orig_pos, utr5_part)
+                    utr5_new_part_int = list(np.round(utr5_new_part).astype(int))
+                    assert len(utr5_new_part_int) == len(utr5_pc_list), "length of utr5_new_part_int %i != length of utr5_pc_list %i for transcript ID %s" %(len(utr5_new_part_int), len(utr5_pc_list), tid)
+                    for i in range(len_norm_utr5_list):
+                        utr5_pc_list[i] += utr5_new_part_int[i]
+                    
+                if cds_len:
+                    cds_part = tr2pcl_dic[tid][utr5_len:utr5_len+cds_len]
+                    cds_orig_pos = np.linspace(0, len(cds_part) - 1, len(cds_part))
+                    cds_new_pos = np.linspace(0, len(cds_part) - 1, len_norm_cds_list)
+                    cds_new_part = np.interp(cds_new_pos, cds_orig_pos, cds_part)
+                    cds_new_part_int = list(np.round(cds_new_part).astype(int))
+                    assert len(cds_new_part_int) == len(cds_pc_list), "length of cds_new_part_int %i != length of cds_pc_list %i for transcript ID %s" %(len(cds_new_part_int), len(cds_pc_list), tid)
+                    for i in range(len_norm_cds_list):
+                        cds_pc_list[i] += cds_new_part_int[i]
+                
+                if utr3_len:
+                    utr3_part = tr2pcl_dic[tid][utr5_len+cds_len:]
+                    utr3_orig_pos = np.linspace(0, len(utr3_part) - 1, len(utr3_part))
+                    utr3_new_pos = np.linspace(0, len(utr3_part) - 1, len_norm_utr3_list)
+                    utr3_new_part = np.interp(utr3_new_pos, utr3_orig_pos, utr3_part)
+                    utr3_new_part_int = list(np.round(utr3_new_part).astype(int))
+                    assert len(utr3_new_part_int) == len(utr3_pc_list), "length of utr3_new_part_int %i != length of utr3_pc_list %i for transcript ID %s" %(len(utr3_new_part_int), len(utr3_pc_list), tid)
+                    for i in range(len_norm_utr3_list):
+                        utr3_pc_list[i] += utr3_new_part_int[i]
 
-                for pos, pc in enumerate(tr2pcl_dic[tid]):
+                # print("tid:", tid, "utr5_len:", utr5_len, "cds_len:", cds_len, "utr3_len:", utr3_len)
 
-                    center_pos = pos + 1  # make 1-based.
+                # utr5_e = utr5_len
+                # cds_s = utr5_e
+                # cds_e = cds_s + cds_len
+                # utr3_s = cds_e
+                # utr3_e = utr3_s + utr3_len
+                # occ_pos_seen_dic = {}  # Check if a position already received a count.
 
-                    if center_pos <= utr5_e:  # In 5'UTR.
+                # for pos, pc in enumerate(tr2pcl_dic[tid]):
 
-                        occ_pos = round((center_pos / utr5_len) * utr5_len_norm)
-                        if occ_pos > 0:
-                            occ_pos -= 1
-                        utr5_pc_list[occ_pos] += pc
+                #     center_pos = pos + 1  # make 1-based.
 
-                    elif center_pos > utr5_e and center_pos <= cds_e:  # In CDS.
+                #     if center_pos <= utr5_e:  # In 5'UTR.
 
-                        occ_pos = round(((center_pos - utr5_e) / cds_len) * cds_len_norm)
-                        if occ_pos > 0:
-                            occ_pos -= 1
-                        cds_pc_list[occ_pos] += pc
+                #         occ_pos = round((center_pos / utr5_len) * utr5_len_norm)
+                #         if occ_pos > 0:
+                #             occ_pos -= 1
+                #         # utr5_pc_list[occ_pos] += pc
+                #         occ_pos_str = "utr5;%i" %(occ_pos)
+                #         if occ_pos_str not in occ_pos_seen_dic:
+                #             utr5_pc_list[occ_pos] += pc
+                #             occ_pos_seen_dic[occ_pos_str] = 1
+                            
+                #     elif center_pos > utr5_e and center_pos <= cds_e:  # In CDS.
 
-                    elif center_pos > cds_e and center_pos <= utr3_e:  # In 3'UTR.
+                #         occ_pos = round(((center_pos - utr5_e) / cds_len) * cds_len_norm)
+                #         if occ_pos > 0:
+                #             occ_pos -= 1
+                #         # cds_pc_list[occ_pos] += pc
+                #         occ_pos_str = "cds;%i" %(occ_pos)
+                #         if occ_pos_str not in occ_pos_seen_dic:
+                #             cds_pc_list[occ_pos] += pc
+                #             occ_pos_seen_dic[occ_pos_str] = 1
 
-                        occ_pos = round(((center_pos - cds_e) / utr3_len) * utr3_len_norm)
-                        if occ_pos > 0:
-                            occ_pos -= 1
-                        utr3_pc_list[occ_pos] += pc
+                #     elif center_pos > cds_e and center_pos <= utr3_e:  # In 3'UTR.
 
-                    else:
-                        assert False, "center position %i not in 5'UTR, CDS or 3'UTR of transcript ID %s (transcript length: %i)" %(center_pos, tid, tr_len)
+                #         occ_pos = round(((center_pos - cds_e) / utr3_len) * utr3_len_norm)
+                #         if occ_pos > 0:
+                #             occ_pos -= 1
+                #         # utr3_pc_list[occ_pos] += pc
+                #         occ_pos_str = "utr3;%i" %(occ_pos)
+                #         if occ_pos_str not in occ_pos_seen_dic:
+                #             utr3_pc_list[occ_pos] += pc
+                #             occ_pos_seen_dic[occ_pos_str] = 1
+
+                #     else:
+                #         assert False, "center position %i not in 5'UTR, CDS or 3'UTR of transcript ID %s (transcript length: %i)" %(center_pos, tid, tr_len)
+
+                # # print(tid, utr3_pc_list)
 
             c_ol_sites = c_ol_mrna_sites
             c_all_sites = reg_stats_dic["c_out"]
@@ -5698,8 +5915,8 @@ def main_search(args):
             print("# of all input regions:      %i" %(c_all_sites))
             print("%% of input regions on mRNAs: %s" %(str(perc_ol_sites)))
 
-            mrna_profile = benchlib.MrnaRegionProfile("rbpbench_search", utr5_len_norm, cds_len_norm, 
-                                                      utr3_len_norm, norm_mode,
+            mrna_profile = benchlib.MrnaRegionProfile("rbpbench_search", len_norm_utr5_list, len_norm_cds_list, 
+                                                      len_norm_utr3_list, norm_mode,
                                                       c_ol_sites=c_ol_sites,
                                                       c_all_sites=c_all_sites,
                                                       c_ol_mrnas=c_ol_mrnas,
@@ -5707,8 +5924,18 @@ def main_search(args):
                                                       cds_pc_list=cds_pc_list,
                                                       utr3_pc_list=utr3_pc_list)
 
+            # mrna_profile = benchlib.MrnaRegionProfile("rbpbench_search", utr5_len_norm, cds_len_norm, 
+            #                                           utr3_len_norm, norm_mode,
+            #                                           c_ol_sites=c_ol_sites,
+            #                                           c_all_sites=c_all_sites,
+            #                                           c_ol_mrnas=c_ol_mrnas,
+            #                                           utr5_pc_list=utr5_pc_list, 
+            #                                           cds_pc_list=cds_pc_list,
+            #                                           utr3_pc_list=utr3_pc_list)
+
             mrna_prof_dic["rbpbench_search"] = mrna_profile
 
+            # print("utr3_pc_list:", utr3_pc_list)
 
     # elif args.in_gtf and not c_regions_with_hits:
     #     print("No need to read in --gtf since no motif hits found .. ")
@@ -5851,7 +6078,8 @@ def main_search(args):
 
     if reg2annot_dic or rbp2motif2annot2c_dic:
 
-        annot_dic = {}
+        annot_dic = {"3'UTR" : 0, "5'UTR" : 0, "CDS" : 0, "lncRNA" : 0, "intron" : 0, "intergenic" : 0}
+        # annot_dic = {}
 
         if reg2annot_dic:
             for reg_id in reg2annot_dic:
@@ -5952,6 +6180,8 @@ def main_search(args):
                                         goa_stats_dic=goa_stats_dic,
                                         html_report_out=html_report_out,
                                         reg_seq_str="regions",
+                                        reg2seq_dic=out_seqs_dic,
+                                        reg2sc_dic=reg2sc_dic,
                                         plots_subfolder=plots_subfolder)
 
 
@@ -5981,8 +6211,9 @@ def main_search(args):
                                          annot2color_dic=annot2color_dic,
                                          html_report_out=html_motif_plots_out,
                                          reg_seq_str="regions",
+                                         id2pids_dic=id2pids_dic,
+                                         id2exp_dic=id2exp_dic,
                                          plots_subfolder=plots_subfolder)
-
 
     """
     Output parameter settings.
@@ -6006,7 +6237,6 @@ def main_search(args):
         os.remove(out_tmp_bed)
     if os.path.exists(cmstat_tmp_out):
         os.remove(cmstat_tmp_out)
-
 
     """
     Inform about outputs.
@@ -6195,8 +6425,8 @@ def main_batch(args):
 
         for bed_file in bed_list:
             rbp_id = False
-            if re.search(".+\.bed", bed_file):
-                m = re.search("(.+)\.bed", bed_file)
+            if re.search(r".+\.bed", bed_file):
+                m = re.search(r"(.+)\.bed", bed_file)
                 fn = m.group(1)
                 fnp = fn.split("_")
                 rbp_id = fnp[0]
@@ -6270,7 +6500,8 @@ def main_batch(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -6469,6 +6700,7 @@ def main_batch(args):
                                     basic_tag=False,  # do not be strict (only_tsl=False too).
                                     ensembl_canonical_tag=False,
                                     prior_basic_tag=True,  # Prioritize basic tag transcript.
+                                    prior_mane_select=True,  # mane select if set trumps all.
                                     only_tsl=False)
             assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
             print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
@@ -6529,6 +6761,8 @@ def main_batch(args):
         if args.goa_bg_gene_list:
 
             print("Read in background genes from --goa-gb-gene-list ... ")
+
+            assert os.path.exists(args.goa_bg_gene_list), "given --goa-bg-gene-list file \"%s\" not found" % (args.goa_bg_gene_list)
 
             bg_gene_ids_dic = benchlib.read_ids_into_dic(args.goa_bg_gene_list,
                                                          check_dic=False)
@@ -7520,7 +7754,7 @@ def main_batch(args):
 
             # Overlap with input regions.
             print("Overlap exon + intron regions with input regions ... ")
-            params = "-s -f %s -F %s -e " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
+            params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
             overlap_ei_regions_bed = args.out_folder + "/overlap_ei_regions.tmp.bed"
             benchlib.bed_intersect_files(intron_exon_out_bed, filtered_sites_bed,
                                          overlap_ei_regions_bed,
@@ -7532,7 +7766,7 @@ def main_batch(args):
             # print("# intron overlap regions: %i" %(c_intron_ol))
 
             print("Overlap exon + intron border regions with input regions ... ")
-            params = "-s -f %s -F %s -e " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
+            params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
             overlap_eib_regions_bed = args.out_folder + "/overlap_eib_regions.tmp.bed"
             benchlib.bed_intersect_files(intron_exon_border_out_bed, filtered_sites_bed,
                                          overlap_eib_regions_bed,
@@ -8398,7 +8632,8 @@ def main_searchseq(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -8785,7 +9020,7 @@ def main_searchseq(args):
                                        new_header_id=args.header_id,
                                        make_uniq_headers=args.make_uniq_headers,
                                        report=1,
-                                       remove_regex="[ :\(\)]",
+                                       remove_regex=r"[ :\(\)]",
                                        skip_n_seqs=False)
 
     assert in_seqs_dic, "no sequences read in from --in FASTA file. Make sure to provide a FASTA formatted file with DNA or RNA sequences"
@@ -9226,7 +9461,7 @@ def main_searchseq(args):
     rbp2regidx_dic = {}
     OUTOCC = open(rbp_reg_occ_table_out,"w")
 
-    occ_header = "#region_id \ rbp_id"
+    occ_header = r"#region_id \ rbp_id"
     for rbp_id, hit_list in sorted(reg_hits_dic.items()):
         occ_header += "\t%s" %(rbp_id)
         rbp2regidx_dic[rbp_id] = []
@@ -9443,6 +9678,8 @@ def main_searchseq(args):
                                          html_report_out=html_motif_plots_out,
                                          rbpbench_mode="searchseq --plot-motifs",
                                          reg_seq_str="sequences",
+                                         id2pids_dic=id2pids_dic,
+                                         id2exp_dic=id2exp_dic,
                                          plots_subfolder=plots_subfolder)
 
 
@@ -9595,7 +9832,8 @@ def main_searchlong(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -10116,6 +10354,7 @@ def main_searchlong(args):
                                         basic_tag=False,  # do not be strict (only_tsl=False too).
                                         ensembl_canonical_tag=False,
                                         prior_basic_tag=True,  # Prioritize basic tag transcript.
+                                        prior_mane_select=True,  # mane select if set trumps all.
                                         only_tsl=False)
                 assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
                 print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
@@ -10915,7 +11154,7 @@ def main_searchlong(args):
 
     if rbp2motif2annot2c_dic:
 
-        annot_dic = {}
+        annot_dic = {"3'UTR" : 0, "5'UTR" : 0, "CDS" : 0, "lncRNA" : 0, "intron" : 0, "intergenic" : 0}
 
         if rbp2motif2annot2c_dic:
             for rbp_id in rbp2motif2annot2c_dic:
@@ -10971,6 +11210,8 @@ def main_searchlong(args):
                                         html_report_out=html_motif_plots_out,
                                         rbpbench_mode="searchlong --plot-motifs",
                                         reg_seq_str="regions",
+                                        id2pids_dic=id2pids_dic,
+                                        id2exp_dic=id2exp_dic,
                                         plots_subfolder=plots_subfolder)
 
 
@@ -11130,7 +11371,8 @@ def main_searchrna(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -11743,6 +11985,8 @@ def main_searchrna(args):
         if args.goa_bg_gene_list:
 
             print("Read in background genes from --goa-gb-gene-list ... ")
+
+            assert os.path.exists(args.goa_bg_gene_list), "given --goa-bg-gene-list file \"%s\" not found" % (args.goa_bg_gene_list)
 
             bg_gene_ids_dic = benchlib.read_ids_into_dic(args.goa_bg_gene_list,
                                                     check_dic=False)
@@ -12399,7 +12643,7 @@ def main_searchrna(args):
     rbp2regidx_dic = {}
     OUTOCC = open(rbp_reg_occ_table_out,"w")
 
-    occ_header = "#region_id \ rbp_id"
+    occ_header = r"#region_id \ rbp_id"
     for rbp_id, hit_list in sorted(reg_hits_dic.items()):
         occ_header += "\t%s" %(rbp_id)
         rbp2regidx_dic[rbp_id] = []
@@ -13063,6 +13307,8 @@ def main_searchrna(args):
                                          html_report_out=html_motif_plots_out,
                                          rbpbench_mode="searchrna --plot-motifs",
                                          reg_seq_str="regions",
+                                         id2pids_dic=id2pids_dic,
+                                         id2exp_dic=id2exp_dic,
                                          plots_subfolder=plots_subfolder)
 
     """
@@ -13224,7 +13470,8 @@ def main_searchlongrna(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -13717,6 +13964,7 @@ def main_searchlongrna(args):
                                 basic_tag=False,  # do not be strict (only_tsl=False too).
                                 ensembl_canonical_tag=False,
                                 prior_basic_tag=True,  # Prioritize basic tag transcript.
+                                prior_mane_select=True,  # mane select if set trumps all.
                                 only_tsl=False)
         assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
         print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
@@ -14310,6 +14558,8 @@ def main_searchlongrna(args):
             utr3_s = cds_e
             utr3_e = utr3_s + utr3_len
 
+            occ_pos_seen_dic = {}  # Check if a position already received a count.
+
             annot = ["intergenic", False]
 
             if center_pos <= utr5_e:  # In 5'UTR.
@@ -14317,8 +14567,15 @@ def main_searchlongrna(args):
                 occ_pos = round((center_pos / utr5_len) * utr5_len_norm)
                 if occ_pos > 0:
                     occ_pos -= 1
-                mrna_reg_occ_dic[rbp_id]["5'UTR"][occ_pos] += 1
-                mrna_reg_occ_dic[fh.motif_id]["5'UTR"][occ_pos] += 1
+
+                occ_pos_str = "utr5;%i" %(occ_pos)
+                if occ_pos_str not in occ_pos_seen_dic:
+                    mrna_reg_occ_dic[rbp_id]["5'UTR"][occ_pos] += 1
+                    mrna_reg_occ_dic[fh.motif_id]["5'UTR"][occ_pos] += 1
+                    occ_pos_seen_dic[occ_pos_str] = 1
+
+                # mrna_reg_occ_dic[rbp_id]["5'UTR"][occ_pos] += 1
+                # mrna_reg_occ_dic[fh.motif_id]["5'UTR"][occ_pos] += 1
 
                 annot = ["5'UTR", tr_id]
 
@@ -14327,8 +14584,15 @@ def main_searchlongrna(args):
                 occ_pos = round(((center_pos - utr5_e) / cds_len) * cds_len_norm)
                 if occ_pos > 0:
                     occ_pos -= 1
-                mrna_reg_occ_dic[rbp_id]["CDS"][occ_pos] += 1
-                mrna_reg_occ_dic[fh.motif_id]["CDS"][occ_pos] += 1
+
+                occ_pos_str = "cds;%i" %(occ_pos)
+                if occ_pos_str not in occ_pos_seen_dic:
+                    mrna_reg_occ_dic[rbp_id]["CDS"][occ_pos] += 1
+                    mrna_reg_occ_dic[fh.motif_id]["CDS"][occ_pos] += 1
+                    occ_pos_seen_dic[occ_pos_str] = 1
+
+                # mrna_reg_occ_dic[rbp_id]["CDS"][occ_pos] += 1
+                # mrna_reg_occ_dic[fh.motif_id]["CDS"][occ_pos] += 1
 
                 annot = ["CDS", tr_id]
             
@@ -14337,8 +14601,15 @@ def main_searchlongrna(args):
                 occ_pos = round(((center_pos - cds_e) / utr3_len) * utr3_len_norm)
                 if occ_pos > 0:
                     occ_pos -= 1
-                mrna_reg_occ_dic[rbp_id]["3'UTR"][occ_pos] += 1
-                mrna_reg_occ_dic[fh.motif_id]["3'UTR"][occ_pos] += 1
+
+                occ_pos_str = "utr3;%i" %(occ_pos)
+                if occ_pos_str not in occ_pos_seen_dic:
+                    mrna_reg_occ_dic[rbp_id]["3'UTR"][occ_pos] += 1
+                    mrna_reg_occ_dic[fh.motif_id]["3'UTR"][occ_pos] += 1
+                    occ_pos_seen_dic[occ_pos_str] = 1
+
+                # mrna_reg_occ_dic[rbp_id]["3'UTR"][occ_pos] += 1
+                # mrna_reg_occ_dic[fh.motif_id]["3'UTR"][occ_pos] += 1
 
                 annot = ["3'UTR", tr_id]
 
@@ -14738,7 +15009,9 @@ def main_searchlongrna(args):
     """
 
     annot2color_dic = {}
-    annot_dic = {"5'UTR" : 0, "CDS" : 0, "3'UTR" : 0, "intergenic" : 0}
+
+    # annot_dic = {"5'UTR" : 0, "CDS" : 0, "3'UTR" : 0, "intergenic" : 0}
+    annot_dic = {"3'UTR" : 0, "5'UTR" : 0, "CDS" : 0, "intron" : 0, "intergenic" : 0}
 
     if rbp2motif2annot2c_dic:
 
@@ -14799,6 +15072,8 @@ def main_searchlongrna(args):
                                         goa_results_tsv="goa_results_on_motif_hit_transcripts.tsv",
                                         goa_results_df=goa_results_df,
                                         goa_stats_dic=goa_stats_dic,
+                                        id2pids_dic=id2pids_dic,
+                                        id2exp_dic=id2exp_dic,
                                         plots_subfolder=plots_subfolder)
 
     """
@@ -14993,7 +15268,8 @@ def main_enmo(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -15527,6 +15803,7 @@ def main_enmo(args):
                                 basic_tag=False,  # do not be strict (only_tsl=False too).
                                 ensembl_canonical_tag=False,
                                 prior_basic_tag=True,  # Prioritize basic tag transcript.
+                                prior_mane_select=True,  # mane select if set trumps all.
                                 only_tsl=False)
         assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
         print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
@@ -16156,7 +16433,7 @@ def main_enmo(args):
         assert pos_reg2annot_dic, "--bg-mode 1 set, but no input region annotations found. Please contact developers"
         assert neg_reg2annot_dic, "--bg-mode 1 set, but no background region annotations found. Please contact developers"
 
-        annot_dic = {}
+        annot_dic = {"3'UTR" : 0, "5'UTR" : 0, "CDS" : 0, "lncRNA" : 0, "intron" : 0, "intergenic" : 0}
 
         for reg_id in pos_reg2annot_dic:
             annot = pos_reg2annot_dic[reg_id][0]
@@ -17345,7 +17622,8 @@ def main_nemo(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbp_id in name2ids_dic:
@@ -17875,6 +18153,7 @@ def main_nemo(args):
                                 basic_tag=False,  # do not be strict (only_tsl=False too).
                                 ensembl_canonical_tag=False,
                                 prior_basic_tag=True,  # Prioritize basic tag transcript.
+                                prior_mane_select=True,  # mane select if set trumps all.
                                 only_tsl=False)
         assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
         print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
@@ -18615,7 +18894,7 @@ def main_nemo(args):
         assert pos_reg2annot_dic, "--bg-mode 1 set, but no input region annotations found. Please contact developers"
         assert neg_reg2annot_dic, "--bg-mode 1 set, but no background region annotations found. Please contact developers"
 
-        annot_dic = {}
+        annot_dic = {"3'UTR" : 0, "5'UTR" : 0, "CDS" : 0, "lncRNA" : 0, "intron" : 0, "intergenic" : 0}
 
         for reg_id in pos_reg2annot_dic:
             annot = pos_reg2annot_dic[reg_id][0]
@@ -19911,8 +20190,9 @@ def main_tomtom(args):
     id2name_dic = {}
 
     if rbp2ids_file:
-        name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file,
-                                                                                              only_meme_xml=True)
+        name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file,
+                                                                                                                       only_meme_xml=True)
+
         # Motif ID -> RBP name (== RBP ID) mapping.
         for rbp_id in name2ids_dic:
             for motif_id in name2ids_dic[rbp_id]:
@@ -19962,7 +20242,7 @@ def main_tomtom(args):
         regex = args.motif_in
         assert benchlib.is_valid_regex(regex), "given --in \"%s\" is not a valid regular expression. Please provide valid expression (e.g. --in AC[AC]GTA)" % (args.regex)
         # Only allow a subset of regexes, namely with square brackets: AC[ACG]AC.
-        special_chars = r"[.^$*+?{}()|\\]"
+        special_chars = r"[,\d.^$*+?{}()|\\]"
 
         regex = benchlib.remove_special_chars_from_str(regex,
                                                        reg_ex=special_chars)
@@ -20337,6 +20617,8 @@ def main_goa(args):
 
         print("Read in background genes from --goa-gb-gene-list ... ")
 
+        assert os.path.exists(args.goa_bg_gene_list), "given --goa-bg-gene-list file \"%s\" not found" % (args.goa_bg_gene_list)
+
         bg_gene_ids_dic = benchlib.read_ids_into_dic(args.goa_bg_gene_list,
                                                      check_dic=False)
 
@@ -20584,7 +20866,8 @@ def main_optex(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     for rbpid in name2ids_dic:
@@ -21122,7 +21405,8 @@ def main_info(args):
     motif ID -> organism ID (so far only "human")
 
     """
-    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+    name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file)
+
     # Motif ID -> RBP name (== RBP ID) mapping.
     id2name_dic = {}
     c_motif_ids = 0
@@ -21212,12 +21496,17 @@ def main_dist(args):
     print("Get --genome FASTA headers ... ")
     chr_ids_dic = benchlib.get_fasta_headers(args.in_genome)
 
+    remove_dupl = True
+    if args.no_uniq_reg_check:
+        print("Do not filter out --in duplicated regions ... ")
+        remove_dupl = False
+
     # Filter / extend --in BED.
     print("Preprocess --in sites ... ")
     reg_stats_dic = benchlib.bed_extend_bed(args.in_sites, filtered_sites_bed,
                                           ext_lr=args.ext_up_down,
                                           cp_mode=args.cp_mode,
-                                          remove_dupl=True,
+                                          remove_dupl=remove_dupl,
                                           chr_ids_dic=chr_ids_dic)
 
     print("# --in regions pre-filtering:  ", reg_stats_dic["c_in"])
@@ -21258,10 +21547,17 @@ def main_dist(args):
     Get FASTA sequences and sequence lengths.
     """
 
+    id_check = True
+    make_uniq_headers = False
+    if args.no_uniq_reg_check:
+        id_check = False
+        make_uniq_headers = True
+
     out_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
                                        dna=True,
                                        all_uc=True,
-                                       id_check=True,
+                                       id_check=id_check,
+                                       make_uniq_headers=make_uniq_headers,
                                        empty_check=False,
                                        skip_n_seqs=False)
 

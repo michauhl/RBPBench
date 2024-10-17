@@ -1,0 +1,4 @@
+PUM1	clipper_idr	k562_eclip	batch_compare_test/PUM1.k562_eclip.clipper_idr.bed
+PUM1	dewseq_w100_s5	k562_eclip	batch_compare_test/PUM1.k562_eclip.dewseq_w100_s5.bed
+RBFOX2	clipper_idr	hepg2_eclip	batch_compare_test/RBFOX2.hepg2_eclip.clipper_idr.bed
+RBFOX2	clipper_idr	k562_eclip	batch_compare_test/RBFOX2.k562_eclip.clipper_idr.bed

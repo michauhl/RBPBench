@@ -377,7 +377,7 @@ def get_gid2go_mapping(gid2go_file,
             columns = line.strip().split('\t')
             gene_id = columns[0]
             if remove_version_numbers:
-                gene_id = re.sub("\.\d+$", "", gene_id)
+                gene_id = re.sub(r"\.\d+$", "", gene_id)
 
             go_ids = columns[1].split(",")
             filtered_go_ids = []
@@ -482,7 +482,7 @@ def output_target_reg_annot(target_genes_dic, gene_infos_file, target_reg_annot_
         gene_id_full = gene_id
 
         if remove_version_numbers:
-            gene_id = re.sub("\.\d+$", "", gene_id)
+            gene_id = re.sub(r"\.\d+$", "", gene_id)
 
         gene_name = "-"
         gene_synonyms = "-"
@@ -597,7 +597,7 @@ def run_go_analysis(target_genes_dic, background_genes_dic,
     target_genes = []
     for gene_id in target_genes_dic:
         if id_has_version:
-            gene_id = re.sub("\.\d+$", "", gene_id)
+            gene_id = re.sub(r"\.\d+$", "", gene_id)
         if gene_id in gid2go_dic:  # Can only work with genes that have associated GO terms.
             target_genes.append(gene_id)
     background_genes = []
@@ -605,7 +605,7 @@ def run_go_analysis(target_genes_dic, background_genes_dic,
     for gene_id in background_genes_dic:
         new_gene_id = gene_id
         if id_has_version:
-            new_gene_id = re.sub("\.\d+$", "", gene_id)
+            new_gene_id = re.sub(r"\.\d+$", "", gene_id)
         gid2gn_dic[new_gene_id] = background_genes_dic[gene_id]
         if new_gene_id in gid2go_dic:
             background_genes.append(new_gene_id)
@@ -906,7 +906,7 @@ def read_in_tomtom_sim_results(sim_out_tsv,
 
     pair2sim_dic = {}
 
-    if re.search(".+\.gz$", sim_out_tsv):
+    if re.search(r".+\.gz$", sim_out_tsv):
         f = gzip.open(sim_out_tsv, 'rt')
     else:
         f = open(sim_out_tsv, "r")
@@ -1206,7 +1206,7 @@ def dir_get_files(file_dir,
     if file_ending:
         new_files = []
         for df in dir_files:
-            if re.search(".+\.%s" %(file_ending), df):
+            if re.search(r".+\.%s" %(file_ending), df):
                 new_files.append(df)
         if check:
             assert new_files, "no files left after filtering by file ending \"%s\"" %(file_ending)
@@ -1484,11 +1484,11 @@ def read_in_cm_blocks(cm_file,
 
     with open(cm_file) as f:
         for line in f:
-            if re.search("^INFERNAL", line):
+            if re.search(r"^INFERNAL", line):
                 blocks_list.append(line)
                 idx += 1
-            elif re.search("^ACC\s+\w+", line):
-                m = re.search("^ACC\s+(\w+)", line)
+            elif re.search(r"^ACC\s+\w+", line):
+                m = re.search(r"^ACC\s+(\w+)", line)
                 acc_id = m.group(1)
                 # Remove special characters from motif/accession ID.
                 new_acc_id = remove_special_chars_from_str(acc_id)
@@ -1597,8 +1597,8 @@ def read_cm_acc(in_cm):
 
     with open(in_cm) as f:
         for line in f:
-            if re.search("^ACC\s+\w+", line):
-                m = re.search("^ACC\s+(\w+)", line)
+            if re.search(r"^ACC\s+\w+", line):
+                m = re.search(r"^ACC\s+(\w+)", line)
                 acc_id = m.group(1)
                 if acc_id in acc_dic:
                     acc_dic[acc_id] += 1
@@ -1633,13 +1633,13 @@ def get_fasta_headers(in_fa,
 
     seq_ids_dic = {}
     for line in output.split('\n'):
-        if re.search("^>", line):
+        if re.search(r"^>", line):
             if full_header:
-                m = re.search("^>(.+)", line)
+                m = re.search(r"^>(.+)", line)
                 seq_id = m.group(1)
                 seq_ids_dic[seq_id] = 1
             else:
-                m = re.search("^>(\S+)", line)
+                m = re.search(r"^>(\S+)", line)
                 seq_id = m.group(1)
                 seq_ids_dic[seq_id] = 1
 
@@ -1974,17 +1974,15 @@ def read_fasta_into_dic(fasta_file,
                         id_check=True,
                         skip_data_id="set",
                         new_header_id="site",
-                        remove_regex=False,
+                        remove_regex=False,  # e.g. r"[ :\(\)]"
                         make_uniq_headers=False,
                         skip_n_seqs=True):
     """
-
     Read in FASTA sequences, store in dictionary and return dictionary.
     FASTA file can be plain text or gzipped (watch out for .gz ending).
 
     remove_regex:
         If regex given, use this to remove special characters from the header ID.
-        E.g. "[ :\(\)]"
     full_header:
         If true, use whole header (after >) as ID. By default, use ID up to 
         first space character.
@@ -2006,7 +2004,7 @@ def read_fasta_into_dic(fasta_file,
     n_pattern = re.compile(r"N", re.I)
 
     # Open FASTA either as .gz or as text file.
-    if re.search(".+\.gz$", fasta_file):
+    if re.search(r".+\.gz$", fasta_file):
         f = gzip.open(fasta_file, 'rt')
     else:
         f = open(fasta_file, "r")
@@ -2237,15 +2235,15 @@ def extract_motif_blocks(raw_text):
     motif_id = ""
     lines = raw_text.strip().split('\n')
     for l in lines:
-        if re.search("^MOTIF\s\w+", l):
-            m = re.search("MOTIF (\w+)", l)
+        if re.search(r"^MOTIF\s\w+", l):
+            m = re.search(r"MOTIF (\w+)", l)
             motif_id = m.group(1)
             new_motif_id = remove_special_chars_from_str(motif_id)
             assert new_motif_id, "no characters left after removal of special characters from motif ID \"%s\". Please use valid MEME XML motif IDs (i.e., modify MOTIF column strings in motifs xml file)" %(motif_id)
             motif_id = new_motif_id
         else:
             if motif_id and l:
-                if re.search("^URL", l):  # Skip URL rows e.g. from Ray2013 meme file. format: URL http:// ...
+                if re.search(r"^URL", l):  # Skip URL rows e.g. from Ray2013 meme file. format: URL http:// ...
                     continue
                 # Also remove <tab> characters from lines.
                 l = l.replace("\t", "")
@@ -2260,10 +2258,16 @@ def extract_motif_blocks(raw_text):
 ################################################################################
 
 def blocks_to_xml_string(motif_blocks_dic, motif_ids_dic,
+                         mid2rid_dic=None,
                          out_xml=False):
     """
     Return MEME XML string based on given motif IDs dictionary and available
     motif blocks dictionary.
+
+    mid2rid_dic:
+        motif ID -> RBP ID mapping dictionary.
+        Adds RBP ID to motif ID in MEME XML output.
+
     """
 
     header = """MEME version 5
@@ -2285,7 +2289,11 @@ A 0.250000 C 0.250000 G 0.250000 T 0.250000
         if motif_id in motif_blocks_dic: # Only for sequence motifs.
             block = motif_blocks_dic[motif_id]
             block_str = "\n".join(block)
-            block_str_final = "MOTIF " + motif_id + " \n" + block_str + "\n\n"
+            motif_str = motif_id
+            if mid2rid_dic is not None:  # if motif ID to RBP ID mapping given.
+                if motif_id in mid2rid_dic:
+                    motif_str = motif_id + " " + mid2rid_dic[motif_id]
+            block_str_final = "MOTIF " + motif_str + " \n" + block_str + "\n\n"
             xml_str += block_str_final
             c_added_motifs += 1
             if out_xml:
@@ -2363,8 +2371,8 @@ def check_convert_chr_id(chr_id,
         return chr_id
 
     elif id_style == 1:
-        if re.search("^chr", chr_id):
-            if chr_id in add_chr_names_dic or re.search("^chr[\dMXY]+$", chr_id):
+        if re.search(r"^chr", chr_id):
+            if chr_id in add_chr_names_dic or re.search(r"^chr[\dMXY]+$", chr_id):
                 return chr_id
             else:
                 return False
@@ -2372,19 +2380,19 @@ def check_convert_chr_id(chr_id,
             # Convert to "chr" IDs.
             if chr_id == "MT": # special case MT -> chrM.
                 return "chrM"
-            if chr_id in add_chr_names_dic or re.search("^[\dXY]+$", chr_id):
+            if chr_id in add_chr_names_dic or re.search(r"^[\dXY]+$", chr_id):
                 return "chr" + chr_id
             else:
                 return False
 
     elif id_style == 2:
 
-        if re.search("^chr", chr_id):
+        if re.search(r"^chr", chr_id):
             if chr_id == "chrM": # special case chrM -> MT.
                 return "MT"
-            if chr_id in add_chr_names_dic or re.search("^chr[\dXY]+$", chr_id):
+            if chr_id in add_chr_names_dic or re.search(r"^chr[\dXY]+$", chr_id):
                 # Cut out chr suffix.
-                m = re.search("chr(.+)", chr_id)
+                m = re.search(r"chr(.+)", chr_id)
                 assert m, "no match for regex search"
                 chr_suffix = m.group(1)
                 return chr_suffix
@@ -2394,7 +2402,7 @@ def check_convert_chr_id(chr_id,
         else:
             if chr_id == "MT": # special case MT.
                 return chr_id
-            if chr_id in add_chr_names_dic or re.search("^[\dXY]+$", chr_id):
+            if chr_id in add_chr_names_dic or re.search(r"^[\dXY]+$", chr_id):
                 return chr_id
             else:
                 return False
@@ -2433,6 +2441,96 @@ add_chr_names_dic = {
 
 ################################################################################
 
+def gtf_tr_feat_to_bed(in_gtf, out_bed, tr_feat,
+                       chr_style=0,
+                       uniq_reg=False,
+                       codon_len_check=True,
+                       tr_ids_dic=False):
+    """
+    Extract transcript feature regions to BED file.
+
+    tr_ids_dic:
+        If transcript IDs dictionary given, only extract regions for these.
+    chr_style:
+        0: do not change
+        1: change to chr1, chr2 ...
+        2: change to 1, 2, 3, ...
+    uniq_reg:
+        If True, do not output same genomic region twice.
+    codon_len_check:
+        If True, length check for stop_codon and start_codon features is
+        performed and filtered.
+
+    """
+
+    OUTBED = open(out_bed, "w")
+
+    seen_reg_dic = {}
+
+    if re.search(r".+\.gz$", in_gtf):
+        f = gzip.open(in_gtf, 'rt')
+    else: 
+        f = open(in_gtf, "r")
+    
+    for line in f:
+
+        if line.startswith("#"):
+            continue
+
+        cols = line.strip().split("\t")
+        feature = cols[2]
+        if feature != tr_feat:
+            continue
+
+        chr_id = cols[0]
+        feat_s = int(cols[3]) - 1
+        feat_e = int(cols[4])
+        feat_pol = cols[6]
+        infos = cols[8]
+
+        reg_id = chr_id + ":" + str(feat_s) + "-" + str(feat_e) + "(" + feat_pol + ")"
+        reg_len = feat_e - feat_s
+
+        if codon_len_check:
+            if feature == "start_codon":
+                if reg_len != 3:
+                    print("WARNING: start_codon region length != 3 in GTF file \"%s\", line \"%s\". Skipping region ..." %(in_gtf, line))
+                    continue
+            elif feature == "stop_codon":
+                if reg_len != 3:
+                    print("WARNING: stop_codon region length != 3 in GTF file \"%s\", line \"%s\". Skipping region ..." %(in_gtf, line))
+                    continue
+
+        if uniq_reg:
+            if reg_id in seen_reg_dic:
+                continue
+            else:
+                seen_reg_dic[reg_id] = 1
+    
+        chr_id = check_convert_chr_id(chr_id, id_style=chr_style)
+        # If not one of standard chromosomes, continue.
+        if not chr_id:
+            continue
+
+        assert feat_e > feat_s, "feature end <= feature start in GTF file \"%s\", line \"%s\". This should not happen" %(in_gtf, line)
+
+        m = re.search('transcript_id "(.+?)"', infos)
+        assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
+        tr_id = m.group(1)
+        if tr_ids_dic:
+            if tr_id not in tr_ids_dic:
+                continue
+
+        out_id = tr_id + ";" + tr_feat
+
+        OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" %(chr_id, feat_s, feat_e, out_id, feat_pol))
+
+    f.close()
+    OUTBED.close()
+
+
+################################################################################
+
 def gtf_read_in_gene_infos(in_gtf,
                            tr2gid_dic=None,
                            tr_types_dic=None,
@@ -2466,7 +2564,7 @@ def gtf_read_in_gene_infos(in_gtf,
     if skip_gene_biotype_dic is None:
         skip_gene_biotype_dic = {"TEC" : 1}
 
-    if re.search(".+\.gz$", in_gtf):
+    if re.search(r".+\.gz$", in_gtf):
         f = gzip.open(in_gtf, 'rt')
     else: 
         f = open(in_gtf, "r")
@@ -2560,6 +2658,11 @@ def gtf_read_in_gene_infos(in_gtf,
             m = re.search('tag "Ensembl_canonical"', infos)
             if m:
                 ensembl_canonical = 1
+            # MANE select.
+            mane_select = 0
+            m = re.search('tag "MANE_Select"', infos)
+            if m:
+                mane_select = 1
             # Transcript support level (TSL).
             # transcript_support_level "NA (assigned to previous version 1)"
             m = re.search('transcript_support_level "(.+?)"', infos)
@@ -2567,7 +2670,7 @@ def gtf_read_in_gene_infos(in_gtf,
             if m:
                 tsl_id = m.group(1)
                 if re.search("assigned to previous", tsl_id):
-                    m = re.search("(.+?) \(", tsl_id)
+                    m = re.search(r"(.+?) \(", tsl_id)
                     tsl_id = m.group(1)
             # Dummy length for now.
             tr_length = 0
@@ -2577,6 +2680,7 @@ def gtf_read_in_gene_infos(in_gtf,
             gid2gio_dic[gene_id].tr_biotypes.append(tr_biotype)
             gid2gio_dic[gene_id].tr_basic_tags.append(basic_tag)
             gid2gio_dic[gene_id].tr_ensembl_canonical_tags.append(ensembl_canonical)
+            gid2gio_dic[gene_id].tr_mane_select_tags.append(mane_select)
             gid2gio_dic[gene_id].tr_tsls.append(tsl_id)
             gid2gio_dic[gene_id].tr_lengths.append(tr_length)
 
@@ -2642,7 +2746,7 @@ def gtf_read_in_transcript_infos(in_gtf,
     tid2tio_dic = {}
     tr_ids_seen_dic = {}
 
-    if re.search(".+\.gz$", in_gtf):
+    if re.search(r".+\.gz$", in_gtf):
         f = gzip.open(in_gtf, 'rt')
     else: 
         f = open(in_gtf, "r")
@@ -2697,6 +2801,11 @@ def gtf_read_in_transcript_infos(in_gtf,
             m = re.search('tag "Ensembl_canonical"', infos)
             if m:
                 ensembl_canonical = 1
+            # MANE select.
+            mane_select = 0
+            m = re.search('tag "MANE_Select"', infos)
+            if m:
+                mane_select = 1
             # Transcript support level (TSL).
             # transcript_support_level "NA (assigned to previous version 1)"
             m = re.search('transcript_support_level "(.+?)"', infos)
@@ -2704,7 +2813,7 @@ def gtf_read_in_transcript_infos(in_gtf,
             if m:
                 tsl_id = m.group(1)
                 if re.search("assigned to previous", tsl_id):
-                    m = re.search("(.+?) \(", tsl_id)
+                    m = re.search(r"(.+?) \(", tsl_id)
                     tsl_id = m.group(1)
 
             if tr_types_dic is not None:
@@ -2716,7 +2825,8 @@ def gtf_read_in_transcript_infos(in_gtf,
             tr_infos = TranscriptInfo(tr_id, tr_biotype, chr_id, feat_s, feat_e, feat_pol, gene_id,
                                       tr_length=0,
                                       basic_tag=basic_tag,  # int
-                                      ensembl_canonical=ensembl_canonical,  # str
+                                      ensembl_canonical=ensembl_canonical,  # int
+                                      mane_select=mane_select,  # int
                                       tsl_id=tsl_id,  # int
                                       exon_c=0)
             assert tr_id not in tid2tio_dic, "transcript feature with transcript ID %s already encountered in GTF file \"%s\"" %(tr_id, in_gtf)
@@ -2733,9 +2843,9 @@ def gtf_read_in_transcript_infos(in_gtf,
                 if tr_id not in tr_ids_dic:
                     continue
 
-            m = re.search('exon_number "(\d+?)"', infos)
+            m = re.search(r'exon_number "(\d+?)"', infos)
             if not m:
-                m = re.search('exon_number (\d+?);', infos)  # GENCODE encoding.
+                m = re.search(r'exon_number (\d+?);', infos)  # GENCODE encoding.
             assert m, "exon_number entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             exon_nr = int(m.group(1))
 
@@ -2889,16 +2999,25 @@ def get_intron_exon_ol_counts(overlap_ei_regions_bed):
     """
     Get exon + intron overlap counts
 
-    overlap_ei_regions_bed format:
+    overlap_ei_regions_bed format (old):
     chr1	3385286	3396490	intron;ENST00000270722	0	+
     chr1	3396593	3402790	intron;ENST00000270722	0	+
-        
+
+    overlap_ei_regions_bed format:
+    $ intersectBed -a intron_exon_regions.tmp.bed -b in_sites.filtered.bed -s -f 0.5 -F 0.5 -e  -wb
+    chr1	21727871	21728037	intron;ENST00000308271	0	-	chr1	21727871	21728037	chr1:21727871-21728037(-)	6.18043979583829	-
+    chr5	138561019	138561076	intron;ENST00000297185	0	-	chr5	138561019	138561076	chr5:138561019-138561076(-)	3.36528644625518	-
+    chr6	16265910	16265991	intron;ENST00000259727	0	+	chr6	16265910	16265991	chr6:16265910-16265991(+)	3.80557689731445	+
+    chr6	16265981	16266114	intron;ENST00000259727	0	+	chr6	16265981	16266114	chr6:16265981-16266114(+)	3.39282576293052	+
+
     """
 
     assert os.path.exists(overlap_ei_regions_bed), "file \"%s\" does not exist" %(overlap_ei_regions_bed)
 
     c_exon_ol = 0
     c_intron_ol = 0
+    reg2exc_dic = {}  # only count a region once as exon region.
+    reg2inc_dic = {}  # only count a region once as intron region.
 
     with open(overlap_ei_regions_bed, "r") as f:
         for line in f:
@@ -2907,11 +3026,16 @@ def get_intron_exon_ol_counts(overlap_ei_regions_bed):
                 continue
             cols = line.split("\t")
             reg_tr_id = cols[3]
-            reg_id = reg_tr_id.split(";")[0]
-            if reg_id == "intron":
-                c_intron_ol += 1
+            reg_id = cols[9]
+            reg_annot = reg_tr_id.split(";")[0]
+            if reg_annot == "intron":
+                if reg_id not in reg2inc_dic:
+                    c_intron_ol += 1
+                    reg2inc_dic[reg_id] = 1
             else:
-                c_exon_ol += 1
+                if reg_id not in reg2exc_dic:
+                    c_exon_ol += 1
+                    reg2exc_dic[reg_id] = 1
 
     return c_exon_ol, c_intron_ol
 
@@ -2922,6 +3046,23 @@ def get_eib_ol_counts(overlap_eib_regions_bed):
     """
     Get exon-intron border overlap counts.
 
+    overlap_eib_regions_bed old format:
+    chr1	231373978	231374002	eib	0	-
+    chr1	244408941	244408985	ds_ib	0	-
+    chr1	151266003	151266053	eib	0	+
+    chr1	161157671	161157694	eib	0	+
+    chr1	110952350	110952391	us_ib	0	-
+    chr1	66958933	66958983	eib	0	+
+
+    New format:
+    chr1	231373978	231374002	eib	0	-	chr1	231373978	231374002	chr1:231373978-231374002(-)	6.6772932452923	-
+    chr1	244408941	244408985	ds_ib	0	-	chr1	244408941	244408985	chr1:244408941-244408985(-)	3.84108057430655	-
+    chr1	151266003	151266053	eib	0	+	chr1	151266003	151266058	chr1:151266003-151266058(+)	3.62307325778397	+
+    chr1	161157671	161157694	eib	0	+	chr1	161157671	161157694	chr1:161157671-161157694(+)	5.94342578410804	+
+    chr1	27907232	27907277	eib	0	-	chr1	27907225	27907277	chr1:27907225-27907277(-)	4.17126552599614	-
+    chr1	110407601	110407635	eib	0	-	chr1	110407601	110407660	chr1:110407601-110407660(-)	3.33819938009558	-
+    chr1	110952350	110952391	us_ib	0	-	chr1	110952350	110952391	chr1:110952350-110952391(-)	3.3312393913757	-
+
     """
 
     assert os.path.exists(overlap_eib_regions_bed), "file \"%s\" does not exist" %(overlap_eib_regions_bed)
@@ -2929,6 +3070,9 @@ def get_eib_ol_counts(overlap_eib_regions_bed):
     c_eib_ol = 0
     c_us_ib_ol = 0
     c_ds_ib_ol = 0
+    reg2eib_dic = {}  # only count a region once as eib region.
+    reg2usib_dic = {}  # only count a region once as us_ib region.
+    reg2dsib_dic = {}  # only count a region once as ds_ib region.
 
     with open(overlap_eib_regions_bed, "r") as f:
         for line in f:
@@ -2936,15 +3080,22 @@ def get_eib_ol_counts(overlap_eib_regions_bed):
             if not line:
                 continue
             cols = line.split("\t")
-            reg_id = cols[3]
-            if reg_id == "eib":
-                c_eib_ol += 1
-            elif reg_id == "us_ib":
-                c_us_ib_ol += 1
-            elif reg_id == "ds_ib":
-                c_ds_ib_ol += 1
+            reg_annot = cols[3]
+            reg_id = cols[9]
+            if reg_annot == "eib":
+                if reg_id not in reg2eib_dic:
+                    c_eib_ol += 1
+                    reg2eib_dic[reg_id] = 1
+            elif reg_annot == "us_ib":
+                if reg_id not in reg2usib_dic:
+                    c_us_ib_ol += 1
+                    reg2usib_dic[reg_id] = 1
+            elif reg_annot == "ds_ib":
+                if reg_id not in reg2dsib_dic:
+                    c_ds_ib_ol += 1
+                    reg2dsib_dic[reg_id] = 1
             else:
-                assert False, "invalid region ID \"%s\" found in line \"%s\"" %(reg_id, line)
+                assert False, "invalid region ID \"%s\" found in line \"%s\"" %(reg_annot, line)
 
     return c_eib_ol, c_us_ib_ol, c_ds_ib_ol
 
@@ -3615,6 +3766,7 @@ class TranscriptInfo:
                  exon_c: Optional[int] = None,
                  basic_tag: Optional[int] = None,
                  ensembl_canonical: Optional[int] = None,
+                 mane_select: Optional[int] = None,
                  tsl_id: Optional[str] = None,
                  cds_s: Optional[int] = None,
                  cds_e: Optional[int] = None,
@@ -3635,6 +3787,7 @@ class TranscriptInfo:
         self.total_intron_len = total_intron_len
         self.basic_tag = basic_tag
         self.ensembl_canonical = ensembl_canonical
+        self.mane_select = mane_select
         self.tsl_id = tsl_id
 
         if intron_coords is None:
@@ -3677,6 +3830,7 @@ chr1	HAVANA	exon	11869	12227	.	+	.	gene_id "ENSG00000290825.1"; transcript_id "E
                  tr_biotypes=None,
                  tr_basic_tags=None,
                  tr_ensembl_canonical_tags=None,
+                 tr_mane_select_tags=None,
                  tr_lengths=None,
                  tr_tsls=None) -> None:
         self.gene_id = gene_id
@@ -3702,6 +3856,10 @@ chr1	HAVANA	exon	11869	12227	.	+	.	gene_id "ENSG00000290825.1"; transcript_id "E
             self.tr_ensembl_canonical_tags = []
         else:
             self.tr_ensembl_canonical_tags = tr_ensembl_canonical_tags
+        if tr_mane_select_tags is None:
+            self.tr_mane_select_tags = []
+        else:
+            self.tr_mane_select_tags = tr_mane_select_tags
         if tr_lengths is None:
             self.tr_lengths = []
         else:
@@ -4421,6 +4579,7 @@ def get_normnalized_annot_counts(filtered_sites_bed, intron_exon_out_bed,
 ################################################################################
 
 def bed_get_effective_reg_bed(in_bed, out_bed, reg2pol_dic,
+                              reg2sc_dic=False,
                               reg_len_dic=None):
     """
     Convert regions BED file into effective regions BED file.
@@ -4461,7 +4620,14 @@ def bed_get_effective_reg_bed(in_bed, out_bed, reg2pol_dic,
         if reg_len_dic is not None:
             reg_len_dic[reg_ids_str] = reg_len
         c_out += 1
-        BEDOUT.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, reg_s, reg_e, reg_ids_str, reg_strand))
+        comb_reg_sc = 0  # Combined region score.
+        reg_sc_list = []
+        if reg2sc_dic:
+            for reg_id in reg_ids_list:
+                reg_sc_list.append(float(reg2sc_dic[reg_id]))
+            comb_reg_sc = sum(reg_sc_list) / len(reg_sc_list)
+
+        BEDOUT.write("%s\t%i\t%i\t%s\t%s\t%s\n" % (chr_id, reg_s, reg_e, reg_ids_str, str(comb_reg_sc), reg_strand))
 
     BEDOUT.close()
 
@@ -4954,7 +5120,7 @@ def gtf_check_exon_order(in_gtf):
 
     check = 6666
 
-    if re.search(".+\.gz$", in_gtf):
+    if re.search(r".+\.gz$", in_gtf):
         f = gzip.open(in_gtf, 'rt')
     else:
         f = open(in_gtf, "r")
@@ -4979,10 +5145,10 @@ def gtf_check_exon_order(in_gtf):
         assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
         transcript_id = m.group(1)
         # Exon number.
-        m = re.search('exon_number "(\d+?)"', infos)
+        m = re.search(r'exon_number "(\d+?)"', infos)
         # Try GENCODE encoding.
         if not m:
-            m = re.search('exon_number (\d+?);', infos)
+            m = re.search(r'exon_number (\d+?);', infos)
         assert m, "exon_number entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
         exon_nr = int(m.group(1))
 
@@ -5009,6 +5175,93 @@ def gtf_check_exon_order(in_gtf):
 
     assert check != 6666, "no minus strand exon regions found in GTF file %s" %(in_gtf)
     return check
+
+
+################################################################################
+
+def gtf_output_gene_regions_to_bed(in_gtf, out_bed,
+                                   bed_col6_infos=1,
+                                   gids_dic=False,
+                                   chr_id_style=0):
+    """
+    Read in gene infos into GeneInfo objects, including information on 
+    transcript isoforms for the gene. Note that only features on standard 
+    chromosomes (1,2,...,X Y MT) are currently used.
+
+    Assuming gtf file with order: gene,transcript(s),exon(s) ...
+
+    chr_style:
+        0: do not change
+        1: change to chr1, chr2 ...
+        2: change to 1, 2, 3, ...
+
+    """
+
+    OUTBED = open(out_bed, "w")
+    c_gene_regions = 0
+
+    if re.search(r".+\.gz$", in_gtf):
+        f = gzip.open(in_gtf, 'rt')
+    else: 
+        f = open(in_gtf, "r")
+    for line in f:
+
+        # Skip header.
+        if line.startswith("#"):
+            continue
+
+        cols = line.strip().split("\t")
+        feature = cols[2]
+        if feature != "gene":
+            continue
+
+        chr_id = cols[0]
+        feat_s = int(cols[3])  # 1-based index (see e.g. start_codon feature for proof).
+        feat_e = int(cols[4])
+        feat_pol = cols[6]
+        infos = cols[8]
+
+        chr_id = check_convert_chr_id(chr_id, id_style=chr_id_style)
+        # If not one of standard chromosomes, continue.
+        if not chr_id:
+            continue
+
+        assert feat_e >= feat_s, "feature end < feature start in GTF file \"%s\", line \"%s\". Since both coordinates are expected to have 1-based index, this should not happen" %(in_gtf, line)
+
+        m = re.search(r'gene_id "(.+?)"', infos)
+        assert m, "gene_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
+        gene_id = m.group(1)
+
+        if gids_dic:
+            if gene_id not in gids_dic:
+                continue
+
+        m = re.search(r'gene_name "(.+?)"', infos)
+        gene_name = "-"  # optional.
+        if m:
+            gene_name = m.group(1)
+        gene_biotype = "-"  # # optional.
+        m = re.search(r'gene_biotype "(.+?)"', infos)
+        if not m:
+            m = re.search('gene_type "(.+?)"', infos)
+        if m:
+            gene_biotype = m.group(1)
+
+        if bed_col6_infos == 1:
+            bed_col6_str = gene_id
+        elif bed_col6_infos == 2:
+            bed_col6_str = gene_id + ";" + gene_name
+        elif bed_col6_infos == 3:
+            bed_col6_str = gene_id + ";" + gene_name + ";" + gene_biotype
+
+        OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" %(chr_id, feat_s-1, feat_e, bed_col6_str, feat_pol))
+
+        c_gene_regions += 1
+
+    f.close()
+    OUTBED.close()
+
+    return c_gene_regions
 
 
 ################################################################################
@@ -5064,8 +5317,10 @@ def select_more_prominent_tid(tid1, tid2, tid2tio_dic):
 def select_mpts_from_gene_infos(gid2gio_dic,
                                 basic_tag=True,
                                 ensembl_canonical_tag=False,
+                                mane_select_tag=False,
                                 only_tsl=False,
                                 prior_basic_tag=True,
+                                prior_mane_select=False,
                                 tr_min_len=False
                                 ):
     """
@@ -5081,12 +5336,17 @@ def select_mpts_from_gene_infos(gid2gio_dic,
         If True only report transcripts with "basic" tag.
     ensembl_canonical_tag:
         If True only report transcripts with "Ensembl_canonical" tag.
+    mane_select_tag:
+        If True only report transcripts with "MANE_Select" tag.
     only_tsl:
         If True only report transcripts with TSL 1-5 (excluding "NA").
     tr_min_len:
         If length set, only report transcripts with length >= tr_min_len.
-
-
+    prior_mane_select:
+        If True, MANE_Select tag trumps all other tags. According to manual,
+        the MANE select is a default transcript per human gene, present in RefSeq
+        and Ensembl databases.
+        
     >>> test_gtf = "test_data/test_mpt_selection.gtf"
     >>> gid2gio_dic = gtf_read_in_gene_infos(test_gtf)
     >>> tr_ids_dic = select_mpts_from_gene_infos(gid2gio_dic, basic_tag=False, ensembl_canonical_tag=False, only_tsl=False)
@@ -5122,12 +5382,14 @@ def select_mpts_from_gene_infos(gid2gio_dic,
         mpt_len = 0
         mpt_bt = 0
         mpt_ec = 0
+        mpt_ms = 0
 
         for idx, tr_id in enumerate(gene_info.tr_ids):
             # print("mpt_id:", mpt_id, "tr_id:", tr_id)
             tr_tsl = gene_info.tr_tsls[idx]  # 1-5 or NA
             tr_bt = gene_info.tr_basic_tags[idx]  # 0 or 1
             tr_ec = gene_info.tr_ensembl_canonical_tags[idx]  # 0 or 1
+            tr_ms = gene_info.tr_mane_select_tags[idx]  # 0 or 1
             tr_length = gene_info.tr_lengths[idx]
 
             # print(tr_id, "BT:", tr_bt, "TSL:", tr_tsl)
@@ -5138,11 +5400,23 @@ def select_mpts_from_gene_infos(gid2gio_dic,
             if ensembl_canonical_tag:
                 if not tr_ec:
                     continue
+            if mane_select_tag:
+                if not tr_ms:
+                    continue
             if only_tsl:
                 if tr_tsl == "NA":
                     continue
             if tr_min_len:
                 if tr_length < tr_min_len:
+                    continue
+            if prior_mane_select:
+                if tr_ms > mpt_ms:
+                    mpt_id = tr_id
+                    mpt_tsl = tr_tsl
+                    mpt_len = tr_length
+                    mpt_bt = tr_bt
+                    mpt_ec = tr_ec
+                    mpt_ms = tr_ms
                     continue
 
             if id2sc[tr_tsl] < id2sc[mpt_tsl]:
@@ -5153,12 +5427,14 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                         mpt_len = tr_length
                         mpt_bt = tr_bt
                         mpt_ec = tr_ec
+                        mpt_ms = tr_ms
                 else:
                     mpt_id = tr_id
                     mpt_tsl = tr_tsl
                     mpt_len = tr_length
                     mpt_bt = tr_bt
                     mpt_ec = tr_ec
+                    mpt_ms = tr_ms
 
             elif id2sc[tr_tsl] == id2sc[mpt_tsl]:
                 # print("Now equal, comparing tr_id %s with mpt_id %s" %(tr_id, mpt_id))
@@ -5169,6 +5445,7 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                     mpt_len = tr_length
                     mpt_bt = tr_bt
                     mpt_ec = tr_ec
+                    mpt_ms = tr_ms
                     continue
                 # If transcript has Ensembl canonical tag, use this.
                 if tr_ec > mpt_ec:
@@ -5177,6 +5454,7 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                     mpt_len = tr_length
                     mpt_bt = tr_bt
                     mpt_ec = tr_ec
+                    mpt_ms = tr_ms
                     continue
                 # If same basic/Ensembl canonical tag combination.
                 if tr_ec == mpt_ec and tr_bt == mpt_bt:
@@ -5186,6 +5464,7 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                         mpt_len = tr_length
                         mpt_bt = tr_bt
                         mpt_ec = tr_ec
+                        mpt_ms = tr_ms
             else:
                 # If transcript has worse TSL but basic tag and current MPT has not.
                 if prior_basic_tag and tr_bt > mpt_bt:
@@ -5194,6 +5473,7 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                     mpt_len = tr_length
                     mpt_bt = tr_bt
                     mpt_ec = tr_ec
+                    mpt_ms = tr_ms
 
         if not mpt_len:
             continue
@@ -5310,12 +5590,21 @@ def get_rbp_id_mappings(rbp2ids_file,
     A1CF_1	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	34086933	-	-
     A1CF_2	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	34086933	-	-
     ACIN1_1	ACIN1	meme_xml	human	-	-	34086933	-	-
-    
+
+    RBPBench v1.01 updated (more pubmed IDs + experiment infos):
+    RBP_motif_ID	RBP_name	Motif_type	Organism	Gene_ID	Function_IDs	Reference	Experiment	Comments
+    A1CF_1	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	31724725;10669759	RBNS_ENCODE;RBPDB	-
+    A1CF_2	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	31724725	RBNS_ENCODE	-
+    ACIN1_1	ACIN1	meme_xml	human	ENSG00000100813	-	27365209	iCLIP	-
+    ACIN1_2	ACIN1	meme_xml	human	ENSG00000100813	-	27365209	iCLIP	-
+        
     """
     name2ids_dic = {}
     name2gid_dic = {}
     id2type_dic = {}
     name2fids_dic = {}
+    id2pids_dic = {}
+    id2exp_dic = {}
     # id2org_dic = {}
 
     with open(rbp2ids_file) as f:
@@ -5349,6 +5638,8 @@ def get_rbp_id_mappings(rbp2ids_file,
                 # id2org_dic[motif_id] = organism
                 gene_id = cols[4]
                 function_ids = cols[5]
+                pids = cols[6]
+                exp = cols[7]
 
                 fids_list = []
                 if function_ids != "-":
@@ -5359,11 +5650,18 @@ def get_rbp_id_mappings(rbp2ids_file,
                 name2gid_dic[rbp_name] = gene_id
                 name2fids_dic[rbp_name] = fids_list
 
+                # Split pids.
+                pids_list = pids.split(';')
+                exp_list = exp.split(';')
+
+                id2pids_dic[motif_id] = pids_list
+                id2exp_dic[motif_id] = exp_list
+
     f.closed
 
     assert name2ids_dic, "no RBP IDs read in from %s" %(rbp2ids_file)
 
-    return name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic
+    return name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic
 
 
 ################################################################################
@@ -5517,8 +5815,8 @@ def reg_get_core_id(reg_id):
     
     """
 
-    if re.search("\w+:\d+-\d+\([+|-]\)", reg_id):
-        m = re.search("(\w+):(\d+)-(\d+)\(", reg_id)
+    if re.search(r"\w+:\d+-\d+\([+|-]\)", reg_id):
+        m = re.search(r"(\w+):(\d+)-(\d+)\(", reg_id)
         core_id = "%s:%s-%s" %(m.group(1), m.group(2), m.group(3))
         return core_id
     else:
@@ -5540,8 +5838,8 @@ def get_hit_id_elements(hit_id):
     
     """
 
-    if re.search("^\w+?:\d+-\d+\([+|-]\)\w+", hit_id):
-        m = re.search("^(\w+?):(\d+)-(\d+)\(([+|-])\)(.+)", hit_id)
+    if re.search(r"^\w+?:\d+-\d+\([+|-]\)\w+", hit_id):
+        m = re.search(r"^(\w+?):(\d+)-(\d+)\(([+|-])\)(.+)", hit_id)
         id_elements = [m.group(1), m.group(2), m.group(3), m.group(4), m.group(5)]
         return id_elements
     else:
@@ -5774,8 +6072,8 @@ def extract_pol_from_seq_ids(out_seqs_dic):
     """
     reg2pol_dic = {}
     for seq_id in out_seqs_dic:
-        if re.search("\w+:\d+-\d+\([+|-]\)", seq_id):
-            m = re.search("\w+:\d+-\d+\(([+|-])\)", seq_id)
+        if re.search(r"\w+:\d+-\d+\([+|-]\)", seq_id):
+            m = re.search(r"\w+:\d+-\d+\(([+|-])\)", seq_id)
             reg2pol_dic[seq_id] = m.group(1)
         else:
             assert False, "region ID has invalid format (%s). Please contact developers" %(seq_id)
@@ -6272,7 +6570,10 @@ def bed_filter_extend_bed(in_bed, out_bed,
                     else:
                         c_dupl_filter += 1
                         continue
-                
+                else:
+                    if reg_id not in reg2sc_dic:
+                        reg2sc_dic[reg_id] = reg_sc
+
                 """
                 Add stats separately for strands.
                 This could be adapted, counting only once per two-strand region.
@@ -6315,6 +6616,9 @@ def bed_filter_extend_bed(in_bed, out_bed,
                     else:
                         c_dupl_filter += 1
                         continue
+                else:
+                    if reg_id not in reg2sc_dic:
+                        reg2sc_dic[reg_id] = reg_sc
 
                 reg_len = new_e - new_s
                 reg_len_sum += reg_len
@@ -6349,8 +6653,8 @@ def seq_id_get_parts(seq_id):
 
     """
 
-    if re.search("\w+:\d+-\d+\([+|-]\)", seq_id):
-        m = re.search("(\w+):(\d+)-(\d+)\(([+|-])\)", seq_id)
+    if re.search(r"\w+:\d+-\d+\([+|-]\)", seq_id):
+        m = re.search(r"(\w+):(\d+)-(\d+)\(([+|-])\)", seq_id)
         chr_id = m.group(1)
         reg_s = int(m.group(2))
         reg_e = int(m.group(3))
@@ -6390,8 +6694,8 @@ def get_genomic_coords_from_seq_name(seq_name, motif_s, motif_e,
     
     """
 
-    if re.search("\w+:\d+-\d+\([+|-]\)", seq_name):
-        m = re.search("(\w+):(\d+)-(\d+)\(([+|-])\)", seq_name)
+    if re.search(r"\w+:\d+-\d+\([+|-]\)", seq_name):
+        m = re.search(r"(\w+):(\d+)-(\d+)\(([+|-])\)", seq_name)
         chr_id = m.group(1)
         reg_s = int(m.group(2))
         reg_e = int(m.group(3))
@@ -6425,8 +6729,8 @@ def get_length_from_seq_name(seq_name):
     100
 
     """
-    if re.search("\w+:\d+-\d+\(", seq_name):
-        m = re.search("\w+:(\d+)-(\d+)\(", seq_name)
+    if re.search(r"\w+:\d+-\d+\(", seq_name):
+        m = re.search(r"\w+:(\d+)-(\d+)\(", seq_name)
         reg_s = int(m.group(1))
         reg_e = int(m.group(2))
         return reg_e - reg_s
@@ -6544,6 +6848,52 @@ class NemoStats:
         self.wrs_pval_less = wrs_pval_less
         self.wrs_test_stat_less = wrs_test_stat_less
         self.dist_plot_counts_dic = dist_plot_counts_dic
+
+
+################################################################################
+
+class MotifInfos:
+    """
+    Stores database motif inofs.
+
+    Actual motifs (MEME motif format sequence motif, covariance  structure model) 
+    are currently provided in separate file(s).
+    
+    Mandatory infos:
+    RBP_motif_ID
+    RBP_name
+    Motif_type	
+    Optional infos:
+    Organism
+    Gene_ID
+    Function_IDs
+    Reference
+    Experiment
+    Comments
+
+    """
+    def __init__(self,
+                 rbp_id: str,
+                 motif_id: str,
+                 motif_type = str,
+                 organism = "-",
+                 gene_id = "-",
+                 reference = "-",
+                 experiment = "-",
+                 comments = "-",
+                 function_ids = None) -> None:
+        self.rbp_id = rbp_id
+        self.motif_id = motif_id
+        self.motif_type = motif_type
+        self.organism = organism
+        self.gene_id = gene_id
+        self.reference = reference
+        self.experiment = experiment
+        self.comments = comments
+        if function_ids is None:
+            self.function_ids = []
+        else:
+            self.function_ids = function_ids
 
 
 ################################################################################
@@ -7824,7 +8174,7 @@ def join_motif_hits(motif_hits_list,
 ################################################################################
 
 def remove_special_chars_from_str(check_str,
-                                  reg_ex='[^A-Za-z0-9_-]+'):
+                                  reg_ex=r'[^A-Za-z0-9_-]+'):
     """
     Remove special characters from string.
 
@@ -7842,23 +8192,22 @@ def remove_special_chars_from_str(check_str,
     [] (square brackets)
     () (parentheses)
     | (pipe)
-    \ (backslash)
+    backslash
 
-    To remove these:
-    special_chars = r"[.^$*+?{}[\]()|\\]"
-
-    >>> check_str = "{_}[-](_)\V/"
+    >>> check_str = r"{_}[-](_)\\V/"
     >>> remove_special_chars_from_str(check_str)
     '_-_V'
     >>> check_str = ""
     >>> remove_special_chars_from_str(check_str)
     ''
     >>> check_str = "AC.+?GA[AC]A\\\\C(AAA)C;C.{2,8}AC"
-    >>> remove_special_chars_from_str(check_str, reg_ex="[ ;\(\)]")
+    >>> remove_special_chars_from_str(check_str, reg_ex=r"[ ;\\()]")
     'AC.+?GA[AC]ACAAACC.{2,8}AC'
 
     """
-    check_str = check_str.replace("\\t", "").replace("\\n", "").replace("\\", "")
+    # To remove special regex chars: r"[.^$*+?{}[\]()|\]"
+
+    check_str = check_str.replace(r"\t", "").replace(r"\n", "").replace("\\", "")
     clean_string = re.sub(reg_ex, '', check_str)
     return clean_string
 
@@ -7882,8 +8231,8 @@ def get_motif_id_from_str_repr(hit_str_repr):
 
     """
 
-    if re.search("^.+:\d+-\d+\([+|-]\).+", hit_str_repr):
-        m = re.search("^.+?\)(.+)", hit_str_repr)
+    if re.search(r"^.+:\d+-\d+\([+|-]\).+", hit_str_repr):
+        m = re.search(r"^.+?\)(.+)", hit_str_repr)
         motif_id = m.group(1)
         return motif_id
     else:
@@ -8080,7 +8429,7 @@ def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll,
     data_2d_pca = pca.fit_transform(annots_ll)
     df = pd.DataFrame(data_2d_pca, columns=['PC1', 'PC2'])
     df['Dataset ID'] = dataset_ids_list
-    df['Highest percentage annotation'] = highest_perc_annot_list
+    df['Highest % annotation'] = highest_perc_annot_list
     df['Annotation percentages'] = perc_annot_str_list
 
     explained_variance = pca.explained_variance_ratio_ * 100
@@ -8089,7 +8438,7 @@ def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll,
         df,  # Use the DataFrame directly
         x='PC1',
         y='PC2',
-        color='Highest percentage annotation',
+        color='Highest % annotation',
         color_discrete_map=annot2color_dic,
         # title='2D Visualization with Dataset IDs',
         labels={
@@ -8097,7 +8446,7 @@ def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll,
             'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
         },
         hover_name='Dataset ID',
-        hover_data=['Highest percentage annotation', 'Annotation percentages']
+        hover_data=['Highest % annotation', 'Annotation percentages']
     )
 
     fig.update_traces(
@@ -8726,8 +9075,8 @@ def goa_generate_html_report(goa_results_df, goa_stats_dic,
     assert os.path.exists(sorttable_js_path), "sorttable.js not at %s" %(sorttable_js_path)
     sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
     if sort_js_mode == 2:
-        shutil.copy(sorttable_js_path, plots_out_folder)
-        sorttable_js_path = plots_folder + "/sorttable.js"
+        shutil.copy(sorttable_js_path, out_folder)
+        sorttable_js_path = out_folder + "/sorttable.js"
         sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
     elif sort_js_mode == 3:
         js_code = read_file_content_into_str_var(sorttable_js_path)
@@ -9275,7 +9624,7 @@ Input dataset ID format: %s. %s
 ## Input datasets exon-intron overlap statistics ### {#ei-ol-stats}
 
 **Table:** Exon, intron + border region overlap statistics for each input dataset.
-Minimum overlap with exon/intron region for input region to be counted as overlapping = %s%%.
+Minimum overlap between exon/intron region and input region to be counted as overlapping = %s%% (change via --gtf-eib-min-overlap).
 Considered intron border region length = %i nt. Considered exon-intron border region = +/- %i nt relative to border.
 %s
 
@@ -9351,18 +9700,12 @@ Considered intron border region length = %i nt. Considered exon-intron border re
         mdtext += '**%% exon-intron border regions** -> %% of input regions overlapping with exon-intron borders (+/- %i nt of exon-intron borders). ' %(eib_len)
         mdtext += "Note that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered. " %(2*ib_len, ib_len)
         mdtext += "Also note that the overlap is calculated between (optionally extended) input regions and transcript regions (one representative transcript, i.e., transcript with highest experimental support, chosen for each gene region, unless --tr-list provided). "
-        mdtext += "Thus, depending on set parameters (minimum overlap amount etc.) and characteristics of input dataset, exon/intron overlap can vary or even be relatively low.\n"
+        mdtext += "Thus, depending on set parameters (minimum overlap amount etc.), occasional overlap of annotated gene regions, and characteristics of input dataset, exon/intron overlap can vary, doesn't have to add up to 100, and can also be relatively low.\n"
         mdtext += "\n&nbsp;\n"
 
 
 
     """
-
-Also note that the overlap is calculated between (optionally extended) input regions and transcript regions 
-(one representative transcript, i.e., transcript with highest experimental support, chosen for each gene region, unless --tr-list provided). 
-Thus, depending on set parameters (minimum overlap amount etc.) and characteristics of input dataset, 
-exon/intron overlap can vary or even be relatively low.
-
 
     Input datasets RBP region score motif enrichment statistics.
 
@@ -12315,7 +12658,10 @@ percentage = 0.09765625. R2 = %.6f.
 ################################################################################
 
 def create_kmer_sc_plotly_scatter_plot(pos_mer_dic, neg_mer_dic, k,
-                                       out_html, plotly_js):
+                                       out_html, plotly_js,
+                                       pos_label="k-mer % input",
+                                       neg_label="k-mer % background",
+                                       kmer_label="k-mer"):
     """
     Create plotly graph plot, containing k-mer scores of positive
     and negative set, and store in .html file.
@@ -12336,9 +12682,6 @@ def create_kmer_sc_plotly_scatter_plot(pos_mer_dic, neg_mer_dic, k,
     assert neg_mer_dic, "given neg_mer_dic empty"
     assert len(pos_mer_dic) == len(neg_mer_dic), "len(pos_mer_dic) != len(neg_mer_dic)"
 
-    pos_label = "k-mer % input"
-    neg_label = "k-mer % background"
-    kmer_label = "k-mer"
     data = {pos_label : [], neg_label : [], kmer_label : []}
 
     max_pos_perc = 0
@@ -12366,8 +12709,8 @@ def create_kmer_sc_plotly_scatter_plot(pos_mer_dic, neg_mer_dic, k,
         max_perc = max_neg_perc
 
     # Find out how to round up max_perc.
-    if re.search("\d+\.\d+", str(max_perc)):
-        m = re.search("(\d+)\.(\d+)", str(max_perc))
+    if re.search(r"\d+\.\d+", str(max_perc)):
+        m = re.search(r"(\d+)\.(\d+)", str(max_perc))
         left = str(m.group(1))
         right = str(m.group(2))
     else:
@@ -12418,7 +12761,8 @@ def decimal_ceil(a, prec):
     >>> decimal_ceil(a, 2)
     0.01
     """
-    return np.round(a + 0.5 * 10**(-prec), prec)
+    a_rounded = np.round(a + 0.5 * 10**(-prec), prec)
+    return float(a_rounded)
 
 
 ################################################################################
@@ -12449,6 +12793,146 @@ def calc_r2_corr_measure(scores1, scores2,
 
 ################################################################################
 
+def split_regions_by_sc(reg2sc_dic, top_n=False, bottom_n=False,
+                        rev_sort=True):
+    """
+    Split region -> score dictionary by score. Return top_n and bottom_n
+    regions.
+
+    If top_n and bottom_n not set, split regions sorted by score 
+    at the midpoint.
+    If top_n and not bottom_n, split regions at the top_n.
+    If bottom_n and not top_n, split regions at the bottom_n.
+    If top_n and bottom_n, return the top_n and bottom_n regions.
+    If any of top_n, bottom_n or top_n + bottom_n > len(reg2sc_dic),
+    split regions at midpoint.
+
+    rev_sort: 
+        If True, the regions are sorted in descending order of scores, 
+        so higher scores means better regions.
+
+    >>> reg2sc_dic = {}
+    >>> reg2sc_dic["reg1"] = 0.1
+    >>> reg2sc_dic["reg2"] = 0.2
+    >>> reg2sc_dic["reg3"] = 0.3
+    >>> reg2sc_dic["reg4"] = 0.4
+    >>> reg2sc_dic["reg5"] = 0.5
+    >>> reg2sc_dic["reg6"] = 0.6
+    >>> reg2sc_dic["reg7"] = 0.7
+    >>> reg2sc_dic["reg8"] = 0.8
+    >>> split_regions_by_sc(reg2sc_dic)
+    (['reg8', 'reg7', 'reg6', 'reg5'], ['reg4', 'reg3', 'reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, top_n=2)
+    (['reg8', 'reg7'], ['reg6', 'reg5', 'reg4', 'reg3', 'reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, top_n=10)
+    (['reg8', 'reg7', 'reg6', 'reg5'], ['reg4', 'reg3', 'reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, bottom_n=2)
+    (['reg8', 'reg7', 'reg6', 'reg5', 'reg4', 'reg3'], ['reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, bottom_n=10)
+    (['reg8', 'reg7', 'reg6', 'reg5'], ['reg4', 'reg3', 'reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, top_n=2, bottom_n=2)
+    (['reg8', 'reg7'], ['reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, top_n=10, bottom_n=10)
+    (['reg8', 'reg7', 'reg6', 'reg5'], ['reg4', 'reg3', 'reg2', 'reg1'])
+    >>> reg2sc_dic = {}
+    >>> reg2sc_dic["reg1"] = 0.1
+    >>> reg2sc_dic["reg2"] = 0.2
+    >>> reg2sc_dic["reg3"] = 0.3
+    >>> reg2sc_dic["reg4"] = 0.4
+    >>> reg2sc_dic["reg5"] = 0.5
+    >>> reg2sc_dic["reg6"] = 0.6
+    >>> reg2sc_dic["reg7"] = 0.7
+    >>> split_regions_by_sc(reg2sc_dic)
+    (['reg7', 'reg6', 'reg5'], ['reg4', 'reg3', 'reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, top_n=2)
+    (['reg7', 'reg6'], ['reg5', 'reg4', 'reg3', 'reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, top_n=10)
+    (['reg7', 'reg6', 'reg5'], ['reg4', 'reg3', 'reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, bottom_n=2)
+    (['reg7', 'reg6', 'reg5', 'reg4', 'reg3'], ['reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, bottom_n=10)
+    (['reg7', 'reg6', 'reg5'], ['reg4', 'reg3', 'reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, top_n=2, bottom_n=2)
+    (['reg7', 'reg6'], ['reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, top_n=10, bottom_n=10)
+    (['reg7', 'reg6', 'reg5'], ['reg4', 'reg3', 'reg2', 'reg1'])
+    >>> split_regions_by_sc(reg2sc_dic, rev_sort=False)
+    (['reg1', 'reg2', 'reg3'], ['reg4', 'reg5', 'reg6', 'reg7'])
+    >>> split_regions_by_sc(reg2sc_dic, top_n=2, bottom_n=2, rev_sort=False)
+    (['reg1', 'reg2'], ['reg6', 'reg7'])
+    >>> split_regions_by_sc(reg2sc_dic, bottom_n=2, rev_sort=False)
+    (['reg1', 'reg2', 'reg3', 'reg4', 'reg5'], ['reg6', 'reg7'])
+    
+    """
+
+    sorted_reg2sc = sorted(reg2sc_dic.items(), key=lambda item: item[1], reverse=rev_sort)
+
+    midpoint = len(sorted_reg2sc) // 2
+    top = []
+    bottom = []
+
+    if top_n and bottom_n:
+        if top_n + bottom_n > len(sorted_reg2sc):
+            top = sorted_reg2sc[:midpoint]
+            bottom = sorted_reg2sc[midpoint:]
+        else:
+            top = sorted_reg2sc[:top_n]
+            bottom = sorted_reg2sc[-bottom_n:]
+    elif top_n and not bottom_n:
+        if top_n > len(sorted_reg2sc):
+            top = sorted_reg2sc[:midpoint]
+            bottom = sorted_reg2sc[midpoint:]
+        else:
+            top = sorted_reg2sc[:top_n]
+            bottom = sorted_reg2sc[top_n:]
+    elif bottom_n and not top_n:
+        if bottom_n > len(sorted_reg2sc):
+            top = sorted_reg2sc[:midpoint]
+            bottom = sorted_reg2sc[midpoint:]
+        else:
+            top = sorted_reg2sc[:-bottom_n]
+            bottom = sorted_reg2sc[-bottom_n:]
+    else:
+        top = sorted_reg2sc[:midpoint]
+        bottom = sorted_reg2sc[midpoint:]
+
+    top_ids = [item[0] for item in top]
+    bottom_ids = [item[0] for item in bottom]
+
+    return top_ids, bottom_ids
+
+
+################################################################################
+
+def calc_exp_kmer_perc(kmer_k):
+    """
+    Calculate k-mer percentage in case of a  uniform distribution.
+    E.g.
+    kmer_k = 1
+    4^1 = 4 possible kmers
+    1/4 = 0.25 = 25 kmer percentage (return this value).
+    
+    >>> calc_exp_kmer_perc(1)
+    25.0
+    >>> calc_exp_kmer_perc(2)
+    6.25
+    >>> calc_exp_kmer_perc(3)
+    1.5625
+    >>> calc_exp_kmer_perc(4)
+    0.390625
+    >>> calc_exp_kmer_perc(5)
+    0.09765625
+    >>> calc_exp_kmer_perc(0)
+    100.0
+
+    """
+
+    kmer_perc = 1 / (4 ** kmer_k) * 100
+    return kmer_perc
+
+
+################################################################################
+
 def search_generate_html_report(args,
                                 df_pval, pval_cont_lll,
                                 search_rbps_dic,
@@ -12472,6 +12956,8 @@ def search_generate_html_report(args,
                                 rbpbench_mode="search --report",
                                 disable_motif_enrich_table=False,
                                 reg_seq_str="regions",
+                                reg2seq_dic=False,
+                                reg2sc_dic=False,
                                 plots_subfolder="html_report_plots"):
     """
     Create additional hit statistics for selected RBPs, 
@@ -12618,6 +13104,10 @@ def search_generate_html_report(args,
     motif_enrich_info = "- [RBP region score motif enrichment statistics](#rbp-enrich-stats)"
     if disable_motif_enrich_table:
         motif_enrich_info = ""
+    if motif_enrich_info and args.kmer_plot:
+        motif_enrich_info += "\n- [Top vs bottom scoring regions k-mer distribution](#kmer-dist)"
+    elif not motif_enrich_info and args.kmer_plot:
+        motif_enrich_info = "- [Top vs bottom scoring regions k-mer distribution](#kmer-dist)"
 
     # Markdown part.
     mdtext = """
@@ -12765,16 +13255,95 @@ By default, BED genomic regions input file column 5 is used as the score column 
         mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
         mdtext += "\n&nbsp;\n"
 
+    """
+    Top vs bottom scoring regions k-mer distribution
+    #kmer-dist
+
+    reg2sc_dic:
+        region ID -> score dictionary.
+
+    """
+    if args.kmer_plot:
+
+        top_seqs_dic = {}
+        bottom_seqs_dic = {}
+
+        rev_sort = True  # True if scores (i.e. the higher the better site quality).
+        if args.bed_sc_thr_rev_filter:  # If scores are e.g. p-values, reverse filtering.
+            rev_sort = False
+
+        top_ids, bottom_ids = split_regions_by_sc(reg2sc_dic, 
+                                                  top_n=args.kmer_plot_top_n, 
+                                                  bottom_n=args.kmer_plot_bottom_n,
+                                                  rev_sort=rev_sort)
+
+        c_top_sites = len(top_ids)
+        c_bottom_sites = len(bottom_ids)
+
+        for reg_id in top_ids:
+            top_seqs_dic[reg_id] = reg2seq_dic[reg_id]
+        for reg_id in bottom_ids:
+            bottom_seqs_dic[reg_id] = reg2seq_dic[reg_id]
+
+        top_kmer_dic = seqs_dic_count_kmer_freqs(top_seqs_dic, args.kmer_plot_k, 
+                                                 rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
+                                                 convert_to_uc=True)
+        bottom_kmer_dic = seqs_dic_count_kmer_freqs(bottom_seqs_dic, args.kmer_plot_k, 
+                                                    rna=False,
+                                                    return_ratios=True,
+                                                    perc=True,
+                                                    report_key_error=False,
+                                                    skip_non_dic_keys=True,
+                                                    convert_to_uc=True)
 
 
-    #     mdtext += "\n&nbsp;\n&nbsp;\n"
-    #     mdtext += "\nColumn IDs have the following meanings: "
-    #     mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
-    #     mdtext += '**# hit regions** -> number of input genomic regions with motif hits (after filtering and optional extension), '
-    #     mdtext += '**% hit regions** -> percentage of hit regions over all regions (i.e. how many input regions contain >= 1 RBP binding motif), '
-    #     mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
-    #     mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
-    #     mdtext += "\n&nbsp;\n"
+
+        mdtext += """
+## Top vs bottom scoring regions k-mer distribution ### {#kmer-dist}
+
+"""
+
+        plotly_kmer_plot = "plotly_scatter_kmer.html"
+        plotly_kmer_plot_out = plots_out_folder + "/" + plotly_kmer_plot
+
+        # Create k-mer plotly scatter plot.
+        create_kmer_sc_plotly_scatter_plot(top_kmer_dic, bottom_kmer_dic, args.kmer_plot_k,
+                                           plotly_kmer_plot_out, plotly_js_path,
+                                           pos_label=f"{args.kmer_plot_k}-mer % top scoring sites",
+                                           neg_label=f"{args.kmer_plot_k}-mer % bottom scoring sites",
+                                           kmer_label=f"{args.kmer_plot_k}-mer")
+
+        # Plot paths inside html report.
+        plotly_kmer_plot_path = plots_folder + "/" + plotly_kmer_plot
+
+        # R2 score.
+        r2_kmer = calc_r2_corr_measure(top_kmer_dic, bottom_kmer_dic,
+                                       is_dic=True)
+
+        # Expected k-mer percentage.
+        exp_kmer_perc = calc_exp_kmer_perc(args.kmer_plot_k)
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            js_code = read_file_content_into_str_var(plotly_kmer_plot_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:800px; width:800px;")
+            mdtext += js_code + "\n"
+        else:
+            mdtext += "<div>\n"
+            mdtext += '<iframe src="' + plotly_kmer_plot_path + '" width="800" height="800"></iframe>' + "\n"
+            mdtext += '</div>'
+
+        mdtext += """
+
+**Figure:** Sequence %i-mer percentages in the top %i scoring and bottom %i scoring input sites. In case of
+a uniform distribution with all %i-mers present, each %i-mer would have a percentage = %s. R2 = %.6f.
+
+&nbsp;
+
+""" %(args.kmer_plot_k, c_top_sites, c_bottom_sites, args.kmer_plot_k, args.kmer_plot_k, str(exp_kmer_perc), r2_kmer)
 
 
     """
@@ -13032,11 +13601,11 @@ originate from an intron binding RBP, making the plot less informative (since th
 Minimum overlap amount with mRNA exons required for input region to be counted as overlapping = %s%% (set via --gtf-min-mrna-overlap).
 All overlapping input region positions are used for the coverage calculation.
 Only mRNA regions overlapping with input regions are used for plot generation (# mRNAs with input regions = %i).
-mRNA region lengths used for plotting are derived from the %i mRNA regions, using their  %s region lengths (5'UTR = %s, CDS = %s, 3'UTR = %s).
+mRNA region lengths used for plotting are derived from the occupied mRNA regions, using their %s region lengths (5'UTR = %s, CDS = %s, 3'UTR = %s).
 
 &nbsp;
 
-""" %(c_all_sites, c_ol_sites, str(perc_ol_sites), str(perc_min_overlap), c_ol_mrnas, c_ol_mrnas, norm_mode, str(utr5_len_norm), str(cds_len_norm), str(utr3_len_norm))
+""" %(c_all_sites, c_ol_sites, str(perc_ol_sites), str(perc_min_overlap), c_ol_mrnas, norm_mode, str(utr5_len_norm), str(cds_len_norm), str(utr3_len_norm))
 
 
 
@@ -13076,7 +13645,7 @@ mRNA region lengths used for plotting are derived from the %i mRNA regions, usin
         categories = ['Exon\nregions', 'Intron\nregions', '%i nt us\nintron regions' %(intron_bl), '%i nt ds\nintron regions' %(intron_bl), '+/- 50 nt exon\nintron borders']
         percentages = [exon_sites_perc, intron_sites_perc, us_ib_sites_perc, ds_ib_sites_perc, eib_sites_perc]
 
-        fig, ax = plt.subplots(figsize=(8, 4))
+        fig, ax = plt.subplots(figsize=(7.5, 4))
 
         ax.bar(categories, percentages, color='lightgray', zorder=2)
 
@@ -13096,22 +13665,22 @@ mRNA region lengths used for plotting are derived from the %i mRNA regions, usin
         eib_stats_plot_out = plots_out_folder + "/" + eib_stats_plot
         plot_path = plots_folder + "/" + eib_stats_plot
 
-        plt.savefig(eib_stats_plot_out, dpi=125)
+        plt.savefig(eib_stats_plot_out, dpi=135)
 
         if args.plot_pdf and eib_stats_plot_out.endswith('.png'):
             pdf_out = eib_stats_plot_out[:-4] + '.pdf'
-            plt.savefig(pdf_out, dpi=125)
+            plt.savefig(pdf_out, dpi=135)
 
         plt.close()
         mdtext += '<image src = "' + plot_path + '" width="900px"></image>'  + "\n"
         # mdtext += '<img src="' + plots_path + '" alt="Exon intron overlap plot"' + "\n"
         # mdtext += 'title="mRNA region occupancy plot" />' + "\n"
 
-        mdtext += """
+        mdtext += r"""
 **Figure:** Exon, intron + border region overlap statistics. \# input regions = %i. 
 \# input regions overlapping with exon regions = %i.
 \# input regions overlapping with intron regions = %i.
-Minimum overlap with exon/intron region for input region to be counted as overlapping = %s%%.
+Minimum overlap between exon/intron region and input region to be counted as overlapping = %s%% (change via --gtf-eib-min-overlap).
 Categories:
 **Exon regions** -> %% of input regions overlapping with exon regions.
 **Intron regions** -> %% of input regions overlapping with intron regions.
@@ -13122,8 +13691,8 @@ Categories:
 Note that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered. 
 Also note that the overlap is calculated between (optionally extended) input regions and transcript regions 
 (one representative transcript, i.e., transcript with highest experimental support, chosen for each gene region, unless --tr-list provided). 
-Thus, depending on set parameters (minimum overlap amount etc.) and characteristics of input dataset, 
-exon/intron overlap can vary or even be relatively low.
+Thus, depending on set parameters (minimum overlap amount etc.), occasional overlap of annotated gene regions, 
+and characteristics of input dataset, exon/intron overlap can vary, doesn't have to add up to 100, and can also be relatively low.
 
 &nbsp;
 
@@ -14319,7 +14888,9 @@ def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg
 
     # Scale plot height depending on # of features.
     c_ids = len(rbp2regidx_dic)
-    fheight = 0.8 * c_ids
+    if add_all_reg_bar:
+        c_ids += 1
+    fheight = 0.6 * c_ids
     fwidth = 10
 
     # Get all annotation IDs in dataset.
@@ -14773,6 +15344,8 @@ def search_generate_html_motif_plots(args, search_rbps_dic,
                                      goa_results_df=False,
                                      goa_stats_dic=False,
                                      goa_results_tsv="goa_results.tsv",
+                                     id2pids_dic=False,
+                                     id2exp_dic=False,
                                      plots_subfolder="html_motif_plots"):
     """
     Create motif plots for selected RBPs.
@@ -15184,7 +15757,7 @@ RBP "%s" only contains structure motifs, which are currently not available for p
 **Figure:** mRNA region motif hit coverage profiles for RBP "%s" motif hits.
 Motif hit coverage profiles are shown for all motifs of RBP "%s" combined, as well as single motifs (unless there is only one motif), over 5'UTR, CDS, and 3'UTR regions of mRNA.
 x-axis is the motif hit coverage, i.e., how many motif hits found over the mRNA regions.
-Only motif hit center positions are used for annotation.
+Only motif hit center positions are used for the annotation and coverage profile.
 mRNA region lengths used for plotting are the %s region lengths obtained from the GTF file (5'UTR = %s, CDS = %s, 3'UTR = %s).
 Number of mRNA sequences used for prediction and plot generation: %i.
 
@@ -15279,15 +15852,43 @@ more often in intron, 3'UTR etc.). Unique input regions size (nt): %i (i.e., ove
                                   plot_pdf=args.plot_pdf,
                                   plot_png=True)
 
+            motif_pids_info = "-"
+            if id2pids_dic:
+                pid_list = []
+                if motif_id in id2pids_dic:
+                    for pid in id2pids_dic[motif_id]:
+                        if pid == "-":
+                            continue
+                        elif pid.startswith("http"):
+                            pid_str = '<a href="%s">DOI</a>' %(pid)
+                            pid_list.append(pid_str)
+                        else:
+                            try:
+                                int(pid)
+                                pid_str = '<a href="https://pubmed.ncbi.nlm.nih.gov/%s">%s</a>' %(pid, pid)
+                                pid_list.append(pid_str)
+                            except ValueError:
+                                continue
+
+                if pid_list:
+                    motif_pids_info = ",".join(pid_list)
+
+            motif_exp_info = "-"
+            if id2exp_dic:
+                if motif_id in id2exp_dic:
+                    motif_exp_list = id2exp_dic[motif_id]
+                    motif_exp_info = ",".join(motif_exp_list)
+
             mdtext += '<img src="' + plot_path + '" alt="' + "sequence motif plot %s" %(motif_id) + "\n"
             mdtext += 'title="' + "sequence motif plot %s" %(motif_id) + '" width="500" />' + "\n"
             mdtext += """
 
 **Figure:** Sequence motif plot for motif ID "%s" (RBP ID: %s, motif database ID: %s). X-axis: motif position. Y-axis: nucleotide probability. Number of %s unique motif hits in supplied %s regions: %i.
+Motif references (PubMed, DOI): %s. Motif source database / experiments: %s.
 
 &nbsp;
 
-""" %(motif_id, rbp_id, motif_db, motif_id, site_type, c_motif_hits)
+""" %(motif_id, rbp_id, motif_db, motif_id, site_type, c_motif_hits, motif_pids_info, motif_exp_info)
 
 
         for idx, motif_id in enumerate(rbp.str_motif_ids):
@@ -15595,7 +16196,7 @@ by RBPBench (rbpbench compare):
             assert False, "two many methods to compare (comp_id: %s). Please use less methods for plotting (current limit: 24)" %(comp_id)
 
         mdtext += '<img src="' + plot_path + '" alt="' + "dataset comparison plot %s" %(comp_id) + "\n"
-        mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="650" />' + "\n"
+        mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="600" />' + "\n"
         mdtext += """
 
 **Figure:** Venn diagram of motif hit occurrences for the %i different methods (%s) with identical combined ID "%s" + corresponding percentages 
@@ -15711,7 +16312,7 @@ Any given motif hit can either be found only by one method, or be identified by 
         method_id = comp_id.split(",")[0]
 
         mdtext += '<img src="' + plot_path + '" alt="' + "dataset comparison plot %s" %(comp_id) + "\n"
-        mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="650" />' + "\n"
+        mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="600" />' + "\n"
         mdtext += """
 
 **Figure:** Venn diagram of motif hit occurrences for the %i different datasets (%s) with identical combined ID "%s" + corresponding percentages 

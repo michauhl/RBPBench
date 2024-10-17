@@ -25,7 +25,6 @@ def setup_argument_parser():
     p.add_argument("-h", "--help",
                    action="help",
                    help="Print help message")
-
     p.add_argument("--gtf",
                    dest="in_gtf",
                    type=str,
