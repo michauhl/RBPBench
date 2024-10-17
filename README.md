@@ -713,7 +713,7 @@ features.
 
 ##### Compare search results
 
-`rbpbench search` and `rbpbench batch` produce the RPB and motif hit statistics files which can 
+`rbpbench search` and `rbpbench batch` produce the RBP and motif hit statistics files which can 
 then be input into `rbpbench compare` in order to benchmark peak callers, or generate comparisons 
 between different cell types and CLIP-seq protocols. Again an HTML report is produced with plots 
 for each possible comparison found in the input files.
@@ -1235,7 +1235,7 @@ GO term (enrichment) analysis (GOA) can also be performed with RBPBench (see `--
 What target genes are selected for enrichment in GO terms depends on the set mode and command line options.
 E.g. in `rbpbench search`, by default GOA is performed on all genes covered by input regions. 
 This can be changed via `--goa-cooc-mode`, allowing to select only genes with motif hits from any specified 
-RPBs or from all specified RBPs to test different hypotheses.
+RBPs or from all specified RBPs to test different hypotheses.
 This differs from `rbpbench batch`, where GOA is performed on genes with input regions from all input datasets
 (further restricted via `--goa-only-cooc`, focussing only on genes with motif containing input regions from all datasets).
 A third way to run GOA is offered by `rbpbench searchlongrna`, which searches transcripts (e.g. all or selected 
