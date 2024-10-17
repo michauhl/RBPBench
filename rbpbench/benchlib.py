@@ -16196,7 +16196,7 @@ by RBPBench (rbpbench compare):
             assert False, "two many methods to compare (comp_id: %s). Please use less methods for plotting (current limit: 24)" %(comp_id)
 
         mdtext += '<img src="' + plot_path + '" alt="' + "dataset comparison plot %s" %(comp_id) + "\n"
-        mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="650" />' + "\n"
+        mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="600" />' + "\n"
         mdtext += """
 
 **Figure:** Venn diagram of motif hit occurrences for the %i different methods (%s) with identical combined ID "%s" + corresponding percentages 
@@ -16312,7 +16312,7 @@ Any given motif hit can either be found only by one method, or be identified by 
         method_id = comp_id.split(",")[0]
 
         mdtext += '<img src="' + plot_path + '" alt="' + "dataset comparison plot %s" %(comp_id) + "\n"
-        mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="650" />' + "\n"
+        mdtext += 'title="' + "dataset comparison plot %s" %(comp_id) + '" width="600" />' + "\n"
         mdtext += """
 
 **Figure:** Venn diagram of motif hit occurrences for the %i different datasets (%s) with identical combined ID "%s" + corresponding percentages 

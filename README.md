@@ -496,7 +496,7 @@ In this example, we will use the mRNA region end positions, and look at the adja
 To get these, we will use some helper scripts that come bundled with RBPBench (details on available helper scripts [here](#helper-scripts)):
 
 ```
-gtf_extract_mpt_region_bed.py --gtf Homo_sapiens.GRCh38.112.gtf.gz --out mrna_regions_hg38_out --only-mrna
+gtf_extract_mpt_region_bed.py --gtf Homo_sapiens.GRCh38.112.gtf.gz --out mrna_regions_hg38_out --mrna-only
 bed_print_last_n_pos.py --in mrna_regions_hg38_out/mpt_regions.bed --ext 1 > mrna_region_end_pos.bed
 ```
 
@@ -875,7 +875,7 @@ rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps USER --out SLBP_user_search_
 In the same way, we can supply sequence motif(s) (PUM1) via `--user-meme-xml`, and e.g. also combine it with any of the database RBPs (here PUM2 and RBFOX2):
 
 ```
-rbpbench search --in PUM1_K562_IDR_peaks.bed --rbps USER PUM2 RBFOX2 --out PUM1_user_search_out --genome hg38.fa --user-meme-xml PUM1_USER.xml --user-rbp-id PUM1_USER
+rbpbench search --in eclip_clipper_idr/PUM1_K562_IDR_peaks.bed --rbps USER PUM2 RBFOX2 --out PUM1_user_search_out --genome hg38.fa --user-meme-xml PUM1_USER.xml --user-rbp-id PUM1_USER
 ```
 
 #### Custom motif database
@@ -937,7 +937,7 @@ create_custom_meme_motif_db.py --in custom_motifs.tsv --out custom_db_out
 Afterwards the folder can be used as described above via `--custom-db` option, and you can specify any RBPs or motifs you want to search for from the database:
 
 ```
-rbpbench search --in genomic_regions.bed --genome /path/to/hg38.fa --gtf /path/to/Homo_sapiens.GRCh38.112.gtf.gz --rbps ALL --custom-db custom_db_out --out custom_db_search_out --ext 10 --plot-motifs --fimo-pval 0.005
+rbpbench search --in genomic_regions.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --rbps ALL --custom-db custom_db_out --out custom_db_search_out --ext 10 --plot-motifs --fimo-pval 0.005
 ```
 
 Here we used `--plot-motifs` to visualize the motifs and `--rbps ALL`, meaning all motifs from the custom database are included in search. To search only for specific motifs from the specified database, simply add `--motifs RBPX_1 RBPX_2`. Note that RBPBench's default FIMO threshold to filter out motif hits is optimized for 6-nt or longer sequence motifs. If your motifs are shorter, consider setting a more relaxed threshold (e.g., like in the example `--fimo-pval 0.005`). However, keep in mind that a relaxed setting also results in predicting more non-perfect hits, especially for longer motifs.
