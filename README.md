@@ -506,11 +506,11 @@ Now let's run `rbpbench nemo` with an up- and downstream extension of `--ext 30`
 rbpbench nemo --in mrna_region_end_pos.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_nemo_mrna_ends_out --rbps ALL --ext 40 --min-motif-dist 10 --motif-sim-thr 2 --allow-overlaps --functions TEP RSD TR
 ```
 
-**Fig. 9** shows us the resulting neighboring motif enrichment statistics table (only top 10 enriched motifs shown):
+**Fig. 8** shows us the resulting neighboring motif enrichment statistics table (only top 10 enriched motifs shown):
 
 <img src="docs/nemo.ex1.1.png" width="800" />
 
-**Fig. 9**: Neighboring motif enrichment statistics table (top 10 results) produced by `rbpbench nemo`.
+**Fig. 8**: Neighboring motif enrichment statistics table (top 10 results) produced by `rbpbench nemo`.
 
 We can see that the table is slightly expanded compared to the `rbpbench enmo` table. I.e., we now have additional 
 info on whether motif hits tend to occur more in up- or downstream regions relative to the input regions (signified by 
@@ -521,11 +521,11 @@ to occur often near 3'UTR ends. This preference we can also nicely see in the mo
 Looking at the regions downstream the annotated mRNA ends, we see a preference of T and GT-rich motifs (which continues as we would go beyond 
 the top 10). These GT-rich (or actually GU-rich in RNA) elements (GREs) are too known to frequently occur at transcript ends, 
 namely downstream the polyadenylation signal. Both elements have well known roles in the regulation of mRNA stability and degradation. 
-The different sequence preferences up- and downstream can also be seen in the sequence motif similarities vs direction PCA plot (**Fig. 10**):
+The different sequence preferences up- and downstream can also be seen in the sequence motif similarities vs direction PCA plot (**Fig. 9**):
 
 <img src="docs/nemo.ex2.1.png" width="500" />
 
-**Fig. 10**: Sequence motif similarity vs direction PCA plot produced by `rbpbench nemo`.
+**Fig. 9**: Sequence motif similarity vs direction PCA plot produced by `rbpbench nemo`.
 
 This plot again shows us the motifs arranged by their similarity, but this time colored by the up- or downstream 
 direction preference (e.g., the more negative the higher the upstream preference). As an example for a significant 
@@ -549,12 +549,12 @@ we will use the `CSTF2_1` motif:
 rbpbench searchlongrna --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_searchlongrna_mrna_pas_out --rbps ALL --motifs CSTF2_1 --mrna-only
 ```
 
-The resulting motif hit coverage profile for `CSTF2_1` (AATAAA) over all mRNAs is shown in **Fig. 11**:
+The resulting motif hit coverage profile for `CSTF2_1` (AATAAA) over all mRNAs is shown in **Fig. 10**:
 
 
 <img src="docs/searchlongrna.ex1.1.png" width="750" />
 
-**Fig. 11**: mRNA region motif hit coverage profile for motif `CSTF2_1`, produced by `rbpbench searchlongrna`.
+**Fig. 10**: mRNA region motif hit coverage profile for motif `CSTF2_1`, produced by `rbpbench searchlongrna`.
 Number of mRNAs used for plotting: 20,476 mRNAs. Median lengths of mRNA regions: 5'UTR = 127.0, CDS = 1215.0, 3'UTR = 914.0.
 
 By default, all annotated mRNAs are used from the provided GTF file. However, we can also restrict the set of used mRNAs (by supplying our own transcript IDs list via `--tr-list`). Note that we need to specify `--mrna-only`, otherwise we will not get the coverage profile plot. The mode is still useful though, 
@@ -569,14 +569,14 @@ rbpbench searchlongrna --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --o
 
 <img src="docs/searchlongrna.ex2.1.png" width="750" />
 
-**Fig. 12**: mRNA region motif hit coverage profiles for all DDX3X motifs, produced by `rbpbench searchlongrna`.
+**Fig. 11**: mRNA region motif hit coverage profiles for all DDX3X motifs, produced by `rbpbench searchlongrna`.
 
-We can see that the DDX3X motifs are also found predominantly in 5'UTRs, as well as decreasingly in frequency along the CDS. Since we have more than one motif for DDX3X (i.e., two: `DDX3X_1`, `DDX3X_2`), profiles are plotted for each motif and then also the sum of profiles for the RBP in total. Furthermore, the motif hit coverage profile fits to what is known about DDX3X, namely that it is an RNA helicase involved e.g. in translation initiation. **Fig. 13** shows the two motifs:
+We can see that the DDX3X motifs are also found predominantly in 5'UTRs, as well as decreasingly in frequency along the CDS. Since we have more than one motif for DDX3X (i.e., two: `DDX3X_1`, `DDX3X_2`), profiles are plotted for each motif and then also the sum of profiles for the RBP in total. Furthermore, the motif hit coverage profile fits to what is known about DDX3X, namely that it is an RNA helicase involved e.g. in translation initiation. **Fig. 12** shows the two motifs:
 
 
 <img src="docs/searchlongrna.ex2.2.png" width="400" />
 
-**Fig. 13**: DDX3X database motifs together with literature references, produced by `rbpbench searchlongrna`.
+**Fig. 12**: DDX3X database motifs together with literature references, produced by `rbpbench searchlongrna`.
 
 We can see that the motifs (identified from eCLIP data), show a preference for GC-rich sequences, underlining DDX3X`s role as an RNA helicase resolving RNA structure.
 
@@ -608,15 +608,15 @@ The resulting visualizations (stored in `searchlong_test_ddx3x_out/motif_plots.r
 
 <img src="docs/searchlong.ex1.1.png" width="700" />
 
-**Fig. 14**: Genomic region annotations for DDX3X motif hits (standard vs normalized), produced by `rbpbench searchlong`. 
+**Fig. 13**: Genomic region annotations for DDX3X motif hits (standard vs normalized), produced by `rbpbench searchlong`. 
 **a:** Genomic region annotations (standard, i.e., not normalized by annotation region lengths found in the input regions).
 **b:** Genomic region annotations (normalized by annotation region lengths found in the input regions).
 
-We can see that almost all DDX3X motif hits are located in intron regions (**Fig. 14a**). 
+We can see that almost all DDX3X motif hits are located in intron regions (**Fig. 13a**). 
 However, this does not tell us much about the prevalence of the motifs in certain regions, as the length of 
 intron annotations is much longer than the length of exon annotations in the input regions.
-For this we can look at the normalized annotations (**Fig. 14b**): now we can clearly see that the DDX3X 
-motifs have a strong prevalence in 5'UTR regions, in agreement with the **Fig. 12** results.
+For this we can look at the normalized annotations (**Fig. 13b**): now we can clearly see that the DDX3X 
+motifs have a strong prevalence in 5'UTR regions, in agreement with the **Fig. 11** results.
 
 
 
@@ -646,7 +646,7 @@ The generated plot (`test_dist_out/nt_dist_zero_pos.png`) looks the following:
 <img src="docs/dist.ext1.1.png" alt="Nucleotide distribution at stop codons"
 	title="Nucleotide distribution at stop codons" width="500" />
 
-**Figure 15:** Nucleotide distribution (position probability matrix) at genomic stop codon positions (human transcript annotations, ENSEMBL GRCh38 release 112).
+**Figure 14:** Nucleotide distribution (position probability matrix) at genomic stop codon positions (human transcript annotations, ENSEMBL GRCh38 release 112).
 
 We can clearly identify the known stop codon triplet sequences (in DNA: TAA, TAG, TGA), starting 
 at position 0.
