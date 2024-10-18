@@ -1000,8 +1000,8 @@ The RBP hit statistics file `rbp_hit_stats.tsv` contains the following columns:
 
 | Column name | Description |
 |:--------------:|:--------------:|
-| data_id | Set Data ID (`--data-id`). More [here](#adding-more-information-for-comparisons) |
-| method_id | Set method ID (`--method-id`). More [here](#adding-more-information-for-comparisons) |
+| data_id | Set Data ID (`--data-id`). More [here](#comparing-different-search-results) |
+| method_id | Set method ID (`--method-id`). More [here](#comparing-different-search-results) |
 | run_id | Set run ID (`--run-id`) |
 | motif_db | Selected motif database for search (`--motif-db`) |
 | rbp_id | RBP ID (i.e., RBP name), e.g. `PUM1` |
@@ -1021,7 +1021,7 @@ The RBP hit statistics file `rbp_hit_stats.tsv` contains the following columns:
 | perc_uniq_motif_nts_eff_reg | Percentage of unique motif nucleotides over effective region size |
 | uniq_motif_hits_cal_1000nt | Number of motif hits over 1000 nt of called region size |
 | uniq_motif_hits_eff_1000nt | Number of motif hits over 1000 nt of effective region size |
-| wc_pval | [Wilcoxon rank-sum test p-value](#informative-statistics) to test whether motif hit regions tend to feature higher scores | 
+| wc_pval | [Wilcoxon rank-sum test p-value](#input-region-score-motif-enrichment-statistics) to test whether motif hit regions tend to feature higher scores | 
 | seq_motif_ids | Sequence motif IDs. Empty (`-`) if rbp_id has not sequence motifs  | 
 | seq_motif_hits | Sequence motif hit counts (count for each motif ID) | 
 | str_motif_ids | Structure motif IDs. Empty (`-`) if rbp_id has not structure motifs  | 
@@ -1033,8 +1033,8 @@ The motif hit statistics file `motif_hit_stats.tsv` contains the following colum
 
 | Column name | Description |
 |:--------------:|:--------------:|
-| data_id | Set Data ID (`--data-id`). More [here](#adding-more-information-for-comparisons) |
-| method_id | Set method ID (`--method-id`). More [here](#adding-more-information-for-comparisons) |
+| data_id | Set Data ID (`--data-id`). More [here](#comparing-different-search-results) |
+| method_id | Set method ID (`--method-id`). More [here](#comparing-different-search-results) |
 | run_id | Set run ID (`--run-id`) |
 | motif_db | Selected motif database for search (`--motif-db`) |
 | region_id | Genomic region ID containing the hit, e.g. `chr1:228458485-228458560(+)` |
