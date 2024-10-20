@@ -8453,7 +8453,7 @@ def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll,
         hovertemplate='<b>%{hovertext}</b><br>Annotation percentages: %{customdata[1]}<extra></extra>'
     )
 
-    fig.update_traces(marker=dict(size=8, line=dict(width=0.5, color='white')))
+    fig.update_traces(marker=dict(size=10, line=dict(width=0.5, color='white')))
     # fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
     fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
 
@@ -8646,6 +8646,111 @@ def create_pca_motif_sim_dir_plot_plotly(motif_ids_list, motif_sim_ll,
 
 ################################################################################
 
+def create_eib_comp_plot_plotly(id2eib_stats_dic, id2eib_perc_dic, plot_out,
+                                plot_3d=False,
+                                include_plotlyjs="cdn",
+                                full_html=False):
+    """
+    Create exon-intron + border ratios comparison plot with plotly.
+
+    Use PCA to reduce dimensions.
+    
+    id2eib_stats_dic format:
+    id2eib_stats_dic[internal_id] = 
+    [combined_id, ei_ol_stats.c_input_sites, exon_sites_ratio, intron_sites_ratio, us_ib_sites_ratio, ds_ib_sites_ratio, eib_sites_ratio]
+
+    """
+
+    assert id2eib_stats_dic, "id2eib_stats_dic empty"
+    assert id2eib_perc_dic, "id2eib_perc_dic empty"
+
+    color_scale = ['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+
+    eib_ratios_ll = []
+
+    for internal_id in sorted(id2eib_stats_dic):
+        combined_id = id2eib_stats_dic[internal_id][0]
+        # c_input_sites = id2eib_stats_dic[internal_id][1]
+        # exon_sites_ratio = id2eib_stats_dic[internal_id][2]
+        # intron_sites_ratio = id2eib_stats_dic[internal_id][3]
+        # us_ib_sites_ratio = id2eib_stats_dic[internal_id][4]
+        # ds_ib_sites_ratio = id2eib_stats_dic[internal_id][5]
+        # eib_sites_ratio = id2eib_stats_dic[internal_id][6]
+        # Append elements 2-6.
+        eib_ratios_ll.append(id2eib_stats_dic[internal_id][2:])
+
+    if plot_3d:
+        pca = PCA(n_components=3)
+        data_3d_pca = pca.fit_transform(eib_ratios_ll)
+        df = pd.DataFrame(data_3d_pca, columns=['PC1', 'PC2', 'PC3'])
+    else:
+        pca = PCA(n_components=2)
+        data_2d_pca = pca.fit_transform(eib_ratios_ll)
+        df = pd.DataFrame(data_2d_pca, columns=['PC1', 'PC2'])
+
+    df['Dataset ID'] = [id2eib_stats_dic[internal_id][0] for internal_id in sorted(id2eib_stats_dic)]
+    df['# input regions'] = [id2eib_stats_dic[internal_id][1] for internal_id in sorted(id2eib_stats_dic)]
+    df['Exon sites perc'] = [id2eib_perc_dic[internal_id][0] for internal_id in sorted(id2eib_perc_dic)]
+    df['Intron sites perc'] = [id2eib_perc_dic[internal_id][1] for internal_id in sorted(id2eib_perc_dic)]
+    df['us ib sites perc'] = [id2eib_perc_dic[internal_id][2] for internal_id in sorted(id2eib_perc_dic)]
+    df['ds ib sites perc'] = [id2eib_perc_dic[internal_id][3] for internal_id in sorted(id2eib_perc_dic)]
+    df['eib sites perc'] = [id2eib_perc_dic[internal_id][4] for internal_id in sorted(id2eib_perc_dic)]
+
+    explained_variance = pca.explained_variance_ratio_ * 100
+
+    if plot_3d:
+
+        fig = px.scatter_3d(
+            df,  # Use the DataFrame directly
+            x='PC1',
+            y='PC2',
+            z='PC3',
+            color='# input regions',
+            # title='2D Visualization with Dataset IDs',
+            labels={
+                'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+                'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)',
+                'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
+            },
+            hover_name='Dataset ID',
+            color_continuous_scale=color_scale,
+            hover_data=['# input regions', 'Exon sites perc', 'Intron sites perc', 'us ib sites perc', 'ds ib sites perc', 'eib sites perc']
+        )
+
+        fig.update_traces(
+            hovertemplate='<b>%{hovertext}</b><br>Input regions (#): %{customdata[0]}<br>Exon: %{customdata[1]}%<br>Intron: %{customdata[2]}%<br>US intron border: %{customdata[3]}%<br>DS intron border: %{customdata[4]}%<br>Exon-intron border: %{customdata[5]}%<extra></extra>'
+        )
+
+        fig.update_traces(marker=dict(size=3, line=dict(width=0.5, color='white')))
+
+    else:
+
+        fig = px.scatter(
+            df,
+            x='PC1',
+            y='PC2',
+            color='# input regions',
+            # title='2D Visualization with Dataset IDs',
+            labels={
+                'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+                'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
+            },
+            hover_name='Dataset ID',
+            color_continuous_scale=color_scale,
+            hover_data=['# input regions', 'Exon sites perc', 'Intron sites perc', 'us ib sites perc', 'ds ib sites perc', 'eib sites perc']
+        )
+
+        fig.update_traces(
+            hovertemplate='<b>%{hovertext}</b><br>Input regions (#): %{customdata[0]}<br>Exon: %{customdata[1]}%<br>Intron: %{customdata[2]}%<br>US intron border: %{customdata[3]}%<br>DS intron border: %{customdata[4]}%<br>Exon-intron border: %{customdata[5]}%<extra></extra>'
+        )
+
+        fig.update_traces(marker=dict(size=10, line=dict(width=0.5, color='white')))
+
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
 def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic, 
                                    plot_out,
                                    sparse_pca=False,
@@ -8663,7 +8768,7 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
     
     """
 
-    assert id2occ_list_dic, "id2lst_dic empty"
+    assert id2occ_list_dic, "id2occ_list_dic empty"
 
     occ_ll = []
     dataset_ids_list = []
@@ -8767,6 +8872,7 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
 ################################################################################
 
 def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll, plot_out,
+                                 seq_len_stats_ll=False,
                                  include_plotlyjs="cdn",
                                  full_html=False):
     
@@ -8800,36 +8906,67 @@ def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll, plo
     # data = np.array(kmer_freqs_ll)
     pca = PCA(n_components=3)  # Reduce data to 3 dimensions.
     data_3d_pca = pca.fit_transform(kmer_freqs_ll)
+    explained_variance = pca.explained_variance_ratio_ * 100
 
     df = pd.DataFrame(data_3d_pca, columns=['PC1', 'PC2', 'PC3'])
     df['Dataset ID'] = dataset_ids_list
     df[top_kmer_str_header] = top_kmer_str_list
 
-    explained_variance = pca.explained_variance_ratio_ * 100
+    if seq_len_stats_ll:
 
-    fig = px.scatter_3d(
-        df,  # Use the DataFrame directly
-        x='PC1',
-        y='PC2',
-        z='PC3',
-        title='3D Visualization with Dataset IDs',
-        labels={
-            'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
-            'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)',
-            'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
-        },
-        #hover_data=['Dataset ID'],  # This adds dataset IDs to the hover information
-        hover_name='Dataset ID',
-        hover_data=[top_kmer_str_header]
-    )
+        # Add # input regions.
+        df['# input regions'] = [seq_len_stats[1] for seq_len_stats in seq_len_stats_ll]
 
-    fig.update_traces(
-        hovertemplate='<b>%{hovertext}</b><br>Top ' + str(n_top_kmers) + ' ' + str(kmer_len) + '-mer percentages: %{customdata[0]}<extra></extra>'
-    )
+        color_scale = ['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+        # color_scale = ['#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+
+        fig = px.scatter_3d(
+            df,  # Use the DataFrame directly
+            x='PC1',
+            y='PC2',
+            z='PC3',
+            color='# input regions',
+            title='3D Visualization with Dataset IDs',
+            labels={
+                'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+                'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)',
+                'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
+            },
+            #hover_data=['Dataset ID'],  # This adds dataset IDs to the hover information
+            hover_name='Dataset ID',
+            color_continuous_scale=color_scale,
+            hover_data=[top_kmer_str_header, '# input regions']
+        )
+
+        fig.update_traces(
+            hovertemplate='<b>%{hovertext}</b><br>Top ' + str(n_top_kmers) + ' ' + str(kmer_len) + '-mer percentages: %{customdata[0]}<br>Input regions (#):<br>%{customdata[1]}<extra></extra>'
+        )
+
+    else:
+
+        fig = px.scatter_3d(
+            df,
+            x='PC1',
+            y='PC2',
+            z='PC3',
+            title='3D Visualization with Dataset IDs',
+            labels={
+                'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+                'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)',
+                'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
+            },
+            hover_name='Dataset ID',
+            hover_data=[top_kmer_str_header]
+        )
+
+        fig.update_traces(
+            hovertemplate='<b>%{hovertext}</b><br>Top ' + str(n_top_kmers) + ' ' + str(kmer_len) + '-mer percentages: %{customdata[0]}<extra></extra>'
+        )
 
     # fig.update_traces(hovertemplate='%{hovertext}')  # This sets the hover template to only show the hover text
     fig.update_scenes(aspectmode='cube')
-    fig.update_traces(marker=dict(size=3))
+    # fig.update_traces(marker=dict(size=3))
+    fig.update_traces(marker=dict(size=3, line=dict(width=0.5, color='white')))
     fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
     fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
 
@@ -9486,6 +9623,7 @@ by RBPBench (rbpbench batch --report):
 
     if ei_ol_stats_dic:
         mdtext += "- [Input datasets exon-intron overlap statistics](#ei-ol-stats)\n"
+        mdtext += "- [Input datasets exon-intron overlap comparative plot](#ei-ol-plot)\n"
 
     if id2motif_enrich_stats_dic: # if not empty.
         mdtext += "- [Input datasets RBP region score motif enrichment statistics](#motif-enrich-stats)\n"
@@ -9548,7 +9686,6 @@ by RBPBench (rbpbench batch --report):
         seq_stats_info = "--unstranded option selected, i.e., both strands of a region are included in the length statistics, but the two strands are counted as one region."
     elif args.unstranded and args.unstranded_ct:
         seq_stats_info = "--unstranded and --unstranded-ct options selected, i.e., both strands of a region are included in the length statistics, and each strand counts as separate region."
-
 
     mdtext += """
 ## Input datasets sequence length statistics ### {#seq-len-stats}
@@ -9614,7 +9751,10 @@ Input dataset ID format: %s. %s
     # mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
     # mdtext += "\n&nbsp;\n"
 
-    if ei_ol_stats_dic:
+    id2eib_stats_dic = {}  # For plotly plot.
+    id2eib_perc_dic = {}  # For plotly plot.
+
+    if ei_ol_stats_dic:  # True if --gtf provided.
 
         perc_min_overlap = round(args.gtf_eib_min_overlap * 100, 1)
         ib_len =  args.gtf_intron_border_len
@@ -9625,7 +9765,7 @@ Input dataset ID format: %s. %s
 
 **Table:** Exon, intron + border region overlap statistics for each input dataset.
 Minimum overlap between exon/intron region and input region to be counted as overlapping = %s%% (change via --gtf-eib-min-overlap).
-Considered intron border region length = %i nt. Considered exon-intron border region = +/- %i nt relative to border.
+Considered intron border region length = %i nt (change via --gtf-intron-border-len). Considered exon-intron border region = +/- %i nt relative to border.
 %s
 
 """ %(str(perc_min_overlap), ib_len, eib_len, seq_stats_info)
@@ -9661,21 +9801,34 @@ Considered intron border region length = %i nt. Considered exon-intron border re
 
             ei_ol_stats = ei_ol_stats_dic[internal_id]
             exon_sites_perc = 0.0
+            exon_sites_ratio = 0.0
             if ei_ol_stats.c_exon_sites and ei_ol_stats.c_input_sites:
                 exon_sites_perc = round(ei_ol_stats.c_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
+                exon_sites_ratio = round(ei_ol_stats.c_exon_sites / ei_ol_stats.c_input_sites, 3)
             intron_sites_perc = 0.0
+            intron_sites_ratio = 0.0
             if ei_ol_stats.c_intron_sites and ei_ol_stats.c_input_sites:
                 intron_sites_perc = round(ei_ol_stats.c_intron_sites / ei_ol_stats.c_input_sites * 100, 1)
+                intron_sites_ratio = round(ei_ol_stats.c_intron_sites / ei_ol_stats.c_input_sites, 3)
             us_ib_sites_perc = 0.0
+            us_ib_sites_ratio = 0.0
             if ei_ol_stats.c_us_ib_sites and ei_ol_stats.c_input_sites:
                 us_ib_sites_perc = round(ei_ol_stats.c_us_ib_sites / ei_ol_stats.c_input_sites * 100, 1)
+                us_ib_sites_ratio = round(ei_ol_stats.c_us_ib_sites / ei_ol_stats.c_input_sites, 3)
             ds_ib_sites_perc = 0.0
+            ds_ib_sites_ratio = 0.0
             if ei_ol_stats.c_ds_ib_sites and ei_ol_stats.c_input_sites:
                 ds_ib_sites_perc = round(ei_ol_stats.c_ds_ib_sites / ei_ol_stats.c_input_sites * 100, 1)
+                ds_ib_sites_ratio = round(ei_ol_stats.c_ds_ib_sites / ei_ol_stats.c_input_sites, 3)
             eib_sites_perc = 0.0
+            eib_sites_ratio = 0.0
             if ei_ol_stats.c_eib_sites and ei_ol_stats.c_input_sites:
                 eib_sites_perc = round(ei_ol_stats.c_eib_sites / ei_ol_stats.c_input_sites * 100, 1)
+                eib_sites_ratio = round(ei_ol_stats.c_eib_sites / ei_ol_stats.c_input_sites, 3)
         
+            id2eib_stats_dic[internal_id] = [combined_id, ei_ol_stats.c_input_sites, exon_sites_ratio, intron_sites_ratio, us_ib_sites_ratio, ds_ib_sites_ratio, eib_sites_ratio]
+            id2eib_perc_dic[internal_id] = [exon_sites_perc, intron_sites_perc, us_ib_sites_perc, ds_ib_sites_perc, eib_sites_perc]
+
             mdtext += "<tr>\n"
             mdtext += "<td>%s</td>\n" %(combined_id)
             mdtext += "<td>%i</td>\n" %(ei_ol_stats.c_input_sites)
@@ -9703,6 +9856,69 @@ Considered intron border region length = %i nt. Considered exon-intron border re
         mdtext += "Thus, depending on set parameters (minimum overlap amount etc.), occasional overlap of annotated gene regions, and characteristics of input dataset, exon/intron overlap can vary, doesn't have to add up to 100, and can also be relatively low.\n"
         mdtext += "\n&nbsp;\n"
 
+
+        # id2eib_stats_dic[internal_id] = [combined_id, ei_ol_stats.c_input_sites, exon_sites_ratio, intron_sites_ratio, us_ib_sites_ratio, ds_ib_sites_ratio, eib_sites_ratio]
+
+        mdtext += """
+## Input datasets exon-intron overlap comparative plot ### {#ei-ol-plot}
+
+"""
+        if len(dataset_ids_list) > 3:
+
+            eib_comp_plot_plotly =  "eib_comparative_plot.plotly.html"
+            eib_comp_plot_plotly_out = plots_out_folder + "/" + eib_comp_plot_plotly
+
+            create_eib_comp_plot_plotly(id2eib_stats_dic, id2eib_perc_dic, 
+                                        eib_comp_plot_plotly_out,
+                                        plot_3d=False,
+                                        include_plotlyjs=include_plotlyjs,
+                                        full_html=plotly_full_html)
+
+            plot_path = plots_folder + "/" + eib_comp_plot_plotly
+
+            if args.plotly_js_mode in [5, 6, 7]:
+                # Read in plotly code.
+                # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+                js_code = read_file_content_into_str_var(eib_comp_plot_plotly_out)
+                js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1200px;")
+                mdtext += js_code + "\n"
+                # mdtext += '</div>'
+            else:
+                if plotly_embed_style == 1:
+                    # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                    mdtext += "<div>\n"
+                    mdtext += '<iframe src="' + plot_path + '" width="1200" height="1000"></iframe>' + "\n"
+                    mdtext += '</div>'
+                elif plotly_embed_style == 2:
+                    mdtext += '<object data="' + plot_path + '" width="1200" height="1000"> </object>' + "\n"
+
+            mdtext += """
+
+**Figure:** Exon, intron + border region overlap statistics visualized as 2D PCA plot.
+The closer two datasets (i.e., the dots representing them), the more similar the datasets are w.r.t. their exon-intron overlap statistics.
+Hover box shows: 
+dataset ID (bold-faced, format: %s), 
+\# of dataset regions (also used for color coding),
+%% regions overlapping with exons (Exon), 
+%% regions overlapping with introns (Intron),
+%% regions overlapping with upstream (US) intron borders,
+%% regions overlapping with downstream (DS) intron borders,
+%% regions overlapping with exon-intron borders.
+Minimum overlap between exon/intron region and input region to be counted as overlapping = %s%% (change via --gtf-eib-min-overlap).
+Considered intron border region length = %i nt (change via --gtf-intron-border-len). Considered exon-intron border region = +/- %i nt relative to border.
+
+&nbsp;
+
+""" %(dataset_id_format, str(perc_min_overlap), ib_len, eib_len)
+
+        else:
+            mdtext += """
+
+No plot generated since < 4 datasets were provided.
+
+&nbsp;
+
+"""
 
 
     """
@@ -9982,6 +10198,7 @@ D: NOT regex AND NOT RBP.
 
         create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll, 
                                      kmer_comp_plot_plotly_out,
+                                     seq_len_stats_ll=seq_len_stats_ll,
                                      include_plotlyjs=include_plotlyjs,
                                      full_html=plotly_full_html)
 
@@ -9991,17 +10208,17 @@ D: NOT regex AND NOT RBP.
             # Read in plotly code.
             # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
             js_code = read_file_content_into_str_var(kmer_comp_plot_plotly_out)
-            js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1000px;")
+            js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1200px;")
             mdtext += js_code + "\n"
             # mdtext += '</div>'
         else:
             if plotly_embed_style == 1:
                 # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
                 mdtext += "<div>\n"
-                mdtext += '<iframe src="' + plot_path + '" width="1000" height="1000"></iframe>' + "\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1200" height="1000"></iframe>' + "\n"
                 mdtext += '</div>'
             elif plotly_embed_style == 2:
-                mdtext += '<object data="' + plot_path + '" width="1000" height="1000"> </object>' + "\n"
+                mdtext += '<object data="' + plot_path + '" width="1200" height="1000"> </object>' + "\n"
 
         mdtext += """
 
@@ -12955,6 +13172,7 @@ def search_generate_html_report(args,
                                 plotly_full_html=False,
                                 rbpbench_mode="search --report",
                                 disable_motif_enrich_table=False,
+                                disable_seqs_kmer_plot=True,
                                 reg_seq_str="regions",
                                 reg2seq_dic=False,
                                 reg2sc_dic=False,
@@ -13301,7 +13519,6 @@ By default, BED genomic regions input file column 5 is used as the score column 
                                                     convert_to_uc=True)
 
 
-
         mdtext += """
 ## Top vs bottom scoring regions k-mer distribution ### {#kmer-dist}
 
@@ -13344,6 +13561,7 @@ a uniform distribution with all %i-mers present, each %i-mer would have a percen
 &nbsp;
 
 """ %(args.kmer_plot_k, c_top_sites, c_bottom_sites, args.kmer_plot_k, args.kmer_plot_k, str(exp_kmer_perc), r2_kmer)
+
 
 
     """
@@ -13491,6 +13709,74 @@ and length quartiles (q1: 25th percentile, q3: 75th percentile).
 """
     # Hover box over data points shows sequence ID, sequence, sequence length, and motif hits. 
     # Motif hit format: motif ID, motif start - motif end, p-value (for sequence motifs) or bit score (structure models).
+
+
+
+    if not disable_seqs_kmer_plot:
+
+        mdtext += """
+## Input sequences by k-mer content plot ### {#input-seqs-kmer}
+
+
+"""
+        seqs_kmer_k = 2
+
+        # Get kmer -> count dictionary.
+        # kmer2c_dic = get_kmer_dic(seqs_kmer_k, rna=False)
+
+        reg2kmer_rat_dic = seqs_dic_get_kmer_ratios(reg2seq_dic, seqs_kmer_k,
+                                                    rna=False,
+                                                    report_key_error=False,
+                                                    skip_non_dic_keys=True,
+                                                    convert_to_uc=True)
+
+        if reg2kmer_rat_dic:
+
+            seqs_kmer_plot_plotly =  "seqs_kmer_plot.plotly.html"
+            seqs_kmer_plot_plotly_out = plots_out_folder + "/" + seqs_kmer_plot_plotly
+
+            create_seqs_kmer_plot_plotly(reg2seq_dic, reg2kmer_rat_dic, seqs_kmer_plot_plotly_out,
+                                        k=seqs_kmer_k,
+                                        annot2color_dic=annot2color_dic,
+                                        reg2annot_dic=reg2annot_dic,
+                                        include_plotlyjs=include_plotlyjs,
+                                        full_html=plotly_full_html)
+
+            plot_path = plots_folder + "/" + seqs_kmer_plot_plotly
+
+            if args.plotly_js_mode in [5, 6, 7]:
+                # Read in plotly code.
+                # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+                js_code = read_file_content_into_str_var(seq_len_plot_plotly_out)
+                js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1000px;")
+                mdtext += js_code + "\n"
+                # mdtext += '</div>'
+            else:
+                if plotly_embed_style == 1:
+                    # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                    mdtext += "<div>\n"
+                    mdtext += '<iframe src="' + plot_path + '" width="1000" height="1000"></iframe>' + "\n"
+                    mdtext += '</div>'
+                elif plotly_embed_style == 2:
+                    mdtext += '<object data="' + plot_path + '" width="1000" height="1000"> </object>' + "\n"
+
+            mdtext += """
+
+**Figure:** Input sequences by k-mer content plot.
+
+&nbsp;
+
+"""
+
+        else:
+            mdtext += """
+
+No sequence k-mers content plot generated since no k-mer contents extracted from input sequences (not enough sequences or sequences shorter than k?).
+
+&nbsp;
+
+"""
+
 
 
     """
@@ -14998,6 +15284,244 @@ def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg
         plt.savefig(pdf_out, dpi=110, bbox_inches='tight')
 
     plt.close()
+
+
+################################################################################
+
+def create_seqs_kmer_plot_plotly(reg2seq_dic, reg2kmer_rat_dic, plot_out,
+                                 k=3,
+                                 annot2color_dic=False,
+                                 reg2annot_dic=False,
+                                 include_plotlyjs="cdn",
+                                 full_html=False):
+    """
+    Create a plotly scatter plot with PCA of sequence k-mer ratios.
+
+    """
+
+    if reg2annot_dic:
+        assert annot2color_dic, "reg2annot_dic set but given annot2color_dic empty"
+    if annot2color_dic:
+        assert reg2annot_dic, "annot2color_dic set but given reg2annot_dic empty"
+
+    reg_ids_list = []
+    reg_kmer_rat_ll = []
+    for reg_id in sorted(reg2kmer_rat_dic):
+        reg_ids_list.append(reg_id)
+        reg_kmer_rat_ll.append(reg2kmer_rat_dic[reg_id])
+
+    pca = PCA(n_components=2)
+    data_2d_pca = pca.fit_transform(reg_kmer_rat_ll)
+    df = pd.DataFrame(data_2d_pca, columns=['PC1', 'PC2'])
+    explained_variance = pca.explained_variance_ratio_ * 100
+
+    df['Region ID'] = reg_ids_list
+    df['Sequence'] = [insert_line_breaks(reg2seq_dic[reg_id], line_len=60) for reg_id in reg_ids_list]
+    df['Sequence length'] = [len(reg2seq_dic[reg_id]) for reg_id in reg_ids_list]
+
+    if reg2annot_dic:
+
+        df['Annotation'] = [reg2annot_dic[reg_id][0] for reg_id in reg_ids_list]
+        df['Transcript ID'] = [reg2annot_dic[reg_id][1] for reg_id in reg_ids_list]
+        df['Gene ID'] = [reg2annot_dic[reg_id][2] for reg_id in reg_ids_list]
+        df['Gene name'] = [reg2annot_dic[reg_id][3] for reg_id in reg_ids_list]
+        df['Transcript biotype'] = [reg2annot_dic[reg_id][4] for reg_id in reg_ids_list]
+
+        fig = px.scatter(
+            df,
+            x='PC1',
+            y='PC2',
+            color='Annotation',
+            color_discrete_map=annot2color_dic,
+            labels={
+                'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+                'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
+            }
+            # hover_name='Dataset ID',
+            # hover_data=['Highest % annotation', 'Annotation percentages']
+        )
+
+        fig.update_traces(
+            customdata=df[['Region ID', 'Sequence', 'Sequence length', 'Annotation', 'Transcript ID', 'Gene ID', 'Gene name', 'Transcript biotype']].values, 
+            hovertemplate=(
+                '>%{customdata[0]}<br>'
+                '%{customdata[1]}<br>'
+                'Sequence Length: %{customdata[2]}<br>'
+                'Annotation: %{customdata[3]}<br>'
+                'Transcript ID: %{customdata[4]}<br>'
+                'Gene ID: %{customdata[5]}<br>'
+                'Gene name: %{customdata[6]}<br>'
+                'Transcript biotype: %{customdata[7]}'
+            )
+        )
+
+    else:
+        fig = px.scatter(
+            df,
+            x='PC1',
+            y='PC2',
+            labels={
+                'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+                'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
+            }
+        )
+
+        fig.update_traces(
+            customdata=df[['Region ID', 'Sequence', 'Sequence length']].values, 
+            hovertemplate=(
+                '>%{customdata[0]}<br>'
+                '%{customdata[1]}<br>'
+                'Sequence Length: %{customdata[2]}<br>'
+                'Annotation: %{customdata[3]}'
+            )
+        )
+
+    fig.update_traces(marker=dict(size=8, line=dict(width=0.5, color='white')))
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+
+    """
+
+    fig = px.violin(in_df, y='Sequence Length', box=True, points='all')
+    # Set customdata and hovertemplate
+    fig.update_traces(customdata=in_df[['Sequence ID', 'Sequence', 'Motif hits']].values, hovertemplate='>%{customdata[0]}<br>%{customdata[1]}<br>Sequence Length: %{y}<br>Motif hits:<br>%{customdata[2]}')
+    fig.update_layout(xaxis_title='Density', yaxis_title='Sequence Length', violinmode='overlay')
+    fig.write_html(plot_out,
+                   full_html=full_html,
+                   include_plotlyjs=include_plotlyjs)
+
+
+
+
+    fig.update_traces(customdata=df[['Region ID', 'Sequence', 'Sequence length', 'Annotation', 'Transcript ID', 'Gene ID', 'Gene name', 'Transcript biotype']].values, 
+                      hovertemplate='>%{customdata[0]}<br>%{customdata[1]}<br>Sequence Length: %{y}<br>Motif hits:<br>%{customdata[2]}')
+
+
+    fig.update_traces(
+        hovertemplate='<b>%{hovertext}</b><br>Annotation percentages: %{customdata[1]}<extra></extra>'
+    )
+
+    # Get highest percentage for every dataset.
+    highest_perc_annot_list = []
+    perc_annot_str_list = []
+    for annots_l in annots_ll:
+        perc_annot_string = "<br>"
+        highest_perc_annot = "-"
+        highest_freq = 0.0
+        for idx, annot_freq in enumerate(annots_l):
+            annot = annot_ids_list[idx]
+            if annot_freq > highest_freq:
+                highest_freq = annot_freq
+                highest_perc_annot = annot
+            # Make percentage out of frequency and round to two decimal places.
+            annot_perc = round(annot_freq * 100, 2)
+            perc_annot_string += annot + ": " + str(annot_perc) + '%<br>'
+        highest_perc_annot_list.append(highest_perc_annot)
+        perc_annot_str_list.append(perc_annot_string)
+    
+
+    pca = PCA(n_components=2)  # Reduce data to 2 dimensions.
+    data_2d_pca = pca.fit_transform(annots_ll)
+    df = pd.DataFrame(data_2d_pca, columns=['PC1', 'PC2'])
+    df['Dataset ID'] = dataset_ids_list
+    df['Highest % annotation'] = highest_perc_annot_list
+    df['Annotation percentages'] = perc_annot_str_list
+
+    explained_variance = pca.explained_variance_ratio_ * 100
+
+    fig = px.scatter(
+        df,  # Use the DataFrame directly
+        x='PC1',
+        y='PC2',
+        color='Highest % annotation',
+        color_discrete_map=annot2color_dic,
+        # title='2D Visualization with Dataset IDs',
+        labels={
+            'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+            'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
+        },
+        hover_name='Dataset ID',
+        hover_data=['Highest % annotation', 'Annotation percentages']
+    )
+
+    fig.update_traces(
+        hovertemplate='<b>%{hovertext}</b><br>Annotation percentages: %{customdata[1]}<extra></extra>'
+    )
+
+    fig.update_traces(marker=dict(size=8, line=dict(width=0.5, color='white')))
+    # fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+    """
+
+
+################################################################################
+
+def seqs_dic_get_kmer_ratios(seqs_dic, k,
+                             rna=False,
+                             report_key_error=False,
+                             skip_non_dic_keys=True,
+                             convert_to_uc=True):
+    """
+    Given a dictionary with mappings: sequence ID -> sequence,
+    return dictionary with mapping:
+    sequence ID -> list of k-mer ratios for the sequence.
+
+    >>> seqs_dic = {'seq1': 'AACGN', 'seq2': 'ACGT', 'seq3': 'tttt'}
+    >>> seqs_dic_get_kmer_ratios(seqs_dic, 1)
+    {'seq1': [0.5, 0.25, 0.25, 0.0], 'seq2': [0.25, 0.25, 0.25, 0.25], 'seq3': [0.0, 0.0, 0.0, 1.0]}
+    >>> seqs_dic = {'seq1': 'AACTT'}
+    >>> seqs_dic_get_kmer_ratios(seqs_dic, 2)
+    {'seq1': [0.25, 0.25, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25]}
+
+    """
+    # Checks.
+    assert seqs_dic, "given dictinary seqs_dic empty"
+    assert k, "invalid k given"
+    assert k > 0, "invalid k given"
+
+    reg2kmer_rat_dic = {}
+
+    for seq_id in seqs_dic:
+
+        seq = seqs_dic[seq_id]
+
+        if convert_to_uc:
+            seq = seq.upper()
+
+        count_dic = get_kmer_dic(k, rna=rna)
+
+        total_c = 0
+
+        # Count k-mers in sequence.
+        for i in range(len(seq)-k+1):
+            kmer = seq[i:i+k]
+            if skip_non_dic_keys:
+                if kmer not in count_dic:
+                    continue
+            else:
+                if report_key_error:
+                    assert kmer in count_dic, "k-mer \"%s\" not in count_dic" %(kmer)
+            if kmer in count_dic:
+                count_dic[kmer] += 1
+                total_c += 1
+        
+        # This can happen if sequence length < k.
+        if total_c == 0:
+            continue
+
+        for kmer in count_dic:
+            ratio = count_dic[kmer] / total_c
+            count_dic[kmer] = ratio
+
+        # Convert count_dic to list.
+        kmer_rat_list = []
+        for kmer in count_dic:
+            kmer_rat_list.append(count_dic[kmer])
+
+        reg2kmer_rat_dic[seq_id] = kmer_rat_list
+
+    return reg2kmer_rat_dic
 
 
 ################################################################################

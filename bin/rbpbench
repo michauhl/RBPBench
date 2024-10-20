@@ -17,7 +17,7 @@ from scipy.stats import mannwhitneyu
 from scipy.stats import false_discovery_control  # Benjamini-Hochberg correction.
 
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 
 
 ################################################################################
@@ -5600,12 +5600,18 @@ def main_search(args):
             gene_id = "-"
             gene_name = "-"
             tr_biotype = "-"
+            reg2annot_dic[reg_id].append("-")
+            reg2annot_dic[reg_id].append("-")
+            reg2annot_dic[reg_id].append("-")
             if tr_id:
                 gene_id = tr2gid_dic[tr_id]
                 gene_info = gid2gio_dic[gene_id]
                 tr_biotype = tid2tio_dic[tr_id].tr_biotype
                 gene_name = gene_info.gene_name
                 gid2tid_dic[gene_id] = tr_id
+                reg2annot_dic[reg_id][2] = gene_id
+                reg2annot_dic[reg_id][3] = gene_name
+                reg2annot_dic[reg_id][4] = tr_biotype
                 if gene_id not in target_genes_dic:
                     target_genes_dic[gene_id] = 1
                 else:
