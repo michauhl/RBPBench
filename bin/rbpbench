@@ -816,6 +816,17 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Do not produce gene region occupancy heatmap plot in HTML report (default: False)")
+    p_b.add_argument("--hk-gene-list",
+                   dest="hk_gene_list",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Supply file with gene IDs (one ID per row) of housekeeping genes as additional plotting info. ID format needs to be compatible with provided --gtf file (default: False)")
+    p_b.add_argument("--no-comp-feat",
+                   dest="no_comp_feat",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable sequence complexity info to be added to plot (default: False)")
     # GO enrichment analysis for batch mode.
     p_b.add_argument("--goa",
                    dest="run_goa",
@@ -6322,6 +6333,9 @@ def main_batch(args):
         check, meme_version = benchlib.check_tool_version("meme -version", "5.0")
         assert check, "RBPBench requires meme version >= 5.0 (installed version: %s)" %(meme_version)
 
+    if args.hk_gene_list:
+        assert args.in_gtf, "set --goa requires --gtf GTF file"
+
     if args.run_goa:
         assert args.in_gtf, "set --goa requires --gtf GTF file"
         if args.goa_obo_mode == 3:
@@ -6668,6 +6682,8 @@ def main_batch(args):
     id2occ_tr_ids_dic = {}  # internal ID -> transcript ID -> occupancy value.
     id2occ_hits_tr_ids_dic = {}  # internal ID -> transcript ID -> occupancy value (only sites with motif hits considered here).
     background_genes_dic = {}  # Store all gene IDs in GTF file to use as background genes.
+    id2hk_gene_stats_dic = {}  # internal ID -> housekeeping gene stats dictionary.
+    hk_tr_ids_dic = {}  # Store loaded transcript IDs that stem from housekeeping genes.
     tid2tio_dic = None
 
     if args.in_gtf:
@@ -6736,6 +6752,37 @@ def main_batch(args):
 
         c_tr_infos = len(tid2tio_dic)
         print("# transcript features read in from --gtf:", c_tr_infos)
+
+        # If housekeeping genes list given. AALAMO
+        if args.hk_gene_list:
+
+            print("Read in --hk-gene-list ... ")
+
+            assert os.path.exists(args.hk_gene_list), "given --hk-gene-list file \"%s\" not found" % (args.hk_gene_list)
+
+            hk_gene_ids_dic = benchlib.read_ids_into_dic(args.hk_gene_list,
+                                                        check_dic=False)
+
+            assert hk_gene_ids_dic, "no gene IDs read in from --hk-gene-list. Please provide gene IDs in a text file, one ID per line"
+
+            print("# of housekeeping gene IDs read in: %i" %(len(hk_gene_ids_dic)))
+
+            c_hkg_in_gtf = 0
+            for gid in hk_gene_ids_dic:
+                if gid in gid2gio_dic:
+                    c_hkg_in_gtf += 1
+
+            assert c_hkg_in_gtf, "none of the provided housekeeping gene IDs found in --gtf. Please provide compatible --gtf and --hk-gene-list files"
+
+            for tid in tid2tio_dic:
+                gid = tid2tio_dic[tid].gene_id
+                if gid in hk_gene_ids_dic:
+                    hk_tr_ids_dic[tid] = gid
+
+            assert hk_tr_ids_dic, "none of the loaded transcript IDs are associated with housekeeping genes. Please provide compatible transcript IDs and --hk-gene-list gene IDs"
+
+            print("# of housekeeping gene-associated transcript IDs: %i" %(len(hk_tr_ids_dic)))
+
 
         # Extract exon + intron regions of selected transcripts from transcript infos.
         print("Output intron annotations to BED ... ")
@@ -6873,6 +6920,8 @@ def main_batch(args):
     add_motif_db_info = False  # Whether to add the motif database string to the dataset IDs in the plots.
     # dataset_idx = 0  # For PCA plot.
     seq_len_stats_ll = []  # For sequence length stats in --report.
+    seq_feat_ll = []  # For sequence feature stats in --report.
+    generate_seq_feat = True
     ei_ol_stats_dic = {}
 
     for idx, bed_file in enumerate(bed_list):
@@ -7743,6 +7792,21 @@ def main_batch(args):
             else:
                 id2occ_tr_ids_dic[internal_id] = occ_tr_ids_dic
 
+            # Record amount of occupied housekeeping genes (actually transcripts) in internal_id dataset.
+            if id2occ_tr_ids_dic[internal_id] and hk_tr_ids_dic:
+                id2hk_gene_stats_dic[internal_id] = [0, 0, 0]
+                c_tids = 0
+                c_hk_tids = 0
+                for tid in id2occ_tr_ids_dic[internal_id]:
+                    c_tids += 1
+                    if tid in hk_tr_ids_dic:
+                        c_hk_tids += 1
+
+                id2hk_gene_stats_dic[internal_id][0] = c_tids
+                id2hk_gene_stats_dic[internal_id][1] = c_hk_tids
+                if c_tids:
+                    id2hk_gene_stats_dic[internal_id][2] = round((c_hk_tids / c_tids) * 100, 2)
+
             # --unstranded option, count both strands only once.
             if args.unstranded and not args.unstranded_ct:
                 for internal_id in id2reg_annot_dic:
@@ -7814,10 +7878,10 @@ def main_batch(args):
 
         # k-mer frequencies unaffected by --unstranded options.
         kmer_dic = benchlib.seqs_dic_count_kmer_freqs(out_seqs_dic, args.kmer_size, 
-                                                        rna=False,
-                                                        convert_to_uc=True,
-                                                        skip_non_dic_keys=True,  # skip k-mers containing N-bases.
-                                                        return_ratios=True)
+                                                      rna=False,
+                                                      convert_to_uc=True,
+                                                      skip_non_dic_keys=True,  # skip k-mers containing N-bases.
+                                                      return_ratios=True)
 
         # Populate k-mers list.
         if not kmer_list:
@@ -7838,10 +7902,32 @@ def main_batch(args):
             # In this case we want to count the two strands of a region as one region.
             unstranded_len_stats = True
         seq_len_stats_l = benchlib.get_sequence_length_statistics(out_seqs_dic,
-                                                                    unstranded=unstranded_len_stats)
+                                                                  unstranded=unstranded_len_stats)
         # Add dataset ID to seq_len_stats_l.
         seq_len_stats_l.insert(0, dataset_id)
         seq_len_stats_ll.append(seq_len_stats_l)
+
+        # Sequence complexities.
+        # AALAMO
+        if generate_seq_feat:
+
+            print("Calculate sequence complexities ... ")
+
+            # Calculate sequence complexities.
+            seqs_entr_list = benchlib.seqs_dic_calc_entropies(out_seqs_dic, 
+                                                              rna=False)
+            mean_complexity = statistics.mean(seqs_entr_list)
+
+            # Get sequence single nucleotide frequencies / counts.
+            seqs_ntc_dic = benchlib.seqs_dic_count_nt_freqs(out_seqs_dic, rna=False)
+
+            # Get single nucleotide percentages.
+            seqs_ntp_dic = benchlib.ntc_dic_to_ratio_dic(seqs_ntc_dic, perc=True)
+            
+            seq_feat_l = [round(mean_complexity, 5)]
+            for nt in sorted(seqs_ntp_dic):
+                seq_feat_l.append(round(seqs_ntp_dic[nt], 2))
+            seq_feat_ll.append(seq_feat_l)
 
 
     OUTRBPSTATS.close()
@@ -8178,7 +8264,9 @@ def main_batch(args):
                                         id2hit_reg_annot_dic,
                                         benchlib_path,
                                         seq_len_stats_ll,
+                                        seq_feat_ll=seq_feat_ll,
                                         html_report_out=html_report_out,
+                                        id2hk_gene_stats_dic=id2hk_gene_stats_dic,
                                         id2motif_enrich_stats_dic=id2motif_enrich_stats_dic,
                                         id2regex_stats_dic=id2regex_stats_dic,
                                         regex_annot_dic=regex_annot_dic,

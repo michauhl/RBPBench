@@ -14,7 +14,7 @@ from logomaker import Logo
 from markdown import markdown
 import pandas as pd
 import plotly.express as px
-from math import floor, log10, ceil
+from math import floor, log10, ceil, log
 import textdistance
 import numpy as np
 from upsetplot import UpSet
@@ -8648,6 +8648,7 @@ def create_pca_motif_sim_dir_plot_plotly(motif_ids_list, motif_sim_ll,
 
 def create_eib_comp_plot_plotly(id2eib_stats_dic, id2eib_perc_dic, plot_out,
                                 plot_3d=False,
+                                id2hk_gene_stats_dic=False,
                                 include_plotlyjs="cdn",
                                 full_html=False):
     """
@@ -8696,6 +8697,18 @@ def create_eib_comp_plot_plotly(id2eib_stats_dic, id2eib_perc_dic, plot_out,
     df['ds ib sites perc'] = [id2eib_perc_dic[internal_id][3] for internal_id in sorted(id2eib_perc_dic)]
     df['eib sites perc'] = [id2eib_perc_dic[internal_id][4] for internal_id in sorted(id2eib_perc_dic)]
 
+    hover_data= ['# input regions', 'Exon sites perc', 'Intron sites perc', 'us ib sites perc', 'ds ib sites perc', 'eib sites perc']
+    color = '# input regions'
+
+    # AALAMO
+    if id2hk_gene_stats_dic:
+        # Genes (actually transcripts).
+        df['# all genes'] = [id2hk_gene_stats_dic[internal_id][0] for internal_id in sorted(id2hk_gene_stats_dic)]
+        df['# HK genes'] = [id2hk_gene_stats_dic[internal_id][1] for internal_id in sorted(id2hk_gene_stats_dic)]
+        df['% HK genes'] = [id2hk_gene_stats_dic[internal_id][2] for internal_id in sorted(id2hk_gene_stats_dic)]
+        hover_data += ['# all genes', '# HK genes', '% HK genes']
+        color = '% HK genes'
+
     explained_variance = pca.explained_variance_ratio_ * 100
 
     if plot_3d:
@@ -8705,7 +8718,7 @@ def create_eib_comp_plot_plotly(id2eib_stats_dic, id2eib_perc_dic, plot_out,
             x='PC1',
             y='PC2',
             z='PC3',
-            color='# input regions',
+            color=color,
             # title='2D Visualization with Dataset IDs',
             labels={
                 'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
@@ -8714,12 +8727,20 @@ def create_eib_comp_plot_plotly(id2eib_stats_dic, id2eib_perc_dic, plot_out,
             },
             hover_name='Dataset ID',
             color_continuous_scale=color_scale,
-            hover_data=['# input regions', 'Exon sites perc', 'Intron sites perc', 'us ib sites perc', 'ds ib sites perc', 'eib sites perc']
+            hover_data=hover_data
         )
 
-        fig.update_traces(
-            hovertemplate='<b>%{hovertext}</b><br>Input regions (#): %{customdata[0]}<br>Exon: %{customdata[1]}%<br>Intron: %{customdata[2]}%<br>US intron border: %{customdata[3]}%<br>DS intron border: %{customdata[4]}%<br>Exon-intron border: %{customdata[5]}%<extra></extra>'
-        )
+        if id2hk_gene_stats_dic:
+
+            fig.update_traces(
+                hovertemplate='<b>%{hovertext}</b><br>Input regions (#): %{customdata[0]}<br>Exon: %{customdata[1]}%<br>Intron: %{customdata[2]}%<br>US intron border: %{customdata[3]}%<br>DS intron border: %{customdata[4]}%<br>Exon-intron border: %{customdata[5]}%<br>Occupied genes (#): %{customdata[6]}<br>Occupied HK genes (#): %{customdata[7]}<br>Occupied HK genes (%): %{customdata[8]}<extra></extra>'
+            )
+
+        else:
+
+            fig.update_traces(
+                hovertemplate='<b>%{hovertext}</b><br>Input regions (#): %{customdata[0]}<br>Exon: %{customdata[1]}%<br>Intron: %{customdata[2]}%<br>US intron border: %{customdata[3]}%<br>DS intron border: %{customdata[4]}%<br>Exon-intron border: %{customdata[5]}%<extra></extra>'
+            )
 
         fig.update_traces(marker=dict(size=3, line=dict(width=0.5, color='white')))
 
@@ -8729,7 +8750,7 @@ def create_eib_comp_plot_plotly(id2eib_stats_dic, id2eib_perc_dic, plot_out,
             df,
             x='PC1',
             y='PC2',
-            color='# input regions',
+            color=color,
             # title='2D Visualization with Dataset IDs',
             labels={
                 'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
@@ -8737,12 +8758,20 @@ def create_eib_comp_plot_plotly(id2eib_stats_dic, id2eib_perc_dic, plot_out,
             },
             hover_name='Dataset ID',
             color_continuous_scale=color_scale,
-            hover_data=['# input regions', 'Exon sites perc', 'Intron sites perc', 'us ib sites perc', 'ds ib sites perc', 'eib sites perc']
+            hover_data=hover_data
         )
 
-        fig.update_traces(
-            hovertemplate='<b>%{hovertext}</b><br>Input regions (#): %{customdata[0]}<br>Exon: %{customdata[1]}%<br>Intron: %{customdata[2]}%<br>US intron border: %{customdata[3]}%<br>DS intron border: %{customdata[4]}%<br>Exon-intron border: %{customdata[5]}%<extra></extra>'
-        )
+        if id2hk_gene_stats_dic:
+
+            fig.update_traces(
+                hovertemplate='<b>%{hovertext}</b><br>Input regions (#): %{customdata[0]}<br>Exon: %{customdata[1]}%<br>Intron: %{customdata[2]}%<br>US intron border: %{customdata[3]}%<br>DS intron border: %{customdata[4]}%<br>Exon-intron border: %{customdata[5]}%<br>Occupied genes (#): %{customdata[6]}<br>Occupied HK genes (#): %{customdata[7]}<br>Occupied HK genes (%): %{customdata[8]}<extra></extra>'
+            )
+
+        else:
+
+            fig.update_traces(
+                hovertemplate='<b>%{hovertext}</b><br>Input regions (#): %{customdata[0]}<br>Exon: %{customdata[1]}%<br>Intron: %{customdata[2]}%<br>US intron border: %{customdata[3]}%<br>DS intron border: %{customdata[4]}%<br>Exon-intron border: %{customdata[5]}%<extra></extra>'
+            )
 
         fig.update_traces(marker=dict(size=10, line=dict(width=0.5, color='white')))
 
@@ -8754,6 +8783,7 @@ def create_eib_comp_plot_plotly(id2eib_stats_dic, id2eib_perc_dic, plot_out,
 def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic, 
                                    plot_out,
                                    sparse_pca=False,
+                                   id2hk_gene_stats_dic=False,
                                    add_motif_db_info=False,
                                    include_plotlyjs="cdn",
                                    full_html=False):
@@ -8775,6 +8805,10 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
     c_one_labels_list = []
     perc_one_labels_list = []
     c_total_number_genes = 0
+
+    c_all_tr_list = []
+    c_hk_tr_list = []
+    perc_hk_tr_list = []
 
     for internal_id in sorted(id2occ_list_dic):
 
@@ -8802,9 +8836,23 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
         occ_ll.append(id2occ_list_dic[internal_id])
         dataset_ids_list.append(combined_id)
 
+        if id2hk_gene_stats_dic:
+            c_all_tr = id2hk_gene_stats_dic[internal_id][0]
+            c_hk_tr = id2hk_gene_stats_dic[internal_id][1]
+            perc_hk_tr = id2hk_gene_stats_dic[internal_id][2]
+            c_all_tr_list.append(c_all_tr)
+            c_hk_tr_list.append(c_hk_tr)
+            perc_hk_tr_list.append(perc_hk_tr)
+
         # print("combined_id:", combined_id)
         # print(id2occ_list_dic[internal_id])
 
+    hover_data = ['# occupied genes', '% occupied genes']
+    color = '% occupied genes'
+
+    if id2hk_gene_stats_dic:
+        hover_data += ['# all transcripts', '# hk transcripts', '% HK genes']
+        color = '% HK genes'
 
     color_scale = ['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
 
@@ -8837,6 +8885,9 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
         df['Dataset ID'] = dataset_ids_list
         df['# occupied genes'] = c_one_labels_list
         df['% occupied genes'] = perc_one_labels_list
+        df['# all transcripts'] = c_all_tr_list
+        df['# hk transcripts'] = c_hk_tr_list
+        df['% HK genes'] = perc_hk_tr_list
 
         explained_variance = pca.explained_variance_ratio_ * 100
 
@@ -8845,7 +8896,7 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
             x='PC1',
             y='PC2',
             z='PC3',
-            color='% occupied genes',
+            color=color,
             title='3D Visualization with Dataset IDs',
             labels={
                 'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
@@ -8854,12 +8905,20 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
             },
             hover_name='Dataset ID',
             color_continuous_scale=color_scale,
-            hover_data=['# occupied genes', '% occupied genes']
+            hover_data=hover_data
         )
 
-    fig.update_traces(
-        hovertemplate='<b>%{hovertext}</b><br>Occupied genes (#): %{customdata[0]}<br>Occupied genes (%): %{customdata[1]}<extra></extra>'
-    )
+    if id2hk_gene_stats_dic:
+
+        fig.update_traces(
+            hovertemplate='<b>%{hovertext}</b><br>Occupied genes (#): %{customdata[0]}<br>Occupied genes (%): %{customdata[1]}<br>Occupied HK genes (#): %{customdata[3]}<br>Occupied HK genes (%): %{customdata[4]}<extra></extra>'
+        )
+
+    else:
+
+        fig.update_traces(
+            hovertemplate='<b>%{hovertext}</b><br>Occupied genes (#): %{customdata[0]}<br>Occupied genes (%): %{customdata[1]}<extra></extra>'
+        )
 
 
     fig.update_scenes(aspectmode='cube')
@@ -8871,19 +8930,24 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
 
 ################################################################################
 
-def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll, plot_out,
-                                 seq_len_stats_ll=False,
+def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll,
+                                 seq_len_stats_ll, plot_out, 
+                                 seq_feat_ll=False,
                                  include_plotlyjs="cdn",
                                  full_html=False):
     
     """
     Create plotly 3d scatter plot of PCA reduced k-mer frequencies.
 
+    seq_len_stats_ll + seq_feat_ll in same order as dataset_ids_list.
+
     kmer_list:
         1d list of k-mers, corresponding in order to k-mer frequency vectors in
         kmer_freqs_ll.
 
     """
+
+    assert seq_len_stats_ll, "seq_len_stats_ll empty"
 
     kmer_len = len(kmer_list[0])
     n_top_kmers = 10
@@ -8911,57 +8975,80 @@ def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll, plo
     df = pd.DataFrame(data_3d_pca, columns=['PC1', 'PC2', 'PC3'])
     df['Dataset ID'] = dataset_ids_list
     df[top_kmer_str_header] = top_kmer_str_list
+    df['# input regions'] = [seq_len_stats[1] for seq_len_stats in seq_len_stats_ll]
+    hover_data = [top_kmer_str_header, '# input regions']
+    color = '# input regions'
+    
+    if seq_feat_ll:
+        df['Mean complexity'] = [seq_feat_l[0] for seq_feat_l in seq_feat_ll]
 
-    if seq_len_stats_ll:
+        mono_nts_str_list = []
+        for seq_feat_l in seq_feat_ll:
+            # mono_nts_str = "A: %s%%<br>C: %s%%<br>G: %s%%<br>T: %s%%" %(seq_feat_l[1], seq_feat_l[2], seq_feat_l[3], seq_feat_l[4])
+            mono_nts_str = "A: %s%%,C: %s%%,G: %s%%, T: %s%%" %(seq_feat_l[1], seq_feat_l[2], seq_feat_l[3], seq_feat_l[4])
+            mono_nts_str_list.append(mono_nts_str)
 
-        # Add # input regions.
-        df['# input regions'] = [seq_len_stats[1] for seq_len_stats in seq_len_stats_ll]
+        df['Mono-nucleotide frequencies'] = mono_nts_str_list
 
-        color_scale = ['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
-        # color_scale = ['#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+        hover_data.append('Mean complexity')
+        hover_data.append('Mono-nucleotide frequencies')
+        color = 'Mean complexity'
 
-        fig = px.scatter_3d(
-            df,  # Use the DataFrame directly
-            x='PC1',
-            y='PC2',
-            z='PC3',
-            color='# input regions',
-            title='3D Visualization with Dataset IDs',
-            labels={
-                'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
-                'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)',
-                'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
-            },
-            #hover_data=['Dataset ID'],  # This adds dataset IDs to the hover information
-            hover_name='Dataset ID',
-            color_continuous_scale=color_scale,
-            hover_data=[top_kmer_str_header, '# input regions']
-        )
+    color_scale = ['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+    # color_scale = ['#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
 
+    fig = px.scatter_3d(
+        df,
+        x='PC1',
+        y='PC2',
+        z='PC3',
+        color=color,
+        title='3D Visualization with Dataset IDs',
+        labels={
+            'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+            'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)',
+            'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
+        },
+        hover_name='Dataset ID',
+        color_continuous_scale=color_scale,
+        hover_data=hover_data
+    )
+
+    if seq_feat_ll:
         fig.update_traces(
-            hovertemplate='<b>%{hovertext}</b><br>Top ' + str(n_top_kmers) + ' ' + str(kmer_len) + '-mer percentages: %{customdata[0]}<br>Input regions (#):<br>%{customdata[1]}<extra></extra>'
+            hovertemplate = (
+                '<b>%{hovertext}</b><br>Top ' + str(n_top_kmers) + ' ' + str(kmer_len) + 
+                '-mer percentages: %{customdata[0]}Input regions (#):<br>%{customdata[1]}<br>Mean sequence complexity:<br>%{customdata[2]}<br>Mono-nucleotide percentages:<br>%{customdata[3]}<extra></extra>'
+            )
         )
 
     else:
-
-        fig = px.scatter_3d(
-            df,
-            x='PC1',
-            y='PC2',
-            z='PC3',
-            title='3D Visualization with Dataset IDs',
-            labels={
-                'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
-                'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)',
-                'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
-            },
-            hover_name='Dataset ID',
-            hover_data=[top_kmer_str_header]
-        )
-
         fig.update_traces(
-            hovertemplate='<b>%{hovertext}</b><br>Top ' + str(n_top_kmers) + ' ' + str(kmer_len) + '-mer percentages: %{customdata[0]}<extra></extra>'
+            hovertemplate = (
+                '<b>%{hovertext}</b><br>Top ' + str(n_top_kmers) + ' ' + str(kmer_len) + 
+                '-mer percentages: %{customdata[0]}Input regions (#):<br>%{customdata[1]}<extra></extra>'
+            )
         )
+
+
+    # fig = px.scatter_3d(
+    #     df,
+    #     x='PC1',
+    #     y='PC2',
+    #     z='PC3',
+    #     title='3D Visualization with Dataset IDs',
+    #     labels={
+    #         'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+    #         'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)',
+    #         'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
+    #     },
+    #     hover_name='Dataset ID',
+    #     hover_data=[top_kmer_str_header]
+    # )
+
+    # fig.update_traces(
+    #     hovertemplate='<b>%{hovertext}</b><br>Top ' + str(n_top_kmers) + ' ' + str(kmer_len) + '-mer percentages: %{customdata[0]}<extra></extra>'
+    # )
 
     # fig.update_traces(hovertemplate='%{hovertext}')  # This sets the hover template to only show the hover text
     fig.update_scenes(aspectmode='cube')
@@ -9451,7 +9538,9 @@ def batch_generate_html_report(args,
                                id2hit_reg_annot_dic,
                                benchlib_path,
                                seq_len_stats_ll,
+                               seq_feat_ll=False,
                                html_report_out="report.rbpbench_batch.html",
+                               id2hk_gene_stats_dic=False,
                                id2motif_enrich_stats_dic=False,
                                id2regex_stats_dic=False,
                                regex_annot_dic=False,
@@ -9778,8 +9867,8 @@ Considered intron border region length = %i nt (change via --gtf-intron-border-l
         mdtext += "<th># input regions</th>\n"
         mdtext += "<th>% exon regions</th>\n"
         mdtext += "<th>% intron regions</th>\n"
-        mdtext += "<th>% upstream intron border regions</th>\n"
-        mdtext += "<th>% downstream intron border regions</th>\n"
+        mdtext += "<th>% us intron border regions</th>\n"
+        mdtext += "<th>% ds intron border regions</th>\n"
         mdtext += "<th>% exon-intron border regions</th>\n"
         mdtext += "</tr>\n"
         mdtext += "</thead>\n"
@@ -9848,8 +9937,8 @@ Considered intron border region length = %i nt (change via --gtf-intron-border-l
         mdtext += '**# input regions** -> number of considered input regions from input dataset, '
         mdtext += '**% exon regions** -> % of input regions overlapping with exon regions, '
         mdtext += '**% intron regions** -> % of input regions overlapping with intron regions, '
-        mdtext += '**%% upstream intron border regions** -> %% of input regions overlapping with upstream ends of intron regions (first %i nt), ' %(ib_len)
-        mdtext += '**%% downstream intron border regions** -> %% of input regions overlapping with downstream ends of intron regions (last %i nt), ' %(ib_len)
+        mdtext += '**%% us intron border regions** -> %% of input regions overlapping with upstream ends of intron regions (first %i nt), ' %(ib_len)
+        mdtext += '**%% ds intron border regions** -> %% of input regions overlapping with downstream ends of intron regions (last %i nt), ' %(ib_len)
         mdtext += '**%% exon-intron border regions** -> %% of input regions overlapping with exon-intron borders (+/- %i nt of exon-intron borders). ' %(eib_len)
         mdtext += "Note that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered. " %(2*ib_len, ib_len)
         mdtext += "Also note that the overlap is calculated between (optionally extended) input regions and transcript regions (one representative transcript, i.e., transcript with highest experimental support, chosen for each gene region, unless --tr-list provided). "
@@ -9871,6 +9960,7 @@ Considered intron border region length = %i nt (change via --gtf-intron-border-l
             create_eib_comp_plot_plotly(id2eib_stats_dic, id2eib_perc_dic, 
                                         eib_comp_plot_plotly_out,
                                         plot_3d=False,
+                                        id2hk_gene_stats_dic=id2hk_gene_stats_dic,
                                         include_plotlyjs=include_plotlyjs,
                                         full_html=plotly_full_html)
 
@@ -9892,7 +9982,7 @@ Considered intron border region length = %i nt (change via --gtf-intron-border-l
                 elif plotly_embed_style == 2:
                     mdtext += '<object data="' + plot_path + '" width="1200" height="1000"> </object>' + "\n"
 
-            mdtext += """
+            mdtext += r"""
 
 **Figure:** Exon, intron + border region overlap statistics visualized as 2D PCA plot.
 The closer two datasets (i.e., the dots representing them), the more similar the datasets are w.r.t. their exon-intron overlap statistics.
@@ -10184,6 +10274,7 @@ D: NOT regex AND NOT RBP.
     """
     Input datasets k-mer frequencies comparative plot.
 
+    AALAMO
     """
 
     mdtext += """
@@ -10197,8 +10288,9 @@ D: NOT regex AND NOT RBP.
         kmer_comp_plot_plotly_out = plots_out_folder + "/" + kmer_comp_plot_plotly
 
         create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll, 
+                                     seq_len_stats_ll,
                                      kmer_comp_plot_plotly_out,
-                                     seq_len_stats_ll=seq_len_stats_ll,
+                                     seq_feat_ll=seq_feat_ll,
                                      include_plotlyjs=include_plotlyjs,
                                      full_html=plotly_full_html)
 
@@ -10267,6 +10359,7 @@ No plot generated since < 4 datasets were provided.
             create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
                                            occ_comp_plot_plotly_out,
                                            sparse_pca=False,
+                                           id2hk_gene_stats_dic=id2hk_gene_stats_dic,
                                            add_motif_db_info=add_motif_db_info,
                                            include_plotlyjs=include_plotlyjs,
                                            full_html=plotly_full_html)
@@ -15522,6 +15615,203 @@ def seqs_dic_get_kmer_ratios(seqs_dic, k,
         reg2kmer_rat_dic[seq_id] = kmer_rat_list
 
     return reg2kmer_rat_dic
+
+
+################################################################################
+
+def seqs_dic_calc_entropies(seqs_dic,
+                            rna=True,
+                            return_dic=False):
+    """
+    Given a dictionary of sequences, calculate entropies for each sequence
+    and return list of entropy values.
+
+    seqs_dic:
+    Dictionary with sequences.
+
+    rna:
+    Use RNA alphabet for counting (uppercase chars only)
+
+    >>> seqs_dic = {'seq1': 'AAAAAAAA', 'seq2': 'AAAACCCC', 'seq3': 'AACCGGUU'}
+    >>> seqs_dic_calc_entropies(seqs_dic)
+    [0, 0.5, 1.0]
+
+    """
+    assert seqs_dic, "given dictionary seqs_dic empty"
+    entr_list = []
+    if return_dic:
+        entr_dic = {}
+    for seq_id in seqs_dic:
+        seq = seqs_dic[seq_id]
+        seq_l = len(seq)
+        # Make uppercase (otherwise seq_l not correct).
+        seq = seq.upper()
+        # Get nt count dic.
+        count_dic = seq_count_nt_freqs(seq, rna=rna)
+        # Calculate sequence entropy.
+        seq_entr = calc_seq_entropy(seq_l, count_dic)
+        #if seq_entr > 0.5:
+        #    print("Entropy: %.2f" %(seq_entr))
+        #    print("%s: %s" %(seq_id, seq))
+        if return_dic:
+            entr_dic[seq_id] = seq_entr
+        else:
+            entr_list.append(seq_entr)
+    if return_dic:
+        return entr_dic
+    else:
+        return entr_list
+
+
+################################################################################
+
+def seqs_dic_count_nt_freqs(seqs_dic,
+                            rna=False,
+                            convert_to_uc=False,
+                            count_dic=False):
+    """
+    Given a dictionary with sequences seqs_dic, count how many times each
+    nucleotide is found in all sequences (== get nt frequencies).
+    Return nucleotide frequencies count dictionary.
+
+    By default, a DNA dictionary (A,C,G,T) is used, counting only these
+    characters (note they are uppercase!).
+
+    rna:
+    Instead of DNA dictionary, use RNA dictionary (A,C,G,U) for counting.
+
+    convert_to_uc:
+    Convert sequences to uppercase before counting.
+
+    count_dic:
+    Supply a custom dictionary for counting only characters in
+    this dictionary + adding counts to this dictionary.
+
+    >>> seqs_dic = {'s1': 'AAAA', 's2': 'CCCGGT'}
+    >>> seqs_dic_count_nt_freqs(seqs_dic)
+    {'A': 4, 'C': 3, 'G': 2, 'T': 1}
+    >>> seqs_dic_count_nt_freqs(seqs_dic, rna=True)
+    {'A': 4, 'C': 3, 'G': 2, 'U': 0}
+
+    """
+    assert seqs_dic, "given dictionary seqs_dic empty"
+    if not count_dic:
+        count_dic = {'A': 0, 'C': 0, 'G': 0, 'T': 0}
+        if rna:
+            count_dic = {'A': 0, 'C': 0, 'G': 0, 'U': 0}
+    for seq_id in seqs_dic:
+        seq = seqs_dic[seq_id]
+        if convert_to_uc:
+            seq = seq.upper()
+        seq_count_nt_freqs(seq, rna=rna, count_dic=count_dic)
+    return count_dic
+
+
+################################################################################
+
+def seq_count_nt_freqs(seq,
+                       rna=False,
+                       count_dic=False):
+    """
+    Count nucleotide (character) frequencies in given sequence seq.
+    Return count_dic with frequencies.
+    If count_dic is given, add count to count_dic.
+
+    rna:
+    Instead of DNA dictionary, use RNA dictionary (A,C,G,U) for counting.
+
+    count_dic:
+    Supply a custom dictionary for counting only characters in
+    this dictionary + adding counts to this dictionary.
+
+    >>> seq = 'AAAACCCGGT'
+    >>> seq_count_nt_freqs(seq)
+    {'A': 4, 'C': 3, 'G': 2, 'T': 1}
+    >>> seq = 'acgtacgt'
+    >>> seq_count_nt_freqs(seq)
+    {'A': 0, 'C': 0, 'G': 0, 'T': 0}
+
+    """
+
+    assert seq, "given sequence string seq empty"
+    if not count_dic:
+        count_dic = {'A': 0, 'C': 0, 'G': 0, 'T': 0}
+        if rna:
+            count_dic = {'A': 0, 'C': 0, 'G': 0, 'U': 0}
+    # Conver to list.
+    seq_list = list(seq)
+    for nt in seq_list:
+        if nt in count_dic:
+            count_dic[nt] += 1
+    return count_dic
+
+
+################################################################################
+
+def calc_seq_entropy(seq_l, ntc_dic):
+    """
+    Given a dictionary of nucleotide counts for a sequence ntc_dic and
+    the length of the sequence seq_l, compute the Shannon entropy of
+    the sequence.
+
+    Formula (see CE formula) taken from:
+    https://www.ncbi.nlm.nih.gov/pubmed/15215465
+
+    >>> seq_l = 8
+    >>> ntc_dic = {'A': 8, 'C': 0, 'G': 0, 'U': 0}
+    >>> calc_seq_entropy(seq_l, ntc_dic)
+    0
+    >>> ntc_dic = {'A': 4, 'C': 4, 'G': 0, 'U': 0}
+    >>> calc_seq_entropy(seq_l, ntc_dic)
+    0.5
+    >>> ntc_dic = {'A': 2, 'C': 2, 'G': 2, 'U': 2}
+    >>> calc_seq_entropy(seq_l, ntc_dic)
+    1.0
+
+    """
+    # For DNA or RNA, k = 4.
+    k = 4
+    # Shannon entropy.
+    ce = 0
+    for nt in ntc_dic:
+        c = ntc_dic[nt]
+        if c != 0:
+            ce += (c/seq_l) * log((c/seq_l), k)
+    if ce == 0:
+        return 0
+    else:
+        return -1*ce
+
+
+################################################################################
+
+def ntc_dic_to_ratio_dic(ntc_dic,
+                         perc=False):
+    """
+    Given a dictionary of nucleotide counts, return dictionary of nucleotide
+    ratios (count / total nucleotide number).
+
+    perc:
+    If True, make percentages out of ratios (*100).
+
+    >>> ntc_dic = {'A': 5, 'C': 2, 'G': 2, 'T': 1}
+    >>> ntc_dic_to_ratio_dic(ntc_dic)
+    {'A': 0.5, 'C': 0.2, 'G': 0.2, 'T': 0.1}
+
+    """
+    assert ntc_dic, "given dictionary ntc_dic empty"
+    # Get total number.
+    total_n = 0
+    for nt in ntc_dic:
+        total_n += ntc_dic[nt]
+    ntr_dic = {}
+    for nt in ntc_dic:
+        ntc = ntc_dic[nt]
+        ntr = ntc / total_n
+        if perc:
+            ntr = ntr*100
+        ntr_dic[nt] = ntr
+    return ntr_dic
 
 
 ################################################################################
