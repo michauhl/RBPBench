@@ -19,7 +19,6 @@ from scipy.stats import false_discovery_control  # Benjamini-Hochberg correction
 
 __version__ = "1.0.2"
 
-
 ################################################################################
 
 def setup_argument_parser():
@@ -438,11 +437,34 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help = "Define whether to use median or mean mRNA region lengths for plotting. 1: median. 2: mean (default: 1)")
-    p_s.add_argument("--add-all-reg-bar",
-                   dest="add_all_reg_bar",
+    p_s.add_argument("--disable-all-reg-bar",
+                   dest="disable_all_reg_bar",
                    default = False,
                    action = "store_true",
-                   help = "Add region annotations for all input regions to stacked bar plot (default: False)")
+                   help = "Disable adding region annotations for all input regions (irrespective of motif hits) to stacked bar plot (default: False)")
+    # Sequence k-mers plot.
+    p_s.add_argument("--disable-seqs-kmer-plot",
+                   dest="disable_seqs_kmer_plot",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable input sequences by k-mer content comparative plot (default: False)")
+    p_s.add_argument("--seqs-kmer-plot-k",
+                   dest="seqs_kmer_plot_k",
+                   type=int,
+                   metavar='int',
+                   default=3,
+                   help="Set k for k-mer usage in sequence k-mers plot (default: 3)")
+    p_s.add_argument("--seqs-kmer-plot-no-comp",
+                   dest="seqs_kmer_plot_no_comp",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable adding sequence complexity as feature to sequence k-mers plot (default: False)")
+    p_s.add_argument("--seqs-kmer-plot-no-motifs",
+                   dest="seqs_kmer_plot_no_motifs",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable adding motif hits information to sequence k-mers plot (default: False)")
+    # Set RBP ID to focus on in motif distance plots.
     p_s.add_argument("--set-rbp-id",
                    dest="set_rbp_id",
                    type=str,
@@ -546,11 +568,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
-    p_s.add_argument("--report-header",
-                   dest="report_header",
-                   default = False,
-                   action = "store_true",
-                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
     p_s.add_argument("--plotly-js-mode",
                    dest="plotly_js_mode",
                    type=int,
@@ -3121,6 +3138,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
+    p_goa.add_argument("--plot-abs-paths",
+                   dest="plot_abs_paths",
+                   default = False,
+                   action = "store_true",
+                   help = "Store plot files with absolute paths in HTML files. Default is relative paths (default: False)")
     p_goa.add_argument("--sort-js-mode",
                    dest="sort_js_mode",
                    type=int,
@@ -3432,6 +3454,10 @@ def main_search(args):
     assert benchlib.boundary_check(args.gtf_intron_border_len, 1, 1000), "set --gtf-intron-border-eln expected to be >= 1 and <= 1000"
     assert benchlib.boundary_check(args.min_motif_dist, 0, 1000), "set --min-motif-dist expected to be >= 0 and <= 1000"
     assert benchlib.boundary_check(args.kmer_plot_k, 1, 7), "set --kmer-plot-k expected to be >= 1 and <= 7"
+    assert benchlib.boundary_check(args.seqs_kmer_plot_k, 1, 7), "set --seqs-kmer-plot-k  expected to be >= 1 and <= 7"
+
+
+
 
     # if args.in_gtf:
     #     assert args.report, "set --gtf requires --report to be effective"
@@ -5590,8 +5616,8 @@ def main_search(args):
         params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
         overlap_annotations_bed = args.out_folder + "/overlap_region_annotations.tmp.bed"
         benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_out_bed, 
-                                        overlap_annotations_bed,
-                                        params=params)
+                                     overlap_annotations_bed,
+                                     params=params)
         
         reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
                                                         tid2tio_dic=tid2tio_dic,
@@ -5601,10 +5627,11 @@ def main_search(args):
         print("Output region annotations ... ")
         
         OUTRAN = open(reg_annot_table_file, "w")
-        OUTRAN.write("region_id\tgene_id\tgene_name\ttranscript_id\tregion_annotation\ttranscript_biotype\n")
+        OUTRAN.write("region_id\tgene_id\tgene_name\ttranscript_id\tregion_annotation\ttranscript_biotype\tborder_dist\tus_ds_label\n")
 
         tids_with_sites_dic = {}  # transcript IDs with sites.
 
+        # So far reg2annot_dic format: reg_id -> [annot_id, tr_id, border_dist, us_ds_label]
         for reg_id in reg2annot_dic:
             annot = reg2annot_dic[reg_id][0]
             tr_id = reg2annot_dic[reg_id][1]
@@ -5620,16 +5647,19 @@ def main_search(args):
                 tr_biotype = tid2tio_dic[tr_id].tr_biotype
                 gene_name = gene_info.gene_name
                 gid2tid_dic[gene_id] = tr_id
-                reg2annot_dic[reg_id][2] = gene_id
-                reg2annot_dic[reg_id][3] = gene_name
-                reg2annot_dic[reg_id][4] = tr_biotype
+                reg2annot_dic[reg_id][4] = gene_id
+                reg2annot_dic[reg_id][5] = gene_name
+                reg2annot_dic[reg_id][6] = tr_biotype
                 if gene_id not in target_genes_dic:
                     target_genes_dic[gene_id] = 1
                 else:
                     target_genes_dic[gene_id] += 1
             else:
                 tr_id = "-"
-            OUTRAN.write("%s\t%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot, tr_biotype))
+            border_dist = reg2annot_dic[reg_id][2]  # -1 unless intron annotation.
+            us_ds_label = reg2annot_dic[reg_id][3]  # "-" unless intron annotation.
+
+            OUTRAN.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot, tr_biotype, border_dist, us_ds_label))
 
             if tr_id not in tids_with_sites_dic:
                 tids_with_sites_dic[tr_id] = 1
@@ -6170,7 +6200,7 @@ def main_search(args):
         seq_len_df = DataFrame({
             'Sequence ID': seq_ids,
             'Sequence Length': [len(seq) for seq in sequences],
-            'Sequence': [benchlib.insert_line_breaks(seq, line_len=60) for seq in sequences],
+            'Sequence': [benchlib.insert_line_breaks(seq, line_len=50) for seq in sequences],
             'Motif hits': motif_hits
         })
 
@@ -6178,6 +6208,7 @@ def main_search(args):
     benchlib_path = os.path.dirname(benchlib.__file__)
 
     print("Create report ... ")
+    # AALAMO
     benchlib.search_generate_html_report(args,
                                         df_pval, pval_cont_lll,
                                         search_rbps_dic,
@@ -6921,7 +6952,6 @@ def main_batch(args):
     # dataset_idx = 0  # For PCA plot.
     seq_len_stats_ll = []  # For sequence length stats in --report.
     seq_feat_ll = []  # For sequence feature stats in --report.
-    generate_seq_feat = True
     ei_ol_stats_dic = {}
 
     for idx, bed_file in enumerate(bed_list):
@@ -7908,8 +7938,7 @@ def main_batch(args):
         seq_len_stats_ll.append(seq_len_stats_l)
 
         # Sequence complexities.
-        # AALAMO
-        if generate_seq_feat:
+        if not args.no_comp_feat:
 
             print("Calculate sequence complexities ... ")
 
@@ -13343,7 +13372,7 @@ def main_searchrna(args):
         seq_len_df = DataFrame({
             'Sequence ID': seq_ids,
             'Sequence Length': [len(seq) for seq in sequences],
-            'Sequence': [benchlib.insert_line_breaks(seq, line_len=60) for seq in sequences],
+            'Sequence': [benchlib.insert_line_breaks(seq, line_len=50) for seq in sequences],
             'Motif hits': motif_hits
         })
 

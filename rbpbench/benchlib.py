@@ -20,6 +20,7 @@ import numpy as np
 from upsetplot import UpSet
 from packaging import version
 from sklearn.decomposition import PCA
+from sklearn.preprocessing import MinMaxScaler
 # from sklearn.decomposition import SparsePCA
 from itertools import product
 from scipy.stats import fisher_exact
@@ -4851,6 +4852,64 @@ def get_mrna_region_annotations_v2(overlap_annotations_bed,
 
 ################################################################################
 
+def get_dist_to_next_border(site_s, site_e, reg_s, reg_e, reg_strand,
+                            skip_sites_not_within=True):
+    """
+    Get distance of site that is within a region to closest border of the region. 
+    Take the center of the site to calculate the distance. Also return whether
+    the closest border is upstream (i.e. 5' end) or downstream (i.e. 3' end) of
+    the site.
+    If site center position is not within region, return -1, "-"
+
+    site_s + reg_s are 0-based coordinates.
+    site_e + reg_e are 1-based coordinates.
+
+    skip_sites_not_within:
+        If True, return -1, "-" if site center position not within region.
+
+    >>> get_dist_to_next_border(11, 20, 5, 20, "+")
+    (3, 'down')
+    >>> get_dist_to_next_border(11, 20, 5, 20, "-")
+    (3, 'up')
+    >>> get_dist_to_next_border(10, 11, 5, 20, "+")
+    (5, 'up')
+    >>> get_dist_to_next_border(10, 11, 5, 20, "-")
+    (5, 'down')
+    >>> get_dist_to_next_border(9, 10, 4, 15, "+")
+    (5, 'down')
+    >>> get_dist_to_next_border(9, 10, 4, 15, "-")
+    (5, 'down')
+    
+    """
+    # Get site center position.
+    site_cp = get_center_position(site_s, site_e)  # 1-based center.
+
+    reg_s += 1  # make 1-based.
+
+    if site_cp < reg_s or site_cp > reg_e:
+        if skip_sites_not_within:
+            return -1, "-"
+        else:
+            assert False, "site center position not within region (site_cp: %i, region: %i-%i,%s)" %(site_cp, reg_s, reg_e, reg_strand)
+
+    # Get distance of site_cp to closest region border.
+    dist_up = site_cp - reg_s
+    dist_down = reg_e - site_cp
+    if reg_strand == "-":
+        dist_up = reg_e - site_cp
+        dist_down = site_cp - reg_s
+
+    assert dist_up >= 0, "dist_up < 0 (dist_up = %i, site_cp: %i, reg_s: %i, reg_e: %i, reg_strand: %s)" %(dist_up, site_cp, reg_s, reg_e, reg_strand)
+    assert dist_down >= 0, "dist_down < 0 (dist_down = %i, site_cp: %i, reg_s: %i, reg_e: %i, reg_strand: %s)" %(dist_down, site_cp, reg_s, reg_e, reg_strand)
+
+    if dist_up < dist_down:
+        return dist_up, "up"
+    else:
+        return dist_down, "down"
+
+
+################################################################################
+
 def get_region_annotations(overlap_annotations_bed,
                            motif_hits=False,
                            tid2tio_dic=None,
@@ -4888,13 +4947,14 @@ def get_region_annotations(overlap_annotations_bed,
         for line in f:
             cols = line.strip().split("\t")
             reg_id = cols[3]  # format: chr8:90314134-90314381(+) (if motif_hits=False)
+            reg_strand = cols[5]
+            reg_s = int(cols[1])
+            reg_e = int(cols[2])
 
             # If motif_ids, construct new unique region_id from BED region info.
             if motif_hits:
                 chr_id = cols[0]
-                reg_s = str(int(cols[1]) + 1)
-                reg_e = cols[2]
-                reg_strand = cols[5]
+
                 # col[3] has format: "rbp_id:motif_id;1;method_id:data_id". Extract motif_id from this string.
                 # m = re.search("^.+?:(.+?);", reg_id)
                 # assert m is not None, "Motif ID extraction failed for region ID \"%s\"" %(reg_id)
@@ -4904,23 +4964,38 @@ def get_region_annotations(overlap_annotations_bed,
                 motif_id = m.group(1)
 
                 # motif_id = reg_id.split(":")[1].split(";")[0]
-                reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + reg_strand + ")" + motif_id
+                reg_id = chr_id + ":" + str(reg_s+1) + "-" + str(reg_e) + "(" + reg_strand + ")" + motif_id
                 annot_col = 13  # These shift since motif hits BED contains additional (4) p-value and score columns.
                 c_ol_nt_col = 16
+
+            annot_reg_s = int(cols[annot_col-2])
+            annot_reg_e = int(cols[annot_col-1])
 
             annot_ids = cols[annot_col].split(";")
             assert len(annot_ids) == 2, "len(annot_ids) != 2 (expected ; separated string, but got: \"%s\")" %(cols[9])
             annot_id = annot_ids[0]
             tr_id = annot_ids[1]
             c_overlap_nts = cols[c_ol_nt_col]
+
+            # Get distanced to intron borders (only for intron annotations).
+            border_dist = -1
+            us_ds_label = "-"
+
+            # Get distance to closest annotation region border + if it is upstream (us) or downstream (ds).
+            if annot_id == "intron":
+                border_dist, us_ds_label = get_dist_to_next_border(reg_s, reg_e, annot_reg_s, annot_reg_e, reg_strand,
+                                                                   skip_sites_not_within=True)  # Return False if site not within.
+
             if reg_id not in reg2maxol_dic:
                 reg2maxol_dic[reg_id] = c_overlap_nts
-                reg2annot_dic[reg_id] = [annot_id, tr_id]
+                reg2annot_dic[reg_id] = [annot_id, tr_id, border_dist, us_ds_label]
             else:
                 if c_overlap_nts > reg2maxol_dic[reg_id]:
                     reg2maxol_dic[reg_id] = c_overlap_nts
                     reg2annot_dic[reg_id][0] = annot_id
                     reg2annot_dic[reg_id][1] = tr_id
+                    reg2annot_dic[reg_id][2] = border_dist
+                    reg2annot_dic[reg_id][3] = us_ds_label
                 elif c_overlap_nts == reg2maxol_dic[reg_id]:  # if region overlaps with > 1 feature by same amount.
                     if tid2tio_dic is not None:
                         best_tid = reg2annot_dic[reg_id][1]
@@ -4930,13 +5005,15 @@ def get_region_annotations(overlap_annotations_bed,
                             reg2maxol_dic[reg_id] = c_overlap_nts
                             reg2annot_dic[reg_id][0] = annot_id
                             reg2annot_dic[reg_id][1] = new_best_tid
+                            reg2annot_dic[reg_id][2] = border_dist
+                            reg2annot_dic[reg_id][3] = us_ds_label
 
     f.closed
 
     if reg_ids_dic is not None:
         for reg_id in reg_ids_dic:
             if reg_id not in reg2annot_dic:
-                reg2annot_dic[reg_id] = ["intergenic", False]
+                reg2annot_dic[reg_id] = ["intergenic", False, -1, "-"]
 
     return reg2annot_dic
 
@@ -5272,6 +5349,7 @@ def select_more_prominent_tid(tid1, tid2, tid2tio_dic):
     transcript (i.e., with better experimental evidence).
 
     Features to compare:
+    tidtio_dic[tid].mane_select  # 0 or 1
     tidtio_dic[tid].basic_tag  # 0 or 1
     tidtio_dic[tid].ensembl_canonical  # 0 or 1
     tidtio_dic[tid].tsl_id  # 1-5 or "NA"
@@ -5290,6 +5368,10 @@ def select_more_prominent_tid(tid1, tid2, tid2tio_dic):
 
     if tid1 == tid2:
         return tid1
+    if tid2tio_dic[tid1].mane_select > tid2tio_dic[tid2].mane_select:
+        return tid1
+    if tid2tio_dic[tid1].mane_select < tid2tio_dic[tid2].mane_select:
+        return tid2
     if tid2tio_dic[tid1].basic_tag > tid2tio_dic[tid2].basic_tag:
         return tid1
     if tid2tio_dic[tid1].basic_tag < tid2tio_dic[tid2].basic_tag:
@@ -8153,8 +8235,12 @@ def insert_line_breaks(sequence,
     """
     Insert line breaks for inserting sequence into hover box.
     
+    >>> insert_line_breaks("AAAACCCCGG", line_len=4)
+    'AAAA<br>CCCC<br>GG'
+
     """
-    return '<br>'.join(sequence[i:i+line_len] for i in range(0, len(sequence), 40))
+    # return '<br>'.join(sequence[i:i+line_len] for i in range(0, len(sequence), 40))
+    return '<br>'.join(sequence[i:i+line_len] for i in range(0, len(sequence), line_len))
 
 
 ################################################################################
@@ -8700,7 +8786,6 @@ def create_eib_comp_plot_plotly(id2eib_stats_dic, id2eib_perc_dic, plot_out,
     hover_data= ['# input regions', 'Exon sites perc', 'Intron sites perc', 'us ib sites perc', 'ds ib sites perc', 'eib sites perc']
     color = '# input regions'
 
-    # AALAMO
     if id2hk_gene_stats_dic:
         # Genes (actually transcripts).
         df['# all genes'] = [id2hk_gene_stats_dic[internal_id][0] for internal_id in sorted(id2hk_gene_stats_dic)]
@@ -8733,13 +8818,13 @@ def create_eib_comp_plot_plotly(id2eib_stats_dic, id2eib_perc_dic, plot_out,
         if id2hk_gene_stats_dic:
 
             fig.update_traces(
-                hovertemplate='<b>%{hovertext}</b><br>Input regions (#): %{customdata[0]}<br>Exon: %{customdata[1]}%<br>Intron: %{customdata[2]}%<br>US intron border: %{customdata[3]}%<br>DS intron border: %{customdata[4]}%<br>Exon-intron border: %{customdata[5]}%<br>Occupied genes (#): %{customdata[6]}<br>Occupied HK genes (#): %{customdata[7]}<br>Occupied HK genes (%): %{customdata[8]}<extra></extra>'
+                hovertemplate='<b>%{hovertext}</b><br>Input regions (#): %{customdata[0]}<br>Occupied genes (#): %{customdata[6]}<br>Occupied HK genes (#): %{customdata[7]}<br>Occupied HK genes (%): %{customdata[8]}<br><br>Exon: %{customdata[1]}%<br>Intron: %{customdata[2]}%<br>US intron border: %{customdata[3]}%<br>DS intron border: %{customdata[4]}%<br>Exon-intron border: %{customdata[5]}%<extra></extra>'
             )
 
         else:
 
             fig.update_traces(
-                hovertemplate='<b>%{hovertext}</b><br>Input regions (#): %{customdata[0]}<br>Exon: %{customdata[1]}%<br>Intron: %{customdata[2]}%<br>US intron border: %{customdata[3]}%<br>DS intron border: %{customdata[4]}%<br>Exon-intron border: %{customdata[5]}%<extra></extra>'
+                hovertemplate='<b>%{hovertext}</b><br>Input regions (#): %{customdata[0]}<br><br>Exon: %{customdata[1]}%<br>Intron: %{customdata[2]}%<br>US intron border: %{customdata[3]}%<br>DS intron border: %{customdata[4]}%<br>Exon-intron border: %{customdata[5]}%<extra></extra>'
             )
 
         fig.update_traces(marker=dict(size=3, line=dict(width=0.5, color='white')))
@@ -8985,13 +9070,13 @@ def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll,
         mono_nts_str_list = []
         for seq_feat_l in seq_feat_ll:
             # mono_nts_str = "A: %s%%<br>C: %s%%<br>G: %s%%<br>T: %s%%" %(seq_feat_l[1], seq_feat_l[2], seq_feat_l[3], seq_feat_l[4])
-            mono_nts_str = "A: %s%%,C: %s%%,G: %s%%, T: %s%%" %(seq_feat_l[1], seq_feat_l[2], seq_feat_l[3], seq_feat_l[4])
+            mono_nts_str = "A: %s%%, C: %s%%, G: %s%%, T: %s%%" %(seq_feat_l[1], seq_feat_l[2], seq_feat_l[3], seq_feat_l[4])
             mono_nts_str_list.append(mono_nts_str)
 
-        df['Mono-nucleotide frequencies'] = mono_nts_str_list
+        df['Mono-nucleotide percentages'] = mono_nts_str_list
 
         hover_data.append('Mean complexity')
-        hover_data.append('Mono-nucleotide frequencies')
+        hover_data.append('Mono-nucleotide percentages')
         color = 'Mean complexity'
 
     color_scale = ['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
@@ -9269,27 +9354,21 @@ def create_gene_occ_cooc_plot_plotly(df_gene_occ, gene_cooc_lll, plot_out,
 
 ################################################################################
 
-def goa_generate_html_report(goa_results_df, goa_stats_dic,
-                             out_folder, benchlib_path,
-                             goa_min_depth=None,
-                             goa_max_child=None,
-                             goa_filter_purified=False,
-                             report_header=False,
-                             sort_js_mode=1,
+def goa_generate_html_report(args, goa_results_df, 
+                             goa_stats_dic, benchlib_path,
                              html_report_out="goa_results.rbpbench_goa.html"):
     """
     Generate GOA results HTML report (rbpbench goa mode).
 
     """
+    out_folder = args.out_folder
+    if args.plot_abs_paths:
+        out_folder = os.path.abspath(out_folder)
 
     html_out = out_folder + "/" + "goa_results.rbpbench_goa.html"
     md_out = out_folder + "/" + "goa_results.rbpbench_goa.md"
     if html_report_out:
         html_out = html_report_out
-
-    report_header_info = "GO enrichment analysis (GOA) report"
-    if report_header:
-        report_header_info = "RBPBench GO enrichment analysis (GOA) report"
 
     """
     Setup sorttable.js to make tables in HTML sortable.
@@ -9298,13 +9377,23 @@ def goa_generate_html_report(goa_results_df, goa_stats_dic,
     sorttable_js_path = benchlib_path + "/content/sorttable.js"
     assert os.path.exists(sorttable_js_path), "sorttable.js not at %s" %(sorttable_js_path)
     sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
-    if sort_js_mode == 2:
+    if args.sort_js_mode == 2:
         shutil.copy(sorttable_js_path, out_folder)
         sorttable_js_path = out_folder + "/sorttable.js"
         sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
-    elif sort_js_mode == 3:
+    elif args.sort_js_mode == 3:
         js_code = read_file_content_into_str_var(sorttable_js_path)
         sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
+
+    # Logo path.
+    logo_path_html = "logo.png"
+    logo_path_out_folder = out_folder + "/" + logo_path_html
+    if args.plot_abs_paths:
+        logo_path_html = out_folder + "/" + logo_path_html
+
+    logo_path = benchlib_path + "/content/logo.png"
+    assert os.path.exists(logo_path), "logo.png not found in %s" %(logo_path)
+    shutil.copy(logo_path, logo_path_out_folder)
 
     # HTML head section.
     html_head = """<!DOCTYPE html>
@@ -9324,9 +9413,22 @@ def goa_generate_html_report(goa_results_df, goa_stats_dic,
     .page {
         page-break-after: always;
     }
+    .title-container {
+        display: flex;
+        align-items: center;
+    }
+    .title-container img {
+        margin-right: 10px;
+    }
 </style>
 
 </head>
+
+<div class="title-container">
+    <img src="%s" alt="Logo" width="175">
+    <h1>GO Enrichment Analysis Report</h1>
+</div>
+
 <body>
 """
 
@@ -9340,12 +9442,10 @@ def goa_generate_html_report(goa_results_df, goa_stats_dic,
     # Markdown part.
     mdtext = """
 
-# %s
-
 List of available statistics and plots generated
 by RBPBench (rbpbench goa):
 
-- [GO enrichment analysis results](#goa-results)""" %(report_header_info)
+- [GO enrichment analysis results](#goa-results)"""
     mdtext += "\n"
     mdtext += "\n&nbsp;\n"
 
@@ -9359,15 +9459,15 @@ by RBPBench (rbpbench goa):
 
     filter_purified_info = " GO terms with significantly higher and lower concentration ([e,p]) in study group are shown."
     filter_purified_info2 = "significant"
-    if goa_filter_purified:
+    if args.goa_filter_purified:
         filter_purified_info = " Only GO terms with significantly higher concentration in study group are shown."
         filter_purified_info2 = "significantly enriched"
         c_goa_results = len(goa_results_df[goa_results_df["enrichment"] == "e"])
     filter_further_info = ""
-    if goa_max_child is not None: 
-        filter_further_info += " Only GO terms with <= %i children are shown." %(goa_max_child)
-    if goa_min_depth is not None:
-        filter_further_info += " Only GO terms with >= %i depth are shown." %(goa_min_depth)
+    if args.goa_max_child is not None: 
+        filter_further_info += " Only GO terms with <= %i children are shown." %(args.goa_max_child)
+    if args.goa_min_depth is not None:
+        filter_further_info += " Only GO terms with >= %i depth are shown." %(args.goa_min_depth)
     if filter_further_info:
         filter_further_info += " Note that additional filters (children + depth) can result in an empty table. For all significant GO terms (i.e., unfiltered results) check *goa_results.tsv* output table."
 
@@ -9410,15 +9510,15 @@ by RBPBench (rbpbench goa):
             go_perc_genes = row['perc_genes']
             go_n_children = row['n_children']
 
-            if goa_filter_purified:
+            if args.goa_filter_purified:
                 if go_enrichment == "p":
                     continue
 
-            if goa_max_child is not None:
-                if go_n_children > goa_max_child:
+            if args.goa_max_child is not None:
+                if go_n_children > args.goa_max_child:
                     continue
-            if goa_min_depth is not None:
-                if go_depth < goa_min_depth:
+            if args.goa_min_depth is not None:
+                if go_depth < args.goa_min_depth:
                     continue
 
             mdtext += '<tr>' + "\n"
@@ -9583,10 +9683,6 @@ def batch_generate_html_report(args,
     if html_report_out:
         html_out = html_report_out
 
-    report_header_info = "Batch search report"
-    if args.report_header:
-        report_header_info = "RBPBench batch search report"
-
     """
     Setup sorttable.js to make tables in HTML sortable.
 
@@ -9640,7 +9736,6 @@ def batch_generate_html_report(args,
         include_plotlyjs = False
         # plotly_full_html = True
 
-    
     annot_dic = {}
     annot2color_dic = {}
     if id2reg_annot_dic:  # if --gtf provided.
@@ -9666,6 +9761,12 @@ def batch_generate_html_report(args,
             annot2color_dic[annot] = hex_colors[idx]
             idx += 1
 
+    # Logo path.
+    logo_path_html = plots_folder + "/logo.png"
+    if not os.path.exists(logo_path_html):
+        logo_path = benchlib_path + "/content/logo.png"
+        assert os.path.exists(logo_path), "logo.png not found in %s" %(logo_path)
+        shutil.copy(logo_path, plots_out_folder)
 
     # HTML head section.
     html_head = """<!DOCTYPE html>
@@ -9686,11 +9787,24 @@ def batch_generate_html_report(args,
     .page {
         page-break-after: always;
     }
+    .title-container {
+        display: flex;
+        align-items: center;
+    }
+    .title-container img {
+        margin-right: 10px; /* Adjust the spacing as needed */
+    }
 </style>
 
 </head>
+
+<div class="title-container">
+    <img src="%s" alt="Logo" width="175">
+    <h1>Batch Report</h1>
+</div>
+
 <body>
-""" %(plotly_js_html)
+""" %(plotly_js_html, logo_path_html)
 
     # HTML tail section.
     html_tail = """
@@ -9702,12 +9816,10 @@ def batch_generate_html_report(args,
     # Markdown part.
     mdtext = """
 
-# %s
-
 List of available statistics and plots generated
 by RBPBench (rbpbench batch --report):
 
-- [Input datasets sequence length statistics](#seq-len-stats)""" %(report_header_info)
+- [Input datasets sequence length statistics](#seq-len-stats)"""
     mdtext += "\n"
 
     if ei_ol_stats_dic:
@@ -9940,7 +10052,7 @@ Considered intron border region length = %i nt (change via --gtf-intron-border-l
         mdtext += '**%% us intron border regions** -> %% of input regions overlapping with upstream ends of intron regions (first %i nt), ' %(ib_len)
         mdtext += '**%% ds intron border regions** -> %% of input regions overlapping with downstream ends of intron regions (last %i nt), ' %(ib_len)
         mdtext += '**%% exon-intron border regions** -> %% of input regions overlapping with exon-intron borders (+/- %i nt of exon-intron borders). ' %(eib_len)
-        mdtext += "Note that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered. " %(2*ib_len, ib_len)
+        mdtext += "**NOTE** that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered. " %(2*ib_len, ib_len)
         mdtext += "Also note that the overlap is calculated between (optionally extended) input regions and transcript regions (one representative transcript, i.e., transcript with highest experimental support, chosen for each gene region, unless --tr-list provided). "
         mdtext += "Thus, depending on set parameters (minimum overlap amount etc.), occasional overlap of annotated gene regions, and characteristics of input dataset, exon/intron overlap can vary, doesn't have to add up to 100, and can also be relatively low.\n"
         mdtext += "\n&nbsp;\n"
@@ -9960,7 +10072,7 @@ Considered intron border region length = %i nt (change via --gtf-intron-border-l
             create_eib_comp_plot_plotly(id2eib_stats_dic, id2eib_perc_dic, 
                                         eib_comp_plot_plotly_out,
                                         plot_3d=False,
-                                        id2hk_gene_stats_dic=id2hk_gene_stats_dic,
+                                        id2hk_gene_stats_dic=False,
                                         include_plotlyjs=include_plotlyjs,
                                         full_html=plotly_full_html)
 
@@ -10039,7 +10151,7 @@ RBPbench checks whether regions with RBP motif hits have significantly different
 %s
 In other words, a low test p-value for a given dataset indicates 
 that %s-scoring regions are more likely to contain RBP motif hits.
-NOTE that if scores associated to input genomic regions are all the same, p-values become meaningless 
+**NOTE** that if scores associated to input genomic regions are all the same, p-values become meaningless 
 (i.e., they result in p-values of 1.0).
 By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
 
@@ -10113,7 +10225,7 @@ RBPbench checks whether regions containing regex hits have significantly differe
 %s
 In other words, a low test p-value for a given dataset indicates 
 that %s-scoring regions are more likely to contain regex hits.
-NOTE that if scores associated to input genomic regions are all the same, p-values become meaningless 
+**NOTE** that if scores associated to input genomic regions are all the same, p-values become meaningless 
 (i.e., they result in p-values of 1.0).
 By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
 
@@ -10274,7 +10386,6 @@ D: NOT regex AND NOT RBP.
     """
     Input datasets k-mer frequencies comparative plot.
 
-    AALAMO
     """
 
     mdtext += """
@@ -11139,7 +11250,19 @@ def create_len_distr_violin_plot_plotly(in_df, plot_out,
 
     fig = px.violin(in_df, y='Sequence Length', box=True, points='all')
     # Set customdata and hovertemplate
-    fig.update_traces(customdata=in_df[['Sequence ID', 'Sequence', 'Motif hits']].values, hovertemplate='>%{customdata[0]}<br>%{customdata[1]}<br>Sequence Length: %{y}<br>Motif hits:<br>%{customdata[2]}')
+    # fig.update_traces(customdata=in_df[['Sequence ID', 'Sequence', 'Motif hits']].values, hovertemplate='>%{customdata[0]}<br>%{customdata[1]}<br>Sequence Length: %{y}<br>Motif hits:<br>%{customdata[2]}')
+    fig.update_traces(
+        customdata=in_df[['Sequence ID', 'Sequence', 'Motif hits']].values,
+        hovertemplate=(
+            '<span style="font-family: \'Courier New\', monospace;">>%{customdata[0]}</span><br>'
+            '<span style="font-family: \'Courier New\', monospace;">%{customdata[1]}</span><br>'
+            # '>%{customdata[0]}<br>'
+            # '%{customdata[1]}<br>'
+            'Sequence Length: %{y}<br>'
+            'Motif hits:<br>'
+            '%{customdata[2]}'
+        )
+    )
     fig.update_layout(xaxis_title='Density', yaxis_title='Sequence Length', violinmode='overlay')
     fig.write_html(plot_out,
                    full_html=full_html,
@@ -11321,10 +11444,6 @@ def enmo_generate_html_report(args,
     # if args.regex:
     #     regex_motif_info = "Used regex motif: '%s'." %(args.regex)
 
-    report_header_info = "Motif enrichment report"
-    if args.report_header:
-        report_header_info = "RBPBench motif enrichment report"
-
     """
     Setup plotly .js to support plotly plots.
 
@@ -11374,6 +11493,13 @@ def enmo_generate_html_report(args,
         js_code = read_file_content_into_str_var(sorttable_js_path)
         sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
 
+    # Logo path.
+    logo_path_html = plots_folder + "/logo.png"
+    if not os.path.exists(logo_path_html):
+        logo_path = benchlib_path + "/content/logo.png"
+        assert os.path.exists(logo_path), "logo.png not found in %s" %(logo_path)
+        shutil.copy(logo_path, plots_out_folder)
+
     # HTML head section.
     html_head = """<!DOCTYPE html>
 <html>
@@ -11393,11 +11519,24 @@ def enmo_generate_html_report(args,
     .page {
         page-break-after: always;
     }
+    .title-container {
+        display: flex;
+        align-items: center;
+    }
+    .title-container img {
+        margin-right: 10px; /* Adjust the spacing as needed */
+    }
 </style>
 
 </head>
+
+<div class="title-container">
+    <img src="%s" alt="Logo" width="175">
+    <h1>Motif Enrichment Report</h1>
+</div>
+
 <body>
-""" %(plotly_js_html)
+""" %(plotly_js_html, logo_path_html)
 
     # HTML tail section.
     html_tail = """
@@ -11409,14 +11548,12 @@ def enmo_generate_html_report(args,
     # Markdown part.
     mdtext = """
 
-# %s
-
 List of available statistics and plots generated
 by RBPBench (rbpbench %s):
 
 - [Motif enrichment statistics](#enmo-stats)
 - [Motif co-occurrences heat map](#cooc-heat-map)
-- [Sequence motif similarity vs significance PCA plot](#motif-sim-sig-plot)""" %(report_header_info, rbpbench_mode)
+- [Sequence motif similarity vs significance PCA plot](#motif-sim-sig-plot)""" %(rbpbench_mode)
 
     mdtext += "\n"
 
@@ -12069,10 +12206,6 @@ def nemo_generate_html_report(args,
     # if args.regex:
     #     regex_motif_info = "Used regex motif: '%s'." %(args.regex)
 
-    report_header_info = "Neighboring motif enrichment report"
-    if args.report_header:
-        report_header_info = "RBPBench neighboring motif enrichment report"
-
     """
     Setup plotly .js to support plotly plots.
 
@@ -12122,6 +12255,13 @@ def nemo_generate_html_report(args,
         js_code = read_file_content_into_str_var(sorttable_js_path)
         sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
 
+    # Logo path.
+    logo_path_html = plots_folder + "/logo.png"
+    if not os.path.exists(logo_path_html):
+        logo_path = benchlib_path + "/content/logo.png"
+        assert os.path.exists(logo_path), "logo.png not found in %s" %(logo_path)
+        shutil.copy(logo_path, plots_out_folder)
+
     # HTML head section.
     html_head = """<!DOCTYPE html>
 <html>
@@ -12141,11 +12281,24 @@ def nemo_generate_html_report(args,
     .page {
         page-break-after: always;
     }
+    .title-container {
+        display: flex;
+        align-items: center;
+    }
+    .title-container img {
+        margin-right: 10px; /* Adjust the spacing as needed */
+    }
 </style>
 
 </head>
+
+<div class="title-container">
+    <img src="%s" alt="Logo" width="175">
+    <h1>Neighboring Motif Enrichment Report</h1>
+</div>
+
 <body>
-""" %(plotly_js_html)
+""" %(plotly_js_html, logo_path_html)
 
     # HTML tail section.
     html_tail = """
@@ -12157,15 +12310,13 @@ def nemo_generate_html_report(args,
     # Markdown part.
     mdtext = """
 
-# %s
-
 List of available statistics and plots generated
 by RBPBench (rbpbench %s):
 
 - [Neighboring motif enrichment statistics](#nemo-stats)
 - [Motif co-occurrences heat map](#cooc-heat-map)
 - [Sequence motif similarity vs significance PCA plot](#motif-sim-sig-plot)
-- [Sequence motif similarity vs direction PCA plot](#motif-sim-dir-plot)""" %(report_header_info, rbpbench_mode)
+- [Sequence motif similarity vs direction PCA plot](#motif-sim-dir-plot)""" %(rbpbench_mode)
 
     mdtext += "\n"
 
@@ -13243,6 +13394,25 @@ def calc_exp_kmer_perc(kmer_k):
 
 ################################################################################
 
+def min_max_scale(values, new_min=0, new_max=1):
+    # Find the minimum and maximum of the input values
+    min_val = min(values)
+    max_val = max(values)
+
+    # Handle edge case where all values are the same
+    if min_val == max_val:
+        return [new_min for _ in values]
+
+    # Apply min-max scaling
+    scaled_values = [
+        new_min + (val - min_val) * (new_max - new_min) / (max_val - min_val)
+        for val in values
+    ]
+    return scaled_values
+
+
+################################################################################
+
 def search_generate_html_report(args,
                                 df_pval, pval_cont_lll,
                                 search_rbps_dic,
@@ -13265,7 +13435,7 @@ def search_generate_html_report(args,
                                 plotly_full_html=False,
                                 rbpbench_mode="search --report",
                                 disable_motif_enrich_table=False,
-                                disable_seqs_kmer_plot=True,
+                                disable_top_kmers_plot=False,
                                 reg_seq_str="regions",
                                 reg2seq_dic=False,
                                 reg2sc_dic=False,
@@ -13315,10 +13485,6 @@ def search_generate_html_report(args,
     regex_motif_info = ""
     if args.regex:
         regex_motif_info = "Used regex motif: '%s'." %(name2ids_dic[args.regex_id][0])
-
-    report_header_info = "Search report"
-    if args.report_header:
-        report_header_info = "RBPBench search report"
 
     # Number of input regions.
     c_in_regions = 0
@@ -13380,6 +13546,13 @@ def search_generate_html_report(args,
         include_plotlyjs = False
         # plotly_full_html = True
 
+    # Logo path.
+    logo_path_html = plots_folder + "/logo.png"
+    if not os.path.exists(logo_path_html):
+        logo_path = benchlib_path + "/content/logo.png"
+        assert os.path.exists(logo_path), "logo.png not found in %s" %(logo_path)
+        shutil.copy(logo_path, plots_out_folder)
+
     # HTML head section.
     html_head = """<!DOCTYPE html>
 <html>
@@ -13399,16 +13572,36 @@ def search_generate_html_report(args,
     .page {
         page-break-after: always;
     }
+
+    .title-container {
+        display: flex;
+        align-items: center;
+    }
+    .title-container img {
+        margin-right: 10px; /* Adjust the spacing as needed */
+    }
+
 </style>
 
 </head>
+
+<div class="title-container">
+    <img src="%s" alt="Logo" width="175">
+    <h1>Search Report</h1>
+</div>
+
+
 <body>
-""" %(plotly_js_html)
+""" %(plotly_js_html, logo_path_html)
+
+    # AALAMO
 
     # HTML tail section.
     html_tail = """
 %s
 </body>
+
+
 </html>
 """ %(sorttable_js_html)
 
@@ -13423,19 +13616,19 @@ def search_generate_html_report(args,
     # Markdown part.
     mdtext = """
 
-# %s
-
 List of available statistics and plots generated
 by RBPBench (rbpbench %s):
 
 %s
-- [RBP motif co-occurrences heat map](#cooc-heat-map)""" %(report_header_info, rbpbench_mode, motif_enrich_info)
+- [RBP motif co-occurrences heat map](#cooc-heat-map)""" %(rbpbench_mode, motif_enrich_info)
 
     mdtext += "\n"
 
     # Additional plot if GTF annotations given.
     if seq_len_df is not None:
         mdtext += "- [Input sequence length distribution](#seq-len-plot)\n"
+    if not disable_top_kmers_plot:
+        mdtext += "- [Input sequences top k-mers plot](#seqs-top-kmer-plot)\n"
 
     # Additional plot if GTF annotations given.
     if reg2annot_dic:
@@ -13499,7 +13692,7 @@ RBPbench checks whether motif-containing regions have significantly different sc
 %s
 In other words, a low test p-value for a given RBP indicates 
 that %s-scoring regions are more likely to contain motif hits of the respective RBP.
-NOTE that if scores associated to input genomic regions are all the same, p-values become meaningless 
+**NOTE** that if scores associated to input genomic regions are all the same, p-values become meaningless 
 (i.e., they result in p-values of 1.0).
 By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
 %s
@@ -13649,7 +13842,7 @@ By default, BED genomic regions input file column 5 is used as the score column 
         mdtext += """
 
 **Figure:** Sequence %i-mer percentages in the top %i scoring and bottom %i scoring input sites. In case of
-a uniform distribution with all %i-mers present, each %i-mer would have a percentage = %s. R2 = %.6f.
+a uniform distribution with all %i-mers present, each %i-mer would have a percentage of %s%%. R2 = %.6f.
 
 &nbsp;
 
@@ -13800,71 +13993,192 @@ and length quartiles (q1: 25th percentile, q3: 75th percentile).
 &nbsp;
 
 """
-    # Hover box over data points shows sequence ID, sequence, sequence length, and motif hits. 
-    # Motif hit format: motif ID, motif start - motif end, p-value (for sequence motifs) or bit score (structure models).
 
+    if not disable_top_kmers_plot:
 
+        assert reg2seq_dic, "No region sequences supplied to report function"
 
-    if not disable_seqs_kmer_plot:
+        mdtext += """
+## Input sequences top k-mers plot ### {#seqs-top-kmer-plot}
+
+"""
+
+        plot_k = args.kmer_plot_k
+
+        seqs_kmer_dic = seqs_dic_count_kmer_freqs(reg2seq_dic, 5, 
+                                                  rna=False,
+                                                  return_ratios=True,
+                                                  perc=True,
+                                                  report_key_error=False,
+                                                  skip_non_dic_keys=True,
+                                                  convert_to_uc=True)
+
+        n_top_kmers = 10
+
+        top_kmers_list = []
+        top_kmer_perc_list = []
+
+        for kmer, perc in sorted(seqs_kmer_dic.items(), key=lambda x: x[1], reverse=True)[:n_top_kmers]:
+            top_kmers_list.append(kmer)
+            top_kmer_perc_list.append(perc)
+
+        # Average percentage in seqs_kmer_dic.
+        avg_perc = sum(seqs_kmer_dic.values()) / len(seqs_kmer_dic)
+
+        fig, ax = plt.subplots(figsize=(10, 4))
+
+        ax.bar(top_kmers_list, top_kmer_perc_list, color='#e5ecf6', zorder=2)  # #e5ecf6 lightgray
+
+        ax.set_ylabel(str(plot_k) + "-mer %")
+
+        # Expected k-mer percentage.
+        exp_kmer_perc = calc_exp_kmer_perc(args.kmer_plot_k)
+
+        # Add horizontal line for expected uniform percentage.
+        ax.axhline(y=exp_kmer_perc, color='red', linestyle='--', linewidth=1, label=f'Expected uniform % ({exp_kmer_perc:.2f}%)')
+
+        # ax.set_yticks(range(0, 101, 10))
+
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+
+        ax.grid(axis='y', color='#e5ecf6', linestyle='-', alpha=0.7, linewidth=0.7, zorder=1)
+
+        # plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.25)
+
+        top_kmers_plot = "seqs_top_kmers.bar_plot.png"
+        top_kmers_plot_out = plots_out_folder + "/" + top_kmers_plot
+        plot_path = plots_folder + "/" + top_kmers_plot
+
+        plt.savefig(top_kmers_plot_out, dpi=135)
+
+        if args.plot_pdf and top_kmers_plot_out.endswith('.png'):
+            pdf_out = top_kmers_plot_out[:-4] + '.pdf'
+            plt.savefig(pdf_out, dpi=135)
+
+        plt.close()
+        mdtext += '<image src = "' + plot_path + '" width="900px"></image>'  + "\n"
+
+        mdtext += """
+**Figure:** Top 10 %i-mers encountered in input sequences. 
+In case of a uniform distribution with all %i-mers present, each %i-mer would have a percentage of %s%% (marked by red line).
+
+&nbsp;
+
+""" %(plot_k, plot_k, plot_k, exp_kmer_perc)
+
+    # AALAMO
+    if not args.disable_seqs_kmer_plot:
 
         mdtext += """
 ## Input sequences by k-mer content plot ### {#input-seqs-kmer}
 
 
 """
-        seqs_kmer_k = 2
+        seqs_kmer_k = args.seqs_kmer_plot_k
+        add_seq_comp = True
+        if args.seqs_kmer_plot_no_comp:
+            add_seq_comp = False
+        min_max_norm_seq_comp = False
 
         # Get kmer -> count dictionary.
         # kmer2c_dic = get_kmer_dic(seqs_kmer_k, rna=False)
+
+        reg2ntps_dic = {}
 
         reg2kmer_rat_dic = seqs_dic_get_kmer_ratios(reg2seq_dic, seqs_kmer_k,
                                                     rna=False,
                                                     report_key_error=False,
                                                     skip_non_dic_keys=True,
+                                                    add_seq_comp=add_seq_comp,
+                                                    add_gc_skew=False,
+                                                    add_at_skew=False,
+                                                    add_at_content=False,
+                                                    add_1nt_ratios=False,
+                                                    reg2ntps_dic=reg2ntps_dic,
                                                     convert_to_uc=True)
 
+        reg2motifs_dic = {}  # If false motif info not added to hover box.
+
+        # Snatch motif hit info from seq_len_df.
+        if not args.seqs_kmer_plot_no_motifs:
+            try:
+                assert not seq_len_df.empty, "seq_len_df dataframe is defined but empty"
+            except NameError:
+                raise NameError("seq_len_df dataframe is not defined")
+
+            reg2motifs_dic = seq_len_df.set_index('Sequence ID')['Motif hits'].to_dict()
+
+        # Normalize sequence complexity value (min max normalization).
+        if min_max_norm_seq_comp:
+            last_values = []
+            for reg_id in sorted(reg2kmer_rat_dic):
+                last_values.append(reg2kmer_rat_dic[reg_id][-1])
+            scaled_last_values = min_max_scale(last_values)
+            i = 0
+            for reg_id in sorted(reg2kmer_rat_dic):
+                reg2kmer_rat_dic[reg_id][-1] = scaled_last_values[i]
+                i += 1
+        
+        # Ratios ready?
         if reg2kmer_rat_dic:
 
             seqs_kmer_plot_plotly =  "seqs_kmer_plot.plotly.html"
             seqs_kmer_plot_plotly_out = plots_out_folder + "/" + seqs_kmer_plot_plotly
 
             create_seqs_kmer_plot_plotly(reg2seq_dic, reg2kmer_rat_dic, seqs_kmer_plot_plotly_out,
-                                        k=seqs_kmer_k,
-                                        annot2color_dic=annot2color_dic,
-                                        reg2annot_dic=reg2annot_dic,
-                                        include_plotlyjs=include_plotlyjs,
-                                        full_html=plotly_full_html)
+                                         k=seqs_kmer_k,
+                                         annot2color_dic=annot2color_dic,
+                                         reg2annot_dic=reg2annot_dic,
+                                         reg2motifs_dic=reg2motifs_dic,
+                                         reg2ntps_dic=reg2ntps_dic,
+                                         include_plotlyjs=include_plotlyjs,
+                                         full_html=plotly_full_html)
 
             plot_path = plots_folder + "/" + seqs_kmer_plot_plotly
+
+            plot_width = 1000
+            if reg2annot_dic:
+                plot_width = 1200
 
             if args.plotly_js_mode in [5, 6, 7]:
                 # Read in plotly code.
                 # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
                 js_code = read_file_content_into_str_var(seq_len_plot_plotly_out)
-                js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1000px;")
+                js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:%ipx;" %(plot_width))
                 mdtext += js_code + "\n"
                 # mdtext += '</div>'
             else:
                 if plotly_embed_style == 1:
                     # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
                     mdtext += "<div>\n"
-                    mdtext += '<iframe src="' + plot_path + '" width="1000" height="1000"></iframe>' + "\n"
+                    # mdtext += '<iframe src="' + plot_path + '" width="1000" height="1000"></iframe>' + "\n"
+                    mdtext += '<iframe src="' + plot_path + '" width="%i" height="1000"></iframe>' %(plot_width) + "\n"
                     mdtext += '</div>'
                 elif plotly_embed_style == 2:
-                    mdtext += '<object data="' + plot_path + '" width="1000" height="1000"> </object>' + "\n"
+                    # mdtext += '<object data="' + plot_path + '" width="1000" height="1000"> </object>' + "\n"
+                    mdtext += '<iframe src="' + plot_path + '" width="%i" height="1000"></iframe>' %(plot_width) + "\n"
+
+            add_info = ""
+            if add_seq_comp:
+                add_info = "Apart from the k-mer features, sequence complexity (i.e., Shannon entropy) is used as an additional feature for each sequence."
 
             mdtext += """
 
-**Figure:** Input sequences by k-mer content plot.
+**Figure:** Input sequences by k-mer content plot (k = %i). 
+Input sequences are represented by their k-mer content and visualized as 2D PCA plot.
+The closer two sequences are, the more similar their k-mer content.
+%s
 
 &nbsp;
 
-"""
+""" %(args.seqs_kmer_plot_k, add_info)
 
         else:
             mdtext += """
 
-No sequence k-mers content plot generated since no k-mer contents extracted from input sequences (not enough sequences or sequences shorter than k?).
+No sequence k-mers content plot generated since no k-mer contents extracted from input sequences (not enough sequences or sequences shorter than set --seqs-kmer-plot-k?).
 
 &nbsp;
 
@@ -13896,16 +14210,20 @@ No plot generated since no motif hits found in input regions.
 """
         else:
 
+            add_all_reg_bar = True
+            if args.disable_all_reg_bar:
+                add_all_reg_bar = False
+
             create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
                                                        plot_out=annot_stacked_bars_plot_out,
                                                        annot2color_dic=annot2color_dic,
                                                        plot_pdf=args.plot_pdf,
-                                                       add_all_reg_bar=args.add_all_reg_bar)
+                                                       add_all_reg_bar=add_all_reg_bar)
 
             plot_path = plots_folder + "/" + annot_stacked_bars_plot
 
             more_infos = ""
-            if args.add_all_reg_bar:
+            if add_all_reg_bar:
                 more_infos = "**All**: annotations for all input regions (with and without motif hits)."
 
             mdtext += '<img src="' + plot_path + '" alt="Annotation stacked bars plot"' + "\n"
@@ -14026,7 +14344,7 @@ mRNA region lengths used for plotting are derived from the occupied mRNA regions
 
         fig, ax = plt.subplots(figsize=(7.5, 4))
 
-        ax.bar(categories, percentages, color='lightgray', zorder=2)
+        ax.bar(categories, percentages, color='#e5ecf6', zorder=2)
 
         ax.set_ylabel('Input regions overlapping with %')
 
@@ -14036,7 +14354,7 @@ mRNA region lengths used for plotting are derived from the occupied mRNA regions
         ax.spines['right'].set_visible(False)
         ax.spines['bottom'].set_visible(False)
 
-        ax.grid(axis='y', color='lightgray', linestyle='-', alpha=0.7, linewidth=0.7, zorder=1)
+        ax.grid(axis='y', color='#e5ecf6', linestyle='-', alpha=0.7, linewidth=0.7, zorder=1)  # #e5ecf6 lightgray
 
         # plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.25)
 
@@ -14067,7 +14385,7 @@ Categories:
 **%i nt ds intron regions** -> %% of input regions overlapping with downstream ends of intron regions (last %i nt) (\# %i).
 **+/- 50 nt exon intron borders** -> %% of input regions overlapping with exon-intron borders 
 (50 nt upstream and downstream of exon-intron borders) (\# %i).
-Note that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered. 
+**NOTE** that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered. 
 Also note that the overlap is calculated between (optionally extended) input regions and transcript regions 
 (one representative transcript, i.e., transcript with highest experimental support, chosen for each gene region, unless --tr-list provided). 
 Thus, depending on set parameters (minimum overlap amount etc.), occasional overlap of annotated gene regions, 
@@ -15250,7 +15568,7 @@ def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg
                                                plot_pdf=False,
                                                all_regions_id="All"):
     """
-    Create a stacked bars plot, with each bar showing the annotations for one RBPs,
+    Create a stacked bars plot, with each bar showing the annotations for one RBP,
     i.e. with which GTF annotations the sites with motifs of the RBP overlap.
 
     rbp2regidx_dic:
@@ -15385,6 +15703,8 @@ def create_seqs_kmer_plot_plotly(reg2seq_dic, reg2kmer_rat_dic, plot_out,
                                  k=3,
                                  annot2color_dic=False,
                                  reg2annot_dic=False,
+                                 reg2motifs_dic=False,
+                                 reg2ntps_dic=False,
                                  include_plotlyjs="cdn",
                                  full_html=False):
     """
@@ -15409,16 +15729,35 @@ def create_seqs_kmer_plot_plotly(reg2seq_dic, reg2kmer_rat_dic, plot_out,
     explained_variance = pca.explained_variance_ratio_ * 100
 
     df['Region ID'] = reg_ids_list
-    df['Sequence'] = [insert_line_breaks(reg2seq_dic[reg_id], line_len=60) for reg_id in reg_ids_list]
+    df['Sequence'] = [insert_line_breaks(reg2seq_dic[reg_id], line_len=50) for reg_id in reg_ids_list]
     df['Sequence length'] = [len(reg2seq_dic[reg_id]) for reg_id in reg_ids_list]
+
+    if reg2motifs_dic:
+        df['Motif hits'] = [reg2motifs_dic[reg_id] for reg_id in reg_ids_list]
+    if reg2ntps_dic:
+        df['Mono-nucleotide percentages'] = [reg2ntps_dic[reg_id] for reg_id in reg_ids_list]
+    motif_hover_info = ''
+    hover_data = ['Region ID', 'Sequence', 'Sequence length']
 
     if reg2annot_dic:
 
-        df['Annotation'] = [reg2annot_dic[reg_id][0] for reg_id in reg_ids_list]
+        df['Annotation'] = [str(reg2annot_dic[reg_id][0]) for reg_id in reg_ids_list]
         df['Transcript ID'] = [reg2annot_dic[reg_id][1] for reg_id in reg_ids_list]
-        df['Gene ID'] = [reg2annot_dic[reg_id][2] for reg_id in reg_ids_list]
-        df['Gene name'] = [reg2annot_dic[reg_id][3] for reg_id in reg_ids_list]
-        df['Transcript biotype'] = [reg2annot_dic[reg_id][4] for reg_id in reg_ids_list]
+        df['Gene ID'] = [reg2annot_dic[reg_id][4] for reg_id in reg_ids_list]
+        df['Gene name'] = [reg2annot_dic[reg_id][5] for reg_id in reg_ids_list]
+        df['Transcript biotype'] = [reg2annot_dic[reg_id][6] for reg_id in reg_ids_list]
+
+        hover_data += ['Annotation', 'Transcript ID', 'Gene ID', 'Gene name', 'Transcript biotype']
+
+        if reg2motifs_dic:
+            hover_data += ['Motif hits']
+            motif_hover_info = '<br>Motif hits:<br>%{customdata[8]}'
+        if reg2ntps_dic:
+            hover_data += ['Mono-nucleotide percentages']
+            if reg2motifs_dic:
+                motif_hover_info += '<br>Mono-nucleotide percentages:<br>%{customdata[9]}'
+            else:
+                motif_hover_info = '<br>Mono-nucleotide percentages:<br>%{customdata[8]}'
 
         fig = px.scatter(
             df,
@@ -15429,26 +15768,40 @@ def create_seqs_kmer_plot_plotly(reg2seq_dic, reg2kmer_rat_dic, plot_out,
             labels={
                 'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
                 'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
-            }
-            # hover_name='Dataset ID',
-            # hover_data=['Highest % annotation', 'Annotation percentages']
+            },
+            # hover_name='Region ID',
+            hover_data=hover_data
         )
 
+        # Adding '<extra></extra>' removes side bars on left/right of hover boxes with annotation labels.
         fig.update_traces(
-            customdata=df[['Region ID', 'Sequence', 'Sequence length', 'Annotation', 'Transcript ID', 'Gene ID', 'Gene name', 'Transcript biotype']].values, 
+            # customdata=df[['Region ID', 'Sequence', 'Sequence length', 'Annotation', 'Transcript ID', 'Gene ID', 'Gene name', 'Transcript biotype']].values, 
             hovertemplate=(
-                '>%{customdata[0]}<br>'
-                '%{customdata[1]}<br>'
+                '<span style="font-family: \'Courier New\', monospace;">>%{customdata[0]}</span><br>'
+                '<span style="font-family: \'Courier New\', monospace;">%{customdata[1]}</span><br>'
+                # '%{customdata[1]}<br>'
                 'Sequence Length: %{customdata[2]}<br>'
                 'Annotation: %{customdata[3]}<br>'
                 'Transcript ID: %{customdata[4]}<br>'
                 'Gene ID: %{customdata[5]}<br>'
                 'Gene name: %{customdata[6]}<br>'
-                'Transcript biotype: %{customdata[7]}'
+                'Transcript biotype: %{customdata[7]}' + motif_hover_info + '<extra></extra>'
             )
+            # hoverinfo='skip'  # Disable default hover info
         )
 
     else:
+
+        if reg2motifs_dic:
+            hover_data += ['Motif hits']
+            motif_hover_info = '<br>Motif hits:<br>%{customdata[3]}'
+        if reg2ntps_dic:
+            hover_data += ['Mono-nucleotide percentages']
+            if reg2motifs_dic:
+                motif_hover_info += '<br>Mono-nucleotide percentages:<br>%{customdata[4]}'
+            else:
+                motif_hover_info = '<br>Mono-nucleotide percentages:<br>%{customdata[3]}'
+
         fig = px.scatter(
             df,
             x='PC1',
@@ -15456,16 +15809,15 @@ def create_seqs_kmer_plot_plotly(reg2seq_dic, reg2kmer_rat_dic, plot_out,
             labels={
                 'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
                 'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
-            }
+            },
+            hover_data=hover_data
         )
 
         fig.update_traces(
-            customdata=df[['Region ID', 'Sequence', 'Sequence length']].values, 
             hovertemplate=(
                 '>%{customdata[0]}<br>'
                 '%{customdata[1]}<br>'
-                'Sequence Length: %{customdata[2]}<br>'
-                'Annotation: %{customdata[3]}'
+                'Sequence Length: %{customdata[2]}' + motif_hover_info + '<extra></extra>'
             )
         )
 
@@ -15554,6 +15906,12 @@ def seqs_dic_get_kmer_ratios(seqs_dic, k,
                              rna=False,
                              report_key_error=False,
                              skip_non_dic_keys=True,
+                             add_seq_comp=False,
+                             add_gc_skew=False,
+                             add_at_skew=False,
+                             add_at_content=False,
+                             add_1nt_ratios=False,
+                             reg2ntps_dic=None,
                              convert_to_uc=True):
     """
     Given a dictionary with mappings: sequence ID -> sequence,
@@ -15611,6 +15969,44 @@ def seqs_dic_get_kmer_ratios(seqs_dic, k,
         kmer_rat_list = []
         for kmer in count_dic:
             kmer_rat_list.append(count_dic[kmer])
+
+        # Single-nt counts.
+        ntc_dic = get_ntc_dic(seq, rna=rna)
+        eff_seq_l = 0
+        for nt in ntc_dic:
+            eff_seq_l += ntc_dic[nt]
+
+        assert eff_seq_l, "effective sequence length is 0 for sequence %s" %(seq_id)
+
+        # region ID -> nucleotide percentages string.
+        if reg2ntps_dic is not None:
+            ntps_list = []
+            for nt in ntc_dic:
+                nt_perc = (ntc_dic[nt] / eff_seq_l) * 100
+                ntps = "%s: %.2f%%" %(nt, nt_perc)
+                ntps_list.append(ntps)
+            reg2ntps_dic[seq_id] = ", ".join(ntps_list)
+
+        if add_seq_comp:
+            seq_comp = calc_seq_entropy(eff_seq_l, ntc_dic)
+            kmer_rat_list.append(seq_comp)
+        
+        if add_gc_skew:
+            gc_skew = calc_seq_gc_skew_ntc(ntc_dic)
+            kmer_rat_list.append(gc_skew)
+        
+        if add_at_skew:
+            at_skew = calc_seq_at_skew_ntc(ntc_dic, rna=rna)
+            kmer_rat_list.append(at_skew)
+
+        if add_at_content:
+            at_content = calc_seq_at_content_ntc(eff_seq_l, ntc_dic, rna=rna)
+            kmer_rat_list.append(at_content)
+
+        if add_1nt_ratios:
+            for nt in ntc_dic:
+                nt_ratio = ntc_dic[nt] / eff_seq_l
+                kmer_rat_list.append(nt_ratio)
 
         reg2kmer_rat_dic[seq_id] = kmer_rat_list
 
@@ -15744,6 +16140,134 @@ def seq_count_nt_freqs(seq,
         if nt in count_dic:
             count_dic[nt] += 1
     return count_dic
+
+
+################################################################################
+
+def calc_seq_gc_skew(seq):
+    """
+    Calculate GC skew of a given sequence seq.
+
+    >>> seq = 'AATTGGCC'
+    >>> calc_seq_gc_skew(seq)
+    0.0
+    >>> seq = 'AATTCC'
+    >>> calc_seq_gc_skew(seq)
+    -1.0
+
+    """
+    assert seq, "given sequence string seq empty"
+    seq = seq.upper()
+    g_c = seq.count('G')
+    c_c = seq.count('C')
+    if g_c + c_c == 0:
+        return 0
+    else:
+        return (g_c - c_c) / (g_c + c_c)
+
+
+################################################################################
+
+def calc_seq_at_skew(seq):
+    """
+    Calculate AT skew of a given sequence seq.
+
+    >>> seq = 'AATTGGCC'
+    >>> calc_seq_at_skew(seq)
+    0.0
+    >>> seq = 'AAGGCC'
+    >>> calc_seq_at_skew(seq)
+    1.0
+
+    """
+    assert seq, "given sequence string seq empty"
+    seq = seq.upper()
+    a_c = seq.count('A')
+    t_c = seq.count('T')
+    if a_c + t_c == 0:
+        return 0
+    else:
+        return (a_c - t_c) / (a_c + t_c)
+
+
+
+################################################################################
+
+def calc_seq_gc_skew_ntc(ntc_dic):
+    """
+    Calculate GC skew of a given a nucleotides count dictionary.
+
+    >>> ntc_dic = {'A': 2, 'C': 2, 'G': 2, 'T': 2}
+    >>> calc_seq_gc_skew_ntc(ntc_dic)
+    0.0
+    >>> ntc_dic = {'A': 2, 'C': 2, 'G': 0, 'T': 2}
+    >>> calc_seq_gc_skew_ntc(ntc_dic)
+    -1.0
+
+    """
+    assert ntc_dic, "given ntc_dic empty"
+
+    g_c = ntc_dic["G"]
+    c_c = ntc_dic["C"]
+    if g_c + c_c == 0:
+        return 0
+    else:
+        return (g_c - c_c) / (g_c + c_c)
+
+
+################################################################################
+
+def calc_seq_at_skew_ntc(ntc_dic,
+                         rna=False):
+    """
+    Calculate AT skew of a given a nucleotides count dictionary.
+
+    >>> ntc_dic = {'A': 2, 'C': 2, 'G': 2, 'T': 2}
+    >>> calc_seq_at_skew_ntc(ntc_dic)
+    0.0
+    >>> ntc_dic = {'A': 2, 'C': 2, 'G': 2, 'T': 0}
+    >>> calc_seq_at_skew_ntc(ntc_dic)
+    1.0
+
+    """
+    assert ntc_dic, "given ntc_dic empty"
+
+    a_c = ntc_dic["A"]
+    if rna:
+        t_c = ntc_dic["U"]
+    else:
+        t_c = ntc_dic["T"]
+    if a_c + t_c == 0:
+        return 0
+    else:
+        return (a_c - t_c) / (a_c + t_c)
+
+
+################################################################################
+
+def calc_seq_at_content_ntc(seq_l, ntc_dic,
+                            rna=False):
+    """
+    Calculate AT content of a given a nucleotides count dictionary.
+
+    >>> ntc_dic = {'A': 2, 'C': 2, 'G': 2, 'T': 2}
+    >>> calc_seq_at_content_ntc(8, ntc_dic)
+    0.5
+    >>> ntc_dic = {'A': 1, 'C': 2, 'G': 2, 'T': 0}
+    >>> calc_seq_at_content_ntc(5, ntc_dic)
+    0.2
+
+    """
+    assert ntc_dic, "given ntc_dic empty"
+    assert seq_l, "given sequence length seq_l 0 or empty"
+
+    a_c = ntc_dic["A"]
+    if rna:
+        t_c = ntc_dic["U"]
+    else:
+        t_c = ntc_dic["T"]
+
+    return (a_c + t_c) / seq_l
 
 
 ################################################################################
@@ -15888,6 +16412,27 @@ def seqs_dic_count_kmer_freqs(seqs_dic, k,
                 count_dic[kmer] = ratio
     # Return k-mer counts or ratios.
     return count_dic
+
+
+################################################################################
+
+def get_ntc_dic(seq, rna=False):
+    """
+    Get single nucleotide count dictionary.
+
+    >>> seq = 'ACGTACGT'
+    >>> get_ntc_dic(seq)
+    {'A': 2, 'C': 2, 'G': 2, 'T': 2}
+
+    """
+
+    ntc_dic = get_kmer_dic(1, rna=rna)
+
+    for nt in seq:
+        if nt in ntc_dic:
+            ntc_dic[nt] += 1
+
+    return ntc_dic
 
 
 ################################################################################
@@ -16197,10 +16742,6 @@ def search_generate_html_motif_plots(args, search_rbps_dic,
         site_type_uc = "Sequence"
         site_type = "sequence"
 
-    report_header_info = "Motif Plots and Hit Statistics"
-    if args.report_header:
-        report_header_info = "RBPBench Motif Plots and Hit Statistics"
-
     """
     Setup sorttable.js to make tables in HTML sortable.
 
@@ -16216,6 +16757,12 @@ def search_generate_html_motif_plots(args, search_rbps_dic,
         js_code = read_file_content_into_str_var(sorttable_js_path)
         sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
 
+    # Logo path.
+    logo_path_html = plots_folder + "/logo.png"
+    if not os.path.exists(logo_path_html):
+        logo_path = benchlib_path + "/content/logo.png"
+        assert os.path.exists(logo_path), "logo.png not found in %s" %(logo_path)
+        shutil.copy(logo_path, plots_out_folder)
 
     # HTML head section.
     html_head = """<!DOCTYPE html>
@@ -16235,11 +16782,26 @@ def search_generate_html_motif_plots(args, search_rbps_dic,
     .page {
         page-break-after: always;
     }
+    .title-container {
+        display: flex;
+        align-items: center;
+    }
+    .title-container img {
+        margin-right: 10px; /* Adjust the spacing as needed */
+    }
 </style>
 
 </head>
+
+<div class="title-container">
+    <img src="%s" alt="Logo" width="175">
+    <h1>Motif Plots and Hit Statistics</h1>
+</div>
+
+
 <body>
-""" 
+""" %(logo_path_html)
+
 
     # HTML tail section.
     html_tail = """
@@ -16251,13 +16813,11 @@ def search_generate_html_motif_plots(args, search_rbps_dic,
     # Markdown part.
     mdtext = """
 
-# %s
-
 List of available motif hit statistics and motif plots generated
 by RBPBench (rbpbench %s):
 
 - [Motif hit statistics](#motif-hit-stats)
-""" %(report_header_info, rbpbench_mode)
+""" %(rbpbench_mode)
 
     if args.run_goa:
         mdtext += "- [Motif hit GO enrichment analysis results](#goa-results)\n"
@@ -16802,7 +17362,6 @@ def compare_generate_html_report(args,
     out_folder = args.out_folder
     plot_abs_paths = args.plot_abs_paths
     sort_js_mode = args.sort_js_mode
-    report_header = args.report_header
 
     # Use absolute paths?
     if plot_abs_paths:
@@ -16820,10 +17379,6 @@ def compare_generate_html_report(args,
     if html_report_out:
         html_out = html_report_out
 
-    report_header_info = "Comparison report"
-    if report_header:
-        report_header_info = "RBPBench comparison report"
-
     """
     Setup sorttable.js to make tables in HTML sortable.
 
@@ -16838,6 +17393,13 @@ def compare_generate_html_report(args,
     elif sort_js_mode == 3:
         js_code = read_file_content_into_str_var(sorttable_js_path)
         sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
+
+    # Logo path.
+    logo_path_html = plots_folder + "/logo.png"
+    if not os.path.exists(logo_path_html):
+        logo_path = benchlib_path + "/content/logo.png"
+        assert os.path.exists(logo_path), "logo.png not found in %s" %(logo_path)
+        shutil.copy(logo_path, plots_out_folder)
 
     # HTML head section.
     html_head = """<!DOCTYPE html>
@@ -16857,11 +17419,24 @@ def compare_generate_html_report(args,
     .page {
         page-break-after: always;
     }
+    .title-container {
+        display: flex;
+        align-items: center;
+    }
+    .title-container img {
+        margin-right: 10px; /* Adjust the spacing as needed */
+    }
 </style>
 
 </head>
+
+<div class="title-container">
+    <img src="%s" alt="Logo" width="175">
+    <h1>Search Report</h1>
+</div>
+
 <body>
-""" 
+""" %(logo_path_html)
 
     # HTML tail section.
     html_tail = """
@@ -16873,12 +17448,10 @@ def compare_generate_html_report(args,
     # Markdown part.
     mdtext = """
 
-# %s
-
 List of available comparison statistics generated
 by RBPBench (rbpbench compare):
 
-""" %(report_header_info)
+"""
 
     # Comparisons based on method ID.
     method_ids_dic = {}
