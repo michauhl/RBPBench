@@ -924,11 +924,6 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3],
                    help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to plots output folder. 3: include .js code in HTML (default: 1)")
-    p_b.add_argument("--report-header",
-                   dest="report_header",
-                   default = False,
-                   action = "store_true",
-                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
     p_b.add_argument("--meme-no-check",
                    dest="meme_disable_check",
                    default = False,
@@ -972,11 +967,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Also output .png plots as .pdf in plotting subfolder (default: False)")
-    p_c.add_argument("--report-header",
-                   dest="report_header",
-                   default = False,
-                   action = "store_true",
-                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
     p_c.add_argument("--sort-js-mode",
                    dest="sort_js_mode",
                    type=int,
@@ -1165,11 +1155,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Also output .png plots as .pdf in plotting subfolder (default: False)")
-    p_ss.add_argument("--report-header",
-                   dest="report_header",
-                   default = False,
-                   action = "store_true",
-                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
     p_ss.add_argument("--sort-js-mode",
                    dest="sort_js_mode",
                    type=int,
@@ -1458,11 +1443,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
-    p_sl.add_argument("--report-header",
-                   dest="report_header",
-                   default = False,
-                   action = "store_true",
-                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
     p_sl.add_argument("--sort-js-mode",
                    dest="sort_js_mode",
                    type=int,
@@ -1862,11 +1842,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Visualize selected sequence motifs, by outputting sequence logos and motif hit statistics into a separate .html file (default: False)")
-    p_scr.add_argument("--report-header",
-                   dest="report_header",
-                   default = False,
-                   action = "store_true",
-                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
     p_scr.add_argument("--plotly-js-mode",
                    dest="plotly_js_mode",
                    type=int,
@@ -2160,11 +2135,6 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help = "Define whether to use median or mean mRNA region lengths for plotting. 1: median. 2: mean (default: 1)")
-    p_smr.add_argument("--report-header",
-                   dest="report_header",
-                   default = False,
-                   action = "store_true",
-                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
     p_smr.add_argument("--sort-js-mode",
                    dest="sort_js_mode",
                    type=int,
@@ -2507,11 +2477,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
-    p_em.add_argument("--report-header",
-                   dest="report_header",
-                   default = False,
-                   action = "store_true",
-                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
     p_em.add_argument("--plotly-js-mode",
                    dest="plotly_js_mode",
                    type=int,
@@ -2865,11 +2830,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
-    p_nm.add_argument("--report-header",
-                   dest="report_header",
-                   default = False,
-                   action = "store_true",
-                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
     p_nm.add_argument("--plotly-js-mode",
                    dest="plotly_js_mode",
                    type=int,
@@ -3133,11 +3093,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Filter out GOA results labeled as purified (i.e., GO terms with significantly lower concentration) in HTML table (default: False)")
-    p_goa.add_argument("--report-header",
-                   dest="report_header",
-                   default = False,
-                   action = "store_true",
-                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
     p_goa.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
@@ -5595,7 +5550,9 @@ def main_search(args):
         benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
                                             output_mode=3,  # only introns.
                                             report_counts=True,
-                                            add_tr_id=True,
+                                            add_tr_id=True,  # new reg_id format: intron;ENST000006666
+                                            add_numbers=True,  # new reg_id format: intron;ENST000006666;1-2
+                                            number_format=1,  # format intron;ENST000006666;1-2
                                             empty_check=False)
 
         # Custom transcript biotypes for upset plot.
@@ -5609,29 +5566,38 @@ def main_search(args):
         print("Output exon annotations to BED ... ")
         benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
                                          custom_annot_dic=custom_annot_dic,
+                                         add_numbers=True,
                                          append=True)
 
         # Overlap with input regions.
         print("Overlap annotations with input regions ... ")
         params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
+        # params = "-s -wo -f %s -F %s -e" %(str(args.gtf_feat_min_overlap), str(args.gtf_feat_min_overlap))
         overlap_annotations_bed = args.out_folder + "/overlap_region_annotations.tmp.bed"
         benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_out_bed, 
                                      overlap_annotations_bed,
                                      params=params)
         
+        # AALAMO
+
         reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
                                                         tid2tio_dic=tid2tio_dic,
+                                                        get_exon_intron_nr=True,
                                                         reg_ids_dic=reg_ids_dic)
 
         # Output assignments.
         print("Output region annotations ... ")
         
         OUTRAN = open(reg_annot_table_file, "w")
-        OUTRAN.write("region_id\tgene_id\tgene_name\ttranscript_id\tregion_annotation\ttranscript_biotype\tborder_dist\tus_ds_label\n")
+        OUTRAN.write("region_id\tgene_id\tgene_name\ttranscript_id\tregion_annotation\ttranscript_biotype\tborder_dist\tus_ds_label\tannot_reg_len\texon_intron_nr\n")
 
         tids_with_sites_dic = {}  # transcript IDs with sites.
 
-        # So far reg2annot_dic format: reg_id -> [annot_id, tr_id, border_dist, us_ds_label]
+        # So far reg2annot_dic format: reg_id -> [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr]
+        # If not intron, intron_nr=0, border_dist=-1, us_ds_label="-".
+        # If intron, annot_reg_len == intron length.
+        # exon_intron_nr format: 1-5, 2-6 ...
+        # c_introns = 0
         for reg_id in reg2annot_dic:
             annot = reg2annot_dic[reg_id][0]
             tr_id = reg2annot_dic[reg_id][1]
@@ -5647,19 +5613,24 @@ def main_search(args):
                 tr_biotype = tid2tio_dic[tr_id].tr_biotype
                 gene_name = gene_info.gene_name
                 gid2tid_dic[gene_id] = tr_id
-                reg2annot_dic[reg_id][4] = gene_id
-                reg2annot_dic[reg_id][5] = gene_name
-                reg2annot_dic[reg_id][6] = tr_biotype
+                reg2annot_dic[reg_id][6] = gene_id
+                reg2annot_dic[reg_id][7] = gene_name
+                reg2annot_dic[reg_id][8] = tr_biotype
                 if gene_id not in target_genes_dic:
                     target_genes_dic[gene_id] = 1
                 else:
                     target_genes_dic[gene_id] += 1
             else:
                 tr_id = "-"
-            border_dist = reg2annot_dic[reg_id][2]  # -1 unless intron annotation.
+            border_dist = str(reg2annot_dic[reg_id][2])  # -1 unless intron annotation.
             us_ds_label = reg2annot_dic[reg_id][3]  # "-" unless intron annotation.
+            annot_reg_len = str(reg2annot_dic[reg_id][4])
+            exon_intron_nr = reg2annot_dic[reg_id][5]
 
-            OUTRAN.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot, tr_biotype, border_dist, us_ds_label))
+            # if annot == "intron":
+            #    c_introns += 1
+
+            OUTRAN.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot, tr_biotype, border_dist, us_ds_label, annot_reg_len, exon_intron_nr))
 
             if tr_id not in tids_with_sites_dic:
                 tids_with_sites_dic[tr_id] = 1
@@ -5667,7 +5638,8 @@ def main_search(args):
                 tids_with_sites_dic[tr_id] += 1
             
         OUTRAN.close()
-
+        
+        # print("# intronic regions in reg2annot_dic:", c_introns)
 
         """
         Get exon+intron+eib overlap counts.
@@ -5802,6 +5774,7 @@ def main_search(args):
                                             report_counts=False,
                                             add_tr_id=True,
                                             add_numbers=True,
+                                            number_format=2, # format exon;ENST001;1
                                             empty_check=False)
 
         mrna_exon_sites_overlap_bed = args.out_folder + "/mrna_exon_regions.filtered_sites.overlap.tmp.bed"
@@ -5824,7 +5797,7 @@ def main_search(args):
                 # print(tid, "exon_c:", exon_c)
                 tr2pcl_dic[tid] = []
                 for exon_i in range(1, exon_c+1):
-                    exon_id = "exon;%i;%s" %(exon_i, tid)
+                    exon_id = "exon;%s;%i" %(tid, exon_i)
                     tr2pcl_dic[tid] += exon2pcl_dic[exon_id]
                 
                 tr_len = tid2tio_dic[tid].tr_length  # spliced transcript length.
@@ -6206,6 +6179,11 @@ def main_search(args):
 
     plots_subfolder = "html_report_plots"
     benchlib_path = os.path.dirname(benchlib.__file__)
+
+    for reg_id in reg2annot_dic:
+        if len(reg2annot_dic[reg_id]) != 9:
+            print("!=9 for:", reg_id, reg2annot_dic[reg_id])
+
 
     print("Create report ... ")
     # AALAMO
@@ -6817,7 +6795,7 @@ def main_batch(args):
 
         # Extract exon + intron regions of selected transcripts from transcript infos.
         print("Output intron annotations to BED ... ")
-        benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
+        benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,  # AALAMO
                                             output_mode=3,  # only introns.
                                             report_counts=True,
                                             add_tr_id=True,
@@ -7953,11 +7931,15 @@ def main_batch(args):
             # Get single nucleotide percentages.
             seqs_ntp_dic = benchlib.ntc_dic_to_ratio_dic(seqs_ntc_dic, perc=True)
             
-            seq_feat_l = [round(mean_complexity, 5)]
+            # Get bi-nt percentages (AC, AG, AT, CG, CT, GT).
+            seqs_bint_perc_dic = benchlib.get_bint_perc_from_ntc_dic(seqs_ntc_dic)
+
+            seq_feat_l = [dataset_id, round(mean_complexity, 5)]
             for nt in sorted(seqs_ntp_dic):
                 seq_feat_l.append(round(seqs_ntp_dic[nt], 2))
+            for bint in sorted(seqs_bint_perc_dic):
+                seq_feat_l.append(round(seqs_bint_perc_dic[bint], 2))
             seq_feat_ll.append(seq_feat_l)
-
 
     OUTRBPSTATS.close()
     OUTMTFSTATS.close()
@@ -20853,13 +20835,8 @@ def main_goa(args):
 
     print("Generate GOA results table HTML ... ")
     
-    benchlib.goa_generate_html_report(goa_results_df, goa_stats_dic,
-                                      args.out_folder, benchlib_path,
-                                      goa_min_depth=args.goa_min_depth,
-                                      goa_max_child=args.goa_max_child,
-                                      goa_filter_purified=args.goa_filter_purified,
-                                      report_header=args.report_header,
-                                      sort_js_mode=args.sort_js_mode,
+    benchlib.goa_generate_html_report(args, goa_results_df, 
+                                      goa_stats_dic, benchlib_path,
                                       html_report_out=html_goa_results_out)
 
     """

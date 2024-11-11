@@ -2952,7 +2952,7 @@ def get_exon_pos_count_list_dic(tid2tio_dic,
         for idx, exon in enumerate(exon_coords):
 
             exon_len = exon[1] - exon[0] + 1
-            exon_id = "exon;%i;%s" %(idx+1, tr_id)
+            exon_id = "exon;%s;%i" %(tr_id, idx+1)
             exon2pcl_dic[exon_id] = [0] * exon_len
 
     return exon2pcl_dic
@@ -3379,6 +3379,7 @@ def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
                                               report_counts=True,
                                               add_tr_id=True,
                                               add_numbers=False,
+                                              number_format=1,
                                               empty_check=False):
     """
     Output exon and/or intron regions to BED given a dictionary of TranscriptInfo 
@@ -3392,10 +3393,14 @@ def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
         If True, add transcript ID after exon intron label (BED column 4), 
         format: intron;tr_id
     add_numbers:
-        If True, add exon + intron numbers.
-        
+        If True, add exon + intron numbers, with format: current_number-total_number
+    number_format:
+        1: exon;ENST1;1-3
+        2: exon;ENST1;1
+    
     """
     assert tid2tio_dic, "given tid2tio_dic empty"
+    assert number_format in [1,2], "invalid number_format given"
 
     OUTBED = open(out_bed, "w")
 
@@ -3410,11 +3415,13 @@ def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
 
         chr_id = tid2tio_dic[tr_id].chr_id
         tr_pol = tid2tio_dic[tr_id].tr_pol
+        exon_c = tid2tio_dic[tr_id].exon_c
         exon_coords = tid2tio_dic[tr_id].exon_coords
         assert exon_coords is not None, "exon coordinates list not set for transcript ID %s" %(tr_id)
     
         # Get intron coordinates.
         intron_coords = []
+        intron_c = 0
         if tr_pol == "+":
             for i in range(len(exon_coords) - 1):
                 intron_coords.append([exon_coords[i][1]+1, exon_coords[i+1][0]-1])
@@ -3424,43 +3431,59 @@ def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
         else:
             assert False, "invalid strand given (%s) for transcript ID %s" %(tr_pol, tr_id)
 
+        if intron_coords:
+            intron_c = len(intron_coords)
+        assert exon_c == intron_c + 1, "exon count (%i) does not match intron count (%i) + 1 for transcript ID %s" %(exon_c, intron_c, tr_id)
+
         if output_mode == 1:
             for idx, exon in enumerate(exon_coords):
                 c_exon_out += 1
                 exon_id = "exon"
-                if add_numbers:
-                    exon_id += ";%i" %(idx+1)
                 if add_tr_id:
                     exon_id += ";" + tr_id
+                if add_numbers:
+                    if number_format == 1:
+                        exon_id += ";%i-%i" %(idx+1, exon_c)
+                    elif number_format == 2:
+                        exon_id += ";%i" %(idx+1)
                 OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], exon_id, tr_pol))
 
             for idx, intron in enumerate(intron_coords):
                 c_intron_out += 1
                 intron_id = "intron"
-                if add_numbers:
-                    intron_id += ";%i" %(idx+1)
                 if add_tr_id:
                     intron_id += ";" + tr_id
+                if add_numbers:
+                    if number_format == 1:
+                        intron_id += ";%i-%i" %(idx+1, intron_c)
+                    elif number_format == 2:
+                        intron_id += ";%i" %(idx+1)
                 OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], intron_id, tr_pol))
 
         elif output_mode == 2:
             for idx, exon in enumerate(exon_coords):
                 c_exon_out += 1
                 exon_id = "exon"
-                if add_numbers:
-                    exon_id += ";%i" %(idx+1)
                 if add_tr_id:
                     exon_id += ";" + tr_id
+                if add_numbers:
+                    if number_format == 1:
+                        exon_id += ";%i-%i" %(idx+1, exon_c)
+                    elif number_format == 2:
+                        exon_id += ";%i" %(idx+1)
                 OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], exon_id, tr_pol))
 
         elif output_mode == 3:
             for idx, intron in enumerate(intron_coords):
                 c_intron_out += 1
                 intron_id = "intron"
-                if add_numbers:
-                    intron_id += ";%i" %(idx+1)
                 if add_tr_id:
                     intron_id += ";" + tr_id
+                if add_numbers:
+                    if number_format == 1:
+                        intron_id += ";%i-%i" %(idx+1, intron_c)
+                    elif number_format == 2:
+                        intron_id += ";%i" %(idx+1)
                 OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], intron_id, tr_pol))
 
     OUTBED.close()
@@ -3477,9 +3500,9 @@ def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
 def get_mrna_tids_and_sites(in_bed):
     """
     Given BED file with format:
-    chr1	1080	1085	exon;1;ENST01	0	-	chr1	1070	1085	s1	0	-
-    chr2	1010	1020	exon;1;ENST02	0	+	chr2	1010	1030	s2	0	+
-    chr2	1015	1020	exon;1;ENST02	0	+	chr2	1015	1030	s3	0	+
+    chr1	1080	1085	exon;ENST01;1	0	-	chr1	1070	1085	s1	0	-
+    chr2	1010	1020	exon;ENST02;1	0	+	chr2	1010	1030	s2	0	+
+    chr2	1015	1020	exon;ENST02;2	0	+	chr2	1015	1030	s3	0	+
 
     Extract transcript IDs (ENST01,..) and count site IDs (s1,...).
     
@@ -3496,7 +3519,7 @@ def get_mrna_tids_and_sites(in_bed):
                 continue
             cols = line.split("\t")
             exon_id = cols[3]
-            tr_id = exon_id.split(";")[2]
+            tr_id = exon_id.split(";")[1]
             site_id = cols[9]
             ol_mrna_tids_dic[tr_id] = 1
             seen_site_ids_dic[site_id] = 1
@@ -3513,9 +3536,9 @@ def fill_exon_pos_count_lists(exon_cov_bed, tid2tio_dic, exon2pcl_dic):
     Fill position count lists for exons in exon2pcl_dic.
 
     exon_cov_bed has following format:
-    chr1	1080	1085	exon;1;ENST01	0	-
-    chr2	1010	1020	exon;1;ENST02	0	+
-    chr2	1010	1020	exon;1;ENST02	0	+
+    chr1	1080	1085	exon;ENST01;1	0	-
+    chr2	1010	1020	exon;ENST02;1	0	+
+    chr2	1010	1020	exon;ENST02;1	0	+
 
     tid2tio_dic["ENST01"].exon_coords format (e1, e2, e3 order):
     ENST01 exon_coords: [[1081, 1100], [1041, 1050], [1001, 1010]]
@@ -3535,16 +3558,16 @@ def fill_exon_pos_count_lists(exon_cov_bed, tid2tio_dic, exon2pcl_dic):
     >>> exon_cov_bed = "test_data/test.exon_cov.bed"
     >>> tid2tio_dic = {}
     >>> tid2tio_dic["ENST02"] = TranscriptInfoExonTest("ENST02", "chr2", "+", [[1001, 1010], [1051, 1055]])
-    >>> exon2pcl_dic = {'exon;1;ENST02': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'exon;2;ENST02': [0, 0, 0, 0, 0], 'exon;1;666': [0]}
+    >>> exon2pcl_dic = {'exon;ENST02;1': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'exon;ENST02;2': [0, 0, 0, 0, 0], 'exon;666;1': [0]}
     >>> fill_exon_pos_count_lists(exon_cov_bed, tid2tio_dic, exon2pcl_dic)
     >>> exon2pcl_dic
-    {'exon;1;ENST02': [0, 0, 0, 0, 0, 1, 1, 2, 2, 2], 'exon;2;ENST02': [1, 1, 1, 0, 0], 'exon;1;666': [0]}
+    {'exon;ENST02;1': [0, 0, 0, 0, 0, 1, 1, 2, 2, 2], 'exon;ENST02;2': [1, 1, 1, 0, 0], 'exon;666;1': [0]}
     >>> tid2tio_dic = {}
     >>> tid2tio_dic["ENST01"] = TranscriptInfoExonTest("ENST01", "chr1", "-", [[1096, 1100], [1051, 1060]])
-    >>> exon2pcl_dic = {'exon;1;ENST01': [0, 0, 0, 0, 0], 'exon;2;ENST01': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}
+    >>> exon2pcl_dic = {'exon;ENST01;1': [0, 0, 0, 0, 0], 'exon;ENST01;2': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}
     >>> fill_exon_pos_count_lists(exon_cov_bed, tid2tio_dic, exon2pcl_dic)
     >>> exon2pcl_dic
-    {'exon;1;ENST01': [0, 0, 0, 0, 0], 'exon;2;ENST01': [0, 0, 0, 0, 0, 1, 2, 3, 4, 5]}
+    {'exon;ENST01;1': [0, 0, 0, 0, 0], 'exon;ENST01;2': [0, 0, 0, 0, 0, 1, 2, 3, 4, 5]}
 
     """
 
@@ -3564,12 +3587,12 @@ def fill_exon_pos_count_lists(exon_cov_bed, tid2tio_dic, exon2pcl_dic):
             ex_id = cols[3]
             ex_strand = cols[5]
 
-            tr_id = ex_id.split(";")[2]
+            tr_id = ex_id.split(";")[1]
             
             if tr_id not in tid2tio_dic:
                 continue
 
-            ex_nr = int(ex_id.split(";")[1])
+            ex_nr = int(ex_id.split(";")[2])
             ex_s = tid2tio_dic[tr_id].exon_coords[ex_nr-1][0]
             ex_e = tid2tio_dic[tr_id].exon_coords[ex_nr-1][1]
 
@@ -4214,6 +4237,7 @@ def bed_filter_by_seqs_dic(seqs_dic, in_bed, out_bed,
 
 def output_exon_annotations(tid2tio_dic, out_bed,
                             custom_annot_dic=None,
+                            add_numbers=False,
                             append=False):
     """
     Output detailed exon annotations to BED file (out_bed.
@@ -4275,24 +4299,45 @@ def output_exon_annotations(tid2tio_dic, out_bed,
 
     OUTEXAN = open(out_bed, write_op)
 
-    for tid in tid2tio_dic:
-        tio = tid2tio_dic[tid]
+    # AALAMO
+
+    for tr_id in tid2tio_dic:
+        tio = tid2tio_dic[tr_id]
+        exon_c = tio.exon_c
+        cds_label = "CDS;%s" %(tr_id)
+        utr5_label = "5'UTR;%s" %(tr_id)
+        utr3_label = "3'UTR;%s" %(tr_id)
 
         if tio.cds_s is not None:
-            for exon in tio.exon_coords:
+            for idx, exon in enumerate(tio.exon_coords):
+
+                exon_nr_label = ""
+                if add_numbers:
+                    exon_nr = idx + 1
+                    exon_nr_label =  ";%i-%i" %(exon_nr, exon_c)
+
                 cds_se, utr5_se, utr3_se, cds, utr5, utr3 = get_cds_exon_overlap(tio.cds_s, tio.cds_e, exon[0], exon[1], strand=tio.tr_pol)
                 if cds:
-                    OUTEXAN.write("%s\t%i\t%i\tCDS;%s\t0\t%s\n" %(tio.chr_id, cds_se[0]-1, cds_se[1], tio.tr_id, tio.tr_pol))
+                    OUTEXAN.write("%s\t%i\t%i\t%s%s\t0\t%s\n" %(tio.chr_id, cds_se[0]-1, cds_se[1], cds_label, exon_nr_label, tio.tr_pol))
                 if utr5:
-                    OUTEXAN.write("%s\t%i\t%i\t5'UTR;%s\t0\t%s\n" %(tio.chr_id, utr5_se[0]-1, utr5_se[1], tio.tr_id, tio.tr_pol))
+                    OUTEXAN.write("%s\t%i\t%i\t%s%s\t0\t%s\n" %(tio.chr_id, utr5_se[0]-1, utr5_se[1], utr5_label, exon_nr_label, tio.tr_pol))
                 if utr3:
-                    OUTEXAN.write("%s\t%i\t%i\t3'UTR;%s\t0\t%s\n" %(tio.chr_id, utr3_se[0]-1, utr3_se[1], tio.tr_id, tio.tr_pol))
+                    OUTEXAN.write("%s\t%i\t%i\t%s%s\t0\t%s\n" %(tio.chr_id, utr3_se[0]-1, utr3_se[1], utr3_label, exon_nr_label, tio.tr_pol))
         else:
+
             label = other_annot
             if tio.tr_biotype in valid_annot_dic:
                 label = valid_annot_dic[tio.tr_biotype]
-            for exon in tio.exon_coords:
-                OUTEXAN.write("%s\t%i\t%i\t%s;%s\t0\t%s\n" %(tio.chr_id, exon[0]-1, exon[1], label, tio.tr_id, tio.tr_pol))
+            label += ";%s" %(tr_id)
+
+            for idx, exon in enumerate(tio.exon_coords):
+
+                exon_nr_label = ""
+                if add_numbers:
+                    exon_nr = idx + 1
+                    exon_nr_label =  ";%i-%i" %(exon_nr, exon_c)
+
+                OUTEXAN.write("%s\t%i\t%i\t%s%s\t0\t%s\n" %(tio.chr_id, exon[0]-1, exon[1], label, exon_nr_label, tio.tr_pol))
 
     OUTEXAN.close()
 
@@ -4913,6 +4958,7 @@ def get_dist_to_next_border(site_s, site_e, reg_s, reg_e, reg_strand,
 def get_region_annotations(overlap_annotations_bed,
                            motif_hits=False,
                            tid2tio_dic=None,
+                           get_exon_intron_nr=False,
                            reg_ids_dic=None):
     """
     Get region annotations from overlapping genomic regions with exon / intron 
@@ -4970,9 +5016,10 @@ def get_region_annotations(overlap_annotations_bed,
 
             annot_reg_s = int(cols[annot_col-2])
             annot_reg_e = int(cols[annot_col-1])
+            annot_reg_len = annot_reg_e - annot_reg_s
 
             annot_ids = cols[annot_col].split(";")
-            assert len(annot_ids) == 2, "len(annot_ids) != 2 (expected ; separated string, but got: \"%s\")" %(cols[9])
+            assert len(annot_ids) == 3, "len(annot_ids) != 3 (expected ; separated string, but got: \"%s\")" %(cols[9])
             annot_id = annot_ids[0]
             tr_id = annot_ids[1]
             c_overlap_nts = cols[c_ol_nt_col]
@@ -4980,15 +5027,19 @@ def get_region_annotations(overlap_annotations_bed,
             # Get distanced to intron borders (only for intron annotations).
             border_dist = -1
             us_ds_label = "-"
+            exon_intron_nr = "-"
 
             # Get distance to closest annotation region border + if it is upstream (us) or downstream (ds).
             if annot_id == "intron":
                 border_dist, us_ds_label = get_dist_to_next_border(reg_s, reg_e, annot_reg_s, annot_reg_e, reg_strand,
                                                                    skip_sites_not_within=True)  # Return False if site not within.
+            # Get intron number.
+            if get_exon_intron_nr:
+                exon_intron_nr = annot_ids[2]
 
             if reg_id not in reg2maxol_dic:
                 reg2maxol_dic[reg_id] = c_overlap_nts
-                reg2annot_dic[reg_id] = [annot_id, tr_id, border_dist, us_ds_label]
+                reg2annot_dic[reg_id] = [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr]
             else:
                 if c_overlap_nts > reg2maxol_dic[reg_id]:
                     reg2maxol_dic[reg_id] = c_overlap_nts
@@ -4996,6 +5047,8 @@ def get_region_annotations(overlap_annotations_bed,
                     reg2annot_dic[reg_id][1] = tr_id
                     reg2annot_dic[reg_id][2] = border_dist
                     reg2annot_dic[reg_id][3] = us_ds_label
+                    reg2annot_dic[reg_id][4] = annot_reg_len
+                    reg2annot_dic[reg_id][5] = exon_intron_nr
                 elif c_overlap_nts == reg2maxol_dic[reg_id]:  # if region overlaps with > 1 feature by same amount.
                     if tid2tio_dic is not None:
                         best_tid = reg2annot_dic[reg_id][1]
@@ -5007,13 +5060,15 @@ def get_region_annotations(overlap_annotations_bed,
                             reg2annot_dic[reg_id][1] = new_best_tid
                             reg2annot_dic[reg_id][2] = border_dist
                             reg2annot_dic[reg_id][3] = us_ds_label
+                            reg2annot_dic[reg_id][4] = annot_reg_len
+                            reg2annot_dic[reg_id][5] = exon_intron_nr
 
     f.closed
 
     if reg_ids_dic is not None:
         for reg_id in reg_ids_dic:
             if reg_id not in reg2annot_dic:
-                reg2annot_dic[reg_id] = ["intergenic", False, -1, "-"]
+                reg2annot_dic[reg_id] = ["intergenic", False, -1, "-", -1, "-"]
 
     return reg2annot_dic
 
@@ -8742,7 +8797,7 @@ def create_eib_comp_plot_plotly(id2eib_stats_dic, id2eib_perc_dic, plot_out,
 
     Use PCA to reduce dimensions.
     
-    id2eib_stats_dic format:
+    id2eib_stats_dic format:id2hk_gene_stats_dic
     id2eib_stats_dic[internal_id] = 
     [combined_id, ei_ol_stats.c_input_sites, exon_sites_ratio, intron_sites_ratio, us_ib_sites_ratio, ds_ib_sites_ratio, eib_sites_ratio]
 
@@ -8970,9 +9025,10 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
         df['Dataset ID'] = dataset_ids_list
         df['# occupied genes'] = c_one_labels_list
         df['% occupied genes'] = perc_one_labels_list
-        df['# all transcripts'] = c_all_tr_list
-        df['# hk transcripts'] = c_hk_tr_list
-        df['% HK genes'] = perc_hk_tr_list
+        if id2hk_gene_stats_dic:
+            df['# all transcripts'] = c_all_tr_list
+            df['# hk transcripts'] = c_hk_tr_list
+            df['% HK genes'] = perc_hk_tr_list
 
         explained_variance = pca.explained_variance_ratio_ * 100
 
@@ -9065,12 +9121,12 @@ def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll,
     color = '# input regions'
     
     if seq_feat_ll:
-        df['Mean complexity'] = [seq_feat_l[0] for seq_feat_l in seq_feat_ll]
+        df['Mean complexity'] = [seq_feat_l[1] for seq_feat_l in seq_feat_ll]
 
         mono_nts_str_list = []
         for seq_feat_l in seq_feat_ll:
             # mono_nts_str = "A: %s%%<br>C: %s%%<br>G: %s%%<br>T: %s%%" %(seq_feat_l[1], seq_feat_l[2], seq_feat_l[3], seq_feat_l[4])
-            mono_nts_str = "A: %s%%, C: %s%%, G: %s%%, T: %s%%" %(seq_feat_l[1], seq_feat_l[2], seq_feat_l[3], seq_feat_l[4])
+            mono_nts_str = "A: %s%%, C: %s%%, G: %s%%, T: %s%%" %(seq_feat_l[2], seq_feat_l[3], seq_feat_l[4], seq_feat_l[5])
             mono_nts_str_list.append(mono_nts_str)
 
         df['Mono-nucleotide percentages'] = mono_nts_str_list
@@ -9833,6 +9889,9 @@ by RBPBench (rbpbench batch --report):
         mdtext += "- [Regular expression motif enrichment statistics](#regex-enrich-stats)\n"
         mdtext += "- [Regular expression RBP motif co-occurrence statistics](#regex-rbp-cooc-stats)\n"
 
+    if seq_feat_ll:
+        mdtext += "- [Input datasets nucleotide percentages statistics](#nt-perc-stats)\n"
+
     mdtext += "- [Input datasets k-mer frequencies comparative plot](#kmer-comp-plot)\n"
 
     if id2reg_annot_dic:  # if --gtf provided.
@@ -10380,6 +10439,120 @@ D: NOT regex AND NOT RBP.
 &nbsp;
 
 """ %(dataset_id_format, perc_sign, args.max_motif_dist)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    """
+    Input datasets nucleotide percentages table.
+
+    AALAMO
+    
+    """
+
+    if seq_feat_ll:
+
+        mdtext += """
+## Input datasets nucleotide percentages statistics ### {#nt-perc-stats}
+
+**Table:** Input datasets nucleotide percentages statistics for all input datasets.
+Percentages of mono- and di-nucleotide contents (AC, AG, AT, CG, CT, GT) are given, as well as mean sequence complexity (Shannon entropy).
+
+"""
+
+        # mdtext += '| Dataset ID  | contingency table | avg min distance | perc close hits |  p-value |' + " \n"
+        # mdtext += '| :-: | :-: | :-: | :-: | :-: |' + " \n"
+
+        mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>Dataset ID</th>\n"
+        mdtext += "<th>% A</th>\n"
+        mdtext += "<th>% C</th>\n"
+        mdtext += "<th>% G</th>\n"
+        mdtext += "<th>% T</th>\n"
+        mdtext += "<th>% AC</th>\n"
+        mdtext += "<th>% AG</th>\n"
+        mdtext += "<th>% AT</th>\n"
+        mdtext += "<th>% CG</th>\n"
+        mdtext += "<th>% CT</th>\n"
+        mdtext += "<th>% GT</th>\n"
+        mdtext += "<th>Mean complexity</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
+
+        for seq_feat_l in seq_feat_ll:
+            dataset_id = seq_feat_l[0]
+            seq_comp = str(seq_feat_l[1])
+            perc_a = str(seq_feat_l[2])
+            perc_c = str(seq_feat_l[3])
+            perc_g = str(seq_feat_l[4])
+            perc_t = str(seq_feat_l[5])
+            perc_ac = str(seq_feat_l[6])
+            perc_ag = str(seq_feat_l[7])
+            perc_at = str(seq_feat_l[8])
+            perc_cg = str(seq_feat_l[9])
+            perc_ct = str(seq_feat_l[10])
+            perc_gt = str(seq_feat_l[11])
+
+            mdtext += "<tr>\n"
+            mdtext += "<td>%s</td>\n" %(dataset_id)
+            mdtext += "<td>%s</td>\n" %(perc_a)
+            mdtext += "<td>%s</td>\n" %(perc_c)
+            mdtext += "<td>%s</td>\n" %(perc_g)
+            mdtext += "<td>%s</td>\n" %(perc_t)
+            mdtext += "<td>%s</td>\n" %(perc_ac)
+            mdtext += "<td>%s</td>\n" %(perc_ag)
+            mdtext += "<td>%s</td>\n" %(perc_at)
+            mdtext += "<td>%s</td>\n" %(perc_cg)
+            mdtext += "<td>%s</td>\n" %(perc_ct)
+            mdtext += "<td>%s</td>\n" %(perc_gt)
+            mdtext += "<td>%s</td>\n" %(seq_comp)
+            mdtext += "</tr>\n"
+
+        mdtext += "</tbody>\n"
+        mdtext += "</table>\n"
+        
+        mdtext += "\n&nbsp;\n&nbsp;\n"
+
+        perc_sign = "%"
+
+        mdtext += """
+
+Column IDs have the following meanings: 
+**Dataset ID** -> Dataset ID with following format: %s,
+**%% A** -> percentage of A nucleotides in input regions,
+**%% C** -> percentage of C nucleotides in input regions,
+**%% G** -> percentage of G nucleotides in input regions,
+**%% T** -> percentage of T nucleotides in input regions,
+**%% AC** -> AC content percentage in input regions,
+**%% AG** -> AG content percentage in input regions,
+**%% AT** -> AT content percentage in input regions,
+**%% CG** -> CG content percentage in input regions,
+**%% CT** -> CT content percentage in input regions,
+**%% GT** -> GT content percentage in input regions,
+**Mean complexity** -> Mean sequence complexity (Shannon entropy) of input regions. 
+Equal A,C,G,T contents result in a complexity value of 1.0, while e.g. 
+an A content of 100.0%% results in a complexity value of 0.0.
+
+&nbsp;
+
+""" %(dataset_id_format)
 
 
 
@@ -13640,6 +13813,9 @@ by RBPBench (rbpbench %s):
     if ei_ol_stats_dic:
         mdtext += "- [Exon-intron overlap statistics](#ei-ol-stats)\n"
 
+    if reg2annot_dic:
+        mdtext += "- [Intronic regions intron border distances](#intron-border-dist)\n"
+
     # Upset plot.
     # mdtext += "\n"
     if args.enable_upset_plot:
@@ -14068,6 +14244,19 @@ In case of a uniform distribution with all %i-mers present, each %i-mer would ha
 
 """ %(plot_k, plot_k, plot_k, exp_kmer_perc)
 
+
+    # Region ID to motifs string for plotting.
+    reg2motifs_dic = {}  # If false motif info not added to hover box.
+
+    # Snatch motif hit info from seq_len_df.
+    if not args.seqs_kmer_plot_no_motifs:
+        try:
+            assert not seq_len_df.empty, "seq_len_df dataframe is defined but empty"
+        except NameError:
+            raise NameError("seq_len_df dataframe is not defined")
+
+        reg2motifs_dic = seq_len_df.set_index('Sequence ID')['Motif hits'].to_dict()
+
     # AALAMO
     if not args.disable_seqs_kmer_plot:
 
@@ -14098,17 +14287,6 @@ In case of a uniform distribution with all %i-mers present, each %i-mer would ha
                                                     add_1nt_ratios=False,
                                                     reg2ntps_dic=reg2ntps_dic,
                                                     convert_to_uc=True)
-
-        reg2motifs_dic = {}  # If false motif info not added to hover box.
-
-        # Snatch motif hit info from seq_len_df.
-        if not args.seqs_kmer_plot_no_motifs:
-            try:
-                assert not seq_len_df.empty, "seq_len_df dataframe is defined but empty"
-            except NameError:
-                raise NameError("seq_len_df dataframe is not defined")
-
-            reg2motifs_dic = seq_len_df.set_index('Sequence ID')['Motif hits'].to_dict()
 
         # Normalize sequence complexity value (min max normalization).
         if min_max_norm_seq_comp:
@@ -14388,12 +14566,151 @@ Categories:
 **NOTE** that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered. 
 Also note that the overlap is calculated between (optionally extended) input regions and transcript regions 
 (one representative transcript, i.e., transcript with highest experimental support, chosen for each gene region, unless --tr-list provided). 
-Thus, depending on set parameters (minimum overlap amount etc.), occasional overlap of annotated gene regions, 
+Thus, depending on set parameters (minimum overlap amount etc.), occasional overlap > 1 annotated gene region, 
 and characteristics of input dataset, exon/intron overlap can vary, doesn't have to add up to 100, and can also be relatively low.
 
 &nbsp;
 
 """ %(ei_ol_stats.c_input_sites, ei_ol_stats.c_exon_sites, ei_ol_stats.c_intron_sites, str(perc_min_overlap), intron_bl, intron_bl, ei_ol_stats.c_us_ib_sites, intron_bl, intron_bl, ei_ol_stats.c_ds_ib_sites, ei_ol_stats.c_eib_sites, 2*intron_bl, intron_bl)
+
+
+
+
+
+    """
+    Intronic regions intron border distance plots.
+
+    AALAMO
+
+    """
+
+    if reg2annot_dic:
+
+        assert reg2seq_dic, "reg2seq_dic for intronic regions intron border distance plots"
+
+        mdtext += """
+## Intronic regions intron border distances ### {#intron-border-dist}
+
+"""
+        # reg2annot_dic format: reg_id -> [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr, gene_id, gene_name, tr_biotype]
+        intron_regions = False
+        for reg_id in reg2annot_dic:
+            annot_id = reg2annot_dic[reg_id][0]
+            if annot_id == "intron":
+                intron_regions = True
+                break
+                
+        c_us_regions = 0
+        c_ds_regions = 0  
+        for reg_id in reg2annot_dic:
+            annot_id = reg2annot_dic[reg_id][0]
+            if annot_id == "intron":
+                us_ds_label = reg2annot_dic[reg_id][3]
+                if us_ds_label == "up":
+                    c_us_regions += 1
+                elif us_ds_label == "down":
+                    c_ds_regions += 1
+
+        c_all_regions = c_us_regions + c_ds_regions
+        perc_us_regions = 0.0
+        perc_ds_regions = 0.0
+        if c_all_regions:
+            perc_us_regions = round(c_us_regions / c_all_regions * 100, 1)
+            perc_ds_regions = round(c_ds_regions / c_all_regions * 100, 1)
+
+        if intron_regions:
+
+            us_intron_border_dist_plot_plotly =  "us_intron_border_dist_plot.plotly.html"
+            us_intron_border_dist_plot_plotly_out = plots_out_folder + "/" + us_intron_border_dist_plot_plotly
+            ds_intron_border_dist_plot_plotly =  "ds_intron_border_dist_plot.plotly.html"
+            ds_intron_border_dist_plot_plotly_out = plots_out_folder + "/" + ds_intron_border_dist_plot_plotly
+
+            create_intron_border_dist_plot_plotly(reg2annot_dic, reg2seq_dic,
+                                                  us_intron_border_dist_plot_plotly_out,
+                                                  ds_intron_border_dist_plot_plotly_out,
+                                                  reg2motifs_dic=reg2motifs_dic,
+                                                  include_plotlyjs=include_plotlyjs,
+                                                  full_html=plotly_full_html)
+
+
+            us_plot_path = plots_folder + "/" + us_intron_border_dist_plot_plotly
+            ds_plot_path = plots_folder + "/" + ds_intron_border_dist_plot_plotly
+
+            # Upstream plot.
+            if args.plotly_js_mode in [5, 6, 7]:
+                js_code = read_file_content_into_str_var(us_intron_border_dist_plot_plotly_out)
+                js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1000px;")
+                mdtext += js_code + "\n"
+            else:
+                if plotly_embed_style == 1:
+                    mdtext += "<div>\n"
+                    mdtext += '<iframe src="' + us_plot_path + '" width="1200" height="800"></iframe>' + "\n"
+                    mdtext += '</div>'
+                elif plotly_embed_style == 2:
+                    mdtext += '<iframe src="' + us_plot_path + '" width="1200" height="800"></iframe>' + "\n"
+
+
+            mdtext += """
+
+**Figure:** Distances of intronic input regions to their next intron border. Only input regions closer to the upstream 
+border are shown (# regions = %i, percentage =  %s%%). The input region center position is taken to calculate the distance.
+NOTE that intronic region counts here can slightly differ from statistics above. E.g., only regions with their center positions 
+inside introns are considered. Also, compared to exon-intron overlap statistics above, regions can only have one annotation
+(with most experimental evidence), whereas above they can have multiple (due to occasionally overlapping gene regions).
+
+
+&nbsp;
+
+""" %(c_us_regions, str(perc_us_regions))
+
+            # Downstream plot.
+            if args.plotly_js_mode in [5, 6, 7]:
+                js_code = read_file_content_into_str_var(ds_intron_border_dist_plot_plotly_out)
+                js_code = js_code.replace("height:100%; width:100%;", "height:800px; width:1200px;")
+                mdtext += js_code + "\n"
+            else:
+                if plotly_embed_style == 1:
+                    mdtext += "<div>\n"
+                    mdtext += '<iframe src="' + ds_plot_path + '" width="1200" height="800"></iframe>' + "\n"
+                    mdtext += '</div>'
+                elif plotly_embed_style == 2:
+                    mdtext += '<iframe src="' + ds_plot_path + '" width="1200" height="800"></iframe>' + "\n"
+
+            mdtext += """
+
+**Figure:** Distances of intronic input regions to their next intron border. Only input regions closer to the downstream 
+border are shown (# regions = %i, percentage =  %s%%). The input region center position is taken to calculate the distance.
+NOTE that intronic region counts here can slightly differ from statistics above. E.g., only regions with their center positions 
+inside introns are considered. Also, compared to exon-intron overlap statistics above, regions can only have one annotation
+(with most experimental evidence), whereas above they can have multiple (due to occasionally overlapping gene regions).
+
+&nbsp;
+
+""" %(c_ds_regions, str(perc_ds_regions))
+
+
+        else:
+            mdtext += """
+
+No intronic regions intron border distance plot generated since there are no input regions overlapping with introns.
+
+&nbsp;
+
+"""
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15699,6 +16016,175 @@ def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg
 
 ################################################################################
 
+def create_intron_border_dist_plot_plotly(reg2annot_dic, reg2seq_dic,
+                                          us_intron_border_dist_plot_out,
+                                          ds_intron_border_dist_plot_out,
+                                          reg2motifs_dic=False,
+                                          include_plotlyjs="cdn",
+                                          full_html=False):
+    """
+    Create two plotly plots showing distances of intronic regions to upstream
+    and downstream intron borders.
+
+    reg2annot_dic format: reg_id -> 
+    [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr, gene_id, gene_name, tr_biotype]
+
+    AALAMO
+
+    """
+    assert reg2annot_dic, "given reg2annot_dic empty"
+
+    import plotly.graph_objects as go
+
+    reg_ids_list = []
+    for reg_id in sorted(reg2annot_dic):
+        annot_id = reg2annot_dic[reg_id][0]
+        if annot_id == "intron":
+            reg_ids_list.append(reg_id)
+
+    df = pd.DataFrame(reg_ids_list, columns=["Region ID"])
+
+    df['Transcript ID'] = [reg2annot_dic[reg_id][1] for reg_id in reg_ids_list]
+    df['Distance'] = [reg2annot_dic[reg_id][2] for reg_id in reg_ids_list]
+    df['Category'] = [reg2annot_dic[reg_id][3] for reg_id in reg_ids_list]  # down or up.
+    df['annot_reg_len'] = [reg2annot_dic[reg_id][4] for reg_id in reg_ids_list]
+    df['exon_intron_nr'] = [reg2annot_dic[reg_id][5] for reg_id in reg_ids_list]
+    df['Gene ID'] = [reg2annot_dic[reg_id][6] for reg_id in reg_ids_list]
+    df['Gene name'] = [reg2annot_dic[reg_id][7] for reg_id in reg_ids_list]
+    df['Transcript biotype'] = [reg2annot_dic[reg_id][8] for reg_id in reg_ids_list]
+    df['Sequence'] = [insert_line_breaks(reg2seq_dic[reg_id], line_len=50) for reg_id in reg_ids_list]
+    df['Sequence length'] = [len(reg2seq_dic[reg_id]) for reg_id in reg_ids_list]
+
+    if reg2motifs_dic:
+        df['Motif hits'] = [reg2motifs_dic[reg_id] for reg_id in reg_ids_list]
+
+    df_up = df[df['Category'] == 'up']
+    df_down = df[df['Category'] == 'down']
+
+    hover_data = ['Region ID', 'Sequence', 'Sequence length', 'Transcript ID', 'Gene ID', 'Gene name', 'Transcript biotype', 'Distance', 'annot_reg_len', 'exon_intron_nr']
+
+    motif_hover_info = ''
+    if reg2motifs_dic:
+        hover_data += ['Motif hits']
+        motif_hover_info = '<br>Motif hits:<br>%{customdata[10]}'
+
+    """
+    Create upstream plot.
+
+    """
+    fig = go.Figure()
+
+    fig.add_trace(go.Violin(
+        x=df_up['Distance'],
+        y=df_up['Category'],
+        box_visible=False,
+        points="all",
+        side='positive',  # Show upwards.
+        bandwidth=100.0,  # Higher values == smoothing.
+        spanmode='hard',  # Ensure density starts at 0.
+        orientation='h',  # Make the plot horizontal.
+        # name='down',
+        jitter=0.1,  # Reduce jitter to move points closer.
+        pointpos=-0.3,  # Move points further down.
+        line_color='#2ca02c',  # Set the color of the points and the line
+        fillcolor='#2ca02c'  # Set the color of the filled area
+    ))
+
+    fig.update_layout(
+        xaxis_title="Distance",
+        yaxis=dict(
+            showticklabels=False  # Remove y-axis labels.
+        ),
+        # yaxis_title="Category",
+        violingap=0.1,  # Reduce gap between violins
+        violingroupgap=0.1  # Reduce group gap
+    )
+
+    # hover_data:
+    # ['Region ID', 'Sequence', 'Sequence length', 'Transcript ID', 'Gene ID', 'Gene name', 
+    # 'Transcript biotype', 'Distance', 'annot_reg_len', 'exon_intron_nr', 'Motif hits']
+
+    fig.update_traces(
+        width=0.3,
+        customdata=df_up[hover_data].values,
+        hovertemplate=(
+            '<span style="font-family: \'Courier New\', monospace;">>%{customdata[0]}</span><br>'
+            '<span style="font-family: \'Courier New\', monospace;">%{customdata[1]}</span><br>'
+            'Sequence Length: %{customdata[2]}<br>'
+            'Transcript ID: %{customdata[3]}<br>'
+            'Gene ID: %{customdata[4]}<br>'
+            'Gene name: %{customdata[5]}<br>'
+            'Transcript biotype: %{customdata[6]}<br>'
+            'Border distance: %{customdata[7]}<br>'
+            'Intron length: %{customdata[8]}<br>'
+            'Intron number: %{customdata[9]}' + motif_hover_info + '<extra></extra>'
+        )
+    )
+
+    fig.write_html(us_intron_border_dist_plot_out,
+                   full_html=full_html,
+                   include_plotlyjs=include_plotlyjs)
+
+    """
+    Create downstream plot.
+
+    """
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Violin(
+        x=df_down['Distance'],
+        y=df_down['Category'],
+        box_visible=False,
+        points="all",
+        side='positive',  # Show upwards.
+        bandwidth=100.0,  # Higher values == smoothing.
+        spanmode='hard',  # Ensure density starts at 0.
+        orientation='h',  # Make the plot horizontal.
+        # name='down',
+        jitter=0.1,  # Reduce jitter to move points closer.
+        pointpos=-0.3,  # Move points further down.
+        line_color='#2ca02c',  # Set the color of the points and the line
+        fillcolor='#2ca02c'  # Set the color of the filled area
+    ))
+
+    fig.update_layout(
+        xaxis_title="Distance",
+        yaxis=dict(
+            showticklabels=False  # Remove y-axis labels.
+        ),
+        # yaxis_title="Category",
+        xaxis=dict(
+            autorange='reversed'  # Reverse the x-axis, for downstream data part.
+        ),
+        violingap=0.1,  # Reduce gap between violins
+        violingroupgap=0.1  # Reduce group gap
+    )
+
+    fig.update_traces(
+        width=0.3,
+        customdata=df_down[hover_data].values,
+        hovertemplate=(
+            '<span style="font-family: \'Courier New\', monospace;">>%{customdata[0]}</span><br>'
+            '<span style="font-family: \'Courier New\', monospace;">%{customdata[1]}</span><br>'
+            'Sequence Length: %{customdata[2]}<br>'
+            'Transcript ID: %{customdata[3]}<br>'
+            'Gene ID: %{customdata[4]}<br>'
+            'Gene name: %{customdata[5]}<br>'
+            'Transcript biotype: %{customdata[6]}<br>'
+            'Border distance: %{customdata[7]}<br>'
+            'Intron length: %{customdata[8]}<br>'
+            'Intron number: %{customdata[9]}' + motif_hover_info + '<extra></extra>'
+        )
+    )
+
+    fig.write_html(ds_intron_border_dist_plot_out,
+                   full_html=full_html,
+                   include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
 def create_seqs_kmer_plot_plotly(reg2seq_dic, reg2kmer_rat_dic, plot_out,
                                  k=3,
                                  annot2color_dic=False,
@@ -15741,11 +16227,14 @@ def create_seqs_kmer_plot_plotly(reg2seq_dic, reg2kmer_rat_dic, plot_out,
 
     if reg2annot_dic:
 
+        # reg2annot_dic format: 
+        # reg_id -> [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr, gene_id, gene_name, tr_biotype]
+
         df['Annotation'] = [str(reg2annot_dic[reg_id][0]) for reg_id in reg_ids_list]
         df['Transcript ID'] = [reg2annot_dic[reg_id][1] for reg_id in reg_ids_list]
-        df['Gene ID'] = [reg2annot_dic[reg_id][4] for reg_id in reg_ids_list]
-        df['Gene name'] = [reg2annot_dic[reg_id][5] for reg_id in reg_ids_list]
-        df['Transcript biotype'] = [reg2annot_dic[reg_id][6] for reg_id in reg_ids_list]
+        df['Gene ID'] = [reg2annot_dic[reg_id][6] for reg_id in reg_ids_list]
+        df['Gene name'] = [reg2annot_dic[reg_id][7] for reg_id in reg_ids_list]
+        df['Transcript biotype'] = [reg2annot_dic[reg_id][8] for reg_id in reg_ids_list]
 
         hover_data += ['Annotation', 'Transcript ID', 'Gene ID', 'Gene name', 'Transcript biotype']
 
@@ -16057,6 +16546,51 @@ def seqs_dic_calc_entropies(seqs_dic,
         return entr_dic
     else:
         return entr_list
+
+
+################################################################################
+
+def get_bint_perc_from_ntc_dic(ntc_dic):
+    """
+    Given a DNA nucleotide counts ntc_dic with format:
+    {'A': 4, 'C': 3, 'G': 2, 'T': 1}
+    Get AC, AG, AT, CG, CT, GT percentages.
+    4 elements, select 2, no order, no repeated elements:
+    Binomial coefficient -> 6
+
+    >>> ntc_dic = {'A': 4, 'C': 3, 'G': 2, 'T': 1}
+    >>> get_bint_perc_from_ntc_dic(ntc_dic)
+    {'AC': 70.0, 'AG': 60.0, 'AT': 50.0, 'CG': 50.0, 'CT': 40.0, 'GT': 30.0}
+    >>> ntc_dic = {'A': 4, 'C': 6, 'G': 0, 'T': 0}
+    >>> get_bint_perc_from_ntc_dic(ntc_dic)
+    {'AC': 100.0, 'AG': 40.0, 'AT': 40.0, 'CG': 60.0, 'CT': 60.0, 'GT': 0.0}
+
+    """
+
+    assert ntc_dic, "given dictionary ntc_dic empty"
+    # Get total number.
+    total_n = 0
+    for nt in ntc_dic:
+        total_n += ntc_dic[nt]
+    bint_perc_dic = {}
+
+    perc_ac = ((ntc_dic["A"] + ntc_dic["C"]) / total_n ) * 100
+    perc_ag = ((ntc_dic["A"] + ntc_dic["G"]) / total_n ) * 100
+    perc_at = ((ntc_dic["A"] + ntc_dic["T"]) / total_n ) * 100
+    perc_cg = ((ntc_dic["C"] + ntc_dic["G"]) / total_n ) * 100
+    perc_ct = ((ntc_dic["C"] + ntc_dic["T"]) / total_n ) * 100
+    perc_gt = ((ntc_dic["G"] + ntc_dic["T"]) / total_n ) * 100
+
+    bint_perc_dic = {}
+
+    bint_perc_dic["AC"] = perc_ac
+    bint_perc_dic["AG"] = perc_ag
+    bint_perc_dic["AT"] = perc_at
+    bint_perc_dic["CG"] = perc_cg
+    bint_perc_dic["CT"] = perc_ct
+    bint_perc_dic["GT"] = perc_gt
+
+    return bint_perc_dic
 
 
 ################################################################################
