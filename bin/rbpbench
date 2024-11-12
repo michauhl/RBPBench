@@ -5579,10 +5579,8 @@ def main_search(args):
                                      params=params)
         
         # AALAMO
-
         reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
-                                                        tid2tio_dic=tid2tio_dic,
-                                                        get_exon_intron_nr=True,
+                                                        tid2tio_dic,
                                                         reg_ids_dic=reg_ids_dic)
 
         # Output assignments.
@@ -5594,10 +5592,10 @@ def main_search(args):
         tids_with_sites_dic = {}  # transcript IDs with sites.
 
         # So far reg2annot_dic format: reg_id -> [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr]
-        # If not intron, intron_nr=0, border_dist=-1, us_ds_label="-".
-        # If intron, annot_reg_len == intron length.
+        # intergenic: ["intergenic", False, -1, "-", -1, "-"]
+        #  annot_reg_len == intron/exon length.
         # exon_intron_nr format: 1-5, 2-6 ...
-        # c_introns = 0
+
         for reg_id in reg2annot_dic:
             annot = reg2annot_dic[reg_id][0]
             tr_id = reg2annot_dic[reg_id][1]
@@ -5625,12 +5623,9 @@ def main_search(args):
             border_dist = str(reg2annot_dic[reg_id][2])  # -1 unless intron annotation.
             us_ds_label = reg2annot_dic[reg_id][3]  # "-" unless intron annotation.
             annot_reg_len = str(reg2annot_dic[reg_id][4])
-            exon_intron_nr = reg2annot_dic[reg_id][5]
+            exon_intron_nr_c = reg2annot_dic[reg_id][5]  # format: 1-5, 2-6 ...
 
-            # if annot == "intron":
-            #    c_introns += 1
-
-            OUTRAN.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot, tr_biotype, border_dist, us_ds_label, annot_reg_len, exon_intron_nr))
+            OUTRAN.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot, tr_biotype, border_dist, us_ds_label, annot_reg_len, exon_intron_nr_c))
 
             if tr_id not in tids_with_sites_dic:
                 tids_with_sites_dic[tr_id] = 1
@@ -5639,53 +5634,98 @@ def main_search(args):
             
         OUTRAN.close()
         
-        # print("# intronic regions in reg2annot_dic:", c_introns)
 
         """
         Get exon+intron+eib overlap counts.
+
+        reg2annot_dic format: reg_id -> 
+        [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr, gene_id, gene_name, tr_biotype]
+        For intergenic regions:
+        ["intergenic", False, -1, "-", -1, "-", "-", "-", "-"]
+        For intronic/exonic regions with center outside:
+        [annot_id, tr_id, -1, "-", annot_reg_len, exon_intron_nr, gene_id, gene_name, tr_biotype]
+
+        AALAMO
 
         """
 
         ei_border_len = 50
         args.ei_border_len = ei_border_len
 
-        print("Output exon + intron border regions ... ")
-        intron_exon_border_out_bed = args.out_folder + "/intron_exon_border_regions.tmp.bed"
-        benchlib.exon_intron_border_regions_to_bed(tid2tio_dic, intron_exon_border_out_bed,
-                                            tr_ids_dic=None,
-                                            intron_border_len=args.gtf_intron_border_len,
-                                            ei_border_len=50)
+        eib_annot_c_dic = {
+            "exonic" : 0,
+            "intronic" : 0,
+            "intergenic" : 0,
+            "eib" : 0,
+            "us_ib_strict" : 0,
+            "ds_ib_strict" : 0,
+            "us_ib" : 0,
+            "ds_ib" : 0,
+            "first_exon" : 0,
+            "last_exon" : 0,
+            "single_exon" : 0
+        }
+        
+        for reg_id in reg2annot_dic:
+            benchlib.get_eib_annot_c(reg2annot_dic[reg_id], eib_annot_c_dic,
+                                     ib_len=args.gtf_intron_border_len,
+                                     eib_len=ei_border_len)
 
-        # Overlap with input regions.
-        print("Overlap exon + intron regions with input regions ... ")
-        params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
-        overlap_ei_regions_bed = args.out_folder + "/overlap_ei_regions.tmp.bed"
-        benchlib.bed_intersect_files(intron_exon_out_bed, filtered_sites_bed,
-                                     overlap_ei_regions_bed,
-                                     params=params)
+        # print("Output exon + intron border regions ... ")
+        # intron_exon_border_out_bed = args.out_folder + "/intron_exon_border_regions.tmp.bed"
+        # benchlib.exon_intron_border_regions_to_bed(tid2tio_dic, intron_exon_border_out_bed,
+        #                                     tr_ids_dic=None,
+        #                                     intron_border_len=args.gtf_intron_border_len,
+        #                                     ei_border_len=50)
 
-        # Get exon + intron overlap counts.
-        c_exon_ol, c_intron_ol = benchlib.get_intron_exon_ol_counts(overlap_ei_regions_bed)
-        print("# exon overlap regions:   %i" %(c_exon_ol))
-        print("# intron overlap regions: %i" %(c_intron_ol))
+        # # Overlap with input regions.
+        # print("Overlap exon + intron regions with input regions ... ")
+        # params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
+        # overlap_ei_regions_bed = args.out_folder + "/overlap_ei_regions.tmp.bed"
+        # benchlib.bed_intersect_files(intron_exon_out_bed, filtered_sites_bed,
+        #                              overlap_ei_regions_bed,
+        #                              params=params)
 
-        print("Overlap exon + intron border regions with input regions ... ")
-        params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
-        overlap_eib_regions_bed = args.out_folder + "/overlap_eib_regions.tmp.bed"
-        benchlib.bed_intersect_files(intron_exon_border_out_bed, filtered_sites_bed,
-                                     overlap_eib_regions_bed,
-                                     params=params)
+        # # Get exon + intron overlap counts.
+        # c_exon_ol, c_intron_ol = benchlib.get_intron_exon_ol_counts(overlap_ei_regions_bed)
+        # print("# exon overlap regions:   %i" %(c_exon_ol))
+        # print("# intron overlap regions: %i" %(c_intron_ol))
 
-        # Get other overlap counts.
-        c_eib_ol, c_us_ib_ol, c_ds_ib_ol = benchlib.get_eib_ol_counts(overlap_eib_regions_bed)
+        # print("Overlap exon + intron border regions with input regions ... ")
+        # params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
+        # overlap_eib_regions_bed = args.out_folder + "/overlap_eib_regions.tmp.bed"
+        # benchlib.bed_intersect_files(intron_exon_border_out_bed, filtered_sites_bed,
+        #                              overlap_eib_regions_bed,
+        #                              params=params)
+
+        # # Get other overlap counts.
+        # c_eib_ol, c_us_ib_ol, c_ds_ib_ol = benchlib.get_eib_ol_counts(overlap_eib_regions_bed)
+
+        c_exon_ol = eib_annot_c_dic["exonic"]
+        c_intron_ol = eib_annot_c_dic["intronic"]
+        c_intergenic = eib_annot_c_dic["intergenic"]
+        c_eib_ol = eib_annot_c_dic["eib"]
+        c_us_ib_ol = eib_annot_c_dic["us_ib"]
+        c_ds_ib_ol = eib_annot_c_dic["ds_ib"]
+        c_us_ib_strict_ol = eib_annot_c_dic["us_ib_strict"]
+        c_ds_ib_strict_ol = eib_annot_c_dic["ds_ib_strict"]
+        c_first_exon = eib_annot_c_dic["first_exon"]
+        c_last_exon = eib_annot_c_dic["last_exon"]
+        c_single_exon = eib_annot_c_dic["single_exon"]
 
         exon_intron_ol_stats = benchlib.ExonIntronOverlap("rbpbench_search", c_regions,
                                                           c_exon_sites=c_exon_ol,
                                                           c_intron_sites=c_intron_ol,
+                                                          c_intergenic_sites=c_intergenic,
                                                           c_us_ib_sites=c_us_ib_ol,
                                                           c_ds_ib_sites=c_ds_ib_ol,
+                                                          c_us_ib_strict_sites=c_us_ib_strict_ol,
+                                                          c_ds_ib_strict_sites=c_ds_ib_strict_ol,
                                                           c_eib_sites=c_eib_ol,
-                                                          min_overlap=args.gtf_eib_min_overlap,
+                                                          c_first_exon_sites=c_first_exon,
+                                                          c_last_exon_sites=c_last_exon,
+                                                          c_single_exon_sites=c_single_exon,
+                                                          min_overlap=args.gtf_feat_min_overlap,
                                                           intron_border_len=args.gtf_intron_border_len,
                                                           ei_border_len=ei_border_len,
                                                           c_tr_ids=len(tid2tio_dic),
@@ -16160,8 +16200,8 @@ def main_enmo(args):
             params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
 
             benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_out_bed, 
-                                        overlap_annotations_bed,
-                                        params=params)
+                                         overlap_annotations_bed,
+                                         params=params)
             pos_reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
                                                                 tid2tio_dic=tid2tio_dic,
                                                                 reg_ids_dic=pos_reg_ids_dic)
