@@ -5657,8 +5657,8 @@ def main_search(args):
             "intronic" : 0,
             "intergenic" : 0,
             "eib" : 0,
-            "us_ib_strict" : 0,
-            "ds_ib_strict" : 0,
+            "us_ib_dist" : 0,
+            "ds_ib_dist" : 0,
             "us_ib" : 0,
             "ds_ib" : 0,
             "first_exon" : 0,
@@ -5707,8 +5707,8 @@ def main_search(args):
         c_eib_ol = eib_annot_c_dic["eib"]
         c_us_ib_ol = eib_annot_c_dic["us_ib"]
         c_ds_ib_ol = eib_annot_c_dic["ds_ib"]
-        c_us_ib_strict_ol = eib_annot_c_dic["us_ib_strict"]
-        c_ds_ib_strict_ol = eib_annot_c_dic["ds_ib_strict"]
+        c_us_ib_dist_ol = eib_annot_c_dic["us_ib_dist"]
+        c_ds_ib_dist_ol = eib_annot_c_dic["ds_ib_dist"]
         c_first_exon = eib_annot_c_dic["first_exon"]
         c_last_exon = eib_annot_c_dic["last_exon"]
         c_single_exon = eib_annot_c_dic["single_exon"]
@@ -5719,8 +5719,8 @@ def main_search(args):
                                                           c_intergenic_sites=c_intergenic,
                                                           c_us_ib_sites=c_us_ib_ol,
                                                           c_ds_ib_sites=c_ds_ib_ol,
-                                                          c_us_ib_strict_sites=c_us_ib_strict_ol,
-                                                          c_ds_ib_strict_sites=c_ds_ib_strict_ol,
+                                                          c_us_ib_dist_sites=c_us_ib_dist_ol,
+                                                          c_ds_ib_dist_sites=c_ds_ib_dist_ol,
                                                           c_eib_sites=c_eib_ol,
                                                           c_first_exon_sites=c_first_exon,
                                                           c_last_exon_sites=c_last_exon,

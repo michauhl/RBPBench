@@ -2974,8 +2974,8 @@ class ExonIntronOverlap:
                  c_intergenic_sites = 0,
                  c_us_ib_sites = 0,
                  c_ds_ib_sites = 0,
-                 c_us_ib_strict_sites = 0,
-                 c_ds_ib_strict_sites = 0,
+                 c_us_ib_dist_sites = 0,  # upstream intron border distant (>intron_border_len) sites.
+                 c_ds_ib_dist_sites = 0,  # downstream intron border distant (>intron_border_len) sites.
                  c_eib_sites = 0,
                  c_first_exon_sites = 0,
                  c_last_exon_sites = 0,
@@ -2993,8 +2993,8 @@ class ExonIntronOverlap:
         self.c_intergenic_sites = c_intergenic_sites
         self.c_us_ib_sites = c_us_ib_sites
         self.c_ds_ib_sites = c_ds_ib_sites
-        self.c_us_ib_strict_sites = c_us_ib_strict_sites
-        self.c_ds_ib_strict_sites = c_ds_ib_strict_sites
+        self.c_us_ib_dist_sites = c_us_ib_dist_sites
+        self.c_ds_ib_dist_sites = c_ds_ib_dist_sites
         self.c_eib_sites = c_eib_sites
         self.c_first_exon_sites = c_first_exon_sites
         self.c_last_exon_sites = c_last_exon_sites
@@ -4503,17 +4503,18 @@ def get_regex_hit_region_annotations(overlap_annotations_bed,
                 annot_id = annot_ids[0]
                 tr_id = annot_ids[1]
 
-            c_overlap_nts = cols[c_ol_nt_col]
+            c_overlap_nts = int(cols[c_ol_nt_col])
 
             if reg_id not in reg2maxol_dic:
                 reg2maxol_dic[reg_id] = c_overlap_nts
                 reg2annot_dic[reg_id] = [annot_id, tr_id]
             else:
-                if c_overlap_nts > reg2maxol_dic[reg_id]:
+                stored_c_overlap_nts = reg2maxol_dic[reg_id]
+                if c_overlap_nts > stored_c_overlap_nts:
                     reg2maxol_dic[reg_id] = c_overlap_nts
                     reg2annot_dic[reg_id][0] = annot_id
                     reg2annot_dic[reg_id][1] = tr_id
-                elif c_overlap_nts == reg2maxol_dic[reg_id]:  # if region overlaps with > 1 feature by same amount.
+                elif c_overlap_nts == stored_c_overlap_nts:  # if region overlaps with > 1 feature by same amount.
                     if tid2tio_dic is not None:
                         best_tid = reg2annot_dic[reg_id][1]
                         new_best_tid = select_more_prominent_tid(tr_id, best_tid, tid2tio_dic)
@@ -4791,18 +4792,19 @@ def get_motif_hit_region_annotations(overlap_annotations_bed,
                 annot_id = annot_ids[0]
                 tr_id = annot_ids[1]
 
-            c_overlap_nts = cols[c_ol_nt_col]
+            c_overlap_nts = int(cols[c_ol_nt_col])
 
             if reg_id not in reg2maxol_dic:
                 reg2maxol_dic[reg_id] = c_overlap_nts
                 reg2annot_dic[reg_id] = [annot_id, tr_id]
             else:
-                if c_overlap_nts > reg2maxol_dic[reg_id]:
+                stored_c_overlap_nts = reg2maxol_dic[reg_id]
+                if c_overlap_nts > stored_c_overlap_nts:
                     reg2maxol_dic[reg_id] = c_overlap_nts
                     reg2annot_dic[reg_id][0] = annot_id
                     reg2annot_dic[reg_id][1] = tr_id
 
-                elif c_overlap_nts == reg2maxol_dic[reg_id]:  # if region overlaps with > 1 feature by same amount.
+                elif c_overlap_nts == stored_c_overlap_nts:  # if region overlaps with > 1 feature by same amount.
                     if tid2tio_dic is not None:
                         best_tid = reg2annot_dic[reg_id][1]
                         new_best_tid = select_more_prominent_tid(tr_id, best_tid, tid2tio_dic)
@@ -4886,7 +4888,7 @@ def get_mrna_region_annotations_v2(overlap_annotations_bed,
             tr_id = annot_ids[0]
             annot_id = annot_ids[1]
 
-            c_overlap_nts = cols[c_ol_nt_col]
+            c_overlap_nts = int(cols[c_ol_nt_col])
 
             if reg_id not in reg2maxol_dic:
                 reg2maxol_dic[reg_id] = c_overlap_nts
@@ -4967,11 +4969,11 @@ def get_dist_to_next_border(site_s, site_e, reg_s, reg_e, reg_strand,
 
 ################################################################################
 
-def get_eib_annot_c(annot_list, eib_annot_c_dic,
-                    ib_len=250,
-                    eib_len=50):
+def get_eib_annot_c_strict(annot_list, eib_annot_c_dic,
+                           ib_len=250,
+                           eib_len=50):
     """
-    Get exon+intron+eib overlap counts for example annot_list.
+    Get exon+intron+eib overlap counts for example annot_list (with ib_strict in dictionary).
     Add counts to eib_annot_c_dic.
     Format:
     eib_annot_c_dic = {
@@ -4999,43 +5001,43 @@ def get_eib_annot_c(annot_list, eib_annot_c_dic,
 
     >>> eib_annot_c_dic = {"exonic" : 0, "intronic" : 0, "intergenic" : 0, "eib" : 0, "us_ib_strict" : 0, "ds_ib_strict" : 0, "us_ib" : 0, "ds_ib" : 0, "first_exon" : 0, "last_exon" : 0, "single_exon" : 0}
     >>> annot_list = ["intron", "ENST1", 10, "down", 100, "1-1", "ENSG1", "GENE1", "protein_coding"]
-    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> get_eib_annot_c_strict(annot_list, eib_annot_c_dic)
     >>> eib_annot_c_dic
     {'exonic': 0, 'intronic': 1, 'intergenic': 0, 'eib': 1, 'us_ib_strict': 0, 'ds_ib_strict': 0, 'us_ib': 0, 'ds_ib': 1, 'first_exon': 0, 'last_exon': 0, 'single_exon': 0}
     >>> annot_list = ["intron", "ENST1", 10, "down", 1000, "1-1", "ENSG1", "GENE1", "protein_coding"]
-    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> get_eib_annot_c_strict(annot_list, eib_annot_c_dic)
     >>> eib_annot_c_dic
     {'exonic': 0, 'intronic': 2, 'intergenic': 0, 'eib': 2, 'us_ib_strict': 0, 'ds_ib_strict': 1, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 0, 'last_exon': 0, 'single_exon': 0}
     >>> annot_list = ["exon", "ENST1", 10, "down", 1000, "1-1", "ENSG1", "GENE1", "protein_coding"]
-    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> get_eib_annot_c_strict(annot_list, eib_annot_c_dic)
     >>> eib_annot_c_dic
     {'exonic': 1, 'intronic': 2, 'intergenic': 0, 'eib': 2, 'us_ib_strict': 0, 'ds_ib_strict': 1, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 0, 'last_exon': 0, 'single_exon': 1}
     >>> annot_list = ["exon", "ENST1", 10, "down", 1000, "1-2", "ENSG1", "GENE1", "protein_coding"]
-    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> get_eib_annot_c_strict(annot_list, eib_annot_c_dic)
     >>> eib_annot_c_dic
     {'exonic': 2, 'intronic': 2, 'intergenic': 0, 'eib': 3, 'us_ib_strict': 0, 'ds_ib_strict': 1, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 0, 'single_exon': 1}
     >>> annot_list = ["exon", "ENST1", 10, "down", 1000, "2-2", "ENSG1", "GENE1", "protein_coding"]
-    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> get_eib_annot_c_strict(annot_list, eib_annot_c_dic)
     >>> eib_annot_c_dic
     {'exonic': 3, 'intronic': 2, 'intergenic': 0, 'eib': 3, 'us_ib_strict': 0, 'ds_ib_strict': 1, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
     >>> annot_list = ["intergenic", False, -1, "-", -1, "0-0", "-", "-", "-"]
-    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> get_eib_annot_c_strict(annot_list, eib_annot_c_dic)
     >>> eib_annot_c_dic
     {'exonic': 3, 'intronic': 2, 'intergenic': 1, 'eib': 3, 'us_ib_strict': 0, 'ds_ib_strict': 1, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
     >>> annot_list = ["exon", "ENST1", 10, "up", 1000, "2-3", "ENSG1", "GENE1", "protein_coding"]
-    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> get_eib_annot_c_strict(annot_list, eib_annot_c_dic)
     >>> eib_annot_c_dic
     {'exonic': 4, 'intronic': 2, 'intergenic': 1, 'eib': 4, 'us_ib_strict': 0, 'ds_ib_strict': 1, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
     >>> annot_list = ["exon", "ENST1", 60, "up", 1000, "2-3", "ENSG1", "GENE1", "protein_coding"]
-    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> get_eib_annot_c_strict(annot_list, eib_annot_c_dic)
     >>> eib_annot_c_dic
     {'exonic': 5, 'intronic': 2, 'intergenic': 1, 'eib': 4, 'us_ib_strict': 0, 'ds_ib_strict': 1, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
     >>> annot_list = ["intron", "ENST1", 100, "up", 1000, "1-1", "ENSG1", "GENE1", "protein_coding"]
-    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> get_eib_annot_c_strict(annot_list, eib_annot_c_dic)
     >>> eib_annot_c_dic
     {'exonic': 5, 'intronic': 3, 'intergenic': 1, 'eib': 4, 'us_ib_strict': 1, 'ds_ib_strict': 1, 'us_ib': 1, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
     >>> annot_list = ["intron", "ENST1", 300, "up", 1000, "1-1", "ENSG1", "GENE1", "protein_coding"]
-    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> get_eib_annot_c_strict(annot_list, eib_annot_c_dic)
     >>> eib_annot_c_dic
     {'exonic': 5, 'intronic': 4, 'intergenic': 1, 'eib': 4, 'us_ib_strict': 1, 'ds_ib_strict': 1, 'us_ib': 1, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
 
@@ -5097,6 +5099,158 @@ def get_eib_annot_c(annot_list, eib_annot_c_dic,
                         if border_dist <= eib_len:
                             eib_annot_c_dic["eib"] += 1
                 else:  # exon in the middle, look at both borders.
+                    if border_dist <= eib_len:
+                        eib_annot_c_dic["eib"] += 1
+
+
+################################################################################
+
+def get_eib_annot_c(annot_list, eib_annot_c_dic,
+                    ib_len=250,
+                    eib_len=50):
+    """
+    Get exon+intron+eib overlap counts for example annot_list (with ib_dist in dictionary).
+    Add counts to eib_annot_c_dic.
+    Format:
+    eib_annot_c_dic = {
+        "exonic" : 0,
+        "intronic" : 0,
+        "intergenic" : 0,
+        "eib" : 0,
+        "us_ib_dist" : 0,
+        "ds_ib_dist" : 0,
+        "us_ib" : 0,
+        "ds_ib" : 0,
+        "first_exon" : 0,
+        "last_exon" : 0,
+        "single_exon" : 0
+    }
+
+    To add, counts in first + last exon (for > 1 exon transcripts).
+
+    reg2annot_dic format: reg_id -> 
+    [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr, gene_id, gene_name, tr_biotype]
+    For intergenic regions:
+    ["intergenic", False, -1, "-", -1, "-", "-", "-", "-"]
+    For intronic/exonic regions with center outside:
+    [annot_id, tr_id, -1, "-", annot_reg_len, exon_intron_nr, gene_id, gene_name, tr_biotype]
+
+    >>> eib_annot_c_dic = {"exonic" : 0, "intronic" : 0, "intergenic" : 0, "eib" : 0, "us_ib_dist" : 0, "ds_ib_dist" : 0, "us_ib" : 0, "ds_ib" : 0, "first_exon" : 0, "last_exon" : 0, "single_exon" : 0}
+    >>> annot_list = ["intron", "ENST1", 10, "down", 100, "1-1", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 0, 'intronic': 1, 'intergenic': 0, 'eib': 1, 'us_ib_dist': 0, 'ds_ib_dist': 0, 'us_ib': 0, 'ds_ib': 1, 'first_exon': 0, 'last_exon': 0, 'single_exon': 0}
+    >>> annot_list = ["intron", "ENST1", 10, "down", 1000, "1-1", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 0, 'intronic': 2, 'intergenic': 0, 'eib': 2, 'us_ib_dist': 0, 'ds_ib_dist': 0, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 0, 'last_exon': 0, 'single_exon': 0}
+    >>> annot_list = ["exon", "ENST1", 10, "down", 1000, "1-1", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 1, 'intronic': 2, 'intergenic': 0, 'eib': 2, 'us_ib_dist': 0, 'ds_ib_dist': 0, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 0, 'last_exon': 0, 'single_exon': 1}
+    >>> annot_list = ["exon", "ENST1", 10, "down", 1000, "1-2", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 2, 'intronic': 2, 'intergenic': 0, 'eib': 3, 'us_ib_dist': 0, 'ds_ib_dist': 0, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 0, 'single_exon': 1}
+    >>> annot_list = ["exon", "ENST1", 10, "down", 1000, "2-2", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 3, 'intronic': 2, 'intergenic': 0, 'eib': 3, 'us_ib_dist': 0, 'ds_ib_dist': 0, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
+    >>> annot_list = ["intergenic", False, -1, "-", -1, "0-0", "-", "-", "-"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 3, 'intronic': 2, 'intergenic': 1, 'eib': 3, 'us_ib_dist': 0, 'ds_ib_dist': 0, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
+    >>> annot_list = ["exon", "ENST1", 10, "up", 1000, "2-3", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 4, 'intronic': 2, 'intergenic': 1, 'eib': 4, 'us_ib_dist': 0, 'ds_ib_dist': 0, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
+    >>> annot_list = ["exon", "ENST1", 60, "up", 1000, "2-3", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 5, 'intronic': 2, 'intergenic': 1, 'eib': 4, 'us_ib_dist': 0, 'ds_ib_dist': 0, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
+    >>> annot_list = ["intron", "ENST1", 100, "up", 1000, "1-1", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 5, 'intronic': 3, 'intergenic': 1, 'eib': 4, 'us_ib_dist': 0, 'ds_ib_dist': 0, 'us_ib': 1, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
+    >>> annot_list = ["intron", "ENST1", 300, "up", 1000, "1-1", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 5, 'intronic': 4, 'intergenic': 1, 'eib': 4, 'us_ib_dist': 1, 'ds_ib_dist': 0, 'us_ib': 1, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
+    >>> annot_list = ["intron", "ENST1", 300, "down", 1000, "1-1", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 5, 'intronic': 5, 'intergenic': 1, 'eib': 4, 'us_ib_dist': 1, 'ds_ib_dist': 1, 'us_ib': 1, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
+    >>> annot_list = ["exon", "ENST1", 10, "down", 50, "3-3", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 6, 'intronic': 5, 'intergenic': 1, 'eib': 5, 'us_ib_dist': 1, 'ds_ib_dist': 1, 'us_ib': 1, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 2, 'single_exon': 1}
+    >>> annot_list = ["exon", "ENST1", 10, "up", 50, "1-3", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 7, 'intronic': 5, 'intergenic': 1, 'eib': 6, 'us_ib_dist': 1, 'ds_ib_dist': 1, 'us_ib': 1, 'ds_ib': 2, 'first_exon': 2, 'last_exon': 2, 'single_exon': 1}
+
+    """
+
+    assert eib_annot_c_dic, "eib_annot_c_dic empty"
+    assert len(annot_list) == 9, "len(annot_list) != 9 for annot_list \"%s\"" %(annot_list)
+    # exp_intron_len = ib_len * 2
+
+    annot_id = annot_list[0]
+    border_dist = annot_list[2]
+    us_ds_label = annot_list[3]
+    annot_reg_len = annot_list[4]
+    exon_intron_nr_c = annot_list[5]
+    exon_intron_nr = int(exon_intron_nr_c.split("-")[0])
+    exon_intron_c = int(exon_intron_nr_c.split("-")[1])
+
+    if annot_id == "intron":
+        assert exon_intron_nr > 0, "exon_intron_nr <= 0 for annot_list \"%s\"" %(annot_list)
+        eib_annot_c_dic["intronic"] += 1
+        if border_dist >= 0:
+            if border_dist <= ib_len:
+                if us_ds_label == "up":
+                    eib_annot_c_dic["us_ib"] += 1
+                elif us_ds_label == "down":
+                    eib_annot_c_dic["ds_ib"] += 1
+            else:
+                if us_ds_label == "up":
+                    eib_annot_c_dic["us_ib_dist"] += 1
+                elif us_ds_label == "down":
+                    eib_annot_c_dic["ds_ib_dist"] += 1
+            if border_dist <= eib_len:
+                eib_annot_c_dic["eib"] += 1
+
+    elif annot_id == "intergenic":
+        eib_annot_c_dic["intergenic"] += 1
+    else:  # exonic sites.
+        assert exon_intron_nr > 0, "exon_intron_nr <= 0 for annot_list \"%s\"" %(annot_list)
+        eib_annot_c_dic["exonic"] += 1
+        if border_dist >= 0:
+            # If in first exon.
+            if exon_intron_nr == 1 and exon_intron_c > 1:
+                eib_annot_c_dic["first_exon"] += 1
+            # If in last exon.
+            if exon_intron_nr == exon_intron_c and exon_intron_c > 1:
+                eib_annot_c_dic["last_exon"] += 1
+            # If on single exon.
+            if exon_intron_c == 1:
+                eib_annot_c_dic["single_exon"] += 1
+            else:
+                if exon_intron_nr == 1:  # First exon.
+                    if us_ds_label == "down":
+                        if border_dist <= eib_len:
+                            eib_annot_c_dic["eib"] += 1
+                    if us_ds_label == "up":
+                        if annot_reg_len - border_dist <= eib_len:
+                            eib_annot_c_dic["eib"] += 1
+                elif exon_intron_nr == exon_intron_c:  # Last exon.
+                    if us_ds_label == "up":
+                        if border_dist <= eib_len:
+                            eib_annot_c_dic["eib"] += 1
+                    if us_ds_label == "down":
+                        if annot_reg_len - border_dist <= eib_len:
+                            eib_annot_c_dic["eib"] += 1
+                else:  # Exon in the middle.
                     if border_dist <= eib_len:
                         eib_annot_c_dic["eib"] += 1
 
@@ -5168,7 +5322,7 @@ def get_region_annotations(overlap_annotations_bed,
             assert len(annot_ids) == 3, "len(annot_ids) != 3 (expected ; separated string, but got: \"%s\")" %(cols[9])
             annot_id = annot_ids[0]
             tr_id = annot_ids[1]
-            c_overlap_nts = cols[c_ol_nt_col]
+            c_overlap_nts = int(cols[c_ol_nt_col])
 
             # Get distanced to intron borders (only for intron annotations).
             border_dist = -1
@@ -5192,11 +5346,15 @@ def get_region_annotations(overlap_annotations_bed,
             border_dist, us_ds_label = get_dist_to_next_border(reg_s, reg_e, annot_reg_s, annot_reg_e, reg_strand,
                                                                skip_sites_not_within=True)  # Return False if site not within.
 
+            # if border_dist == -1:
+            #     print(reg_id, "reg:", reg_s, reg_e, "annot_reg:", annot_reg_s, annot_reg_e, "annot_id:", annot_id, "tr_id:", tr_id)
+
             if reg_id not in reg2maxol_dic:
                 reg2maxol_dic[reg_id] = c_overlap_nts
                 reg2annot_dic[reg_id] = [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr_c]
             else:
-                if c_overlap_nts > reg2maxol_dic[reg_id]:
+                stored_c_overlap_nts = reg2maxol_dic[reg_id]
+                if c_overlap_nts > stored_c_overlap_nts:
                     reg2maxol_dic[reg_id] = c_overlap_nts
                     reg2annot_dic[reg_id][0] = annot_id
                     reg2annot_dic[reg_id][1] = tr_id
@@ -5204,7 +5362,7 @@ def get_region_annotations(overlap_annotations_bed,
                     reg2annot_dic[reg_id][3] = us_ds_label
                     reg2annot_dic[reg_id][4] = annot_reg_len
                     reg2annot_dic[reg_id][5] = exon_intron_nr_c
-                elif c_overlap_nts == reg2maxol_dic[reg_id]:  # if region overlaps with > 1 feature by same amount.
+                elif c_overlap_nts == stored_c_overlap_nts:  # if region overlaps with > 1 feature by same amount.
                     # if tid2tio_dic is not None:
                     best_tid = reg2annot_dic[reg_id][1]
                     new_best_tid = select_more_prominent_tid(tr_id, best_tid, tid2tio_dic)
@@ -5218,6 +5376,10 @@ def get_region_annotations(overlap_annotations_bed,
                         reg2annot_dic[reg_id][4] = annot_reg_len
                         reg2annot_dic[reg_id][5] = exon_intron_nr_c
 
+            test_reg_id = "chr19:3980035-3980070(-)"
+            if reg_id == test_reg_id:
+                print("test_reg_id:", reg_id, "annot_id:", annot_id, "tr_id:", tr_id, "border_dist:", border_dist, "us_ds_label:", us_ds_label, "exon_intron_nr_c:", exon_intron_nr_c, "c_overlap_nts:", c_overlap_nts)
+                print("set:", reg2annot_dic[reg_id])
     f.closed
 
     if reg_ids_dic is not None:
@@ -5275,7 +5437,7 @@ def get_mrna_region_annotations(overlap_annotations_bed,
             mrna_reg_s = cols[11]
             mrna_reg_e = cols[12]
             mrna_reg_id = cols[13]
-            c_overlap_nts = cols[16]
+            c_overlap_nts = int(cols[16])
 
             # col[3] has format: "rbp_id:motif_id;1;method_id:data_id". Extract motif_id from this string.
             # m = re.search("^.+?:(.+?);", reg_id)
@@ -11589,7 +11751,10 @@ def create_len_distr_violin_plot_plotly(in_df, plot_out,
             'Sequence Length: %{y}<br>'
             'Motif hits:<br>'
             '%{customdata[2]}'
-        )
+        ),
+        line_color='#2b7bba',  # Set the color of the line
+        fillcolor='rgba(43, 123, 186, 0.5)',  # Set the color of the filled area with transparency
+        marker=dict(color='#2b7bba')  # Set the color of the points
     )
     fig.update_layout(xaxis_title='Density', yaxis_title='Sequence Length', violinmode='overlay')
     fig.write_html(plot_out,
@@ -13528,7 +13693,9 @@ def create_kmer_sc_plotly_scatter_plot(pos_mer_dic, neg_mer_dic, k,
     #                   color_discrete_sequence=[dot_col])
     # plot.layout.template = 'seaborn'
 
-    plot = px.scatter(data_frame=df, x=pos_label, y=neg_label, hover_name=kmer_label)
+    dot_col = "#2b7bba"
+
+    plot = px.scatter(data_frame=df, x=pos_label, y=neg_label, hover_name=kmer_label, color_discrete_sequence=[dot_col])
 
     plot.update_layout(yaxis_range=[min_perc, max_perc])
     plot.update_layout(xaxis_range=[min_perc, max_perc])
@@ -14174,6 +14341,11 @@ By default, BED genomic regions input file column 5 is used as the score column 
 
 **Figure:** Sequence %i-mer percentages in the top %i scoring and bottom %i scoring input sites. In case of
 a uniform distribution with all %i-mers present, each %i-mer would have a percentage of %s%%. R2 = %.6f.
+By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
+**NOTE** that this plot is only meaningful if the provided scores are related to binding site quality / binding affinity.
+In this case, the plot can hint at RBP binding preferences (corresponding to enriched k-mers in the top input sites). 
+Plot can be further modified by specifying top and bottom n scoring regions (--kmer-plot-top-n, --kmer-plot-bottom-n, 
+by default top and bottom are split in half), or change k (--kmer-plot-k).
 
 &nbsp;
 
@@ -14316,7 +14488,7 @@ for easier distinction between significant and non-significant co-occurrences.
         mdtext += """
 
 **Figure:** Input sequence lengths (after filtering and optional extension) violin plot.
-Hover box over data points shows sequence ID, sequence (60 nt per line), sequence length, and motif hits. 
+Hover box over data points shows sequence ID, sequence (50 nt per line), sequence length, and motif hits. 
 Motif hit format: motif ID, motif start - motif end.
 Violin plot shows density distribution of sequence lengths, including min, max, median, 
 and length quartiles (q1: 25th percentile, q3: 75th percentile).
@@ -14344,7 +14516,7 @@ and length quartiles (q1: 25th percentile, q3: 75th percentile).
                                                   skip_non_dic_keys=True,
                                                   convert_to_uc=True)
 
-        n_top_kmers = 10
+        n_top_kmers = 20
 
         top_kmers_list = []
         top_kmer_perc_list = []
@@ -14356,7 +14528,7 @@ and length quartiles (q1: 25th percentile, q3: 75th percentile).
         # Average percentage in seqs_kmer_dic.
         avg_perc = sum(seqs_kmer_dic.values()) / len(seqs_kmer_dic)
 
-        fig, ax = plt.subplots(figsize=(10, 4))
+        fig, ax = plt.subplots(figsize=(11, 3.5))
 
         ax.bar(top_kmers_list, top_kmer_perc_list, color='#e5ecf6', zorder=2)  # #e5ecf6 lightgray
 
@@ -14376,28 +14548,31 @@ and length quartiles (q1: 25th percentile, q3: 75th percentile).
 
         ax.grid(axis='y', color='#e5ecf6', linestyle='-', alpha=0.7, linewidth=0.7, zorder=1)
 
+        plt.xticks(rotation=-45, ha='center')
+
+        plt.subplots_adjust(left=0.06, right=0.99, top=0.95, bottom=0.20)
         # plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.25)
 
         top_kmers_plot = "seqs_top_kmers.bar_plot.png"
         top_kmers_plot_out = plots_out_folder + "/" + top_kmers_plot
         plot_path = plots_folder + "/" + top_kmers_plot
 
-        plt.savefig(top_kmers_plot_out, dpi=135)
+        plt.savefig(top_kmers_plot_out, dpi=140)
 
         if args.plot_pdf and top_kmers_plot_out.endswith('.png'):
             pdf_out = top_kmers_plot_out[:-4] + '.pdf'
-            plt.savefig(pdf_out, dpi=135)
+            plt.savefig(pdf_out, dpi=140)
 
         plt.close()
-        mdtext += '<image src = "' + plot_path + '" width="900px"></image>'  + "\n"
+        mdtext += '<image src = "' + plot_path + '" width="1100px"></image>'  + "\n"
 
         mdtext += """
-**Figure:** Top 10 %i-mers encountered in input sequences. 
+**Figure:** Top %i %i-mers encountered in input sequences. 
 In case of a uniform distribution with all %i-mers present, each %i-mer would have a percentage of %s%% (marked by red line).
 
 &nbsp;
 
-""" %(plot_k, plot_k, plot_k, exp_kmer_perc)
+""" %(n_top_kmers, plot_k, plot_k, plot_k, exp_kmer_perc)
 
 
     # Region ID to motifs string for plotting.
@@ -14430,6 +14605,11 @@ In case of a uniform distribution with all %i-mers present, each %i-mer would ha
         # kmer2c_dic = get_kmer_dic(seqs_kmer_k, rna=False)
 
         reg2ntps_dic = {}
+        # Average mono-nucleotide percentages over whole dataset. 
+        ntps_dic = {"A" : 0.0,
+                    "C" : 0.0,
+                    "G" : 0.0,
+                    "T" : 0.0}
 
         reg2kmer_rat_dic = seqs_dic_get_kmer_ratios(reg2seq_dic, seqs_kmer_k,
                                                     rna=False,
@@ -14440,6 +14620,7 @@ In case of a uniform distribution with all %i-mers present, each %i-mer would ha
                                                     add_at_skew=False,
                                                     add_at_content=False,
                                                     add_1nt_ratios=False,
+                                                    ntps_dic=ntps_dic,
                                                     reg2ntps_dic=reg2ntps_dic,
                                                     convert_to_uc=True)
 
@@ -14497,16 +14678,21 @@ In case of a uniform distribution with all %i-mers present, each %i-mer would ha
             if add_seq_comp:
                 add_info = "Apart from the k-mer features, sequence complexity (i.e., Shannon entropy) is used as an additional feature for each sequence."
 
+            add_avg_mono_nt_perc = ""
+            if ntps_dic:
+                add_avg_mono_nt_perc = "Average mono-nucleotide percentages over all input sequences: A = %.2f%%, C = %.2f%%, G = %.2f%%, T = %.2f%%." %(ntps_dic["A"], ntps_dic["C"], ntps_dic["G"], ntps_dic["T"])
+
             mdtext += """
 
 **Figure:** Input sequences by k-mer content plot (k = %i). 
 Input sequences are represented by their k-mer content and visualized as 2D PCA plot.
 The closer two sequences are, the more similar their k-mer content.
 %s
+%s
 
 &nbsp;
 
-""" %(args.seqs_kmer_plot_k, add_info)
+""" %(args.seqs_kmer_plot_k, add_info, add_avg_mono_nt_perc)
 
         else:
             mdtext += """
@@ -14626,7 +14812,7 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
         mdtext += """
 **Figure:** mRNA region coverage profile for provided input regions (# input regions = %i, # of input regions overlapping with mRNAs = %i). 
 Percentage of input regions overlapping with mRNA exons = %s%%. 
-NOTE that if this percentage is low, it likely means that the input regions (if derived from CLIP-seq or similar protocols) 
+**NOTE** that if this percentage is low, it likely means that the input regions (if derived from CLIP-seq or similar protocols) 
 originate from an intron binding RBP, making the plot less informative (since the RBP is typically not binding to spliced mRNAs).
 Minimum overlap amount with mRNA exons required for input region to be counted as overlapping = %s%% (set via --gtf-min-mrna-overlap).
 All overlapping input region positions are used for the coverage calculation.
@@ -14664,12 +14850,12 @@ mRNA region lengths used for plotting are derived from the occupied mRNA regions
         ds_ib_sites_perc = 0.0
         if ei_ol_stats.c_ds_ib_sites and ei_ol_stats.c_input_sites:
             ds_ib_sites_perc = round(ei_ol_stats.c_ds_ib_sites / ei_ol_stats.c_input_sites * 100, 1)
-        us_ib_strict_sites_perc = 0.0
-        if ei_ol_stats.c_us_ib_strict_sites and ei_ol_stats.c_input_sites:
-            us_ib_strict_sites_perc = round(ei_ol_stats.c_us_ib_strict_sites / ei_ol_stats.c_input_sites * 100, 1)
-        ds_ib_strict_sites_perc = 0.0
-        if ei_ol_stats.c_ds_ib_strict_sites and ei_ol_stats.c_input_sites:
-            ds_ib_strict_sites_perc = round(ei_ol_stats.c_ds_ib_strict_sites / ei_ol_stats.c_input_sites * 100, 1)
+        us_ib_dist_sites_perc = 0.0
+        if ei_ol_stats.c_us_ib_dist_sites and ei_ol_stats.c_input_sites:
+            us_ib_dist_sites_perc = round(ei_ol_stats.c_us_ib_dist_sites / ei_ol_stats.c_input_sites * 100, 1)
+        ds_ib_dist_sites_perc = 0.0
+        if ei_ol_stats.c_ds_ib_dist_sites and ei_ol_stats.c_input_sites:
+            ds_ib_dist_sites_perc = round(ei_ol_stats.c_ds_ib_dist_sites / ei_ol_stats.c_input_sites * 100, 1)
         first_exon_sites_perc = 0.0
         if ei_ol_stats.c_first_exon_sites and ei_ol_stats.c_input_sites:
             first_exon_sites_perc = round(ei_ol_stats.c_first_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
@@ -14687,8 +14873,8 @@ mRNA region lengths used for plotting are derived from the occupied mRNA regions
         intron_bl =  args.gtf_intron_border_len
 
         # Make bar plot.
-        categories = ['Exon\nregions', 'Intron\nregions', '%i nt us\nintron\nregions' %(intron_bl), '%i nt ds\nintron\nregions' %(intron_bl), '%i nt us\nstrict intron\nregions' %(intron_bl), '%i nt ds\nstrict intron\nregions' %(intron_bl), '+/- 50 nt\nexon-intron\nborders', 'First exon', 'Last exon', 'Single exon']
-        percentages = [exon_sites_perc, intron_sites_perc, us_ib_sites_perc, ds_ib_sites_perc, us_ib_strict_sites_perc, ds_ib_strict_sites_perc, eib_sites_perc, first_exon_sites_perc, last_exon_sites_perc, single_exon_sites_perc]
+        categories = ['Exon\nregions', 'Intron\nregions', '%i nt us\nintron\nregions' %(intron_bl), '%i nt ds\nintron\nregions' %(intron_bl), '> %i nt\nus intron\nregions' %(intron_bl), '> %i nt\nds intron\nregions' %(intron_bl), '+/- 50 nt\nexon-intron\nborders', 'First exon', 'Last exon', 'Single exon']
+        percentages = [exon_sites_perc, intron_sites_perc, us_ib_sites_perc, ds_ib_sites_perc, us_ib_dist_sites_perc, ds_ib_dist_sites_perc, eib_sites_perc, first_exon_sites_perc, last_exon_sites_perc, single_exon_sites_perc]
 
         fig, ax = plt.subplots(figsize=(10.5, 4))
 
@@ -14727,26 +14913,26 @@ mRNA region lengths used for plotting are derived from the occupied mRNA regions
 **Figure:** Exon, intron + border region overlap statistics. \# input regions = %i. 
 \# input regions overlapping with exon regions = %i.
 \# input regions overlapping with intron regions = %i.
-Minimum overlap between exon/intron region and input region to be counted as overlapping = %s%% (change via --gtf-eib-min-overlap).
 Categories:
-**Exon regions** -> %% of input regions overlapping with exon regions.
-**Intron regions** -> %% of input regions overlapping with intron regions.
-**%i nt us intron regions** -> %% of input regions overlapping with upstream ends of intron regions (first %i nt) (\# %i).
-**%i nt ds intron regions** -> %% of input regions overlapping with downstream ends of intron regions (last %i nt) (\# %i).
+**Exon regions** -> %% of input regions overlapping with exon regions (== exonic regions).
+**Intron regions** -> %% of input regions overlapping with intron regions (== intronic regions).
+**%i nt us intron regions** -> %% of intronic regions closer to intron upstream borders + within first %i nt of intron (\# %i).
+**%i nt ds intron regions** -> %% of intronic regions closer to intron downstream borders + within first %i nt of intron (\# %i).
+**> %i nt us intron regions** -> %% of intronic regions closer to intron upstream borders and > %i nt away from intron borders (\# %i).
+**> %i nt ds intron regions** -> %% of intronic regions closer to intron downstream borders and > %i nt away from intron borders (\# %i).
 **+/- 50 nt exon intron borders** -> %% of input regions overlapping with exon-intron borders 
 (50 nt upstream and downstream of exon-intron borders) (\# %i).
-**NOTE** that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered. 
-Also note that the overlap is calculated between (optionally extended) input regions and transcript regions 
-(one representative transcript, i.e., transcript with highest experimental support, chosen for each gene region, unless --tr-list provided). 
-Thus, depending on set parameters (minimum overlap amount etc.), occasional overlap > 1 annotated gene region, 
-and characteristics of input dataset, exon/intron overlap can vary, doesn't have to add up to 100, and can also be relatively low.
+**Exon regions** -> %% of input regions overlapping with exon regions (== exonic regions).
+**First exon** -> %% of input regions overlapping with transcript first exons (\# %i).
+**Last exon** -> %% of input regions overlapping with transcript last exons (\# %i).
+**Single exon** -> %% of input regions overlapping with single exon transcripts (\# %i).
+**NOTE** that for upstream/downstream intron end overlaps, the input region is always assigned 
+to the closest intron border (based on distance between input region center position and intron ends), 
+independent of intron length (i.e., intron length can also be < %i nt).
 
 &nbsp;
 
-""" %(ei_ol_stats.c_input_sites, ei_ol_stats.c_exon_sites, ei_ol_stats.c_intron_sites, str(perc_min_overlap), intron_bl, intron_bl, ei_ol_stats.c_us_ib_sites, intron_bl, intron_bl, ei_ol_stats.c_ds_ib_sites, ei_ol_stats.c_eib_sites, 2*intron_bl, intron_bl)
-
-
-
+""" %(ei_ol_stats.c_input_sites, ei_ol_stats.c_exon_sites, ei_ol_stats.c_intron_sites, intron_bl, intron_bl, ei_ol_stats.c_us_ib_sites, intron_bl, intron_bl, ei_ol_stats.c_ds_ib_sites, intron_bl, intron_bl, ei_ol_stats.c_us_ib_dist_sites, intron_bl, intron_bl, ei_ol_stats.c_ds_ib_dist_sites, ei_ol_stats.c_eib_sites, ei_ol_stats.c_first_exon_sites, ei_ol_stats.c_last_exon_sites, ei_ol_stats.c_single_exon_sites, intron_bl)
 
 
     """
@@ -14826,10 +15012,6 @@ and characteristics of input dataset, exon/intron overlap can vary, doesn't have
 
 **Figure:** Distances of intronic input regions to their next intron border. Only input regions closer to the upstream 
 border are shown (# regions = %i, percentage =  %s%%). The input region center position is taken to calculate the distance.
-NOTE that intronic region counts here can slightly differ from statistics above. E.g., only regions with their center positions 
-inside introns are considered. Also, compared to exon-intron overlap statistics above, regions can only have one annotation
-(with most experimental evidence), whereas above they can have multiple (due to occasionally overlapping gene regions).
-
 
 &nbsp;
 
@@ -14852,9 +15034,6 @@ inside introns are considered. Also, compared to exon-intron overlap statistics 
 
 **Figure:** Distances of intronic input regions to their next intron border. Only input regions closer to the downstream 
 border are shown (# regions = %i, percentage =  %s%%). The input region center position is taken to calculate the distance.
-NOTE that intronic region counts here can slightly differ from statistics above. E.g., only regions with their center positions 
-inside introns are considered. Also, compared to exon-intron overlap statistics above, regions can only have one annotation
-(with most experimental evidence), whereas above they can have multiple (due to occasionally overlapping gene regions).
 
 &nbsp;
 
@@ -14869,20 +15048,6 @@ No intronic regions intron border distance plot generated since there are no inp
 &nbsp;
 
 """
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -16263,7 +16428,7 @@ def create_intron_border_dist_plot_plotly(reg2annot_dic, reg2seq_dic,
     ))
 
     fig.update_layout(
-        xaxis_title="Distance",
+        xaxis_title="Distance to upstream intron border",
         yaxis=dict(
             showticklabels=False  # Remove y-axis labels.
         ),
@@ -16321,7 +16486,7 @@ def create_intron_border_dist_plot_plotly(reg2annot_dic, reg2seq_dic,
     ))
 
     fig.update_layout(
-        xaxis_title="Distance",
+        xaxis_title="Distance to downstream intron border",
         yaxis=dict(
             showticklabels=False  # Remove y-axis labels.
         ),
@@ -16573,11 +16738,15 @@ def seqs_dic_get_kmer_ratios(seqs_dic, k,
                              add_at_content=False,
                              add_1nt_ratios=False,
                              reg2ntps_dic=None,
+                             ntps_dic=False,
                              convert_to_uc=True):
     """
     Given a dictionary with mappings: sequence ID -> sequence,
     return dictionary with mapping:
     sequence ID -> list of k-mer ratios for the sequence.
+
+    ntps_dic:
+        If set, calculate average mono-nucleotide percentages of seqs_dic.
 
     >>> seqs_dic = {'seq1': 'AACGN', 'seq2': 'ACGT', 'seq3': 'tttt'}
     >>> seqs_dic_get_kmer_ratios(seqs_dic, 1)
@@ -16644,6 +16813,8 @@ def seqs_dic_get_kmer_ratios(seqs_dic, k,
             ntps_list = []
             for nt in ntc_dic:
                 nt_perc = (ntc_dic[nt] / eff_seq_l) * 100
+                if ntps_dic:
+                    ntps_dic[nt] += nt_perc
                 ntps = "%s: %.2f%%" %(nt, nt_perc)
                 ntps_list.append(ntps)
             reg2ntps_dic[seq_id] = ", ".join(ntps_list)
@@ -16670,6 +16841,10 @@ def seqs_dic_get_kmer_ratios(seqs_dic, k,
                 kmer_rat_list.append(nt_ratio)
 
         reg2kmer_rat_dic[seq_id] = kmer_rat_list
+
+    if ntps_dic:
+        for nt in ntps_dic:
+            ntps_dic[nt] = ntps_dic[nt] / len(seqs_dic)
 
     return reg2kmer_rat_dic
 
