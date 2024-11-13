@@ -9114,9 +9114,14 @@ def create_eib_comp_plot_plotly(id2eib_stats_dic, id2eib_perc_dic, plot_out,
 
     Use PCA to reduce dimensions.
     
-    id2eib_stats_dic format:id2hk_gene_stats_dic
+    Formats:
     id2eib_stats_dic[internal_id] = 
-    [combined_id, ei_ol_stats.c_input_sites, exon_sites_ratio, intron_sites_ratio, us_ib_sites_ratio, ds_ib_sites_ratio, eib_sites_ratio]
+    [combined_id, ei_ol_stats.c_input_sites, exon_sites_ratio, intron_sites_ratio, us_ib_sites_ratio, 
+    ds_ib_sites_ratio, us_ib_dist_sites_ratio, ds_ib_dist_sites_ratio, eib_sites_ratio, first_exon_sites_ratio, 
+    last_exon_sites_ratio, single_exon_sites_ratio]
+    id2eib_perc_dic[internal_id] = [exon_sites_perc, intron_sites_perc, us_ib_sites_perc, ds_ib_sites_perc, 
+    us_ib_dist_sites_perc, ds_ib_dist_sites_perc, eib_sites_perc, first_exon_sites_perc, 
+    last_exon_sites_perc, single_exon_sites_perc]
 
     """
 
@@ -9149,14 +9154,25 @@ def create_eib_comp_plot_plotly(id2eib_stats_dic, id2eib_perc_dic, plot_out,
 
     df['Dataset ID'] = [id2eib_stats_dic[internal_id][0] for internal_id in sorted(id2eib_stats_dic)]
     df['# input regions'] = [id2eib_stats_dic[internal_id][1] for internal_id in sorted(id2eib_stats_dic)]
-    df['Exon sites perc'] = [id2eib_perc_dic[internal_id][0] for internal_id in sorted(id2eib_perc_dic)]
-    df['Intron sites perc'] = [id2eib_perc_dic[internal_id][1] for internal_id in sorted(id2eib_perc_dic)]
-    df['us ib sites perc'] = [id2eib_perc_dic[internal_id][2] for internal_id in sorted(id2eib_perc_dic)]
-    df['ds ib sites perc'] = [id2eib_perc_dic[internal_id][3] for internal_id in sorted(id2eib_perc_dic)]
-    df['eib sites perc'] = [id2eib_perc_dic[internal_id][4] for internal_id in sorted(id2eib_perc_dic)]
+    df['% exonic sites'] = [id2eib_perc_dic[internal_id][0] for internal_id in sorted(id2eib_perc_dic)]
+    df['% intronic sites'] = [id2eib_perc_dic[internal_id][1] for internal_id in sorted(id2eib_perc_dic)]
+    df['% us ib'] = [id2eib_perc_dic[internal_id][2] for internal_id in sorted(id2eib_perc_dic)]
+    df['% ds ib'] = [id2eib_perc_dic[internal_id][3] for internal_id in sorted(id2eib_perc_dic)]
+    df['% us dist ib'] = [id2eib_perc_dic[internal_id][4] for internal_id in sorted(id2eib_perc_dic)]
+    df['% ds dist ib'] = [id2eib_perc_dic[internal_id][5] for internal_id in sorted(id2eib_perc_dic)]
+    df['% eib'] = [id2eib_perc_dic[internal_id][6] for internal_id in sorted(id2eib_perc_dic)]
+    df['% first exon'] = [id2eib_perc_dic[internal_id][7] for internal_id in sorted(id2eib_perc_dic)]
+    df['% last exon'] = [id2eib_perc_dic[internal_id][8] for internal_id in sorted(id2eib_perc_dic)]
+    df['% single exon'] = [id2eib_perc_dic[internal_id][9] for internal_id in sorted(id2eib_perc_dic)]
+    # df['Exon sites perc'] = [id2eib_perc_dic[internal_id][0] for internal_id in sorted(id2eib_perc_dic)]
+    # df['Intron sites perc'] = [id2eib_perc_dic[internal_id][1] for internal_id in sorted(id2eib_perc_dic)]
+    # df['us ib sites perc'] = [id2eib_perc_dic[internal_id][2] for internal_id in sorted(id2eib_perc_dic)]
+    # df['ds ib sites perc'] = [id2eib_perc_dic[internal_id][3] for internal_id in sorted(id2eib_perc_dic)]
+    # df['eib sites perc'] = [id2eib_perc_dic[internal_id][4] for internal_id in sorted(id2eib_perc_dic)]
 
-    hover_data= ['# input regions', 'Exon sites perc', 'Intron sites perc', 'us ib sites perc', 'ds ib sites perc', 'eib sites perc']
-    color = '# input regions'
+    # 11 features.
+    hover_data= ['# input regions', '% exonic sites', '% intronic sites', '% us ib', '% ds ib', '% us dist ib', '% ds dist ib', '% eib', '% first exon', '% last exon', '% single exon']
+    color = '% intronic sites'
 
     if id2hk_gene_stats_dic:
         # Genes (actually transcripts).
@@ -9190,13 +9206,42 @@ def create_eib_comp_plot_plotly(id2eib_stats_dic, id2eib_perc_dic, plot_out,
         if id2hk_gene_stats_dic:
 
             fig.update_traces(
-                hovertemplate='<b>%{hovertext}</b><br>Input regions (#): %{customdata[0]}<br>Occupied genes (#): %{customdata[6]}<br>Occupied HK genes (#): %{customdata[7]}<br>Occupied HK genes (%): %{customdata[8]}<br><br>Exon: %{customdata[1]}%<br>Intron: %{customdata[2]}%<br>US intron border: %{customdata[3]}%<br>DS intron border: %{customdata[4]}%<br>Exon-intron border: %{customdata[5]}%<extra></extra>'
+                hovertemplate=(
+                    '<b>%{hovertext}</b><br>'
+                    'Input regions (#): %{customdata[0]}<br>'
+                    'Exon: %{customdata[1]}%<br>'
+                    'Intron: %{customdata[2]}%<br>'
+                    'US intron border: %{customdata[3]}%<br>'
+                    'DS intron border: %{customdata[4]}%<br>'
+                    'US distant intron: %{customdata[5]}%<br>'
+                    'DS distant intron: %{customdata[6]}%<br>'
+                    'Exon-intron border: %{customdata[7]}%<extra></extra>'
+                    'First exon: %{customdata[8]}%<br>'
+                    'Last exon: %{customdata[9]}%<br>'
+                    'Single exon: %{customdata[10]}%<br>'
+                    'Occupied genes (#): %{customdata[11]}<br>'
+                    'Occupied HK genes (#): %{customdata[12]}<br>'
+                    'Occupied HK genes (%): %{customdata[13]}<extra></extra>'
+                )
             )
 
         else:
 
             fig.update_traces(
-                hovertemplate='<b>%{hovertext}</b><br>Input regions (#): %{customdata[0]}<br><br>Exon: %{customdata[1]}%<br>Intron: %{customdata[2]}%<br>US intron border: %{customdata[3]}%<br>DS intron border: %{customdata[4]}%<br>Exon-intron border: %{customdata[5]}%<extra></extra>'
+                hovertemplate=(
+                    '<b>%{hovertext}</b><br>'
+                    'Input regions (#): %{customdata[0]}<br>'
+                    'Exon: %{customdata[1]}%<br>'
+                    'Intron: %{customdata[2]}%<br>'
+                    'US intron border: %{customdata[3]}%<br>'
+                    'DS intron border: %{customdata[4]}%<br>'
+                    'US distant intron: %{customdata[5]}%<br>'
+                    'DS distant intron: %{customdata[6]}%<br>'
+                    'Exon-intron border: %{customdata[7]}%<extra></extra>'
+                    'First exon: %{customdata[8]}%<br>'
+                    'Last exon: %{customdata[9]}%<br>'
+                    'Single exon: %{customdata[10]}%<extra></extra>'
+                )
             )
 
         fig.update_traces(marker=dict(size=3, line=dict(width=0.5, color='white')))
@@ -9221,14 +9266,44 @@ def create_eib_comp_plot_plotly(id2eib_stats_dic, id2eib_perc_dic, plot_out,
         if id2hk_gene_stats_dic:
 
             fig.update_traces(
-                hovertemplate='<b>%{hovertext}</b><br>Input regions (#): %{customdata[0]}<br>Exon: %{customdata[1]}%<br>Intron: %{customdata[2]}%<br>US intron border: %{customdata[3]}%<br>DS intron border: %{customdata[4]}%<br>Exon-intron border: %{customdata[5]}%<br>Occupied genes (#): %{customdata[6]}<br>Occupied HK genes (#): %{customdata[7]}<br>Occupied HK genes (%): %{customdata[8]}<extra></extra>'
+                hovertemplate=(
+                    '<b>%{hovertext}</b><br>'
+                    'Input regions (#): %{customdata[0]}<br>'
+                    'Exon: %{customdata[1]}%<br>'
+                    'Intron: %{customdata[2]}%<br>'
+                    'US intron border: %{customdata[3]}%<br>'
+                    'DS intron border: %{customdata[4]}%<br>'
+                    'US distant intron: %{customdata[5]}%<br>'
+                    'DS distant intron: %{customdata[6]}%<br>'
+                    'Exon-intron border: %{customdata[7]}%<br>'
+                    'First exon: %{customdata[8]}%<br>'
+                    'Last exon: %{customdata[9]}%<br>'
+                    'Single exon: %{customdata[10]}%<br>'
+                    'Occupied genes (#): %{customdata[11]}<br>'
+                    'Occupied HK genes (#): %{customdata[12]}<br>'
+                    'Occupied HK genes (%): %{customdata[13]}<extra></extra>'
+                )
             )
 
         else:
 
             fig.update_traces(
-                hovertemplate='<b>%{hovertext}</b><br>Input regions (#): %{customdata[0]}<br>Exon: %{customdata[1]}%<br>Intron: %{customdata[2]}%<br>US intron border: %{customdata[3]}%<br>DS intron border: %{customdata[4]}%<br>Exon-intron border: %{customdata[5]}%<extra></extra>'
+                hovertemplate=(
+                    '<b>%{hovertext}</b><br>'
+                    'Input regions (#): %{customdata[0]}<br>'
+                    'Exon: %{customdata[1]}%<br>'
+                    'Intron: %{customdata[2]}%<br>'
+                    'US intron border: %{customdata[3]}%<br>'
+                    'DS intron border: %{customdata[4]}%<br>'
+                    'US distant intron: %{customdata[5]}%<br>'
+                    'DS distant intron: %{customdata[6]}%<br>'
+                    'Exon-intron border: %{customdata[7]}%<br>'
+                    'First exon: %{customdata[8]}%<br>'
+                    'Last exon: %{customdata[9]}%<br>'
+                    'Single exon: %{customdata[10]}%<extra></extra>'
+                )
             )
+
 
         fig.update_traces(marker=dict(size=10, line=dict(width=0.5, color='white')))
 
@@ -10333,7 +10408,6 @@ Input dataset ID format: %s. %s
 
     if ei_ol_stats_dic:  # True if --gtf provided.
 
-        perc_min_overlap = round(args.gtf_eib_min_overlap * 100, 1)
         ib_len =  args.gtf_intron_border_len
         eib_len = args.ei_border_len
 
@@ -10341,11 +10415,11 @@ Input dataset ID format: %s. %s
 ## Input datasets exon-intron overlap statistics ### {#ei-ol-stats}
 
 **Table:** Exon, intron + border region overlap statistics for each input dataset.
-Minimum overlap between exon/intron region and input region to be counted as overlapping = %s%% (change via --gtf-eib-min-overlap).
-Considered intron border region length = %i nt (change via --gtf-intron-border-len). Considered exon-intron border region = +/- %i nt relative to border.
+Considered intron border region length = %i nt (change via --gtf-intron-border-len). 
+Considered exon-intron border region = +/- %i nt relative to border.
 %s
 
-""" %(str(perc_min_overlap), ib_len, eib_len, seq_stats_info)
+""" %(ib_len, eib_len, seq_stats_info)
 
 
         mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
@@ -10355,9 +10429,14 @@ Considered intron border region length = %i nt (change via --gtf-intron-border-l
         mdtext += "<th># input regions</th>\n"
         mdtext += "<th>% exon regions</th>\n"
         mdtext += "<th>% intron regions</th>\n"
-        mdtext += "<th>% us intron border regions</th>\n"
-        mdtext += "<th>% ds intron border regions</th>\n"
-        mdtext += "<th>% exon-intron border regions</th>\n"
+        mdtext += "<th>% us intron border</th>\n"
+        mdtext += "<th>% ds intron border</th>\n"
+        mdtext += "<th>% distant us intron</th>\n"
+        mdtext += "<th>% distant ds intron</th>\n"
+        mdtext += "<th>% exon-intron border</th>\n"
+        mdtext += "<th>% first exon</th>\n"
+        mdtext += "<th>% last exon</th>\n"
+        mdtext += "<th>% single exon</th>\n"
         mdtext += "</tr>\n"
         mdtext += "</thead>\n"
         mdtext += "<tbody>\n"
@@ -10375,6 +10454,33 @@ Considered intron border region length = %i nt (change via --gtf-intron-border-l
                 combined_id = rbp_id + "," + database_id + "," + method_id + "," + data_id
             else:
                 combined_id = rbp_id + "," + method_id + "," + data_id
+
+            # ei_ol_stats = ei_ol_stats_dic[internal_id]
+            # exon_sites_perc = 0.0
+            # exon_sites_ratio = 0.0
+            # if ei_ol_stats.c_exon_sites and ei_ol_stats.c_input_sites:
+            #     exon_sites_perc = round(ei_ol_stats.c_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
+            #     exon_sites_ratio = round(ei_ol_stats.c_exon_sites / ei_ol_stats.c_input_sites, 3)
+            # intron_sites_perc = 0.0
+            # intron_sites_ratio = 0.0
+            # if ei_ol_stats.c_intron_sites and ei_ol_stats.c_input_sites:
+            #     intron_sites_perc = round(ei_ol_stats.c_intron_sites / ei_ol_stats.c_input_sites * 100, 1)
+            #     intron_sites_ratio = round(ei_ol_stats.c_intron_sites / ei_ol_stats.c_input_sites, 3)
+            # us_ib_sites_perc = 0.0
+            # us_ib_sites_ratio = 0.0
+            # if ei_ol_stats.c_us_ib_sites and ei_ol_stats.c_input_sites:
+            #     us_ib_sites_perc = round(ei_ol_stats.c_us_ib_sites / ei_ol_stats.c_input_sites * 100, 1)
+            #     us_ib_sites_ratio = round(ei_ol_stats.c_us_ib_sites / ei_ol_stats.c_input_sites, 3)
+            # ds_ib_sites_perc = 0.0
+            # ds_ib_sites_ratio = 0.0
+            # if ei_ol_stats.c_ds_ib_sites and ei_ol_stats.c_input_sites:
+            #     ds_ib_sites_perc = round(ei_ol_stats.c_ds_ib_sites / ei_ol_stats.c_input_sites * 100, 1)
+            #     ds_ib_sites_ratio = round(ei_ol_stats.c_ds_ib_sites / ei_ol_stats.c_input_sites, 3)
+            # eib_sites_perc = 0.0
+            # eib_sites_ratio = 0.0
+            # if ei_ol_stats.c_eib_sites and ei_ol_stats.c_input_sites:
+            #     eib_sites_perc = round(ei_ol_stats.c_eib_sites / ei_ol_stats.c_input_sites * 100, 1)
+            #     eib_sites_ratio = round(ei_ol_stats.c_eib_sites / ei_ol_stats.c_input_sites, 3)
 
             ei_ol_stats = ei_ol_stats_dic[internal_id]
             exon_sites_perc = 0.0
@@ -10397,14 +10503,39 @@ Considered intron border region length = %i nt (change via --gtf-intron-border-l
             if ei_ol_stats.c_ds_ib_sites and ei_ol_stats.c_input_sites:
                 ds_ib_sites_perc = round(ei_ol_stats.c_ds_ib_sites / ei_ol_stats.c_input_sites * 100, 1)
                 ds_ib_sites_ratio = round(ei_ol_stats.c_ds_ib_sites / ei_ol_stats.c_input_sites, 3)
+            us_ib_dist_sites_perc = 0.0
+            us_ib_dist_sites_ratio = 0.0
+            if ei_ol_stats.c_us_ib_dist_sites and ei_ol_stats.c_input_sites:
+                us_ib_dist_sites_perc = round(ei_ol_stats.c_us_ib_dist_sites / ei_ol_stats.c_input_sites * 100, 1)
+                us_ib_dist_sites_ratio = round(ei_ol_stats.c_us_ib_dist_sites / ei_ol_stats.c_input_sites, 3)
+            ds_ib_dist_sites_perc = 0.0
+            ds_ib_dist_sites_ratio = 0.0
+            if ei_ol_stats.c_ds_ib_dist_sites and ei_ol_stats.c_input_sites:
+                ds_ib_dist_sites_perc = round(ei_ol_stats.c_ds_ib_dist_sites / ei_ol_stats.c_input_sites * 100, 1)
+                ds_ib_dist_sites_ratio = round(ei_ol_stats.c_ds_ib_dist_sites / ei_ol_stats.c_input_sites, 3)
+            first_exon_sites_perc = 0.0
+            first_exon_sites_ratio = 0.0
+            if ei_ol_stats.c_first_exon_sites and ei_ol_stats.c_input_sites:
+                first_exon_sites_perc = round(ei_ol_stats.c_first_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
+                first_exon_sites_ratio = round(ei_ol_stats.c_first_exon_sites / ei_ol_stats.c_input_sites, 3)
+            last_exon_sites_perc = 0.0
+            last_exon_sites_ratio = 0.0
+            if ei_ol_stats.c_last_exon_sites and ei_ol_stats.c_input_sites:
+                last_exon_sites_perc = round(ei_ol_stats.c_last_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
+                last_exon_sites_ratio = round(ei_ol_stats.c_last_exon_sites / ei_ol_stats.c_input_sites, 3)
+            single_exon_sites_perc = 0.0
+            single_exon_sites_ratio = 0.0
+            if ei_ol_stats.c_single_exon_sites and ei_ol_stats.c_input_sites:
+                single_exon_sites_perc = round(ei_ol_stats.c_single_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
+                single_exon_sites_ratio = round(ei_ol_stats.c_single_exon_sites / ei_ol_stats.c_input_sites, 3)
             eib_sites_perc = 0.0
             eib_sites_ratio = 0.0
             if ei_ol_stats.c_eib_sites and ei_ol_stats.c_input_sites:
                 eib_sites_perc = round(ei_ol_stats.c_eib_sites / ei_ol_stats.c_input_sites * 100, 1)
                 eib_sites_ratio = round(ei_ol_stats.c_eib_sites / ei_ol_stats.c_input_sites, 3)
-        
-            id2eib_stats_dic[internal_id] = [combined_id, ei_ol_stats.c_input_sites, exon_sites_ratio, intron_sites_ratio, us_ib_sites_ratio, ds_ib_sites_ratio, eib_sites_ratio]
-            id2eib_perc_dic[internal_id] = [exon_sites_perc, intron_sites_perc, us_ib_sites_perc, ds_ib_sites_perc, eib_sites_perc]
+
+            id2eib_stats_dic[internal_id] = [combined_id, ei_ol_stats.c_input_sites, exon_sites_ratio, intron_sites_ratio, us_ib_sites_ratio, ds_ib_sites_ratio, us_ib_dist_sites_ratio, ds_ib_dist_sites_ratio, eib_sites_ratio, first_exon_sites_ratio, last_exon_sites_ratio, single_exon_sites_ratio]
+            id2eib_perc_dic[internal_id] = [exon_sites_perc, intron_sites_perc, us_ib_sites_perc, ds_ib_sites_perc, us_ib_dist_sites_perc, ds_ib_dist_sites_perc, eib_sites_perc, first_exon_sites_perc, last_exon_sites_perc, single_exon_sites_perc]
 
             mdtext += "<tr>\n"
             mdtext += "<td>%s</td>\n" %(combined_id)
@@ -10413,7 +10544,12 @@ Considered intron border region length = %i nt (change via --gtf-intron-border-l
             mdtext += "<td>%.1f</td>\n" %(intron_sites_perc)
             mdtext += "<td>%.1f</td>\n" %(us_ib_sites_perc)
             mdtext += "<td>%.1f</td>\n" %(ds_ib_sites_perc)
+            mdtext += "<td>%.1f</td>\n" %(us_ib_dist_sites_perc)
+            mdtext += "<td>%.1f</td>\n" %(ds_ib_dist_sites_perc)
             mdtext += "<td>%.1f</td>\n" %(eib_sites_perc)
+            mdtext += "<td>%.1f</td>\n" %(first_exon_sites_perc)
+            mdtext += "<td>%.1f</td>\n" %(last_exon_sites_perc)
+            mdtext += "<td>%.1f</td>\n" %(single_exon_sites_perc)
             mdtext += "</tr>\n"
 
         mdtext += "</tbody>\n"
@@ -10423,15 +10559,22 @@ Considered intron border region length = %i nt (change via --gtf-intron-border-l
         mdtext += "\nColumn IDs have the following meanings: "
         mdtext += "**Dataset ID** -> Dataset ID for input dataset with following format: %s, " %(dataset_id_format)
         mdtext += '**# input regions** -> number of considered input regions from input dataset, '
-        mdtext += '**% exon regions** -> % of input regions overlapping with exon regions, '
-        mdtext += '**% intron regions** -> % of input regions overlapping with intron regions, '
-        mdtext += '**%% us intron border regions** -> %% of input regions overlapping with upstream ends of intron regions (first %i nt), ' %(ib_len)
-        mdtext += '**%% ds intron border regions** -> %% of input regions overlapping with downstream ends of intron regions (last %i nt), ' %(ib_len)
-        mdtext += '**%% exon-intron border regions** -> %% of input regions overlapping with exon-intron borders (+/- %i nt of exon-intron borders). ' %(eib_len)
-        mdtext += "**NOTE** that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered. " %(2*ib_len, ib_len)
-        mdtext += "Also note that the overlap is calculated between (optionally extended) input regions and transcript regions (one representative transcript, i.e., transcript with highest experimental support, chosen for each gene region, unless --tr-list provided). "
-        mdtext += "Thus, depending on set parameters (minimum overlap amount etc.), occasional overlap of annotated gene regions, and characteristics of input dataset, exon/intron overlap can vary, doesn't have to add up to 100, and can also be relatively low.\n"
+        mdtext += '**% exon regions** -> % of input regions overlapping with exon regions (== exonic regions), '
+        mdtext += '**% intron regions** -> % of input regions overlapping with intron regions (== intronic regions), '
+        mdtext += '**%% us intron border** -> %% of intronic regions closer to intron upstream borders + within first %i nt of intron, ' %(ib_len)
+        mdtext += '**%% ds intron border** -> %% of intronic regions closer to intron downstream borders + within first %i nt of intron, ' %(ib_len)
+        mdtext += '**%% distant us intron** -> %% of intronic regions closer to intron upstream borders and > %i nt away from intron borders, ' %(ib_len)
+        mdtext += '**%% distant ds intron** -> %% of intronic regions closer to intron downstream borders and > %i nt away from intron borders, ' %(ib_len)
+        mdtext += '**%% exon-intron border** -> %% of input regions overlapping with exon-intron borders (+/- %i nt of exon-intron borders). ' %(eib_len)
+        mdtext += "**% first exon** -> % of input regions overlapping with transcript first exons, "
+        mdtext += '**% last exon** -> % of input regions overlapping with transcript last exons, '
+        mdtext += '**% single exon** -> % of input regions overlapping with single exon transcripts. '
+        mdtext += "**NOTE** that for upstream/downstream intron end overlaps, the input region is always assigned "
+        mdtext += "to the closest intron border (based on distance between input region center position and intron ends), "
+        mdtext += "independent of intron length (i.e., intron length can also be < %i nt)." %(ib_len)
         mdtext += "\n&nbsp;\n"
+
+        # AAALAMO
 
 
         # id2eib_stats_dic[internal_id] = [combined_id, ei_ol_stats.c_input_sites, exon_sites_ratio, intron_sites_ratio, us_ib_sites_ratio, ds_ib_sites_ratio, eib_sites_ratio]
@@ -10476,18 +10619,23 @@ Considered intron border region length = %i nt (change via --gtf-intron-border-l
 The closer two datasets (i.e., the dots representing them), the more similar the datasets are w.r.t. their exon-intron overlap statistics.
 Hover box shows: 
 dataset ID (bold-faced, format: %s), 
-\# of dataset regions (also used for color coding),
-%% regions overlapping with exons (Exon), 
-%% regions overlapping with introns (Intron),
-%% regions overlapping with upstream (US) intron borders,
-%% regions overlapping with downstream (DS) intron borders,
-%% regions overlapping with exon-intron borders.
-Minimum overlap between exon/intron region and input region to be counted as overlapping = %s%% (change via --gtf-eib-min-overlap).
-Considered intron border region length = %i nt (change via --gtf-intron-border-len). Considered exon-intron border region = +/- %i nt relative to border.
-
+**Input regions** -> \# of dataset regions,
+**Exon** -> %% of input regions overlapping with exon regions (== exonic regions),
+**Intron** -> %% of input regions overlapping with intron regions (== intronic regions),
+**US intron border** -> %% of intronic regions closer to intron upstream borders + within first %i nt of intron,
+**DS intron border** -> %% of intronic regions closer to intron downstream borders + within first %i nt of intron,
+**US distant intron** -> %% of intronic regions closer to intron upstream borders and > %i nt away from intron borders,
+**DS distant intron** -> %% of intronic regions closer to intron downstream borders and > %i nt away from intron borders,
+**Exon-intron border** -> %% of input regions overlapping with exon-intron borders (+/- %i nt of exon-intron borders),
+**First exon** -> %% of input regions overlapping with transcript first exons,
+**Last exon** -> %% of input regions overlapping with transcript last exons,
+**Single exon** -> %% of input regions overlapping with single exon transcripts.
+**NOTE** that for upstream/downstream intron end overlaps, the input region is always assigned
+to the closest intron border (based on distance between input region center position and intron ends),
+independent of intron length (i.e., intron length can also be < %i nt).
 &nbsp;
 
-""" %(dataset_id_format, str(perc_min_overlap), ib_len, eib_len)
+""" %(dataset_id_format, ib_len, ib_len, ib_len, ib_len, eib_len, ib_len)
 
         else:
             mdtext += """
@@ -14103,10 +14251,6 @@ def search_generate_html_report(args,
     motif_enrich_info = "- [RBP region score motif enrichment statistics](#rbp-enrich-stats)"
     if disable_motif_enrich_table:
         motif_enrich_info = ""
-    if motif_enrich_info and args.kmer_plot:
-        motif_enrich_info += "\n- [Top vs bottom scoring regions k-mer distribution](#kmer-dist)"
-    elif not motif_enrich_info and args.kmer_plot:
-        motif_enrich_info = "- [Top vs bottom scoring regions k-mer distribution](#kmer-dist)"
 
     # Markdown part.
     mdtext = """
@@ -14124,7 +14268,8 @@ by RBPBench (rbpbench %s):
         mdtext += "- [Input sequence length distribution](#seq-len-plot)\n"
     if not disable_top_kmers_plot:
         mdtext += "- [Input sequences top k-mers plot](#seqs-top-kmer-plot)\n"
-
+    if not args.disable_kmer_plot:
+        mdtext += "- [Top vs bottom scoring regions k-mer distribution](#kmer-dist)\n"
     # Additional plot if GTF annotations given.
     if reg2annot_dic:
         mdtext += "- [Region annotations per RBP](#annot-rbp-plot)\n"
@@ -14256,100 +14401,6 @@ By default, BED genomic regions input file column 5 is used as the score column 
         mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
         mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
         mdtext += "\n&nbsp;\n"
-
-    """
-    Top vs bottom scoring regions k-mer distribution
-    #kmer-dist
-
-    reg2sc_dic:
-        region ID -> score dictionary.
-
-    """
-    if args.kmer_plot:
-
-        top_seqs_dic = {}
-        bottom_seqs_dic = {}
-
-        rev_sort = True  # True if scores (i.e. the higher the better site quality).
-        if args.bed_sc_thr_rev_filter:  # If scores are e.g. p-values, reverse filtering.
-            rev_sort = False
-
-        top_ids, bottom_ids = split_regions_by_sc(reg2sc_dic, 
-                                                  top_n=args.kmer_plot_top_n, 
-                                                  bottom_n=args.kmer_plot_bottom_n,
-                                                  rev_sort=rev_sort)
-
-        c_top_sites = len(top_ids)
-        c_bottom_sites = len(bottom_ids)
-
-        for reg_id in top_ids:
-            top_seqs_dic[reg_id] = reg2seq_dic[reg_id]
-        for reg_id in bottom_ids:
-            bottom_seqs_dic[reg_id] = reg2seq_dic[reg_id]
-
-        top_kmer_dic = seqs_dic_count_kmer_freqs(top_seqs_dic, args.kmer_plot_k, 
-                                                 rna=False,
-                                                 return_ratios=True,
-                                                 perc=True,
-                                                 report_key_error=False,
-                                                 skip_non_dic_keys=True,
-                                                 convert_to_uc=True)
-        bottom_kmer_dic = seqs_dic_count_kmer_freqs(bottom_seqs_dic, args.kmer_plot_k, 
-                                                    rna=False,
-                                                    return_ratios=True,
-                                                    perc=True,
-                                                    report_key_error=False,
-                                                    skip_non_dic_keys=True,
-                                                    convert_to_uc=True)
-
-
-        mdtext += """
-## Top vs bottom scoring regions k-mer distribution ### {#kmer-dist}
-
-"""
-
-        plotly_kmer_plot = "plotly_scatter_kmer.html"
-        plotly_kmer_plot_out = plots_out_folder + "/" + plotly_kmer_plot
-
-        # Create k-mer plotly scatter plot.
-        create_kmer_sc_plotly_scatter_plot(top_kmer_dic, bottom_kmer_dic, args.kmer_plot_k,
-                                           plotly_kmer_plot_out, plotly_js_path,
-                                           pos_label=f"{args.kmer_plot_k}-mer % top scoring sites",
-                                           neg_label=f"{args.kmer_plot_k}-mer % bottom scoring sites",
-                                           kmer_label=f"{args.kmer_plot_k}-mer")
-
-        # Plot paths inside html report.
-        plotly_kmer_plot_path = plots_folder + "/" + plotly_kmer_plot
-
-        # R2 score.
-        r2_kmer = calc_r2_corr_measure(top_kmer_dic, bottom_kmer_dic,
-                                       is_dic=True)
-
-        # Expected k-mer percentage.
-        exp_kmer_perc = calc_exp_kmer_perc(args.kmer_plot_k)
-
-        if args.plotly_js_mode in [5, 6, 7]:
-            js_code = read_file_content_into_str_var(plotly_kmer_plot_out)
-            js_code = js_code.replace("height:100%; width:100%;", "height:800px; width:800px;")
-            mdtext += js_code + "\n"
-        else:
-            mdtext += "<div>\n"
-            mdtext += '<iframe src="' + plotly_kmer_plot_path + '" width="800" height="800"></iframe>' + "\n"
-            mdtext += '</div>'
-
-        mdtext += """
-
-**Figure:** Sequence %i-mer percentages in the top %i scoring and bottom %i scoring input sites. In case of
-a uniform distribution with all %i-mers present, each %i-mer would have a percentage of %s%%. R2 = %.6f.
-By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
-**NOTE** that this plot is only meaningful if the provided scores are related to binding site quality / binding affinity.
-In this case, the plot can hint at RBP binding preferences (corresponding to enriched k-mers in the top input sites). 
-Plot can be further modified by specifying top and bottom n scoring regions (--kmer-plot-top-n, --kmer-plot-bottom-n, 
-by default top and bottom are split in half), or change k (--kmer-plot-k).
-
-&nbsp;
-
-""" %(args.kmer_plot_k, c_top_sites, c_bottom_sites, args.kmer_plot_k, args.kmer_plot_k, str(exp_kmer_perc), r2_kmer)
 
 
 
@@ -14573,6 +14624,104 @@ In case of a uniform distribution with all %i-mers present, each %i-mer would ha
 &nbsp;
 
 """ %(n_top_kmers, plot_k, plot_k, plot_k, exp_kmer_perc)
+
+
+    """
+    Top vs bottom scoring regions k-mer distribution.
+
+    reg2sc_dic:
+        region ID -> score dictionary.
+
+    """
+    if not args.disable_kmer_plot:
+
+        assert reg2sc_dic, "No region scores supplied (reg2sc_dic missing) for plotting top vs bottom scoring regions k-mer plot"
+
+        top_seqs_dic = {}
+        bottom_seqs_dic = {}
+
+        rev_sort = True  # True if scores (i.e. the higher the better site quality).
+        if args.bed_sc_thr_rev_filter:  # If scores are e.g. p-values, reverse filtering.
+            rev_sort = False
+
+        top_ids, bottom_ids = split_regions_by_sc(reg2sc_dic, 
+                                                  top_n=args.kmer_plot_top_n, 
+                                                  bottom_n=args.kmer_plot_bottom_n,
+                                                  rev_sort=rev_sort)
+
+        c_top_sites = len(top_ids)
+        c_bottom_sites = len(bottom_ids)
+
+        for reg_id in top_ids:
+            top_seqs_dic[reg_id] = reg2seq_dic[reg_id]
+        for reg_id in bottom_ids:
+            bottom_seqs_dic[reg_id] = reg2seq_dic[reg_id]
+
+        top_kmer_dic = seqs_dic_count_kmer_freqs(top_seqs_dic, args.kmer_plot_k, 
+                                                 rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
+                                                 convert_to_uc=True)
+        bottom_kmer_dic = seqs_dic_count_kmer_freqs(bottom_seqs_dic, args.kmer_plot_k, 
+                                                    rna=False,
+                                                    return_ratios=True,
+                                                    perc=True,
+                                                    report_key_error=False,
+                                                    skip_non_dic_keys=True,
+                                                    convert_to_uc=True)
+
+
+        mdtext += """
+## Top vs bottom scoring regions k-mer distribution ### {#kmer-dist}
+
+"""
+
+        plotly_kmer_plot = "plotly_scatter_kmer.html"
+        plotly_kmer_plot_out = plots_out_folder + "/" + plotly_kmer_plot
+
+        # Create k-mer plotly scatter plot.
+        create_kmer_sc_plotly_scatter_plot(top_kmer_dic, bottom_kmer_dic, args.kmer_plot_k,
+                                           plotly_kmer_plot_out, plotly_js_path,
+                                           pos_label=f"{args.kmer_plot_k}-mer % top scoring sites",
+                                           neg_label=f"{args.kmer_plot_k}-mer % bottom scoring sites",
+                                           kmer_label=f"{args.kmer_plot_k}-mer")
+
+        # Plot paths inside html report.
+        plotly_kmer_plot_path = plots_folder + "/" + plotly_kmer_plot
+
+        # R2 score.
+        r2_kmer = calc_r2_corr_measure(top_kmer_dic, bottom_kmer_dic,
+                                       is_dic=True)
+
+        # Expected k-mer percentage.
+        exp_kmer_perc = calc_exp_kmer_perc(args.kmer_plot_k)
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            js_code = read_file_content_into_str_var(plotly_kmer_plot_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:800px; width:800px;")
+            mdtext += js_code + "\n"
+        else:
+            mdtext += "<div>\n"
+            mdtext += '<iframe src="' + plotly_kmer_plot_path + '" width="800" height="800"></iframe>' + "\n"
+            mdtext += '</div>'
+
+        mdtext += """
+
+**Figure:** Sequence %i-mer percentages in the top %i scoring and bottom %i scoring input sites. In case of
+a uniform distribution with all %i-mers present, each %i-mer would have a percentage of %s%%. R2 = %.6f.
+By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
+**NOTE** that this plot is only meaningful if the provided scores are related to binding site quality / binding affinity.
+In this case, the plot can hint at RBP binding preferences (corresponding to enriched k-mers in the top input sites). 
+Plot can be further modified by specifying top and bottom n scoring regions (--kmer-plot-top-n, --kmer-plot-bottom-n, 
+by default top and bottom are split in half), or change k (--kmer-plot-k).
+
+&nbsp;
+
+""" %(args.kmer_plot_k, c_top_sites, c_bottom_sites, args.kmer_plot_k, args.kmer_plot_k, str(exp_kmer_perc), r2_kmer)
+
+
 
 
     # Region ID to motifs string for plotting.

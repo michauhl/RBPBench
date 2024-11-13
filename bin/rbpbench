@@ -308,11 +308,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Disable input sequence length distribution plot in HTML report (default: False)")
-    p_s.add_argument("--kmer-plot",
-                   dest="kmer_plot",
+    p_s.add_argument("--disable-kmer-plot",
+                   dest="disable_kmer_plot",
                    default = False,
                    action = "store_true",
-                   help = "Generate k-mer distribution plot, comparing input top scoring sites vs bottom scoring sites. By default, split point is the middle point, i.e., top 50 percent vs bottom 50 percent scoring sites (default: False)")
+                   help = "Disable generating k-mer distribution plot, comparing input top scoring sites vs bottom scoring sites. By default, split point is the middle point, i.e., top 50 percent vs bottom 50 percent scoring sites (default: False)")
     p_s.add_argument("--kmer-plot-top-n",
                    dest="kmer_plot_top_n",
                    type=int,
@@ -396,12 +396,12 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.1,
                    help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\"). If there is overlap with several features, assign the one with highest overlap (default: 0.1)")
-    p_s.add_argument("--gtf-eib-min-overlap",
-                   dest="gtf_eib_min_overlap",
-                   type=float,
-                   metavar='float',
-                   default=0.5,
-                   help="Minimum amount input region has to overlap with exon (e), intron (i), i + ei borders to be counted as overlapping with these (note that the amount is reciprocal, i.e., one of the overlapping parts meeting the minimum amount is enough) (default: 0.5)")
+    # p_s.add_argument("--gtf-eib-min-overlap",
+    #                dest="gtf_eib_min_overlap",
+    #                type=float,
+    #                metavar='float',
+    #                default=0.5,
+    #                help="Minimum amount input region has to overlap with exon (e), intron (i), i + ei borders to be counted as overlapping with these (note that the amount is reciprocal, i.e., one of the overlapping parts meeting the minimum amount is enough) (default: 0.5)")
     p_s.add_argument("--gtf-intron-border-len",
                    dest="gtf_intron_border_len",
                    type=int,
@@ -816,12 +816,6 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.1,
                    help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\"). If there is overlap with several features, assign the one with highest overlap (default: 0.1)")
-    p_b.add_argument("--gtf-eib-min-overlap",
-                   dest="gtf_eib_min_overlap",
-                   type=float,
-                   metavar='float',
-                   default=0.5,
-                   help="Minimum amount input region has to overlap with exon (e), intron (i), i + ei borders to be counted as overlapping with these (note that the amount is reciprocal, i.e., one of the overlapping parts meeting the minimum amount is enough) (default: 0.5)")
     p_b.add_argument("--gtf-intron-border-len",
                    dest="gtf_intron_border_len",
                    type=int,
@@ -3405,13 +3399,10 @@ def main_search(args):
         assert args.in_gtf, "set --tr-list requires --gtf GTF file"
     assert benchlib.boundary_check(args.gtf_feat_min_overlap, 1E-9, 1.0), "set --gtf-feat-min-overlap expected to be >= 1E-9 and <= 1.0"
     assert benchlib.boundary_check(args.gtf_min_mrna_overlap, 1E-9, 1.0), "set --gtf-min-mrna-overlap expected to be >= 1E-9 and <= 1.0"
-    assert benchlib.boundary_check(args.gtf_eib_min_overlap, 1E-9, 1.0), "set --gtf-eib-min-overlap expected to be >= 1E-9 and <= 1.0"
     assert benchlib.boundary_check(args.gtf_intron_border_len, 1, 1000), "set --gtf-intron-border-eln expected to be >= 1 and <= 1000"
     assert benchlib.boundary_check(args.min_motif_dist, 0, 1000), "set --min-motif-dist expected to be >= 0 and <= 1000"
     assert benchlib.boundary_check(args.kmer_plot_k, 1, 7), "set --kmer-plot-k expected to be >= 1 and <= 7"
     assert benchlib.boundary_check(args.seqs_kmer_plot_k, 1, 7), "set --seqs-kmer-plot-k  expected to be >= 1 and <= 7"
-
-
 
 
     # if args.in_gtf:
@@ -6096,10 +6087,10 @@ def main_search(args):
                                      params=params)
 
         motif_hit2annot_dic = benchlib.get_region_annotations(
-                                            overlap_motif_hit_annotations_bed,
-                                            motif_hits=True,
-                                            tid2tio_dic=tid2tio_dic,
-                                            reg_ids_dic=motif_reg_dic)
+                                        overlap_motif_hit_annotations_bed,
+                                        tid2tio_dic,
+                                        motif_hits=True,
+                                        reg_ids_dic=motif_reg_dic)
 
         for motif_hit in motif_hit2annot_dic:
             # motif_hit format: "chr1:10-15(+)motif_id". Get motif_id.
@@ -6411,7 +6402,6 @@ def main_batch(args):
     if args.tr_list:
         assert args.in_gtf, "--tr-list set, but --gtf not set. Please provide --gtf file"
     assert benchlib.boundary_check(args.gtf_feat_min_overlap, 1E-9, 1.0), "set --gtf-feat-min-overlap expected to be >= 1E-9 and <= 1.0"
-    assert benchlib.boundary_check(args.gtf_eib_min_overlap, 1E-9, 1.0), "set --gtf-eib-min-overlap expected to be >= 1E-9 and <= 1.0"
     assert benchlib.boundary_check(args.gtf_intron_border_len, 1, 1000), "set --gtf-intron-border-eln expected to be >= 1 and <= 1000"
     if args.in_gtf:
         assert os.path.exists(args.in_gtf), "set --gtf file not found"
@@ -6838,7 +6828,9 @@ def main_batch(args):
         benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,  # AALAMO
                                             output_mode=3,  # only introns.
                                             report_counts=True,
-                                            add_tr_id=True,
+                                            add_tr_id=True,  # new reg_id format: intron;ENST000006666
+                                            add_numbers=True,  # new reg_id format: intron;ENST000006666;1-2
+                                            number_format=1,  # format intron;ENST000006666;1-2
                                             empty_check=False)
 
         # Custom transcript biotypes for upset plot.
@@ -6852,6 +6844,7 @@ def main_batch(args):
         print("Output exon annotations to BED ... ")
         benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
                                          custom_annot_dic=custom_annot_dic,
+                                         add_numbers=True,
                                          append=True)
 
         print("Output exon + intron border regions ... ")
@@ -7773,10 +7766,11 @@ def main_batch(args):
                                          params=params)
             
             reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
-                                                            tid2tio_dic=tid2tio_dic,
+                                                            tid2tio_dic,
                                                             reg_ids_dic=reg_ids_dic)
 
-            # reg2annot_dic = {'chr22:30971326-30971352(+)': ['other (nc)RNA', 'ENST00000614234'], ...
+            # reg2annot_dic format right now: 
+            # reg_id -> [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr]
 
             # Store annotations for all regions.
             occ_tr_ids_dic = {}  # Transcript IDs occupied by dataset regions.
@@ -7786,6 +7780,10 @@ def main_batch(args):
             for reg_id in reg2annot_dic:
                 annot = reg2annot_dic[reg_id][0]
                 tr_id = reg2annot_dic[reg_id][1]
+                # Extend to 9 elements format.
+                reg2annot_dic[reg_id].append("-")
+                reg2annot_dic[reg_id].append("-")
+                reg2annot_dic[reg_id].append("-")
 
                 if tr_id:  # if tr_id is not False (if region does not overlap with transcripts/genes).
 
@@ -7870,43 +7868,88 @@ def main_batch(args):
                         new_annot_c = annot_c // 2
                         id2hit_reg_annot_dic[internal_id][annot] = new_annot_c
 
-            # Overlap with input regions.
-            print("Overlap exon + intron regions with input regions ... ")
-            params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
-            overlap_ei_regions_bed = args.out_folder + "/overlap_ei_regions.tmp.bed"
-            benchlib.bed_intersect_files(intron_exon_out_bed, filtered_sites_bed,
-                                         overlap_ei_regions_bed,
-                                         params=params)
+            # # Overlap with input regions.
+            # print("Overlap exon + intron regions with input regions ... ")
+            # params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
+            # overlap_ei_regions_bed = args.out_folder + "/overlap_ei_regions.tmp.bed"
+            # benchlib.bed_intersect_files(intron_exon_out_bed, filtered_sites_bed,
+            #                              overlap_ei_regions_bed,
+            #                              params=params)
 
-            # Get exon + intron overlap counts.
-            c_exon_ol, c_intron_ol = benchlib.get_intron_exon_ol_counts(overlap_ei_regions_bed)
-            # print("# exon overlap regions:   %i" %(c_exon_ol))
-            # print("# intron overlap regions: %i" %(c_intron_ol))
+            # # Get exon + intron overlap counts.
+            # c_exon_ol, c_intron_ol = benchlib.get_intron_exon_ol_counts(overlap_ei_regions_bed)
+            # # print("# exon overlap regions:   %i" %(c_exon_ol))
+            # # print("# intron overlap regions: %i" %(c_intron_ol))
 
-            print("Overlap exon + intron border regions with input regions ... ")
-            params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
-            overlap_eib_regions_bed = args.out_folder + "/overlap_eib_regions.tmp.bed"
-            benchlib.bed_intersect_files(intron_exon_border_out_bed, filtered_sites_bed,
-                                         overlap_eib_regions_bed,
-                                         params=params)
+            # print("Overlap exon + intron border regions with input regions ... ")
+            # params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
+            # overlap_eib_regions_bed = args.out_folder + "/overlap_eib_regions.tmp.bed"
+            # benchlib.bed_intersect_files(intron_exon_border_out_bed, filtered_sites_bed,
+            #                              overlap_eib_regions_bed,
+            #                              params=params)
 
-            # Get other overlap counts.
-            c_eib_ol, c_us_ib_ol, c_ds_ib_ol = benchlib.get_eib_ol_counts(overlap_eib_regions_bed)
+            # # Get other overlap counts.
+            # c_eib_ol, c_us_ib_ol, c_ds_ib_ol = benchlib.get_eib_ol_counts(overlap_eib_regions_bed)
+
+            """
+            Get exon-intron + border overlap statistics from reg2annot_dic.
+
+            """
 
             ei_border_len = 50
             args.ei_border_len = ei_border_len
 
+            eib_annot_c_dic = {
+                "exonic" : 0,
+                "intronic" : 0,
+                "intergenic" : 0,
+                "eib" : 0,
+                "us_ib_dist" : 0,
+                "ds_ib_dist" : 0,
+                "us_ib" : 0,
+                "ds_ib" : 0,
+                "first_exon" : 0,
+                "last_exon" : 0,
+                "single_exon" : 0
+            }
+
+            # reg2annot_dic format: 
+            # reg_id -> [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr, gene_id, gene_name, tr_biotype]
+
+            for reg_id in reg2annot_dic:
+                benchlib.get_eib_annot_c(reg2annot_dic[reg_id], eib_annot_c_dic,
+                                        ib_len=args.gtf_intron_border_len,
+                                        eib_len=ei_border_len)
+
+            c_exon_ol = eib_annot_c_dic["exonic"]
+            c_intron_ol = eib_annot_c_dic["intronic"]
+            c_intergenic = eib_annot_c_dic["intergenic"]
+            c_eib_ol = eib_annot_c_dic["eib"]
+            c_us_ib_ol = eib_annot_c_dic["us_ib"]
+            c_ds_ib_ol = eib_annot_c_dic["ds_ib"]
+            c_us_ib_dist_ol = eib_annot_c_dic["us_ib_dist"]
+            c_ds_ib_dist_ol = eib_annot_c_dic["ds_ib_dist"]
+            c_first_exon = eib_annot_c_dic["first_exon"]
+            c_last_exon = eib_annot_c_dic["last_exon"]
+            c_single_exon = eib_annot_c_dic["single_exon"]
+
             exon_intron_ol_stats = benchlib.ExonIntronOverlap(internal_id, c_regions,
-                                                             c_exon_sites=c_exon_ol,
-                                                             c_intron_sites=c_intron_ol,
-                                                             c_us_ib_sites=c_us_ib_ol,
-                                                             c_ds_ib_sites=c_ds_ib_ol,
-                                                             c_eib_sites=c_eib_ol,
-                                                             min_overlap=args.gtf_eib_min_overlap,
-                                                             intron_border_len=args.gtf_intron_border_len,
-                                                             ei_border_len=ei_border_len,
-                                                             c_tr_ids=len(tid2tio_dic),
-                                                             c_tr_ids_with_sites=len(occ_tr_ids_dic))
+                                                            c_exon_sites=c_exon_ol,
+                                                            c_intron_sites=c_intron_ol,
+                                                            c_intergenic_sites=c_intergenic,
+                                                            c_us_ib_sites=c_us_ib_ol,
+                                                            c_ds_ib_sites=c_ds_ib_ol,
+                                                            c_us_ib_dist_sites=c_us_ib_dist_ol,
+                                                            c_ds_ib_dist_sites=c_ds_ib_dist_ol,
+                                                            c_eib_sites=c_eib_ol,
+                                                            c_first_exon_sites=c_first_exon,
+                                                            c_last_exon_sites=c_last_exon,
+                                                            c_single_exon_sites=c_single_exon,
+                                                            min_overlap=args.gtf_feat_min_overlap,
+                                                            intron_border_len=args.gtf_intron_border_len,
+                                                            ei_border_len=ei_border_len,
+                                                            c_tr_ids=len(tid2tio_dic),
+                                                            c_tr_ids_with_sites=len(occ_tr_ids_dic))
             
             ei_ol_stats_dic[internal_id] = exon_intron_ol_stats
 
@@ -8083,7 +8126,11 @@ def main_batch(args):
     eib_ol_table_out = args.out_folder + "/exon_intron_overlap_stats.tsv"
     if ei_ol_stats_dic:
         OUTEIB = open(eib_ol_table_out,"w")
-        OUTEIB.write("dataset_id\tperc_exons\tperc_introns\tperc_us_ib\tperc_ds_ib\tperc_eib\tc_regions\tc_exon_sites\tc_intron_sites\tc_us_ib_sites\tc_ds_ib_sites\tc_eib_sites\tc_tr_ids\tc_tr_ids_with_sites\n")
+        OUTEIB.write("dataset_id\tperc_exons\tperc_introns\tperc_us_ib\tperc_ds_ib\tperc_dist_us_ib\tperc_dist_ds_ib\t"
+                     "perc_eib\tperc_first_exon\tperc_last_exon\tperc_single_exon\t"
+                     "c_regions\tc_exon_sites\tc_intron_sites\tc_us_ib_sites\tc_ds_ib_sites\tc_dist_us_ib_sites\tc_dist_ds_ib_sites\t"
+                     "c_eib_sites\tc_first_exon_sites\tc_last_exon_sites\tc_single_exon_sites\t"
+                     "c_tr_ids\tc_tr_ids_with_sites\n")
 
         for internal_id in ei_ol_stats_dic:
             combined_id = internal_id
@@ -8109,23 +8156,49 @@ def main_batch(args):
             ds_ib_sites_perc = 0.0
             if ei_ol_stats.c_ds_ib_sites and ei_ol_stats.c_input_sites:
                 ds_ib_sites_perc = round(ei_ol_stats.c_ds_ib_sites / ei_ol_stats.c_input_sites * 100, 1)
+            us_ib_dist_sites_perc = 0.0
+            if ei_ol_stats.c_us_ib_dist_sites and ei_ol_stats.c_input_sites:
+                us_ib_dist_sites_perc = round(ei_ol_stats.c_us_ib_dist_sites / ei_ol_stats.c_input_sites * 100, 1)
+            ds_ib_dist_sites_perc = 0.0
+            if ei_ol_stats.c_ds_ib_dist_sites and ei_ol_stats.c_input_sites:
+                ds_ib_dist_sites_perc = round(ei_ol_stats.c_ds_ib_dist_sites / ei_ol_stats.c_input_sites * 100, 1)
+            first_exon_sites_perc = 0.0
+            if ei_ol_stats.c_first_exon_sites and ei_ol_stats.c_input_sites:
+                first_exon_sites_perc = round(ei_ol_stats.c_first_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
+            last_exon_sites_perc = 0.0
+            if ei_ol_stats.c_last_exon_sites and ei_ol_stats.c_input_sites:
+                last_exon_sites_perc = round(ei_ol_stats.c_last_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
+            single_exon_sites_perc = 0.0
+            if ei_ol_stats.c_single_exon_sites and ei_ol_stats.c_input_sites:
+                single_exon_sites_perc = round(ei_ol_stats.c_single_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
             eib_sites_perc = 0.0
             if ei_ol_stats.c_eib_sites and ei_ol_stats.c_input_sites:
                 eib_sites_perc = round(ei_ol_stats.c_eib_sites / ei_ol_stats.c_input_sites * 100, 1)
-            perc_min_overlap = round(args.gtf_eib_min_overlap * 100, 1)
+            # perc_min_overlap = round(args.gtf_feat_min_overlap * 100, 1)
 
-            OUTEIB.write("%s\t%s\t%s\t%s\t%s\t%s\t%i\t%i\t%i\t%i\t%i\t%i\t%i\t%i\n" %(combined_id, 
+            OUTEIB.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%i\t%i\t%i\t%i\t%i\t%i\t%i\t%i\t%i\t%i\t%i\t%i\t%i\n" %(
+                                                                                combined_id, 
                                                                                 str(exon_sites_perc), 
                                                                                 str(intron_sites_perc), 
                                                                                 str(us_ib_sites_perc), 
-                                                                                str(ds_ib_sites_perc), 
-                                                                                str(eib_sites_perc), 
+                                                                                str(ds_ib_sites_perc),
+                                                                                str(us_ib_dist_sites_perc),
+                                                                                str(ds_ib_dist_sites_perc),
+                                                                                str(eib_sites_perc),
+                                                                                str(first_exon_sites_perc),
+                                                                                str(last_exon_sites_perc),
+                                                                                str(single_exon_sites_perc),
                                                                                 ei_ol_stats.c_input_sites, 
                                                                                 ei_ol_stats.c_exon_sites, 
                                                                                 ei_ol_stats.c_intron_sites, 
                                                                                 ei_ol_stats.c_us_ib_sites, 
-                                                                                ei_ol_stats.c_ds_ib_sites, 
-                                                                                ei_ol_stats.c_eib_sites, 
+                                                                                ei_ol_stats.c_ds_ib_sites,
+                                                                                ei_ol_stats.c_us_ib_dist_sites,
+                                                                                ei_ol_stats.c_ds_ib_dist_sites,
+                                                                                ei_ol_stats.c_eib_sites,
+                                                                                ei_ol_stats.c_first_exon_sites,
+                                                                                ei_ol_stats.c_last_exon_sites,
+                                                                                ei_ol_stats.c_single_exon_sites,
                                                                                 ei_ol_stats.c_tr_ids, 
                                                                                 ei_ol_stats.c_tr_ids_with_sites))
 
@@ -13402,6 +13475,9 @@ def main_searchrna(args):
     plots_subfolder = "html_report_plots"
     benchlib_path = os.path.dirname(benchlib.__file__)
 
+    # Disable some functions from rbpbench search.
+    args.disable_kmer_plot = True
+
     print("Create report ... ")
     benchlib.search_generate_html_report(args,
                                     df_pval, pval_cont_lll,
@@ -13421,6 +13497,7 @@ def main_searchrna(args):
                                     html_report_out=html_report_out,
                                     rbpbench_mode="searchrna",
                                     reg_seq_str="regions",
+                                    reg2seq_dic=out_seqs_dic,
                                     disable_motif_enrich_table=True,
                                     plots_subfolder=plots_subfolder)
 
