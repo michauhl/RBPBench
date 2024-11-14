@@ -838,6 +838,12 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Disable sequence complexity info to be added to plot (default: False)")
+    p_b.add_argument("--seq-var-kmer-size",
+                   dest="seq_var_kmer_size",
+                   type=int,
+                   metavar='int',
+                   default=1,
+                   help="K-mer size for sequence variation statistics and plot (default: 1)")
     # GO enrichment analysis for batch mode.
     p_b.add_argument("--goa",
                    dest="run_goa",
@@ -6406,6 +6412,7 @@ def main_batch(args):
     if args.in_gtf:
         assert os.path.exists(args.in_gtf), "set --gtf file not found"
     assert benchlib.boundary_check(args.kmer_size, 1, 6), "set --kmer-size expected to be >= 1 and <= 6"
+    assert benchlib.boundary_check(args.seq_var_kmer_size, 1, 5), "set --seq-var-kmer-size expected to be >= 1 and <= 5"
 
     # Regex check.
     regex = False
@@ -6963,6 +6970,8 @@ def main_batch(args):
     # dataset_idx = 0  # For PCA plot.
     seq_len_stats_ll = []  # For sequence length stats in --report.
     seq_feat_ll = []  # For sequence feature stats in --report.
+    seq_var_ll = []  # For sequence variation stats in --report.
+    seq_var_kmer_l = []  # For sequence variation stats in --report.
     ei_ol_stats_dic = {}
 
     for idx, bed_file in enumerate(bed_list):
@@ -8024,6 +8033,26 @@ def main_batch(args):
                 seq_feat_l.append(round(seqs_bint_perc_dic[bint], 2))
             seq_feat_ll.append(seq_feat_l)
 
+        # Sequence variation stats.
+        print("Calculate sequence variations statistics ... ")
+        single_cv_dic, avg_cv = benchlib.calculate_k_nucleotide_cv(out_seqs_dic,
+                                                                   k=args.seq_var_kmer_size,
+                                                                   nucleotides=['A', 'C', 'G', 'T'],
+                                                                   only_observed=True)
+
+        # Make single CV value list.
+        seq_var_l = [dataset_id, avg_cv]
+
+        if not seq_var_kmer_l:
+            for kmer, single_cv in sorted(single_cv_dic.items()):
+                seq_var_kmer_l.append(kmer)
+        
+        for kmer, single_cv in sorted(single_cv_dic.items()):
+            seq_var_l.append(single_cv)
+
+        seq_var_ll.append(seq_var_l)
+
+
     OUTRBPSTATS.close()
     OUTMTFSTATS.close()
 
@@ -8389,6 +8418,8 @@ def main_batch(args):
                                         benchlib_path,
                                         seq_len_stats_ll,
                                         seq_feat_ll=seq_feat_ll,
+                                        seq_var_ll=seq_var_ll,
+                                        seq_var_kmer_l=seq_var_kmer_l,
                                         html_report_out=html_report_out,
                                         id2hk_gene_stats_dic=id2hk_gene_stats_dic,
                                         id2motif_enrich_stats_dic=id2motif_enrich_stats_dic,

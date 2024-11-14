@@ -6,9 +6,10 @@ import subprocess
 import gzip
 import shutil
 import statistics
+from itertools import combinations, product
+from collections import defaultdict
 import matplotlib.pyplot as plt
 from matplotlib_venn import venn2, venn3
-from itertools import combinations
 from venn import venn
 from logomaker import Logo
 from markdown import markdown
@@ -4499,7 +4500,7 @@ def get_regex_hit_region_annotations(overlap_annotations_bed,
 
             if cols[annot_col] != ".":
                 annot_ids = cols[annot_col].split(";")
-                assert len(annot_ids) == 2, "len(annot_ids) != 2 (expected ; separated string, but got: \"%s\")" %(cols[9])
+                assert len(annot_ids) == 3, "len(annot_ids) != 3 (expected ; separated string, but got: \"%s\")" %(cols[9])
                 annot_id = annot_ids[0]
                 tr_id = annot_ids[1]
 
@@ -8911,7 +8912,7 @@ def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll,
         hovertemplate='<b>%{hovertext}</b><br>Annotation percentages: %{customdata[1]}<extra></extra>'
     )
 
-    fig.update_traces(marker=dict(size=10, line=dict(width=0.5, color='white')))
+    fig.update_traces(marker=dict(size=12, line=dict(width=0.75, color='white')))
     # fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
     fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
 
@@ -9098,6 +9099,139 @@ def create_pca_motif_sim_dir_plot_plotly(motif_ids_list, motif_sim_ll,
                       # xaxis=dict(showgrid=False, zeroline=False, gridcolor='lightgray', zerolinecolor='lightgray'),
                       # yaxis=dict(showgrid=False, zeroline=False, gridcolor='lightgray', zerolinecolor='lightgray')
                       )
+
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
+def create_seq_var_plot_plotly(seq_var_ll, seq_var_kmer_l, plot_out,
+                               kmer_size=1,
+                               top_bottom_n=5,
+                               include_plotlyjs="cdn",
+                               full_html=False):
+    """
+    Create sequence variation plot, use PCA to reduce dimensions of single k-mer 
+    coefficients of variations in the datasets.
+    
+    Formats:
+    seq_var_ll = [dataset_id, average_cv, single_cv1, single_cv2 ... ]
+    seq_var_kmer_l = [kmer1, kmer2, ...]
+
+    """
+
+    assert seq_var_ll, "seq_var_ll empty"
+    assert seq_var_kmer_l, "seq_var_kmer_l empty"
+    assert top_bottom_n <= 10, "top_bottom_n > 10"
+    assert kmer_size < 6, "kmer_size > 5"
+
+    color_scale = ['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+
+    single_var_ll = [seq_var_l[2:] for seq_var_l in seq_var_ll]
+
+    kmer_cvs_str_list = []
+
+    # Construct k-mer CV strings for hover box.
+    for idx1, single_var_l in enumerate(single_var_ll):
+
+        # Average CV.
+        avg_cv = seq_var_ll[idx1][1]
+
+        kmer2cv_dic = {}
+        for idx2, kmer_cv in enumerate(single_var_l):
+            kmer = seq_var_kmer_l[idx2]
+            kmer2cv_dic[kmer] = kmer_cv
+
+        kmer_cv_str = '<span style="font-family: \'Courier New\', monospace;">'
+
+        if kmer_size < 3:
+            kmer_cv_str += "Single k-mer CVs:<br>"
+            for kmer, kmer_cv in sorted(kmer2cv_dic.items(), key=lambda x: x[1], reverse=False):
+                kmer_cv_str += kmer + ": " + str(round(kmer_cv, 5)) + "<br>"
+        else:
+            kmer_cv_str += "Top %i k-mer CVs:<br>" %(top_bottom_n)
+            for kmer, kmer_cv in sorted(kmer2cv_dic.items(), key=lambda x: x[1], reverse=False)[:top_bottom_n]:
+                kmer_cv_str += kmer + ": " + str(round(kmer_cv, 5)) + "<br>"
+            kmer_cv_str += "Bottom %i k-mer CVs:<br>" %(top_bottom_n)
+            for kmer, kmer_cv in sorted(kmer2cv_dic.items(), key=lambda x: x[1], reverse=True)[:top_bottom_n]:
+                kmer_cv_str += kmer + ": " + str(round(kmer_cv, 5)) + "<br>"
+
+        kmer_cv_str += "Average CV: " + str(round(avg_cv, 5)) + '</span><extra></extra>'
+
+        kmer_cvs_str_list.append(kmer_cv_str)
+
+    exp_n_cvs = 4 ** kmer_size
+    assert len(single_var_ll[0]) == exp_n_cvs, "unexpected number of CVs in seq_var_ll"
+
+    pca = PCA(n_components=2)
+    data_2d_pca = pca.fit_transform(single_var_ll)
+    df = pd.DataFrame(data_2d_pca, columns=['PC1', 'PC2'])
+
+    df['Dataset ID'] = [seq_var_l[0] for seq_var_l in seq_var_ll]
+    df['k-mer CVs'] = kmer_cvs_str_list
+    df['Average CV'] = [seq_var_l[1] for seq_var_l in seq_var_ll]
+    hover_data = ['Average CV', 'k-mer CVs']
+
+    # # If mono-nucleotide k-mers, add k-mer CVs to hover box.
+    # if kmer_size < 3:
+    #     for idx, kmer in enumerate(seq_var_kmer_l):
+    #         df[kmer] = [round(seq_var_l[2+idx], 5) for seq_var_l in seq_var_ll]
+    #         hover_data.append(kmer)
+
+    explained_variance = pca.explained_variance_ratio_ * 100
+    color = 'Average CV'
+
+    fig = px.scatter(
+        df,
+        x='PC1',
+        y='PC2',
+        color=color,
+        # title='2D Visualization with Dataset IDs',
+        labels={
+            'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+            'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
+        },
+        hover_name='Dataset ID',
+        color_continuous_scale=color_scale,
+        hover_data=hover_data
+    )
+
+    # AALAMO
+
+    # if kmer_size == 1:
+    #     fig.update_traces(
+    #         hovertemplate=(
+    #             '<b>%{hovertext}</b><br>'
+    #             'A CV: %{customdata[1]}<br>'
+    #             'C CV: %{customdata[2]}<br>'
+    #             'G CV: %{customdata[3]}<br>'
+    #             'T CV: %{customdata[4]}<br>'
+    #             'Average CV: %{customdata[0]}<extra></extra>'
+    #         )
+    #     )
+
+    # if kmer_size < 3:
+    #     # Construct k-mer CV string.
+    #     kmer_cv_str = ""
+    #     for index, kmer in enumerate(seq_var_kmer_l):
+    #         kmer_cv_str += kmer + " CV: %{customdata[" + str(index+1) + "]}<br>"
+    #     fig.update_traces(
+    #         hovertemplate=(
+    #             '<b>%{hovertext}</b><br><span style="font-family: \'Courier New\', monospace;">'
+    #             + kmer_cv_str +
+    #             'Average CV: %{customdata[0]}</span><extra></extra>'
+    #         )
+    #     )
+
+    # else:
+
+    fig.update_traces(
+        hovertemplate=(
+            '<b>%{hovertext}</b><br>%{customdata[1]}'
+        )
+    )
+
+    fig.update_traces(marker=dict(size=12, line=dict(width=0.75, color='white')))
 
     fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
 
@@ -9305,7 +9439,7 @@ def create_eib_comp_plot_plotly(id2eib_stats_dic, id2eib_perc_dic, plot_out,
             )
 
 
-        fig.update_traces(marker=dict(size=10, line=dict(width=0.5, color='white')))
+        fig.update_traces(marker=dict(size=12, line=dict(width=0.75, color='white')))
 
     fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
 
@@ -9463,6 +9597,70 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
 
 ################################################################################
 
+def calculate_k_nucleotide_cv(sequences, k=1,
+                              nucleotides=['A', 'C', 'G', 'T'],
+                              only_observed=True):
+    """
+    Calculate the coefficient of variation (CV) for each k-mer in the sequences.
+    Return the single k-mer CVs and the average CV over all k-mers.
+
+    only_observed:
+        If True, calculate the average CV only for observed k-mers.
+        If False, calculate the average CV for all possible k-mers.
+
+    """
+    # Generate all possible k-mers for specified k.
+    k_mers = [''.join(p) for p in product(nucleotides, repeat=k)]
+    # Calculate number of expected k-mers.
+    exp_num_k_mers = len(nucleotides) ** k
+
+    k_mer_counts = {k_mer: [] for k_mer in k_mers}
+    
+    observed_kmer_dic = {}
+
+    # Calculate k-mer ratios for each sequence.
+    for seq in sequences.values():
+        length = len(seq) - k + 1  # Number of k-mers in the sequence.
+        if length > 0:
+            # Count each k-mer in the sequence.
+            counts = defaultdict(int)
+            for i in range(length):
+                k_mer = seq[i:i + k]
+                if k_mer in k_mer_counts:  # Only valid k-mers.
+                    counts[k_mer] += 1
+                    observed_kmer_dic[k_mer] = 1
+            
+            # Store the ratio of each k-mer.
+            for k_mer in k_mers:
+                k_mer_counts[k_mer].append(counts[k_mer] / length)
+    
+    # Calculate the coefficient of variation (CV) for each k-mer.
+    k_mer_cv = {}
+    for k_mer, ratios in k_mer_counts.items():
+        if ratios:  # Only for k-mers present in the sequences.
+            mean = np.mean(ratios)
+            std_dev = np.std(ratios)
+            cv = (std_dev / mean) if mean != 0 else 0.0
+            k_mer_cv[k_mer] = cv
+
+    assert len(k_mer_cv) == exp_num_k_mers, "unexpected number of k-mers (expected: %i, got: %i)" % (exp_num_k_mers, len(k_mer_cv))
+
+    if only_observed:
+        # Calculate the average CV for observed k-mers only using observed_kmer_dic.
+        observed_cvs = [cv for k_mer, cv in k_mer_cv.items() if observed_kmer_dic.get(k_mer, 0)]
+        average_cv = np.mean(observed_cvs) if observed_cvs else 0
+    else:
+        # Calculate the average CV for all k-mers.
+        average_cv = np.mean(list(k_mer_cv.values())) if k_mer_cv else 0
+
+    # Convert k_mer_cv from numpy float to python float.
+    k_mer_cv = {k: float(v) for k, v in k_mer_cv.items()}
+
+    return k_mer_cv, average_cv
+
+
+################################################################################
+
 def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll,
                                  seq_len_stats_ll, plot_out, 
                                  seq_feat_ll=False,
@@ -9551,7 +9749,7 @@ def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll,
         fig.update_traces(
             hovertemplate = (
                 '<b>%{hovertext}</b><br>Top ' + str(n_top_kmers) + ' ' + str(kmer_len) + 
-                '-mer percentages: %{customdata[0]}Input regions (#):<br>%{customdata[1]}<br>Mean sequence complexity:<br>%{customdata[2]}<br>Mono-nucleotide percentages:<br>%{customdata[3]}<extra></extra>'
+                '-mer percentages:<span style="font-family: \'Courier New\', monospace;">%{customdata[0]}</span>Input regions (#):<br>%{customdata[1]}<br>Mean sequence complexity:<br>%{customdata[2]}<br>Mono-nucleotide percentages:<br>%{customdata[3]}<extra></extra>'
             )
         )
 
@@ -9559,7 +9757,7 @@ def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll,
         fig.update_traces(
             hovertemplate = (
                 '<b>%{hovertext}</b><br>Top ' + str(n_top_kmers) + ' ' + str(kmer_len) + 
-                '-mer percentages: %{customdata[0]}Input regions (#):<br>%{customdata[1]}<extra></extra>'
+                '-mer percentages:<span style="font-family: \'Courier New\', monospace;">%{customdata[0]}</span>Input regions (#):<br>%{customdata[1]}<extra></extra>'
             )
         )
 
@@ -10087,6 +10285,8 @@ def batch_generate_html_report(args,
                                benchlib_path,
                                seq_len_stats_ll,
                                seq_feat_ll=False,
+                               seq_var_ll=False,
+                               seq_var_kmer_l=False,
                                html_report_out="report.rbpbench_batch.html",
                                id2hk_gene_stats_dic=False,
                                id2motif_enrich_stats_dic=False,
@@ -10285,6 +10485,9 @@ by RBPBench (rbpbench batch --report):
         mdtext += "- [Input datasets nucleotide percentages statistics](#nt-perc-stats)\n"
 
     mdtext += "- [Input datasets k-mer frequencies comparative plot](#kmer-comp-plot)\n"
+
+    if seq_var_ll:
+        mdtext += "- [Input datasets k-mer variation comparative plot](#seq-var-plot)\n"
 
     if id2reg_annot_dic:  # if --gtf provided.
         mdtext += "- [Input datasets occupied gene regions comparative plot](#occ-comp-plot)\n"
@@ -10925,8 +11128,6 @@ D: NOT regex AND NOT RBP.
     """
     Input datasets nucleotide percentages table.
 
-    AALAMO
-    
     """
 
     if seq_feat_ll:
@@ -11021,6 +11222,8 @@ an A content of 100.0%% results in a complexity value of 0.0.
 
 
 
+
+
     """
     Input datasets k-mer frequencies comparative plot.
 
@@ -11079,6 +11282,98 @@ No plot generated since < 4 datasets were provided.
 &nbsp;
 
 """
+
+
+
+
+    """
+    Input datasets sequence / k-mer variation comparative plot.
+
+    AAALAMO
+    """
+
+    if seq_var_ll:
+
+        assert seq_var_kmer_l, "no k-mer list provided for sequence variation plot"
+
+        top_bottom_n = 10
+
+        mdtext += """
+## Input datasets k-mer variation comparative plot ### {#seq-var-plot}
+
+"""
+        if len(dataset_ids_list) > 3:
+
+            seq_var_plot_plotly =  "seq_variation_plot.plotly.html"
+            seq_var_plot_plotly_out = plots_out_folder + "/" + seq_var_plot_plotly
+
+            create_seq_var_plot_plotly(seq_var_ll, seq_var_kmer_l,
+                                       seq_var_plot_plotly_out,
+                                       kmer_size=args.seq_var_kmer_size,
+                                       top_bottom_n=top_bottom_n,
+                                       include_plotlyjs=include_plotlyjs,
+                                       full_html=plotly_full_html)
+
+            plot_path = plots_folder + "/" + seq_var_plot_plotly
+
+            if args.plotly_js_mode in [5, 6, 7]:
+                js_code = read_file_content_into_str_var(seq_var_plot_plotly_out)
+                js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1200px;")
+                mdtext += js_code + "\n"
+            else:
+                if plotly_embed_style == 1:
+                    mdtext += "<div>\n"
+                    mdtext += '<iframe src="' + plot_path + '" width="1200" height="1000"></iframe>' + "\n"
+                    mdtext += '</div>'
+                elif plotly_embed_style == 2:
+                    mdtext += '<object data="' + plot_path + '" width="1200" height="1000"> </object>' + "\n"
+
+            mdtext += r"""
+
+**Figure:** Sequence k-mer variations for each input dataset visualized as 2D PCA plot.
+For each dataset, the variation of each k-mer is calculated over all sequences (k-mer size = %i, change via --seq-var-kmer-size).
+The k-mer ratio is calculated for each sequence (number of times k-mer occurs / number of k-mers in sequence), 
+resulting in a list of ratios for each k-mer.
+The ratios are then used to calculate the standard deviation and mean for each k-mer.
+Based on these, the coefficient of variation (CV) is calculated for each k-mer, 
+which is defined as the standard deviation divided by the mean.
+For every dataset, the list of single k-mer CVs is used as PCA input for dimension reduction.
+Thus, the closer two datasets in the PCA plot (i.e., the dots representing them), 
+the more similar the k-mer variations in their sequences.
+A CV of 0.0 for a given k-mer would mean that all dataset sequences have exactly the same ratio of the k-mer.
+A CV of > 1.0 for given k-mer means that the standard deviation is larger than the mean, 
+indicating a higher variation of the k-mer ratio in the sequences (although larger CVs are expected for larger k-mer sizes).
+The lower a k-mer CV in a dataset, the more even its k-mer ratio over the dataset sequences.
+In general, we can assume that k-mers with high CVs are less important for the RBP binding, since
+they do not occur evenly over the dataset. In contrast, k-mers with low CVs are more 
+evenly distributed over the dataset sequences, and thus should be more important for RBP binding 
+(assuming a sufficient dataset quality + an affinity of the RBP towards certain k-mer sequences). 
+The average CV (mean over all single k-mer CVs) is used for coloring.
+**Hover box content:**
+dataset ID (bold-faced, format: %s),
+single k-mer CVs -> single k-mer CVs sorted by ascending CV (for k-mer sizes > 2 only top and bottom %i CVs are shown),
+Average CV -> average CV ratio of the dataset.
+
+&nbsp;
+
+""" %(args.seq_var_kmer_size, dataset_id_format, top_bottom_n)
+
+        # AAALAMO
+
+
+        else:
+            mdtext += """
+
+No plot generated since < 4 datasets were provided.
+
+&nbsp;
+
+"""
+
+
+
+
+
 
 
 
