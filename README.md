@@ -166,9 +166,12 @@ more details e.g. [here](#hit-statistics-table-files)), which can later be used 
 **Fig. 1**: Example visualizations produced by `rbpbench search` (PUM2 example). 
 **a:** RBP motif co-occurrences heat map. 
 **b:** Input sequence length distribution plot.
-**c:** Exon-intron overlap statistics.
+**c:** Input sequences by k-mer content plot.
 **d:** Region annotations per RBP.
 **e:** mRNA region coverage profile.
+**f:** Exon-intron overlap statistics.
+**g:** Intronic regions intron border distances.
+
 Note that for plotting purposes the interactive plots (here and subsequent figures) appear more cramped than in the HTML reports.
 
 **Fig. 1a** shows the RBP motif co-occurrences heat map (color scale values are -log10 of Fisher's exact test p-value), 
@@ -177,14 +180,24 @@ We can see that PUM2 and PUM1 binding motifs frequently co-occur, which makes se
 (to visualize all selected RBP motifs in HMTL, add `--plot-motifs` and 
 inspect `motif_plots.rbpbench_search.html`, example entry shown in **Fig. 2**). 
 We also see significant co-occurrences of `AATAAA` regex hits with PUM2 and PUM1, which too is reasonable since 
-PUM2 binding sites tend to be in 3'UTR regions, often also towards their ends (as showcased in **Fig. 1e**).
+PUM2 binding sites tend to be in 3'UTR regions, often also towards their ends (as showcased in **Fig. 1e** and **Fig. 1f**).
 In contrast, RBFOX2 motif hits are less frequent and show no significant co-occurrence (expected since RBFOX2 
 is known to be involved in splicing regulation). **Fig. 1b** shows the distribution of input sequence lengths, including 
-the sequences and motif hits for each sequence. **Fig. 1c** provides exon-intron overlap statistics of the input regions, 
-including exon-intron border regions. **Fig. 1d** shows genomic region annotations for all input regions (add `--add-all-reg-bar`), 
-as well as the regions with motif hits for each specified RBP. **Fig. 1e** displays the coverage of mRNA regions (5'UTR, CDS, 3'UTR) 
-by the input regions. All three plots (**Fig. 1c-e**) confirm PUM2's known binding preferences 
-(namely spliced exonic RNA, specifically 3'UTR regions).
+the sequences and motif hits for each sequence. 
+**Fig. 1c** positions input sequences based on their k-mer content (i.e., the closer two sequences in the plot, the more
+similar their k-mer content, k=3). The hover box shows additional information for each sequence, including its sequence, genomic region annotations,
+motif hits and nucleotide percentages. This way we can e.g. easily inspect general sequence characteristics of the input regions, or spot outliers.
+**Fig. 1d** shows genomic region annotations for all input regions (add `--add-all-reg-bar`), 
+as well as the regions with motif hits for each specified RBP. 
+**Fig. 1e** displays the coverage of mRNA regions (5'UTR, CDS, 3'UTR) by the input regions. 
+**Fig. 1f** provides exon-intron overlap statistics of the input regions, including upstream and downstream proximate and distant 
+intronic regions, exon-intron border regions, and also first, last, and single exon regions.
+All three plots (**Fig. 1d-f**) confirm PUM2's known binding preferences 
+(namely spliced exonic RNA, specifically 3'UTR regions, often towards the transcript 3' end, confirmed by high last exon coverage).
+**Fig. 1g** displays the distances of intronic regions to their nearest intron border (one plot for upstream, one for downstream border regions).
+The hover box again provides additional information for each region, including its sequence, annotations, border distances, 
+intron numbers, lengths, and motif hits. As expected for PUM2, we only see a few intronic regions, possibly from missanotations, 
+which based on the hover box information could be further checked in a genome viewer (e.g., [IGV](https://software.broadinstitute.org/software/igv/)).
 
 <img src="docs/search.ex1.2.png" width="600" />
 
@@ -236,7 +249,35 @@ which mRNAs these map. Also note that this plot becomes less informative if the 
 gets lower (info given in HTML figure legend, here: 82.0%). Most often, this is the case for intron-binding RBPs, where you typically
 have low percentages of exonic regions and thus also low mRNA coverage.
 
-To take a closer look at how motif hits are distributed around a specific RBP, we can specify the RBP to focus on via `set-rbp-id`:
+
+Additionally, `rbpbench search` HTML report includes several plots showing k-mer distributions and variations in the input dataset (**Fig. 4**), 
+which also take into account the region scores to identify enriched k-mers, which can hint at RBP binding preferences.
+
+<img src="docs/search.ex2.2.png" width="800" />
+
+**Fig. 4**: Example visualizations produced by `rbpbench search` (SLBP example). 
+**a:** Top vs bottom scoring regions k-mer distribution. 
+**b:** Input sequences k-mer variation plot.
+
+The first plot (**Fig. 4a**) shows the k-mer distribution of the top and bottom scoring input regions (set k=4, change via `--kmer-plot-k`).
+We can see several k-mers that are enriched in the top scoring regions, such as CAAA, CCAA, CTTT, or AAAG. It is known that SLBP
+binds a conserved stem loop element in histone mRNA 3'UTRs, and the reported k-mers are also highly conserved in and around the 
+stem loop (reported e.g. [here](https://pubmed.ncbi.nlm.nih.gov/11214174/)). The second plot (**Fig. 4b**) 
+looks more closely at the k-mer variation in the input regions, plotting for each k-mer the percentage of input regions it 
+occurs in (y-axis) vs the variation of the k-mer over the dataset (x-axis, using the coefficient of variation (CV) 
+of k-mer ratios over all input regions). 
+In short, the lower the CV of a k-mer, the more even the distribution of its ratios (see HTML report for details).
+Moreover, the k-mers are colored by their correlation (Spearman) with the input region scores (k-mer ratios vs scores). 
+This way we can identify k-mers that appear evenly over the dataset (high site %), that have similar ratios over the dataset (low CV),
+and that are also enriched in the top scoring regions (higher correlation with scores). 
+For example, a k-mer might have high site % but a lower correlation, which can be interpreted as a sequence element that often 
+occurs in the binding site context, but does not contribute that much to the RBP binding preference or does not have high affinty towards the RBP.
+These could be repeat elements (unless the RBP binds to repeats), which also often feature a shift in the k-mer variation to the right, 
+as the number of repeats over the input regions varies more.
+Again, we can see an agreement with reported SLBP binding preferences, showing the known k-mers enriched in top scoring regions 
+(although they are not necessarily the ones with highest site %).
+
+Coming back to our motif hits, to take a closer look at how these are distributed around a specific RBP, we can specify the RBP to focus on via `set-rbp-id`:
 
 ```
 rbpbench search --in eclip_clipper_idr/SLBP_K562_IDR_peaks.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_slbp_tr_rsd_tep_gh_out --functions TR RSD TEP  --rbps ALL --ext 20 --set-rbp-id SLBP --greatest-hits
@@ -245,21 +286,21 @@ rbpbench search --in eclip_clipper_idr/SLBP_K562_IDR_peaks.bed --genome hg38.fa 
 Here we also enable `--greatest-hits`, meaning that for each input region and RBP only the motif hit with the 
 lowest p-value gets reported. This has an impact on the co-occurrence heat map statistics, namely through 
 changing the mean minimum motif distance (if we want to filter by this via setting `--min-motif-dist` to > 0, 
-[details](#co-occurrence-statistics)), but also on the distance plots that get produced in the example (**Fig. 4**).
+[details](#co-occurrence-statistics)), but also on the distance plots that get produced in the example (**Fig. 5**).
 This way we can focus for each RBP motif on the best motif hit for each input region (by default all 
 hits are included in the outputs and analysis).
 
 <img src="docs/search.ex3.1.png" width="800" />
 
-**Fig. 4**: Example visualizations and statistics produced by `rbpbench search` (SLBP example with `--set-rbp-id`). 
+**Fig. 5**: Example visualizations and statistics produced by `rbpbench search` (SLBP example with `--set-rbp-id`). 
 **a:** Set RBP SLBP motif distances plot. 
 **b:** Motif distance statistics table.
 
-**Fig. 4a** shows the distances of other RBP motifs relative to the set RBP (SLBP here), resulting in a 
+**Fig. 5a** shows the distances of other RBP motifs relative to the set RBP (SLBP here), resulting in a 
 coverage plot for each RBP that passes the filter thresholds (default minimum motif pair count 10, set via `--rbp-min-pair-count`).  
 This plot is generated both on the RBP level, but also on the single RBP motif level (so for each motif associated 
-with the set RBP, **Fig. 4a** shows RBP level). 
-**Fig. 4b** shows the RBP motifs most frequently observed in the neighborhood of the set RBP (here on motif level).
+with the set RBP, **Fig. 5a** shows RBP level). 
+**Fig. 5b** shows the RBP motifs most frequently observed in the neighborhood of the set RBP (here on motif level).
 These plots give us an idea which motifs occur at which distances in the input regions. 
 To get a more fine-grained picture of co-occurrences on the single motif level, 
 including signifying motif enrichment in input regions, 
@@ -310,19 +351,25 @@ The output results folder again contains several table files (e.g., the hit stat
 as well the HTML report file `report.rbpbench_batch.html`, containing various comparative plots and statistics. 
 For the example call above, the following statistics and plots are included in the HTML report file:
 
-1. Input datasets sequence length statistics table
-2. Input datasets exon-intron overlap statistics table
-3. Input datasets region score motif enrichment statistics table
-4. Regular expression region score motif enrichment statistics table
-5. Regular expression RBP motif co-occurrence statistics table
-6. Input datasets k-mer frequencies comparative plot
-7. Input datasets occupied gene regions comparative plot
-8. Input datasets occupied gene regions similarity heat map
-9. Input datasets genomic region annotations comparative plot
-10. Plus a genomic regions annotation plot for each input dataset
+
+
+1. Input datasets sequence length statistics
+2. Input datasets exon-intron overlap statistics EXT
+3. Input datasets exon-intron overlap comparative plot NEW
+4. Input datasets RBP region score motif enrichment statistics
+5. Regular expression motif enrichment statistics
+6. Regular expression RBP motif co-occurrence statistics
+7. Input datasets nucleotide percentages statistics NEW
+8. Input datasets k-mer frequencies comparative plot EXT
+9. Input datasets k-mer variation comparative plot NEW
+10. Input datasets occupied gene regions comparative plot
+11. Input datasets occupied gene regions similarity heat map
+12. Input datasets genomic region annotations comparative plot
+13. Plus a genomic regions annotation plot for each input dataset
+
 
 Detailed explanations can be found in the corresponding table and plot legends in the HTML file. 
-**Fig. 5** shows the 4 plots produced by the above call:
+**Fig. 6** shows the 4 plots produced by the above call:
 
 <img src="docs/batch.ex1.1.png" width="800" />
 

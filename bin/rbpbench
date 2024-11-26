@@ -308,29 +308,42 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Disable input sequence length distribution plot in HTML report (default: False)")
-    p_s.add_argument("--disable-kmer-plot",
-                   dest="disable_kmer_plot",
+    # k-mer distribution plots.
+    p_s.add_argument("--disable-kmer-tb-plot",
+                   dest="disable_kmer_tb_plot",
                    default = False,
                    action = "store_true",
-                   help = "Disable generating k-mer distribution plot, comparing input top scoring sites vs bottom scoring sites. By default, split point is the middle point, i.e., top 50 percent vs bottom 50 percent scoring sites (default: False)")
-    p_s.add_argument("--kmer-plot-top-n",
-                   dest="kmer_plot_top_n",
+                   help = "Disable top vs bottom scoring sites k-mer distribution plot. By default, plot is generated with split point as the middle point, i.e., top 50 percent vs bottom 50 percent scoring sites (default: False)")
+    p_s.add_argument("--kmer-tb-plot-top-n",
+                   dest="kmer_tb_plot_top_n",
                    type=int,
                    metavar='int',
                    default=False,
-                   help="Set number of top scoring sites to use for --kmer-plot. By default, top and bottom is split in half (default: False)")
-    p_s.add_argument("--kmer-plot-bottom-n",
-                   dest="kmer_plot_bottom_n",
+                   help="Set number of top scoring sites to use for top vs bottom scoring sites distribution k-mer plot. By default, top and bottom is split in half (default: False)")
+    p_s.add_argument("--kmer-tb-plot-bottom-n",
+                   dest="kmer_tb_plot_bottom_n",
                    type=int,
                    metavar='int',
                    default=False,
-                   help="Set number of bottom scoring sites to use for --kmer-plot. By default, top and bottom is split in half (default: False)")
+                   help="Set number of bottom scoring sites to use for top vs bottom scoring sites k-mer distribution plot. By default, top and bottom is split in half (default: False)")
+    p_s.add_argument("--disable-kmer-var-plot",
+                   dest="disable_kmer_var_plot",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable sequence k-mer variation plot (default: False)")
+    p_s.add_argument("--kmer-var-color-mode",
+                   dest="kmer_var_color_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help = "Define which attribute to use for coloring sequence k-mer variation plot. 1: correlation (Spearman) between k-mer ratios and site scores. 2: k-mer percentage in dataset (default: 1)")
     p_s.add_argument("--kmer-plot-k",
                    dest="kmer_plot_k",
                    type=int,
                    metavar='int',
-                   default=5,
-                   help="Define k for --kmer-plot (default: 5)")
+                   default=4,
+                   help="Define k for k-mer distribution plots, including top k-mers plot, top vs bottom scoring sites plot, and k-mer variation plot (default: 4)")
+    # Upset plot.
     p_s.add_argument("--enable-upset-plot",
                    dest="enable_upset_plot",
                    default = False,
@@ -443,27 +456,27 @@ def setup_argument_parser():
                    action = "store_true",
                    help = "Disable adding region annotations for all input regions (irrespective of motif hits) to stacked bar plot (default: False)")
     # Sequence k-mers plot.
-    p_s.add_argument("--disable-seqs-kmer-plot",
-                   dest="disable_seqs_kmer_plot",
+    p_s.add_argument("--disable-kmer-pca-plot",
+                   dest="disable_kmer_pca_plot",
                    default = False,
                    action = "store_true",
-                   help = "Disable input sequences by k-mer content comparative plot (default: False)")
-    p_s.add_argument("--seqs-kmer-plot-k",
-                   dest="seqs_kmer_plot_k",
+                   help = "Disable input sequences by k-mer content PCA plot (default: False)")
+    p_s.add_argument("--kmer-pca-plot-k",
+                   dest="kmer_pca_plot_k",
                    type=int,
                    metavar='int',
                    default=3,
-                   help="Set k for k-mer usage in sequence k-mers plot (default: 3)")
-    p_s.add_argument("--seqs-kmer-plot-no-comp",
-                   dest="seqs_kmer_plot_no_comp",
+                   help="Set k for k-mer usage in sequences by k-mer content PCA plot (default: 3)")
+    p_s.add_argument("--kmer-pca-plot-no-comp",
+                   dest="kmer_pca_plot_no_comp",
                    default = False,
                    action = "store_true",
-                   help = "Disable adding sequence complexity as feature to sequence k-mers plot (default: False)")
-    p_s.add_argument("--seqs-kmer-plot-no-motifs",
-                   dest="seqs_kmer_plot_no_motifs",
+                   help = "Disable adding sequence complexity as feature to sequences by k-mer content PCA plot (default: False)")
+    p_s.add_argument("--kmer-pca-plot-no-motifs",
+                   dest="kmer_pca_plot_no_motifs",
                    default = False,
                    action = "store_true",
-                   help = "Disable adding motif hits information to sequence k-mers plot (default: False)")
+                   help = "Disable adding motif hits information to sequences by k-mer content PCA plot (default: False)")
     # Set RBP ID to focus on in motif distance plots.
     p_s.add_argument("--set-rbp-id",
                    dest="set_rbp_id",
@@ -842,8 +855,20 @@ def setup_argument_parser():
                    dest="seq_var_kmer_size",
                    type=int,
                    metavar='int',
+                   default=3,
+                   help="K-mer size for sequence variation statistics and plot (default: 3)")
+    p_b.add_argument("--seq-var-feat-mode",
+                   dest="seq_var_feat_mode",
+                   type=int,
                    default=1,
-                   help="K-mer size for sequence variation statistics and plot (default: 1)")
+                   choices=[1, 2],
+                   help = "Define what sequence k-mer variation plot to create 1: plot using site percentages for each k-mer as dimensions. 2: plot using k-mer variations as dimensions (default: 1)")
+    p_b.add_argument("--seq-var-color-mode",
+                   dest="seq_var_color_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help = "Define which attribute to use for coloring k-mer variation plot. 1: average k-mer site percentage. 2: present k-mers percentage (default: 1)")
     # GO enrichment analysis for batch mode.
     p_b.add_argument("--goa",
                    dest="run_goa",
@@ -3408,7 +3433,7 @@ def main_search(args):
     assert benchlib.boundary_check(args.gtf_intron_border_len, 1, 1000), "set --gtf-intron-border-eln expected to be >= 1 and <= 1000"
     assert benchlib.boundary_check(args.min_motif_dist, 0, 1000), "set --min-motif-dist expected to be >= 0 and <= 1000"
     assert benchlib.boundary_check(args.kmer_plot_k, 1, 7), "set --kmer-plot-k expected to be >= 1 and <= 7"
-    assert benchlib.boundary_check(args.seqs_kmer_plot_k, 1, 7), "set --seqs-kmer-plot-k  expected to be >= 1 and <= 7"
+    assert benchlib.boundary_check(args.kmer_pca_plot_k, 1, 7), "set --kmer-pca-plot-k expected to be >= 1 and <= 7"
 
 
     # if args.in_gtf:
@@ -8035,22 +8060,41 @@ def main_batch(args):
 
         # Sequence variation stats.
         print("Calculate sequence variations statistics ... ")
-        single_cv_dic, avg_cv = benchlib.calculate_k_nucleotide_cv(out_seqs_dic,
-                                                                   k=args.seq_var_kmer_size,
-                                                                   nucleotides=['A', 'C', 'G', 'T'],
-                                                                   only_observed=True)
+        if args.seq_var_feat_mode == 1:
 
-        # Make single CV value list.
-        seq_var_l = [dataset_id, avg_cv]
+            kmer2site_ratio_dic, avg_site_ratio, pk_rat = benchlib.calculate_k_site_ratios(out_seqs_dic,
+                                                                            k=args.seq_var_kmer_size,
+                                                                            nucleotides=['A', 'C', 'G', 'T'],
+                                                                            only_observed=True)
 
-        if not seq_var_kmer_l:
+            seq_var_l = [dataset_id, avg_site_ratio, pk_rat]
+
+            if not seq_var_kmer_l:
+                for kmer, site_ratio in sorted(kmer2site_ratio_dic.items()):
+                    seq_var_kmer_l.append(kmer)
+            
+            for kmer, site_ratio in sorted(kmer2site_ratio_dic.items()):
+                seq_var_l.append(site_ratio)
+
+            seq_var_ll.append(seq_var_l)
+
+        elif args.seq_var_feat_mode == 2:
+
+            single_cv_dic, avg_cv = benchlib.calculate_k_nucleotide_cv(out_seqs_dic,
+                                                                    k=args.seq_var_kmer_size,
+                                                                    nucleotides=['A', 'C', 'G', 'T'],
+                                                                    only_observed=True)
+
+            seq_var_l = [dataset_id, avg_cv]
+
+            if not seq_var_kmer_l:
+                for kmer, single_cv in sorted(single_cv_dic.items()):
+                    seq_var_kmer_l.append(kmer)
+            
             for kmer, single_cv in sorted(single_cv_dic.items()):
-                seq_var_kmer_l.append(kmer)
-        
-        for kmer, single_cv in sorted(single_cv_dic.items()):
-            seq_var_l.append(single_cv)
+                seq_var_l.append(single_cv)
 
-        seq_var_ll.append(seq_var_l)
+            seq_var_ll.append(seq_var_l)
 
 
     OUTRBPSTATS.close()
