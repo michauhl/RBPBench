@@ -7,6 +7,7 @@ RBPBench is multi-function tool to evaluate CLIP-seq and other genomic region da
 using a comprehensive collection of known RNA-binding protein (RBP) binding motifs. 
 RBPBench can be used for a variety of purposes, from RBP motif search (database or 
 user-supplied RBPs) in genomic regions, over motif enrichment and co-occurrence analysis, 
+comparisons across multiple datasets with a multitude of statistics and plots,
 to benchmarking CLIP-seq peak caller methods as well as comparisons across cell types 
 and CLIP-seq protocols. RBPBench supports both sequence and structure motifs,
 as well as regular expressions. Moreover, users can easily provide their own 
@@ -39,7 +40,14 @@ RBPBench was developed and tested on Linux (Ubuntu 22.04 LTS). Currently only Li
 
 ### Conda
 
-If you do not have Conda on your system yet, you can e.g. install Miniconda, a free + lightweight Conda installer. Get Miniconda [here](https://docs.conda.io/en/latest/miniconda.html), choose the latest Miniconda3 Python Linux 64-bit installer and follow the installation instructions. In the end, Conda should be evocable on the command line via (possibly in a different version):
+If you do not have Conda on your system yet, you can e.g. install Miniconda, a free + lightweight Conda installer. Get Miniconda [here](https://docs.conda.io/en/latest/miniconda.html), choose the latest Miniconda3 Python Linux 64-bit installer and follow the installation instructions. To do it in the command line:
+
+```
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh
+```
+
+In the end, Conda should be evocable on the command line via (possibly in a different version):
 
 ```
 $ conda --version
@@ -49,7 +57,7 @@ conda 24.5.0
 
 ### Conda package installation
 
-RBPBench is available as a Conda package, which makes installing a breeze. 
+RBPBench is available as a Conda package, which makes installing it a breeze. 
 We simply create a Conda environment and install RBPBench inside the environment:
 
 ```
@@ -94,8 +102,8 @@ RBPBench is also available as a webserver on Galaxy (more infos soon).
 ## Example runs
 
 To run the examples, we change to the cloned repository subfolder `RBPBench/test`
-and download the genome FASTA file ([details](#genomic-sequences)) and a 
-fitting GTF file, e.g. from Ensembl ([details](#genomic-annotations)):
+and download the genome FASTA file ([details](#genomic-sequences)), plus a 
+fitting GTF file, e.g., from Ensembl ([details](#genomic-annotations)):
 
 ```
 cd test/
@@ -184,8 +192,8 @@ PUM2 binding sites tend to be in 3'UTR regions, often also towards their ends (a
 In contrast, RBFOX2 motif hits are less frequent and show no significant co-occurrence (expected since RBFOX2 
 is known to be involved in splicing regulation). **Fig. 1b** shows the distribution of input sequence lengths, including 
 the sequences and motif hits for each sequence. 
-**Fig. 1c** positions input sequences based on their k-mer content (i.e., the closer two sequences in the plot, the more
-similar their k-mer content, k=3). The hover box shows additional information for each sequence, including its sequence, genomic region annotations,
+**Fig. 1c** positions input sequences based on their k-mer contents (i.e., the closer two sequences in the plot, the more
+similar their k-mer contents, default k=3). The hover box shows additional information for each sequence, including its sequence, genomic region annotations,
 motif hits and nucleotide percentages. This way we can e.g. easily inspect general sequence characteristics of the input regions, or spot outliers.
 **Fig. 1d** shows genomic region annotations for all input regions (add `--add-all-reg-bar`), 
 as well as the regions with motif hits for each specified RBP. 
@@ -653,7 +661,7 @@ We can see that the DDX3X motifs are also found predominantly in 5'UTRs, as well
 
 **Fig. 14**: DDX3X database motifs together with literature references, produced by `rbpbench searchlongrna`.
 
-We can see that the motifs (identified from eCLIP data), show a preference for GC-rich sequences, underlining DDX3X`s role as an RNA helicase resolving RNA structure.
+We can see that the motifs (identified from eCLIP data), show a preference for GC-rich sequences, underlining DDX3X's role as an RNA helicase resolving RNA structure.
 
 
 #### Motif preferences in long genomic regions
@@ -674,7 +682,7 @@ ENST00000361078
 ENST00000645463
 ```
 
-Let's use these regions to find motifs, again for DDX3X as in the above **Fig. 14** example, and visualize both annotations with `rbpbench searchlong`:
+Let's use these regions to find motifs, again for DDX3X as in the above **Fig. 13** + **Fig. 14** example, and visualize both annotations with `rbpbench searchlong`:
 ```
 rbpbench searchlong --in tr_list.txt --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --rbps DDX3X --out searchlong_test_ddx3x_out
 ```
