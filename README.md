@@ -414,12 +414,12 @@ A higher mean percentage for a dataset means that the present k-mers are more ev
 
 **Fig. 7a** plot shows the exon-intron overlap statistics for the input datasets, visualized as 2D PCA plot.
 The closer two datasets (i.e., the dots representing them), the more similar the datasets are w.r.t. their exon-intron overlap statistics.
-This allows us to quickly identify groups of datasets with similar exon-intron overlap statistics, or to spot outliers.
-Utilized exon-intron categories are: exonic regions, intronic regions, 
+This allows us to quickly identify groups of RBPs with similar exon-intron binding characteristics, or to spot unusual RBPs.
+Utilized exon-intron overlap categories are: exonic regions, intronic regions, 
 intronic regions close to intron borders (upstream and downstream), 
 intronic regions distant from intron borders (upstream and downstream),
 exon-intron border regions (+/- 50 nt of exon-intron borders),
-first exons, last exons, single exon transcripts.
+first exons, last exons, and single exon transcripts.
 **Fig. 7b** plot again uses 3D-PCA, this time on the occupied gene regions for each input dataset.
 Here we can quickly identify e.g. datasets with very low numbers of occupied genes, or in general 
 datasets with similar gene occupancy profiles.
@@ -490,7 +490,7 @@ as performance metrics. More infos on motif hit statistics can be found [here](#
 Note that the number of hits (in `rbpbench search`, `rbpbench batch ` etc.) is influenced by various search parameters, 
 e.g., the input region extension (here `--ext 10`), or the motif hit threshold (for FIMO sequence motif search change via `--fimo-pval`). 
 Longer input regions and more relaxed thresholds naturally lead to more motifs hits, and thus can change the comparison results, 
-although the basic trends tend to stay similar. 
+although the basic trends typically remain similar. 
 In this example, we can see that for the PUM1 dataset, 23.88% of DEWSeq peak regions contain >= 1 PUM1 motif hit (CLIPper IDR 12.33%). We can also see that the number of motif hits over 1,000 nt called peak region size is higher for DEWSeq (2.31 vs. 2.04).
 
 As for second comparison (RBP ID: `RBFOX2`, peak calling method: `clipper_idr`, comparing conditions / cell types HepG2 + K562), we get this table:
@@ -516,7 +516,7 @@ Motif hit numbers and percentages of total motif hits are shown for each Venn di
 
 We can see that for the peak calling comparison (**Fig. 8a**), 31% of each method's unique motif hits overlap. 
 In the second comparison (**Fig. 8b**, comparing cell types), we get an even lower overlap of 15%.
-Both of these are interesting observations, which help us to better understand and interpret the data.
+Both of these are valuable insights, which help us to better understand and interpret the data.
 
 
 
@@ -537,7 +537,7 @@ rbpbench enmo --in eclip_clipper_idr/PUM2_K562_IDR_peaks.bed --genome hg38.fa --
 ```
 Note that only the enriched motifs (passing the set p-value threshold `--enmo-pval-thr`) are reported and 
 then included in the following co-occurrence analysis. Also note that reported p-values can differ between 
-runs (due to random background set generation, to keep results same set `--random-seed`). **Fig. 9** shows 
+runs (due to random background set generation, to keep results same set a `--random-seed`). **Fig. 9** shows 
 the generated visualizations:
 
 <img src="docs/enmo.ex1.1.png" width="800" />
@@ -555,17 +555,17 @@ by additional parameters, most importantly `--cooc-pval-thr`, `--min-motif-dist`
 The first is simply the p-value threshold (by default Benjamini-Hochberg corrected, change via `--cooc-pval-mode`), 
 while `--min-motif-dist` is the mean minimum motif distance between the pair of motifs in all input regions, 
 and `--motif-sim-thr` is the maximum motif pair similarity (calculated using TOMTOM). The later two thus allow 
-us to e.g. focus on motif pairs that are on average not so close to each other, and also are not too similar 
+us to e.g. focus on motif pairs that are on average not too close to each other, and are also not too similar 
 to each other. Note that for pairs that do not meet the set thresholds, their hover box in the heat map informs 
 about the reason for filtering out the pair. **Fig. 9c** plots the motifs arranged by their similarity and 
-colored by their significance, allowing us to identify groups of motifs with similar motifs.
+colored by their significance, allowing us to identify groups of motifs with similar motif contents.
 **Fig. 9d** compares the k-mer (here 5-mer) distribution between the input and the generated background regions.
 Here we can also see that 5-mers similar to the PUM2 motifs appear more frequently in the input regions.
 Generation of the background regions can be controlled with various parameters (see `rbpbench enmo -h` for more details).
 For example, `--bg-mode` allows us to either use shuffled negatives (from input set), or randomly sampled negatives 
 from genomic or transcript regions (depending on the type of input regions). Moreover, the background set size 
 can be increased (`--bg-min-size`), plus the user can tell RBPBench from which genomic (or transcript) regions
-to sample (`--bg-incl-bed`) or not to sample (`--bg-mask-bed`).
+to sample (`--bg-incl-bed`) or to not sample (`--bg-mask-bed`).
 
 
 #### NEMO mode
@@ -582,7 +582,7 @@ gtf_extract_mpt_region_bed.py --gtf Homo_sapiens.GRCh38.112.gtf.gz --out mrna_re
 bed_print_last_n_pos.py --in mrna_regions_hg38_out/mpt_regions.bed --ext 1 > mrna_region_end_pos.bed
 ```
 
-Now let's run `rbpbench nemo` with an up- and downstream extension of `--ext 30` to the supplied mRNA end positions. Further we allow overlaps and restrict search to RBPs with annotated functions in 3' end processing (TEP), RNA stability & decay (RSD), and translation regulation (TR) (91 RBPs):
+Now let's run `rbpbench nemo` with an up- and downstream extension of `--ext 30` to the supplied mRNA end positions. Furthermore, we allow overlaps and restrict search to RBPs with annotated functions in 3' end processing (TEP), RNA stability & decay (RSD), and translation regulation (TR) (91 RBPs):
 
 ```
 rbpbench nemo --in mrna_region_end_pos.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_nemo_mrna_ends_out --rbps ALL --ext 40 --min-motif-dist 10 --motif-sim-thr 2 --allow-overlaps --functions TEP RSD TR
@@ -599,11 +599,11 @@ info on whether motif hits tend to occur more in up- or downstream regions relat
 Wilcoxon rank sum (WRS) p-value, as well as a motif distance plot showing the distribution of motif hit center locations relative to the centered input regions).
 A low WRS p-value in this table means that there is a preference for either up- or downstream binding (two-sided test).
 The top enriched motifs are the motifs essentially describing the polyadenylation signal sequence (AATAAA), which is known 
-to occur often near 3'UTR ends. This preference we can also nicely see in the motif distance plots (plus it is significant w.r.t. WRS p-value).
+to often occur near 3'UTR ends. This preference we can also nicely see in the motif distance plots (plus it is significant w.r.t. WRS p-value).
 Looking at the regions downstream the annotated mRNA ends, we see a preference of T and GT-rich motifs (which continues as we would go beyond 
 the top 10). These GT-rich (or actually GU-rich in RNA) elements (GREs) are too known to frequently occur at transcript ends, 
 namely downstream the polyadenylation signal. Both elements have well known roles in the regulation of mRNA stability and degradation. 
-The different sequence preferences up- and downstream can also be seen in the sequence motif similarities vs direction PCA plot (**Fig. 11**):
+The different up- and downstream sequence preferences can also be seen in the sequence motif similarities vs direction PCA plot (**Fig. 11**):
 
 <img src="docs/nemo.ex2.1.png" width="500" />
 
