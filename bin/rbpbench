@@ -472,6 +472,12 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Disable adding sequence complexity as feature to sequences by k-mer content PCA plot (default: False)")
+    p_s.add_argument("--kmer-pca-plot-comp-k",
+                   dest="kmer_pca_plot_comp_k",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set k for sequence complexity (Shannon entropy) calculation. 1 == mono-nucleotides, 2 == di-nucleotides (default: 1)")
     p_s.add_argument("--kmer-pca-plot-no-motifs",
                    dest="kmer_pca_plot_no_motifs",
                    default = False,
@@ -851,6 +857,12 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Disable sequence complexity info to be added to plot (default: False)")
+    p_b.add_argument("--seq-comp-k",
+                   dest="seq_comp_k",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set k for sequence complexity (Shannon entropy) calculation. 1 == mono-nucleotides, 2 == di-nucleotides (default: 1)")
     p_b.add_argument("--seq-var-kmer-size",
                    dest="seq_var_kmer_size",
                    type=int,
@@ -5600,7 +5612,6 @@ def main_search(args):
                                      overlap_annotations_bed,
                                      params=params)
         
-        # AALAMO
         reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
                                                         tid2tio_dic,
                                                         reg_ids_dic=reg_ids_dic)
@@ -5666,8 +5677,6 @@ def main_search(args):
         ["intergenic", False, -1, "-", -1, "-", "-", "-", "-"]
         For intronic/exonic regions with center outside:
         [annot_id, tr_id, -1, "-", annot_reg_len, exon_intron_nr, gene_id, gene_name, tr_biotype]
-
-        AALAMO
 
         """
 
@@ -6248,7 +6257,7 @@ def main_search(args):
 
 
     print("Create report ... ")
-    # AALAMO
+
     benchlib.search_generate_html_report(args,
                                         df_pval, pval_cont_lll,
                                         search_rbps_dic,
@@ -6824,7 +6833,7 @@ def main_batch(args):
         c_tr_infos = len(tid2tio_dic)
         print("# transcript features read in from --gtf:", c_tr_infos)
 
-        # If housekeeping genes list given. AALAMO
+        # If housekeeping genes list given.
         if args.hk_gene_list:
 
             print("Read in --hk-gene-list ... ")
@@ -6857,7 +6866,7 @@ def main_batch(args):
 
         # Extract exon + intron regions of selected transcripts from transcript infos.
         print("Output intron annotations to BED ... ")
-        benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,  # AALAMO
+        benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
                                             output_mode=3,  # only introns.
                                             report_counts=True,
                                             add_tr_id=True,  # new reg_id format: intron;ENST000006666
@@ -8038,7 +8047,8 @@ def main_batch(args):
             print("Calculate sequence complexities ... ")
 
             # Calculate sequence complexities.
-            seqs_entr_list = benchlib.seqs_dic_calc_entropies(out_seqs_dic, 
+            seqs_entr_list = benchlib.seqs_dic_calc_entropies(out_seqs_dic,
+                                                              k=args.seq_comp_k,
                                                               rna=False)
             mean_complexity = statistics.mean(seqs_entr_list)
 

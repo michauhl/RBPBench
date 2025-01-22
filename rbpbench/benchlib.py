@@ -4312,8 +4312,6 @@ def output_exon_annotations(tid2tio_dic, out_bed,
 
     OUTEXAN = open(out_bed, write_op)
 
-    # AALAMO
-
     for tr_id in tid2tio_dic:
         tio = tid2tio_dic[tr_id]
         exon_c = tio.exon_c
@@ -5078,7 +5076,7 @@ def get_eib_annot_c_strict(annot_list, eib_annot_c_dic,
     else:  # exonic sites.
         assert exon_intron_nr > 0, "exon_intron_nr <= 0 for annot_list \"%s\"" %(annot_list)
         eib_annot_c_dic["exonic"] += 1
-        # AALAMO: only intron-exon borders check ...
+        # Only intron-exon borders check ...
         if border_dist >= 0:
             # If in first exon.
             if exon_intron_nr == 1 and exon_intron_c > 1:
@@ -9278,8 +9276,6 @@ def create_seq_var_plot_plotly_v2(seq_var_ll, seq_var_kmer_l, plot_out,
 
     kmer_str_list = []
     
-    # AAAALAMO
-
     # Construct strings for hover box.
     for idx1, single_var_l in enumerate(single_var_ll):
 
@@ -11079,9 +11075,6 @@ Considered exon-intron border region = +/- %i nt relative to border.
         mdtext += "independent of intron length (i.e., intron length can also be < %i nt)." %(ib_len)
         mdtext += "\n&nbsp;\n"
 
-        # AAALAMO
-
-
         # id2eib_stats_dic[internal_id] = [combined_id, ei_ol_stats.c_input_sites, exon_sites_ratio, intron_sites_ratio, us_ib_sites_ratio, ds_ib_sites_ratio, eib_sites_ratio]
 
         mdtext += """
@@ -11411,28 +11404,16 @@ D: NOT regex AND NOT RBP.
 """ %(dataset_id_format, perc_sign, args.max_motif_dist)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     """
     Input datasets nucleotide percentages table.
 
     """
 
     if seq_feat_ll:
+
+        comp_info = "Mono-nucleotide contents (A, C, G, T) are used to calculate sequence complexity (change via --seq-comp-k). Equal A,C,G,T contents result in a complexity value of 1.0, while, e.g., an AA content of 100.0% results in a complexity of 0.0."
+        if args.seq_comp_k == 2:
+            comp_info = "Di-nucleotide contents (AA, AC, ..., TG, TT) are used to calculate sequence complexity (change via --seq-comp-k). Equal AA,AC,... contents result in a complexity value of 1.0, while, e.g., an AA content of 100.0% results in a complexity of 0.0."
 
         mdtext += """
 ## Input datasets nucleotide percentages statistics ### {#nt-perc-stats}
@@ -11515,15 +11496,11 @@ Column IDs have the following meanings:
 **%% CT** -> CT content percentage in input regions,
 **%% GT** -> GT content percentage in input regions,
 **Mean complexity** -> Mean sequence complexity (Shannon entropy) of input regions. 
-Equal A,C,G,T contents result in a complexity value of 1.0, while e.g. 
-an A content of 100.0%% results in a complexity value of 0.0.
+%s
 
 &nbsp;
 
-""" %(dataset_id_format)
-
-
-
+""" %(dataset_id_format, comp_info)
 
 
     """
@@ -11568,8 +11545,9 @@ an A content of 100.0%% results in a complexity value of 0.0.
 
         mdtext += """
 
-**Figure:** Comparison of input datasets, using k-mer (k = %i) frequencies of input region sequences (3-dimensional PCA) as features, 
-to show similarities of input datasets based on their sequence k-mer frequencies (points close to each other have similar k-mer frequencies).
+**Figure:** Comparison of input datasets, using k-mer frequencies (k = %i, change via --kmer-size) of input region sequences 
+(3-dimensional PCA) as features, to show similarities of input datasets based on their sequence k-mer frequencies 
+(points close to each other have similar k-mer frequencies).
 Input dataset IDs (show via hovering over data points) have following format: %s.
 
 &nbsp;
@@ -11585,13 +11563,9 @@ No plot generated since < 4 datasets were provided.
 
 """
 
-
-
-
     """
     Input datasets sequence / k-mer variation comparative plot.
 
-    AAALAMO
     """
 
     if seq_var_ll:
@@ -11670,7 +11644,7 @@ No plot generated since < 4 datasets were provided.
                 mdtext += r"""
 
 **Figure:** Sequence k-mer variations for each input dataset visualized as 2D PCA plot.
-For each k-mer, the percentage of sites containing the k-mer is used as feature (k-mer size = %i, change via --seq-var-kmer-size).
+For each k-mer, the percentage of sites containing the k-mer is used as feature (k = %i, change via --seq-var-kmer-size).
 The closer two datasets in the PCA plot (i.e., the dots representing them), the more similar their k-mer site percentage profiles.
 The hover box shows the k-mers ranked by site percentages (k-mers not present in any sites are not listed). It can be assumed 
 that k-mers with high site percentages contribute more to the RBP binding (possibly also as direct binding motifs), 
@@ -11696,7 +11670,7 @@ sorted k-mer site percentages,
                 mdtext += r"""
 
 **Figure:** Sequence k-mer variations for each input dataset visualized as 2D PCA plot.
-For each dataset, the variation of each k-mer is calculated over all sequences (k-mer size = %i, change via --seq-var-kmer-size).
+For each dataset, the variation of each k-mer is calculated over all sequences (k = %i, change via --seq-var-kmer-size).
 The k-mer ratio is calculated for each sequence (number of times k-mer occurs / number of k-mers in sequence), 
 resulting in a list of ratios for each k-mer.
 The ratios are then used to calculate the standard deviation and mean for each k-mer.
@@ -12575,7 +12549,6 @@ def create_seq_var_violin_plot_plotly(kmer2stats_dic, single_cv_dic, avg_cv, plo
     # )
     # fig.update_layout(xaxis_title='Density', yaxis_title='k-mer variation', violinmode='overlay')
 
-    # AAALAMO
     color_scale = ['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
     hover_data = ['k-mer', 'k-mer CV', 'k-mer count', 'k-mer %', 'Site %', 'Correlation']
     color = 'Correlation'
@@ -15060,7 +15033,6 @@ def search_generate_html_report(args,
 <body>
 """ %(plotly_js_html, logo_path_html)
 
-    # AALAMO
 
     # HTML tail section.
     html_tail = """
@@ -15624,13 +15596,6 @@ evenly distributed over the dataset sequences, and thus should be more important
 """ %(args.kmer_plot_k)
 
 
-
-
-    # AAALAMO
-
-
-
-
     # Region ID to motifs string for plotting.
     reg2motifs_dic = {}  # If false motif info not added to hover box.
 
@@ -15674,6 +15639,7 @@ evenly distributed over the dataset sequences, and thus should be more important
                                                     add_at_skew=False,
                                                     add_at_content=False,
                                                     add_1nt_ratios=False,
+                                                    seq_comp_k=args.kmer_pca_plot_comp_k,
                                                     ntps_dic=ntps_dic,
                                                     reg2ntps_dic=reg2ntps_dic,
                                                     convert_to_uc=True)
@@ -15961,7 +15927,6 @@ mRNA region lengths used for plotting are derived from the occupied mRNA regions
         # mdtext += '<img src="' + plots_path + '" alt="Exon intron overlap plot"' + "\n"
         # mdtext += 'title="mRNA region occupancy plot" />' + "\n"
 
-        # AALAMO
 
         mdtext += r"""
 **Figure:** Exon, intron + border region overlap statistics. \# input regions = %i. 
@@ -15991,8 +15956,6 @@ independent of intron length (i.e., intron length can also be < %i nt).
 
     """
     Intronic regions intron border distance plots.
-
-    AALAMO
 
     """
 
@@ -17420,8 +17383,6 @@ def create_intron_border_dist_plot_plotly(reg2annot_dic, reg2seq_dic,
     reg2annot_dic format: reg_id -> 
     [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr, gene_id, gene_name, tr_biotype]
 
-    AALAMO
-
     """
     assert reg2annot_dic, "given reg2annot_dic empty"
 
@@ -17791,6 +17752,7 @@ def seqs_dic_get_kmer_ratios(seqs_dic, k,
                              add_at_skew=False,
                              add_at_content=False,
                              add_1nt_ratios=False,
+                             seq_comp_k=1,
                              reg2ntps_dic=None,
                              ntps_dic=False,
                              convert_to_uc=True):
@@ -17874,7 +17836,8 @@ def seqs_dic_get_kmer_ratios(seqs_dic, k,
             reg2ntps_dic[seq_id] = ", ".join(ntps_list)
 
         if add_seq_comp:
-            seq_comp = calc_seq_entropy(eff_seq_l, ntc_dic)
+            seq_comp = calc_seq_entropy(eff_seq_l, ntc_dic,
+                                        k=seq_comp_k)
             kmer_rat_list.append(seq_comp)
         
         if add_gc_skew:
@@ -17907,6 +17870,7 @@ def seqs_dic_get_kmer_ratios(seqs_dic, k,
 
 def seqs_dic_calc_entropies(seqs_dic,
                             rna=True,
+                            k=1,
                             return_dic=False):
     """
     Given a dictionary of sequences, calculate entropies for each sequence
@@ -17914,6 +17878,8 @@ def seqs_dic_calc_entropies(seqs_dic,
 
     seqs_dic:
     Dictionary with sequences.
+    k:
+    k-mer size for entropy calculation.
 
     rna:
     Use RNA alphabet for counting (uppercase chars only)
@@ -17933,9 +17899,15 @@ def seqs_dic_calc_entropies(seqs_dic,
         # Make uppercase (otherwise seq_l not correct).
         seq = seq.upper()
         # Get nt count dic.
-        count_dic = seq_count_nt_freqs(seq, rna=rna)
+        count_dic = {}
+        if k == 1:
+            count_dic = seq_count_nt_freqs(seq, rna=rna)
+        else:
+            count_dic = get_kmer_counts_dic(seq, k, rna=rna)
+
         # Calculate sequence entropy.
-        seq_entr = calc_seq_entropy(seq_l, count_dic)
+        seq_entr = calc_seq_entropy(seq_l, count_dic,
+                                    k=k)
         #if seq_entr > 0.5:
         #    print("Entropy: %.2f" %(seq_entr))
         #    print("%s: %s" %(seq_id, seq))
@@ -18207,7 +18179,8 @@ def calc_seq_at_content_ntc(seq_l, ntc_dic,
 
 ################################################################################
 
-def calc_seq_entropy(seq_l, ntc_dic):
+def calc_seq_entropy(seq_l, ntc_dic,
+                     k=1):
     """
     Given a dictionary of nucleotide counts for a sequence ntc_dic and
     the length of the sequence seq_l, compute the Shannon entropy of
@@ -18226,16 +18199,27 @@ def calc_seq_entropy(seq_l, ntc_dic):
     >>> ntc_dic = {'A': 2, 'C': 2, 'G': 2, 'U': 2}
     >>> calc_seq_entropy(seq_l, ntc_dic)
     1.0
+    >>> seq_l = 4
+    >>> ntc_dic = {'AA': 3, 'AC': 0, 'AG': 0, 'AT': 0, 'CA': 0, 'CC': 0, 'CG': 0, 'CT': 0, 'GA': 0, 'GC': 0, 'GG': 0, 'GT': 0, 'TA': 0, 'TC': 0, 'TG': 0, 'TT': 0}
+    >>> calc_seq_entropy(seq_l, ntc_dic, k=2)
+    0
+    >>> seq_l = 17
+    >>> ntc_dic = {'AA': 1, 'AC': 1, 'AG': 1, 'AT': 1, 'CA': 1, 'CC': 1, 'CG': 1, 'CT': 1, 'GA': 1, 'GC': 1, 'GG': 1, 'GT': 1, 'TA': 1, 'TC': 1, 'TG': 1, 'TT': 1}
+    >>> calc_seq_entropy(seq_l, ntc_dic, k=2)
+    1.0
 
     """
-    # For DNA or RNA, k = 4.
-    k = 4
+    assert seq_l, "invalid sequence length seq_l given"
+
     # Shannon entropy.
     ce = 0
+    n_kmers = len(ntc_dic)  # number of k-mers, .e.g. 4 for k=1, 16 for k=2.
     for nt in ntc_dic:
         c = ntc_dic[nt]
+        total_c = seq_l - k + 1 # total number of k-mers in sequence.
+
         if c != 0:
-            ce += (c/seq_l) * log((c/seq_l), k)
+            ce += (c/total_c) * log((c/total_c), n_kmers)
     if ce == 0:
         return 0
     else:
@@ -18368,6 +18352,35 @@ def get_ntc_dic(seq, rna=False):
             ntc_dic[nt] += 1
 
     return ntc_dic
+
+
+################################################################################
+
+def get_kmer_counts_dic(seq, k, rna=False):
+    """
+    Get k-mer counts dictionary for sequence.
+
+    >>> seq = 'ACGT'
+    >>> get_kmer_counts_dic(seq, 2)
+    {'AA': 0, 'AC': 1, 'AG': 0, 'AT': 0, 'CA': 0, 'CC': 0, 'CG': 1, 'CT': 0, 'GA': 0, 'GC': 0, 'GG': 0, 'GT': 1, 'TA': 0, 'TC': 0, 'TG': 0, 'TT': 0}
+    >>> seq = 'ACGTA'
+    >>> get_kmer_counts_dic(seq, 1)
+    {'A': 2, 'C': 1, 'G': 1, 'T': 1}
+
+    """
+
+    count_dic = get_kmer_dic(k, rna=rna)
+    total_c = 0
+
+    for i in range(len(seq)-k+1):
+        kmer = seq[i:i+k]
+        if kmer in count_dic:
+            count_dic[kmer] += 1
+            total_c += 1
+    
+    assert total_c, "no k-mers counted for given sequence \"%s\" (sequence lengths < set k ?)" %(seq)
+
+    return count_dic
 
 
 ################################################################################
