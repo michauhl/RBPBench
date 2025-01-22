@@ -28,7 +28,8 @@ def setup_argument_parser():
 
     Evaluate CLIP-seq and other genomic region data using a comprehensive collection of known RBP binding motifs (RNA sequence + structure).
     RBPBench can be used for a variety of purposes, from RBP motif search in genomic regions, over motif enrichment and co-occurrence analysis, 
-    to benchmarking CLIP-seq peak callers, as well as comparisons across cell types and CLIP-seq protocols.
+    extensive comparisons over multiple datasets via sequence and genomic annotation statistics, to benchmarking CLIP-seq peak callers, as well as 
+    comparisons across cell types and CLIP-seq protocols.
 
     """
 
@@ -2368,7 +2369,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help="If --bg-mode 1 and input sites genomic, instead of random background sampling, sample adjusted to intron ratio of input sites (default: False)")
-
     p_em.add_argument("--bg-shuff-factor",
                    dest="bg_shuff_factor",
                    type=int,
