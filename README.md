@@ -196,7 +196,7 @@ the sequences and motif hits for each sequence.
 similar their k-mer contents, default k=3). The hover box shows additional information for each sequence, including its sequence, genomic region annotations,
 motif hits and nucleotide percentages. This way we can e.g. easily inspect general sequence characteristics of the input regions, or spot outliers.
 **Fig. 1d** shows genomic region annotations for all input regions (add `--add-all-reg-bar`), 
-as well as the regions with motif hits for each specified RBP. 
+as well as the regions with motif hits for each specified RBP.
 **Fig. 1e** displays the coverage of mRNA regions (5'UTR, CDS, 3'UTR) by the input regions. 
 **Fig. 1f** provides exon-intron overlap statistics of the input regions, including upstream and downstream proximate and distant 
 intronic regions, exon-intron border regions, and also first, last, and single exon regions.
@@ -210,8 +210,8 @@ which based on the hover box information could be further checked in a genome vi
 <img src="docs/search.ex1.2.png" width="600" />
 
 **Fig. 2**: Example entry for RBP RBFOX2 from `motif_plots.rbpbench_search.html`. 
-The `--plot-motifs` HTML report visualizes the selected motifs, provides literature references, 
-as well as motif hit counts and genomic region annotations for the motif hit regions themselves.
+The `--plot-motifs` HTML report (add `--plot-motifs` to the above call to create it) visualizes the selected motifs, 
+provides literature references, as well as motif hit counts and genomic region annotations for the motif hit regions themselves.
 
 
 #### Search with all RBPs
@@ -248,7 +248,7 @@ the CLIP-seq peak region. We can see that SLBP has the lowest p-value here,
 as expected (assuming that the region score is to some extent indicative of binding site quality 
 or binding affinity), showing that the statistic can be useful e.g. to check for 
 dataset quality, or for co-enriched RBP motifs. Region scores can be further taken advantage of by comparing k-mer distributions 
-of top and bottom scoring input regions ([details](#comparing-top-scoring-and-bottom-scoring-sites-via-k-mer-distribution)).
+of top and bottom scoring input regions ([details](#comparing-top-scoring-and-bottom-scoring-sites-via-k-mer-distribution), plus **Fig. 4a** example).
 **Fig. 3c** shows the GO term enrichment analysis results.
 As expected for SLBP, we can see many chromatin related terms in the top GO terms (more on GOA settings [here](#go-term-analysis)).
 **Fig. 3d** again depicts the mRNA region coverage profile, this time for SLBP (see **Fig. 1e** for PUM2 profile). 
@@ -389,11 +389,11 @@ Detailed explanations can be found in the corresponding table and plot legends i
 In addition, for each dataset, the top 10 5-mer frequencies are given in the hover box 
 (plus more infos like mono-nucleotide percentages). Also, the datasets are colored by 
 their average sequence complexities (the higher the more even the mono-nucleotide percentages 
-in the dataset, change to di-nucleotide percentages via --seq-comp-k).
+in the dataset, change to di-nucleotide percentages via `--seq-comp-k`).
 This way we can quickly assess sequence similarities and dissimilarities between input datasets, 
 or e.g. spot interesting outliers. 
 **Fig. 6b** extends on the k-mer frequencies plot, this time showing the k-mer variation on site level in the input datasets.
-The datasets are positioned based on the k-mer site percentage profiles. I.e., for each k-mer the % of sites in which the k-mer occurs is used as feature.
+The datasets are positioned based on the k-mer site percentage profiles. I.e., for each k-mer the percentage of sites in which the k-mer occurs is used as feature.
 (default 4-mers, change via `--seq-var-kmer-size`). Dataset coloring is the mean site percentage of all present k-mers in the dataset, 
 and the hover box shows many informative statistics (top and bottom 10 k-mers by site percentage, 
 present k-mer percentage, average k-mer percentage, as well as site length statistics).
@@ -401,7 +401,6 @@ This gives us additional metrics to compare the datasets:
 In general, we can assume that k-mers with high site percentages contribute more to the RBP binding (possibly also as direct binding motifs),
 while low percentage k-mers likely should also have low affinity to the RBP. 
 A higher mean percentage for a dataset means that the present k-mers are more evenly distributed over the dataset sequences. This can stem from a larger sequence lengths, or in general a more diverse set of sequences, possibly reflecting RBP binding preferences. 
-Hover box information includes top and bottom k-mer site percentages, present k-mer percentage (percentage of all possible k-mers present in the dataset),  average k-mer percentage (i.e., the mean site %), as well as sequence length statistics.
 
 **Fig. 7** shows the 4 plots related to genomic annotations produced by the above call:
 
