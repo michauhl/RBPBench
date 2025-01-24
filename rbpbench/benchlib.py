@@ -29,7 +29,7 @@ from scipy.stats import false_discovery_control  # Benjamini-Hochberg correction
 from goatools.obo_parser import GODag
 from goatools.goea.go_enrichment_ns import GOEnrichmentStudy
 from decimal import Decimal, getcontext
-
+from . import __version__
 
 """
 
@@ -47,6 +47,12 @@ python3 -m doctest -v benchlib.py
 
 
 """
+
+
+################################################################################
+
+def get_version():
+    return __version__
 
 
 ################################################################################
@@ -18653,6 +18659,7 @@ def search_generate_html_motif_plots(args, search_rbps_dic,
                                      goa_results_tsv="goa_results.tsv",
                                      id2pids_dic=False,
                                      id2exp_dic=False,
+                                     version=__version__,
                                      plots_subfolder="html_motif_plots"):
     """
     Create motif plots for selected RBPs.

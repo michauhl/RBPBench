@@ -12,12 +12,11 @@ from itertools import combinations
 
 from pandas import DataFrame, read_csv
 from rbpbench import benchlib
+from rbpbench import __version__
 from scipy.stats import fisher_exact
 from scipy.stats import mannwhitneyu
 from scipy.stats import false_discovery_control  # Benjamini-Hochberg correction.
 
-
-__version__ = "1.0.2"
 
 ################################################################################
 
