@@ -17,8 +17,7 @@ from scipy.stats import mannwhitneyu
 from scipy.stats import false_discovery_control  # Benjamini-Hochberg correction.
 
 
-__version__ = "1.0.1"
-
+__version__ = "1.0.2"
 
 ################################################################################
 
@@ -29,7 +28,8 @@ def setup_argument_parser():
 
     Evaluate CLIP-seq and other genomic region data using a comprehensive collection of known RBP binding motifs (RNA sequence + structure).
     RBPBench can be used for a variety of purposes, from RBP motif search in genomic regions, over motif enrichment and co-occurrence analysis, 
-    to benchmarking CLIP-seq peak callers, as well as comparisons across cell types and CLIP-seq protocols.
+    in-depth comparisons over multiple datasets via sequence and genomic annotation statistics, to benchmarking CLIP-seq peak callers, as well as 
+    comparisons across cell types and CLIP-seq protocols.
 
     """
 
@@ -309,29 +309,42 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Disable input sequence length distribution plot in HTML report (default: False)")
-    p_s.add_argument("--kmer-plot",
-                   dest="kmer_plot",
+    # k-mer distribution plots.
+    p_s.add_argument("--disable-kmer-tb-plot",
+                   dest="disable_kmer_tb_plot",
                    default = False,
                    action = "store_true",
-                   help = "Generate k-mer distribution plot, comparing input top scoring sites vs bottom scoring sites. By default, split point is the middle point, i.e., top 50 percent vs bottom 50 percent scoring sites (default: False)")
-    p_s.add_argument("--kmer-plot-top-n",
-                   dest="kmer_plot_top_n",
+                   help = "Disable top vs bottom scoring sites k-mer distribution plot. By default, plot is generated with split point as the middle point, i.e., top 50 percent vs bottom 50 percent scoring sites (default: False)")
+    p_s.add_argument("--kmer-tb-plot-top-n",
+                   dest="kmer_tb_plot_top_n",
                    type=int,
                    metavar='int',
                    default=False,
-                   help="Set number of top scoring sites to use for --kmer-plot. By default, top and bottom is split in half (default: False)")
-    p_s.add_argument("--kmer-plot-bottom-n",
-                   dest="kmer_plot_bottom_n",
+                   help="Set number of top scoring sites to use for top vs bottom scoring sites distribution k-mer plot. By default, top and bottom is split in half (default: False)")
+    p_s.add_argument("--kmer-tb-plot-bottom-n",
+                   dest="kmer_tb_plot_bottom_n",
                    type=int,
                    metavar='int',
                    default=False,
-                   help="Set number of bottom scoring sites to use for --kmer-plot. By default, top and bottom is split in half (default: False)")
+                   help="Set number of bottom scoring sites to use for top vs bottom scoring sites k-mer distribution plot. By default, top and bottom is split in half (default: False)")
+    p_s.add_argument("--disable-kmer-var-plot",
+                   dest="disable_kmer_var_plot",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable sequence k-mer variation plot (default: False)")
+    p_s.add_argument("--kmer-var-color-mode",
+                   dest="kmer_var_color_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help = "Define which attribute to use for coloring sequence k-mer variation plot. 1: correlation (Spearman) between k-mer ratios and site scores. 2: k-mer percentage in dataset (default: 1)")
     p_s.add_argument("--kmer-plot-k",
                    dest="kmer_plot_k",
                    type=int,
                    metavar='int',
-                   default=5,
-                   help="Define k for --kmer-plot (default: 5)")
+                   default=4,
+                   help="Define k for k-mer distribution plots, including top k-mers plot, top vs bottom scoring sites plot, and k-mer variation plot (default: 4)")
+    # Upset plot.
     p_s.add_argument("--enable-upset-plot",
                    dest="enable_upset_plot",
                    default = False,
@@ -397,12 +410,12 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.1,
                    help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\"). If there is overlap with several features, assign the one with highest overlap (default: 0.1)")
-    p_s.add_argument("--gtf-eib-min-overlap",
-                   dest="gtf_eib_min_overlap",
-                   type=float,
-                   metavar='float',
-                   default=0.5,
-                   help="Minimum amount input region has to overlap with exon (e), intron (i), i + ei borders to be counted as overlapping with these (note that the amount is reciprocal, i.e., one of the overlapping parts meeting the minimum amount is enough) (default: 0.5)")
+    # p_s.add_argument("--gtf-eib-min-overlap",
+    #                dest="gtf_eib_min_overlap",
+    #                type=float,
+    #                metavar='float',
+    #                default=0.5,
+    #                help="Minimum amount input region has to overlap with exon (e), intron (i), i + ei borders to be counted as overlapping with these (note that the amount is reciprocal, i.e., one of the overlapping parts meeting the minimum amount is enough) (default: 0.5)")
     p_s.add_argument("--gtf-intron-border-len",
                    dest="gtf_intron_border_len",
                    type=int,
@@ -438,11 +451,40 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help = "Define whether to use median or mean mRNA region lengths for plotting. 1: median. 2: mean (default: 1)")
-    p_s.add_argument("--add-all-reg-bar",
-                   dest="add_all_reg_bar",
+    p_s.add_argument("--disable-all-reg-bar",
+                   dest="disable_all_reg_bar",
                    default = False,
                    action = "store_true",
-                   help = "Add region annotations for all input regions to stacked bar plot (default: False)")
+                   help = "Disable adding region annotations for all input regions (irrespective of motif hits) to stacked bar plot (default: False)")
+    # Sequence k-mers plot.
+    p_s.add_argument("--disable-kmer-pca-plot",
+                   dest="disable_kmer_pca_plot",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable input sequences by k-mer content PCA plot (default: False)")
+    p_s.add_argument("--kmer-pca-plot-k",
+                   dest="kmer_pca_plot_k",
+                   type=int,
+                   metavar='int',
+                   default=3,
+                   help="Set k for k-mer usage in sequences by k-mer content PCA plot (default: 3)")
+    p_s.add_argument("--kmer-pca-plot-no-comp",
+                   dest="kmer_pca_plot_no_comp",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable adding sequence complexity as feature to sequences by k-mer content PCA plot (default: False)")
+    p_s.add_argument("--kmer-pca-plot-comp-k",
+                   dest="kmer_pca_plot_comp_k",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set k for sequence complexity (Shannon entropy) calculation. 1 == mono-nucleotides, 2 == di-nucleotides (default: 1)")
+    p_s.add_argument("--kmer-pca-plot-no-motifs",
+                   dest="kmer_pca_plot_no_motifs",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable adding motif hits information to sequences by k-mer content PCA plot (default: False)")
+    # Set RBP ID to focus on in motif distance plots.
     p_s.add_argument("--set-rbp-id",
                    dest="set_rbp_id",
                    type=str,
@@ -546,11 +588,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
-    p_s.add_argument("--report-header",
-                   dest="report_header",
-                   default = False,
-                   action = "store_true",
-                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
     p_s.add_argument("--plotly-js-mode",
                    dest="plotly_js_mode",
                    type=int,
@@ -799,12 +836,6 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.1,
                    help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\"). If there is overlap with several features, assign the one with highest overlap (default: 0.1)")
-    p_b.add_argument("--gtf-eib-min-overlap",
-                   dest="gtf_eib_min_overlap",
-                   type=float,
-                   metavar='float',
-                   default=0.5,
-                   help="Minimum amount input region has to overlap with exon (e), intron (i), i + ei borders to be counted as overlapping with these (note that the amount is reciprocal, i.e., one of the overlapping parts meeting the minimum amount is enough) (default: 0.5)")
     p_b.add_argument("--gtf-intron-border-len",
                    dest="gtf_intron_border_len",
                    type=int,
@@ -816,6 +847,41 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Do not produce gene region occupancy heatmap plot in HTML report (default: False)")
+    p_b.add_argument("--hk-gene-list",
+                   dest="hk_gene_list",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Supply file with gene IDs (one ID per row) of housekeeping genes as additional plotting info. ID format needs to be compatible with provided --gtf file (default: False)")
+    p_b.add_argument("--no-comp-feat",
+                   dest="no_comp_feat",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable sequence complexity info to be added to plot (default: False)")
+    p_b.add_argument("--seq-comp-k",
+                   dest="seq_comp_k",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set k for sequence complexity (Shannon entropy) calculation. 1 == mono-nucleotides, 2 == di-nucleotides (default: 1)")
+    p_b.add_argument("--seq-var-kmer-size",
+                   dest="seq_var_kmer_size",
+                   type=int,
+                   metavar='int',
+                   default=3,
+                   help="K-mer size for sequence variation statistics and plot (default: 3)")
+    p_b.add_argument("--seq-var-feat-mode",
+                   dest="seq_var_feat_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help = "Define what sequence k-mer variation plot to create 1: plot using site percentages for each k-mer as dimensions. 2: plot using k-mer variations as dimensions (default: 1)")
+    p_b.add_argument("--seq-var-color-mode",
+                   dest="seq_var_color_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help = "Define which attribute to use for coloring k-mer variation plot. 1: average k-mer site percentage. 2: present k-mers percentage (default: 1)")
     # GO enrichment analysis for batch mode.
     p_b.add_argument("--goa",
                    dest="run_goa",
@@ -896,11 +962,6 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3],
                    help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to plots output folder. 3: include .js code in HTML (default: 1)")
-    p_b.add_argument("--report-header",
-                   dest="report_header",
-                   default = False,
-                   action = "store_true",
-                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
     p_b.add_argument("--meme-no-check",
                    dest="meme_disable_check",
                    default = False,
@@ -944,11 +1005,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Also output .png plots as .pdf in plotting subfolder (default: False)")
-    p_c.add_argument("--report-header",
-                   dest="report_header",
-                   default = False,
-                   action = "store_true",
-                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
     p_c.add_argument("--sort-js-mode",
                    dest="sort_js_mode",
                    type=int,
@@ -1137,11 +1193,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Also output .png plots as .pdf in plotting subfolder (default: False)")
-    p_ss.add_argument("--report-header",
-                   dest="report_header",
-                   default = False,
-                   action = "store_true",
-                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
     p_ss.add_argument("--sort-js-mode",
                    dest="sort_js_mode",
                    type=int,
@@ -1430,11 +1481,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
-    p_sl.add_argument("--report-header",
-                   dest="report_header",
-                   default = False,
-                   action = "store_true",
-                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
     p_sl.add_argument("--sort-js-mode",
                    dest="sort_js_mode",
                    type=int,
@@ -1834,11 +1880,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Visualize selected sequence motifs, by outputting sequence logos and motif hit statistics into a separate .html file (default: False)")
-    p_scr.add_argument("--report-header",
-                   dest="report_header",
-                   default = False,
-                   action = "store_true",
-                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
     p_scr.add_argument("--plotly-js-mode",
                    dest="plotly_js_mode",
                    type=int,
@@ -2132,11 +2173,6 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2],
                    help = "Define whether to use median or mean mRNA region lengths for plotting. 1: median. 2: mean (default: 1)")
-    p_smr.add_argument("--report-header",
-                   dest="report_header",
-                   default = False,
-                   action = "store_true",
-                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
     p_smr.add_argument("--sort-js-mode",
                    dest="sort_js_mode",
                    type=int,
@@ -2333,7 +2369,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help="If --bg-mode 1 and input sites genomic, instead of random background sampling, sample adjusted to intron ratio of input sites (default: False)")
-
     p_em.add_argument("--bg-shuff-factor",
                    dest="bg_shuff_factor",
                    type=int,
@@ -2479,11 +2514,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
-    p_em.add_argument("--report-header",
-                   dest="report_header",
-                   default = False,
-                   action = "store_true",
-                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
     p_em.add_argument("--plotly-js-mode",
                    dest="plotly_js_mode",
                    type=int,
@@ -2837,11 +2867,6 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
-    p_nm.add_argument("--report-header",
-                   dest="report_header",
-                   default = False,
-                   action = "store_true",
-                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
     p_nm.add_argument("--plotly-js-mode",
                    dest="plotly_js_mode",
                    type=int,
@@ -3105,11 +3130,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Filter out GOA results labeled as purified (i.e., GO terms with significantly lower concentration) in HTML table (default: False)")
-    p_goa.add_argument("--report-header",
-                   dest="report_header",
+    p_goa.add_argument("--plot-abs-paths",
+                   dest="plot_abs_paths",
                    default = False,
                    action = "store_true",
-                   help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
+                   help = "Store plot files with absolute paths in HTML files. Default is relative paths (default: False)")
     p_goa.add_argument("--sort-js-mode",
                    dest="sort_js_mode",
                    type=int,
@@ -3417,10 +3442,11 @@ def main_search(args):
         assert args.in_gtf, "set --tr-list requires --gtf GTF file"
     assert benchlib.boundary_check(args.gtf_feat_min_overlap, 1E-9, 1.0), "set --gtf-feat-min-overlap expected to be >= 1E-9 and <= 1.0"
     assert benchlib.boundary_check(args.gtf_min_mrna_overlap, 1E-9, 1.0), "set --gtf-min-mrna-overlap expected to be >= 1E-9 and <= 1.0"
-    assert benchlib.boundary_check(args.gtf_eib_min_overlap, 1E-9, 1.0), "set --gtf-eib-min-overlap expected to be >= 1E-9 and <= 1.0"
     assert benchlib.boundary_check(args.gtf_intron_border_len, 1, 1000), "set --gtf-intron-border-eln expected to be >= 1 and <= 1000"
     assert benchlib.boundary_check(args.min_motif_dist, 0, 1000), "set --min-motif-dist expected to be >= 0 and <= 1000"
     assert benchlib.boundary_check(args.kmer_plot_k, 1, 7), "set --kmer-plot-k expected to be >= 1 and <= 7"
+    assert benchlib.boundary_check(args.kmer_pca_plot_k, 1, 7), "set --kmer-pca-plot-k expected to be >= 1 and <= 7"
+
 
     # if args.in_gtf:
     #     assert args.report, "set --gtf requires --report to be effective"
@@ -5558,7 +5584,9 @@ def main_search(args):
         benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
                                             output_mode=3,  # only introns.
                                             report_counts=True,
-                                            add_tr_id=True,
+                                            add_tr_id=True,  # new reg_id format: intron;ENST000006666
+                                            add_numbers=True,  # new reg_id format: intron;ENST000006666;1-2
+                                            number_format=1,  # format intron;ENST000006666;1-2
                                             empty_check=False)
 
         # Custom transcript biotypes for upset plot.
@@ -5572,27 +5600,34 @@ def main_search(args):
         print("Output exon annotations to BED ... ")
         benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
                                          custom_annot_dic=custom_annot_dic,
+                                         add_numbers=True,
                                          append=True)
 
         # Overlap with input regions.
         print("Overlap annotations with input regions ... ")
         params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
+        # params = "-s -wo -f %s -F %s -e" %(str(args.gtf_feat_min_overlap), str(args.gtf_feat_min_overlap))
         overlap_annotations_bed = args.out_folder + "/overlap_region_annotations.tmp.bed"
         benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_out_bed, 
-                                        overlap_annotations_bed,
-                                        params=params)
+                                     overlap_annotations_bed,
+                                     params=params)
         
         reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
-                                                        tid2tio_dic=tid2tio_dic,
+                                                        tid2tio_dic,
                                                         reg_ids_dic=reg_ids_dic)
 
         # Output assignments.
         print("Output region annotations ... ")
         
         OUTRAN = open(reg_annot_table_file, "w")
-        OUTRAN.write("region_id\tgene_id\tgene_name\ttranscript_id\tregion_annotation\ttranscript_biotype\n")
+        OUTRAN.write("region_id\tgene_id\tgene_name\ttranscript_id\tregion_annotation\ttranscript_biotype\tborder_dist\tus_ds_label\tannot_reg_len\texon_intron_nr\n")
 
         tids_with_sites_dic = {}  # transcript IDs with sites.
+
+        # So far reg2annot_dic format: reg_id -> [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr]
+        # intergenic: ["intergenic", False, -1, "-", -1, "-"]
+        #  annot_reg_len == intron/exon length.
+        # exon_intron_nr format: 1-5, 2-6 ...
 
         for reg_id in reg2annot_dic:
             annot = reg2annot_dic[reg_id][0]
@@ -5600,19 +5635,30 @@ def main_search(args):
             gene_id = "-"
             gene_name = "-"
             tr_biotype = "-"
+            reg2annot_dic[reg_id].append("-")
+            reg2annot_dic[reg_id].append("-")
+            reg2annot_dic[reg_id].append("-")
             if tr_id:
                 gene_id = tr2gid_dic[tr_id]
                 gene_info = gid2gio_dic[gene_id]
                 tr_biotype = tid2tio_dic[tr_id].tr_biotype
                 gene_name = gene_info.gene_name
                 gid2tid_dic[gene_id] = tr_id
+                reg2annot_dic[reg_id][6] = gene_id
+                reg2annot_dic[reg_id][7] = gene_name
+                reg2annot_dic[reg_id][8] = tr_biotype
                 if gene_id not in target_genes_dic:
                     target_genes_dic[gene_id] = 1
                 else:
                     target_genes_dic[gene_id] += 1
             else:
                 tr_id = "-"
-            OUTRAN.write("%s\t%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot, tr_biotype))
+            border_dist = str(reg2annot_dic[reg_id][2])  # -1 unless intron annotation.
+            us_ds_label = reg2annot_dic[reg_id][3]  # "-" unless intron annotation.
+            annot_reg_len = str(reg2annot_dic[reg_id][4])
+            exon_intron_nr_c = reg2annot_dic[reg_id][5]  # format: 1-5, 2-6 ...
+
+            OUTRAN.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot, tr_biotype, border_dist, us_ds_label, annot_reg_len, exon_intron_nr_c))
 
             if tr_id not in tids_with_sites_dic:
                 tids_with_sites_dic[tr_id] = 1
@@ -5620,53 +5666,97 @@ def main_search(args):
                 tids_with_sites_dic[tr_id] += 1
             
         OUTRAN.close()
-
+        
 
         """
         Get exon+intron+eib overlap counts.
+
+        reg2annot_dic format: reg_id -> 
+        [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr, gene_id, gene_name, tr_biotype]
+        For intergenic regions:
+        ["intergenic", False, -1, "-", -1, "-", "-", "-", "-"]
+        For intronic/exonic regions with center outside:
+        [annot_id, tr_id, -1, "-", annot_reg_len, exon_intron_nr, gene_id, gene_name, tr_biotype]
 
         """
 
         ei_border_len = 50
         args.ei_border_len = ei_border_len
 
-        print("Output exon + intron border regions ... ")
-        intron_exon_border_out_bed = args.out_folder + "/intron_exon_border_regions.tmp.bed"
-        benchlib.exon_intron_border_regions_to_bed(tid2tio_dic, intron_exon_border_out_bed,
-                                            tr_ids_dic=None,
-                                            intron_border_len=args.gtf_intron_border_len,
-                                            ei_border_len=50)
+        eib_annot_c_dic = {
+            "exonic" : 0,
+            "intronic" : 0,
+            "intergenic" : 0,
+            "eib" : 0,
+            "us_ib_dist" : 0,
+            "ds_ib_dist" : 0,
+            "us_ib" : 0,
+            "ds_ib" : 0,
+            "first_exon" : 0,
+            "last_exon" : 0,
+            "single_exon" : 0
+        }
+        
+        for reg_id in reg2annot_dic:
+            benchlib.get_eib_annot_c(reg2annot_dic[reg_id], eib_annot_c_dic,
+                                     ib_len=args.gtf_intron_border_len,
+                                     eib_len=ei_border_len)
 
-        # Overlap with input regions.
-        print("Overlap exon + intron regions with input regions ... ")
-        params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
-        overlap_ei_regions_bed = args.out_folder + "/overlap_ei_regions.tmp.bed"
-        benchlib.bed_intersect_files(intron_exon_out_bed, filtered_sites_bed,
-                                     overlap_ei_regions_bed,
-                                     params=params)
+        # print("Output exon + intron border regions ... ")
+        # intron_exon_border_out_bed = args.out_folder + "/intron_exon_border_regions.tmp.bed"
+        # benchlib.exon_intron_border_regions_to_bed(tid2tio_dic, intron_exon_border_out_bed,
+        #                                     tr_ids_dic=None,
+        #                                     intron_border_len=args.gtf_intron_border_len,
+        #                                     ei_border_len=50)
 
-        # Get exon + intron overlap counts.
-        c_exon_ol, c_intron_ol = benchlib.get_intron_exon_ol_counts(overlap_ei_regions_bed)
-        print("# exon overlap regions:   %i" %(c_exon_ol))
-        print("# intron overlap regions: %i" %(c_intron_ol))
+        # # Overlap with input regions.
+        # print("Overlap exon + intron regions with input regions ... ")
+        # params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
+        # overlap_ei_regions_bed = args.out_folder + "/overlap_ei_regions.tmp.bed"
+        # benchlib.bed_intersect_files(intron_exon_out_bed, filtered_sites_bed,
+        #                              overlap_ei_regions_bed,
+        #                              params=params)
 
-        print("Overlap exon + intron border regions with input regions ... ")
-        params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
-        overlap_eib_regions_bed = args.out_folder + "/overlap_eib_regions.tmp.bed"
-        benchlib.bed_intersect_files(intron_exon_border_out_bed, filtered_sites_bed,
-                                     overlap_eib_regions_bed,
-                                     params=params)
+        # # Get exon + intron overlap counts.
+        # c_exon_ol, c_intron_ol = benchlib.get_intron_exon_ol_counts(overlap_ei_regions_bed)
+        # print("# exon overlap regions:   %i" %(c_exon_ol))
+        # print("# intron overlap regions: %i" %(c_intron_ol))
 
-        # Get other overlap counts.
-        c_eib_ol, c_us_ib_ol, c_ds_ib_ol = benchlib.get_eib_ol_counts(overlap_eib_regions_bed)
+        # print("Overlap exon + intron border regions with input regions ... ")
+        # params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
+        # overlap_eib_regions_bed = args.out_folder + "/overlap_eib_regions.tmp.bed"
+        # benchlib.bed_intersect_files(intron_exon_border_out_bed, filtered_sites_bed,
+        #                              overlap_eib_regions_bed,
+        #                              params=params)
+
+        # # Get other overlap counts.
+        # c_eib_ol, c_us_ib_ol, c_ds_ib_ol = benchlib.get_eib_ol_counts(overlap_eib_regions_bed)
+
+        c_exon_ol = eib_annot_c_dic["exonic"]
+        c_intron_ol = eib_annot_c_dic["intronic"]
+        c_intergenic = eib_annot_c_dic["intergenic"]
+        c_eib_ol = eib_annot_c_dic["eib"]
+        c_us_ib_ol = eib_annot_c_dic["us_ib"]
+        c_ds_ib_ol = eib_annot_c_dic["ds_ib"]
+        c_us_ib_dist_ol = eib_annot_c_dic["us_ib_dist"]
+        c_ds_ib_dist_ol = eib_annot_c_dic["ds_ib_dist"]
+        c_first_exon = eib_annot_c_dic["first_exon"]
+        c_last_exon = eib_annot_c_dic["last_exon"]
+        c_single_exon = eib_annot_c_dic["single_exon"]
 
         exon_intron_ol_stats = benchlib.ExonIntronOverlap("rbpbench_search", c_regions,
                                                           c_exon_sites=c_exon_ol,
                                                           c_intron_sites=c_intron_ol,
+                                                          c_intergenic_sites=c_intergenic,
                                                           c_us_ib_sites=c_us_ib_ol,
                                                           c_ds_ib_sites=c_ds_ib_ol,
+                                                          c_us_ib_dist_sites=c_us_ib_dist_ol,
+                                                          c_ds_ib_dist_sites=c_ds_ib_dist_ol,
                                                           c_eib_sites=c_eib_ol,
-                                                          min_overlap=args.gtf_eib_min_overlap,
+                                                          c_first_exon_sites=c_first_exon,
+                                                          c_last_exon_sites=c_last_exon,
+                                                          c_single_exon_sites=c_single_exon,
+                                                          min_overlap=args.gtf_feat_min_overlap,
                                                           intron_border_len=args.gtf_intron_border_len,
                                                           ei_border_len=ei_border_len,
                                                           c_tr_ids=len(tid2tio_dic),
@@ -5755,6 +5845,7 @@ def main_search(args):
                                             report_counts=False,
                                             add_tr_id=True,
                                             add_numbers=True,
+                                            number_format=2, # format exon;ENST001;1
                                             empty_check=False)
 
         mrna_exon_sites_overlap_bed = args.out_folder + "/mrna_exon_regions.filtered_sites.overlap.tmp.bed"
@@ -5777,7 +5868,7 @@ def main_search(args):
                 # print(tid, "exon_c:", exon_c)
                 tr2pcl_dic[tid] = []
                 for exon_i in range(1, exon_c+1):
-                    exon_id = "exon;%i;%s" %(exon_i, tid)
+                    exon_id = "exon;%s;%i" %(tid, exon_i)
                     tr2pcl_dic[tid] += exon2pcl_dic[exon_id]
                 
                 tr_len = tid2tio_dic[tid].tr_length  # spliced transcript length.
@@ -6036,10 +6127,10 @@ def main_search(args):
                                      params=params)
 
         motif_hit2annot_dic = benchlib.get_region_annotations(
-                                            overlap_motif_hit_annotations_bed,
-                                            motif_hits=True,
-                                            tid2tio_dic=tid2tio_dic,
-                                            reg_ids_dic=motif_reg_dic)
+                                        overlap_motif_hit_annotations_bed,
+                                        tid2tio_dic,
+                                        motif_hits=True,
+                                        reg_ids_dic=motif_reg_dic)
 
         for motif_hit in motif_hit2annot_dic:
             # motif_hit format: "chr1:10-15(+)motif_id". Get motif_id.
@@ -6153,14 +6244,20 @@ def main_search(args):
         seq_len_df = DataFrame({
             'Sequence ID': seq_ids,
             'Sequence Length': [len(seq) for seq in sequences],
-            'Sequence': [benchlib.insert_line_breaks(seq, line_len=60) for seq in sequences],
+            'Sequence': [benchlib.insert_line_breaks(seq, line_len=50) for seq in sequences],
             'Motif hits': motif_hits
         })
 
     plots_subfolder = "html_report_plots"
     benchlib_path = os.path.dirname(benchlib.__file__)
 
+    for reg_id in reg2annot_dic:
+        if len(reg2annot_dic[reg_id]) != 9:
+            print("!=9 for:", reg_id, reg2annot_dic[reg_id])
+
+
     print("Create report ... ")
+
     benchlib.search_generate_html_report(args,
                                         df_pval, pval_cont_lll,
                                         search_rbps_dic,
@@ -6316,6 +6413,9 @@ def main_batch(args):
         check, meme_version = benchlib.check_tool_version("meme -version", "5.0")
         assert check, "RBPBench requires meme version >= 5.0 (installed version: %s)" %(meme_version)
 
+    if args.hk_gene_list:
+        assert args.in_gtf, "set --goa requires --gtf GTF file"
+
     if args.run_goa:
         assert args.in_gtf, "set --goa requires --gtf GTF file"
         if args.goa_obo_mode == 3:
@@ -6342,11 +6442,11 @@ def main_batch(args):
     if args.tr_list:
         assert args.in_gtf, "--tr-list set, but --gtf not set. Please provide --gtf file"
     assert benchlib.boundary_check(args.gtf_feat_min_overlap, 1E-9, 1.0), "set --gtf-feat-min-overlap expected to be >= 1E-9 and <= 1.0"
-    assert benchlib.boundary_check(args.gtf_eib_min_overlap, 1E-9, 1.0), "set --gtf-eib-min-overlap expected to be >= 1E-9 and <= 1.0"
     assert benchlib.boundary_check(args.gtf_intron_border_len, 1, 1000), "set --gtf-intron-border-eln expected to be >= 1 and <= 1000"
     if args.in_gtf:
         assert os.path.exists(args.in_gtf), "set --gtf file not found"
     assert benchlib.boundary_check(args.kmer_size, 1, 6), "set --kmer-size expected to be >= 1 and <= 6"
+    assert benchlib.boundary_check(args.seq_var_kmer_size, 1, 5), "set --seq-var-kmer-size expected to be >= 1 and <= 5"
 
     # Regex check.
     regex = False
@@ -6662,6 +6762,8 @@ def main_batch(args):
     id2occ_tr_ids_dic = {}  # internal ID -> transcript ID -> occupancy value.
     id2occ_hits_tr_ids_dic = {}  # internal ID -> transcript ID -> occupancy value (only sites with motif hits considered here).
     background_genes_dic = {}  # Store all gene IDs in GTF file to use as background genes.
+    id2hk_gene_stats_dic = {}  # internal ID -> housekeeping gene stats dictionary.
+    hk_tr_ids_dic = {}  # Store loaded transcript IDs that stem from housekeeping genes.
     tid2tio_dic = None
 
     if args.in_gtf:
@@ -6731,12 +6833,45 @@ def main_batch(args):
         c_tr_infos = len(tid2tio_dic)
         print("# transcript features read in from --gtf:", c_tr_infos)
 
+        # If housekeeping genes list given.
+        if args.hk_gene_list:
+
+            print("Read in --hk-gene-list ... ")
+
+            assert os.path.exists(args.hk_gene_list), "given --hk-gene-list file \"%s\" not found" % (args.hk_gene_list)
+
+            hk_gene_ids_dic = benchlib.read_ids_into_dic(args.hk_gene_list,
+                                                        check_dic=False)
+
+            assert hk_gene_ids_dic, "no gene IDs read in from --hk-gene-list. Please provide gene IDs in a text file, one ID per line"
+
+            print("# of housekeeping gene IDs read in: %i" %(len(hk_gene_ids_dic)))
+
+            c_hkg_in_gtf = 0
+            for gid in hk_gene_ids_dic:
+                if gid in gid2gio_dic:
+                    c_hkg_in_gtf += 1
+
+            assert c_hkg_in_gtf, "none of the provided housekeeping gene IDs found in --gtf. Please provide compatible --gtf and --hk-gene-list files"
+
+            for tid in tid2tio_dic:
+                gid = tid2tio_dic[tid].gene_id
+                if gid in hk_gene_ids_dic:
+                    hk_tr_ids_dic[tid] = gid
+
+            assert hk_tr_ids_dic, "none of the loaded transcript IDs are associated with housekeeping genes. Please provide compatible transcript IDs and --hk-gene-list gene IDs"
+
+            print("# of housekeeping gene-associated transcript IDs: %i" %(len(hk_tr_ids_dic)))
+
+
         # Extract exon + intron regions of selected transcripts from transcript infos.
         print("Output intron annotations to BED ... ")
         benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
                                             output_mode=3,  # only introns.
                                             report_counts=True,
-                                            add_tr_id=True,
+                                            add_tr_id=True,  # new reg_id format: intron;ENST000006666
+                                            add_numbers=True,  # new reg_id format: intron;ENST000006666;1-2
+                                            number_format=1,  # format intron;ENST000006666;1-2
                                             empty_check=False)
 
         # Custom transcript biotypes for upset plot.
@@ -6750,6 +6885,7 @@ def main_batch(args):
         print("Output exon annotations to BED ... ")
         benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
                                          custom_annot_dic=custom_annot_dic,
+                                         add_numbers=True,
                                          append=True)
 
         print("Output exon + intron border regions ... ")
@@ -6867,6 +7003,9 @@ def main_batch(args):
     add_motif_db_info = False  # Whether to add the motif database string to the dataset IDs in the plots.
     # dataset_idx = 0  # For PCA plot.
     seq_len_stats_ll = []  # For sequence length stats in --report.
+    seq_feat_ll = []  # For sequence feature stats in --report.
+    seq_var_ll = []  # For sequence variation stats in --report.
+    seq_var_kmer_l = []  # For sequence variation stats in --report.
     ei_ol_stats_dic = {}
 
     for idx, bed_file in enumerate(bed_list):
@@ -7670,10 +7809,11 @@ def main_batch(args):
                                          params=params)
             
             reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
-                                                            tid2tio_dic=tid2tio_dic,
+                                                            tid2tio_dic,
                                                             reg_ids_dic=reg_ids_dic)
 
-            # reg2annot_dic = {'chr22:30971326-30971352(+)': ['other (nc)RNA', 'ENST00000614234'], ...
+            # reg2annot_dic format right now: 
+            # reg_id -> [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr]
 
             # Store annotations for all regions.
             occ_tr_ids_dic = {}  # Transcript IDs occupied by dataset regions.
@@ -7683,6 +7823,10 @@ def main_batch(args):
             for reg_id in reg2annot_dic:
                 annot = reg2annot_dic[reg_id][0]
                 tr_id = reg2annot_dic[reg_id][1]
+                # Extend to 9 elements format.
+                reg2annot_dic[reg_id].append("-")
+                reg2annot_dic[reg_id].append("-")
+                reg2annot_dic[reg_id].append("-")
 
                 if tr_id:  # if tr_id is not False (if region does not overlap with transcripts/genes).
 
@@ -7737,6 +7881,21 @@ def main_batch(args):
             else:
                 id2occ_tr_ids_dic[internal_id] = occ_tr_ids_dic
 
+            # Record amount of occupied housekeeping genes (actually transcripts) in internal_id dataset.
+            if id2occ_tr_ids_dic[internal_id] and hk_tr_ids_dic:
+                id2hk_gene_stats_dic[internal_id] = [0, 0, 0]
+                c_tids = 0
+                c_hk_tids = 0
+                for tid in id2occ_tr_ids_dic[internal_id]:
+                    c_tids += 1
+                    if tid in hk_tr_ids_dic:
+                        c_hk_tids += 1
+
+                id2hk_gene_stats_dic[internal_id][0] = c_tids
+                id2hk_gene_stats_dic[internal_id][1] = c_hk_tids
+                if c_tids:
+                    id2hk_gene_stats_dic[internal_id][2] = round((c_hk_tids / c_tids) * 100, 2)
+
             # --unstranded option, count both strands only once.
             if args.unstranded and not args.unstranded_ct:
                 for internal_id in id2reg_annot_dic:
@@ -7752,43 +7911,88 @@ def main_batch(args):
                         new_annot_c = annot_c // 2
                         id2hit_reg_annot_dic[internal_id][annot] = new_annot_c
 
-            # Overlap with input regions.
-            print("Overlap exon + intron regions with input regions ... ")
-            params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
-            overlap_ei_regions_bed = args.out_folder + "/overlap_ei_regions.tmp.bed"
-            benchlib.bed_intersect_files(intron_exon_out_bed, filtered_sites_bed,
-                                         overlap_ei_regions_bed,
-                                         params=params)
+            # # Overlap with input regions.
+            # print("Overlap exon + intron regions with input regions ... ")
+            # params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
+            # overlap_ei_regions_bed = args.out_folder + "/overlap_ei_regions.tmp.bed"
+            # benchlib.bed_intersect_files(intron_exon_out_bed, filtered_sites_bed,
+            #                              overlap_ei_regions_bed,
+            #                              params=params)
 
-            # Get exon + intron overlap counts.
-            c_exon_ol, c_intron_ol = benchlib.get_intron_exon_ol_counts(overlap_ei_regions_bed)
-            # print("# exon overlap regions:   %i" %(c_exon_ol))
-            # print("# intron overlap regions: %i" %(c_intron_ol))
+            # # Get exon + intron overlap counts.
+            # c_exon_ol, c_intron_ol = benchlib.get_intron_exon_ol_counts(overlap_ei_regions_bed)
+            # # print("# exon overlap regions:   %i" %(c_exon_ol))
+            # # print("# intron overlap regions: %i" %(c_intron_ol))
 
-            print("Overlap exon + intron border regions with input regions ... ")
-            params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
-            overlap_eib_regions_bed = args.out_folder + "/overlap_eib_regions.tmp.bed"
-            benchlib.bed_intersect_files(intron_exon_border_out_bed, filtered_sites_bed,
-                                         overlap_eib_regions_bed,
-                                         params=params)
+            # print("Overlap exon + intron border regions with input regions ... ")
+            # params = "-s -f %s -F %s -e -wb " %(str(args.gtf_eib_min_overlap), str(args.gtf_eib_min_overlap))
+            # overlap_eib_regions_bed = args.out_folder + "/overlap_eib_regions.tmp.bed"
+            # benchlib.bed_intersect_files(intron_exon_border_out_bed, filtered_sites_bed,
+            #                              overlap_eib_regions_bed,
+            #                              params=params)
 
-            # Get other overlap counts.
-            c_eib_ol, c_us_ib_ol, c_ds_ib_ol = benchlib.get_eib_ol_counts(overlap_eib_regions_bed)
+            # # Get other overlap counts.
+            # c_eib_ol, c_us_ib_ol, c_ds_ib_ol = benchlib.get_eib_ol_counts(overlap_eib_regions_bed)
+
+            """
+            Get exon-intron + border overlap statistics from reg2annot_dic.
+
+            """
 
             ei_border_len = 50
             args.ei_border_len = ei_border_len
 
+            eib_annot_c_dic = {
+                "exonic" : 0,
+                "intronic" : 0,
+                "intergenic" : 0,
+                "eib" : 0,
+                "us_ib_dist" : 0,
+                "ds_ib_dist" : 0,
+                "us_ib" : 0,
+                "ds_ib" : 0,
+                "first_exon" : 0,
+                "last_exon" : 0,
+                "single_exon" : 0
+            }
+
+            # reg2annot_dic format: 
+            # reg_id -> [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr, gene_id, gene_name, tr_biotype]
+
+            for reg_id in reg2annot_dic:
+                benchlib.get_eib_annot_c(reg2annot_dic[reg_id], eib_annot_c_dic,
+                                        ib_len=args.gtf_intron_border_len,
+                                        eib_len=ei_border_len)
+
+            c_exon_ol = eib_annot_c_dic["exonic"]
+            c_intron_ol = eib_annot_c_dic["intronic"]
+            c_intergenic = eib_annot_c_dic["intergenic"]
+            c_eib_ol = eib_annot_c_dic["eib"]
+            c_us_ib_ol = eib_annot_c_dic["us_ib"]
+            c_ds_ib_ol = eib_annot_c_dic["ds_ib"]
+            c_us_ib_dist_ol = eib_annot_c_dic["us_ib_dist"]
+            c_ds_ib_dist_ol = eib_annot_c_dic["ds_ib_dist"]
+            c_first_exon = eib_annot_c_dic["first_exon"]
+            c_last_exon = eib_annot_c_dic["last_exon"]
+            c_single_exon = eib_annot_c_dic["single_exon"]
+
             exon_intron_ol_stats = benchlib.ExonIntronOverlap(internal_id, c_regions,
-                                                             c_exon_sites=c_exon_ol,
-                                                             c_intron_sites=c_intron_ol,
-                                                             c_us_ib_sites=c_us_ib_ol,
-                                                             c_ds_ib_sites=c_ds_ib_ol,
-                                                             c_eib_sites=c_eib_ol,
-                                                             min_overlap=args.gtf_eib_min_overlap,
-                                                             intron_border_len=args.gtf_intron_border_len,
-                                                             ei_border_len=ei_border_len,
-                                                             c_tr_ids=len(tid2tio_dic),
-                                                             c_tr_ids_with_sites=len(occ_tr_ids_dic))
+                                                            c_exon_sites=c_exon_ol,
+                                                            c_intron_sites=c_intron_ol,
+                                                            c_intergenic_sites=c_intergenic,
+                                                            c_us_ib_sites=c_us_ib_ol,
+                                                            c_ds_ib_sites=c_ds_ib_ol,
+                                                            c_us_ib_dist_sites=c_us_ib_dist_ol,
+                                                            c_ds_ib_dist_sites=c_ds_ib_dist_ol,
+                                                            c_eib_sites=c_eib_ol,
+                                                            c_first_exon_sites=c_first_exon,
+                                                            c_last_exon_sites=c_last_exon,
+                                                            c_single_exon_sites=c_single_exon,
+                                                            min_overlap=args.gtf_feat_min_overlap,
+                                                            intron_border_len=args.gtf_intron_border_len,
+                                                            ei_border_len=ei_border_len,
+                                                            c_tr_ids=len(tid2tio_dic),
+                                                            c_tr_ids_with_sites=len(occ_tr_ids_dic))
             
             ei_ol_stats_dic[internal_id] = exon_intron_ol_stats
 
@@ -7808,10 +8012,10 @@ def main_batch(args):
 
         # k-mer frequencies unaffected by --unstranded options.
         kmer_dic = benchlib.seqs_dic_count_kmer_freqs(out_seqs_dic, args.kmer_size, 
-                                                        rna=False,
-                                                        convert_to_uc=True,
-                                                        skip_non_dic_keys=True,  # skip k-mers containing N-bases.
-                                                        return_ratios=True)
+                                                      rna=False,
+                                                      convert_to_uc=True,
+                                                      skip_non_dic_keys=True,  # skip k-mers containing N-bases.
+                                                      return_ratios=True)
 
         # Populate k-mers list.
         if not kmer_list:
@@ -7832,10 +8036,75 @@ def main_batch(args):
             # In this case we want to count the two strands of a region as one region.
             unstranded_len_stats = True
         seq_len_stats_l = benchlib.get_sequence_length_statistics(out_seqs_dic,
-                                                                    unstranded=unstranded_len_stats)
+                                                                  unstranded=unstranded_len_stats)
         # Add dataset ID to seq_len_stats_l.
         seq_len_stats_l.insert(0, dataset_id)
         seq_len_stats_ll.append(seq_len_stats_l)
+
+        # Sequence complexities.
+        if not args.no_comp_feat:
+
+            print("Calculate sequence complexities ... ")
+
+            # Calculate sequence complexities.
+            seqs_entr_list = benchlib.seqs_dic_calc_entropies(out_seqs_dic,
+                                                              k=args.seq_comp_k,
+                                                              rna=False)
+            mean_complexity = statistics.mean(seqs_entr_list)
+
+            # Get sequence single nucleotide frequencies / counts.
+            seqs_ntc_dic = benchlib.seqs_dic_count_nt_freqs(out_seqs_dic, rna=False)
+
+            # Get single nucleotide percentages.
+            seqs_ntp_dic = benchlib.ntc_dic_to_ratio_dic(seqs_ntc_dic, perc=True)
+            
+            # Get bi-nt percentages (AC, AG, AT, CG, CT, GT).
+            seqs_bint_perc_dic = benchlib.get_bint_perc_from_ntc_dic(seqs_ntc_dic)
+
+            seq_feat_l = [dataset_id, round(mean_complexity, 5)]
+            for nt in sorted(seqs_ntp_dic):
+                seq_feat_l.append(round(seqs_ntp_dic[nt], 2))
+            for bint in sorted(seqs_bint_perc_dic):
+                seq_feat_l.append(round(seqs_bint_perc_dic[bint], 2))
+            seq_feat_ll.append(seq_feat_l)
+
+        # Sequence variation stats.
+        print("Calculate sequence variations statistics ... ")
+        if args.seq_var_feat_mode == 1:
+
+            kmer2site_ratio_dic, avg_site_ratio, pk_rat = benchlib.calculate_k_site_ratios(out_seqs_dic,
+                                                                            k=args.seq_var_kmer_size,
+                                                                            nucleotides=['A', 'C', 'G', 'T'],
+                                                                            only_observed=True)
+
+            seq_var_l = [dataset_id, avg_site_ratio, pk_rat]
+
+            if not seq_var_kmer_l:
+                for kmer, site_ratio in sorted(kmer2site_ratio_dic.items()):
+                    seq_var_kmer_l.append(kmer)
+            
+            for kmer, site_ratio in sorted(kmer2site_ratio_dic.items()):
+                seq_var_l.append(site_ratio)
+
+            seq_var_ll.append(seq_var_l)
+
+        elif args.seq_var_feat_mode == 2:
+
+            single_cv_dic, avg_cv = benchlib.calculate_k_nucleotide_cv(out_seqs_dic,
+                                                                    k=args.seq_var_kmer_size,
+                                                                    nucleotides=['A', 'C', 'G', 'T'],
+                                                                    only_observed=True)
+
+            seq_var_l = [dataset_id, avg_cv]
+
+            if not seq_var_kmer_l:
+                for kmer, single_cv in sorted(single_cv_dic.items()):
+                    seq_var_kmer_l.append(kmer)
+            
+            for kmer, single_cv in sorted(single_cv_dic.items()):
+                seq_var_l.append(single_cv)
+
+            seq_var_ll.append(seq_var_l)
 
 
     OUTRBPSTATS.close()
@@ -7940,7 +8209,11 @@ def main_batch(args):
     eib_ol_table_out = args.out_folder + "/exon_intron_overlap_stats.tsv"
     if ei_ol_stats_dic:
         OUTEIB = open(eib_ol_table_out,"w")
-        OUTEIB.write("dataset_id\tperc_exons\tperc_introns\tperc_us_ib\tperc_ds_ib\tperc_eib\tc_regions\tc_exon_sites\tc_intron_sites\tc_us_ib_sites\tc_ds_ib_sites\tc_eib_sites\tc_tr_ids\tc_tr_ids_with_sites\n")
+        OUTEIB.write("dataset_id\tperc_exons\tperc_introns\tperc_us_ib\tperc_ds_ib\tperc_dist_us_ib\tperc_dist_ds_ib\t"
+                     "perc_eib\tperc_first_exon\tperc_last_exon\tperc_single_exon\t"
+                     "c_regions\tc_exon_sites\tc_intron_sites\tc_us_ib_sites\tc_ds_ib_sites\tc_dist_us_ib_sites\tc_dist_ds_ib_sites\t"
+                     "c_eib_sites\tc_first_exon_sites\tc_last_exon_sites\tc_single_exon_sites\t"
+                     "c_tr_ids\tc_tr_ids_with_sites\n")
 
         for internal_id in ei_ol_stats_dic:
             combined_id = internal_id
@@ -7966,23 +8239,49 @@ def main_batch(args):
             ds_ib_sites_perc = 0.0
             if ei_ol_stats.c_ds_ib_sites and ei_ol_stats.c_input_sites:
                 ds_ib_sites_perc = round(ei_ol_stats.c_ds_ib_sites / ei_ol_stats.c_input_sites * 100, 1)
+            us_ib_dist_sites_perc = 0.0
+            if ei_ol_stats.c_us_ib_dist_sites and ei_ol_stats.c_input_sites:
+                us_ib_dist_sites_perc = round(ei_ol_stats.c_us_ib_dist_sites / ei_ol_stats.c_input_sites * 100, 1)
+            ds_ib_dist_sites_perc = 0.0
+            if ei_ol_stats.c_ds_ib_dist_sites and ei_ol_stats.c_input_sites:
+                ds_ib_dist_sites_perc = round(ei_ol_stats.c_ds_ib_dist_sites / ei_ol_stats.c_input_sites * 100, 1)
+            first_exon_sites_perc = 0.0
+            if ei_ol_stats.c_first_exon_sites and ei_ol_stats.c_input_sites:
+                first_exon_sites_perc = round(ei_ol_stats.c_first_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
+            last_exon_sites_perc = 0.0
+            if ei_ol_stats.c_last_exon_sites and ei_ol_stats.c_input_sites:
+                last_exon_sites_perc = round(ei_ol_stats.c_last_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
+            single_exon_sites_perc = 0.0
+            if ei_ol_stats.c_single_exon_sites and ei_ol_stats.c_input_sites:
+                single_exon_sites_perc = round(ei_ol_stats.c_single_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
             eib_sites_perc = 0.0
             if ei_ol_stats.c_eib_sites and ei_ol_stats.c_input_sites:
                 eib_sites_perc = round(ei_ol_stats.c_eib_sites / ei_ol_stats.c_input_sites * 100, 1)
-            perc_min_overlap = round(args.gtf_eib_min_overlap * 100, 1)
+            # perc_min_overlap = round(args.gtf_feat_min_overlap * 100, 1)
 
-            OUTEIB.write("%s\t%s\t%s\t%s\t%s\t%s\t%i\t%i\t%i\t%i\t%i\t%i\t%i\t%i\n" %(combined_id, 
+            OUTEIB.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%i\t%i\t%i\t%i\t%i\t%i\t%i\t%i\t%i\t%i\t%i\t%i\t%i\n" %(
+                                                                                combined_id, 
                                                                                 str(exon_sites_perc), 
                                                                                 str(intron_sites_perc), 
                                                                                 str(us_ib_sites_perc), 
-                                                                                str(ds_ib_sites_perc), 
-                                                                                str(eib_sites_perc), 
+                                                                                str(ds_ib_sites_perc),
+                                                                                str(us_ib_dist_sites_perc),
+                                                                                str(ds_ib_dist_sites_perc),
+                                                                                str(eib_sites_perc),
+                                                                                str(first_exon_sites_perc),
+                                                                                str(last_exon_sites_perc),
+                                                                                str(single_exon_sites_perc),
                                                                                 ei_ol_stats.c_input_sites, 
                                                                                 ei_ol_stats.c_exon_sites, 
                                                                                 ei_ol_stats.c_intron_sites, 
                                                                                 ei_ol_stats.c_us_ib_sites, 
-                                                                                ei_ol_stats.c_ds_ib_sites, 
-                                                                                ei_ol_stats.c_eib_sites, 
+                                                                                ei_ol_stats.c_ds_ib_sites,
+                                                                                ei_ol_stats.c_us_ib_dist_sites,
+                                                                                ei_ol_stats.c_ds_ib_dist_sites,
+                                                                                ei_ol_stats.c_eib_sites,
+                                                                                ei_ol_stats.c_first_exon_sites,
+                                                                                ei_ol_stats.c_last_exon_sites,
+                                                                                ei_ol_stats.c_single_exon_sites,
                                                                                 ei_ol_stats.c_tr_ids, 
                                                                                 ei_ol_stats.c_tr_ids_with_sites))
 
@@ -8172,7 +8471,11 @@ def main_batch(args):
                                         id2hit_reg_annot_dic,
                                         benchlib_path,
                                         seq_len_stats_ll,
+                                        seq_feat_ll=seq_feat_ll,
+                                        seq_var_ll=seq_var_ll,
+                                        seq_var_kmer_l=seq_var_kmer_l,
                                         html_report_out=html_report_out,
+                                        id2hk_gene_stats_dic=id2hk_gene_stats_dic,
                                         id2motif_enrich_stats_dic=id2motif_enrich_stats_dic,
                                         id2regex_stats_dic=id2regex_stats_dic,
                                         regex_annot_dic=regex_annot_dic,
@@ -13249,13 +13552,16 @@ def main_searchrna(args):
         seq_len_df = DataFrame({
             'Sequence ID': seq_ids,
             'Sequence Length': [len(seq) for seq in sequences],
-            'Sequence': [benchlib.insert_line_breaks(seq, line_len=60) for seq in sequences],
+            'Sequence': [benchlib.insert_line_breaks(seq, line_len=50) for seq in sequences],
             'Motif hits': motif_hits
         })
 
 
     plots_subfolder = "html_report_plots"
     benchlib_path = os.path.dirname(benchlib.__file__)
+
+    # Disable some functions from rbpbench search.
+    args.disable_kmer_plot = True
 
     print("Create report ... ")
     benchlib.search_generate_html_report(args,
@@ -13276,6 +13582,7 @@ def main_searchrna(args):
                                     html_report_out=html_report_out,
                                     rbpbench_mode="searchrna",
                                     reg_seq_str="regions",
+                                    reg2seq_dic=out_seqs_dic,
                                     disable_motif_enrich_table=True,
                                     plots_subfolder=plots_subfolder)
 
@@ -16042,12 +16349,15 @@ def main_enmo(args):
             benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
                                                 output_mode=3,  # only introns.
                                                 report_counts=True,
-                                                add_tr_id=True,
+                                                add_tr_id=True,  # new reg_id format: intron;ENST000006666
+                                                add_numbers=True,  # new reg_id format: intron;ENST000006666;1-2
+                                                number_format=1,  # format intron;ENST000006666;1-2
                                                 empty_check=False)
-        
+
             # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.
             print("Output exon annotations to BED ... ")
             benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
+                                             add_numbers=True,
                                              append=True)
 
             # Overlap with input regions.
@@ -16055,8 +16365,8 @@ def main_enmo(args):
             params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
 
             benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_out_bed, 
-                                        overlap_annotations_bed,
-                                        params=params)
+                                         overlap_annotations_bed,
+                                         params=params)
             pos_reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
                                                                 tid2tio_dic=tid2tio_dic,
                                                                 reg_ids_dic=pos_reg_ids_dic)
@@ -18454,12 +18764,15 @@ def main_nemo(args):
             benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
                                                 output_mode=3,  # only introns.
                                                 report_counts=True,
-                                                add_tr_id=True,
+                                                add_tr_id=True,  # new reg_id format: intron;ENST000006666
+                                                add_numbers=True,  # new reg_id format: intron;ENST000006666;1-2 ADDED
+                                                number_format=1,  # format intron;ENST000006666;1-2 ADDED
                                                 empty_check=False)
         
             # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.
             print("Output exon annotations to BED ... ")
             benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
+                                             add_numbers=True,
                                              append=True)
 
             # Overlap with input regions.
@@ -20730,13 +21043,8 @@ def main_goa(args):
 
     print("Generate GOA results table HTML ... ")
     
-    benchlib.goa_generate_html_report(goa_results_df, goa_stats_dic,
-                                      args.out_folder, benchlib_path,
-                                      goa_min_depth=args.goa_min_depth,
-                                      goa_max_child=args.goa_max_child,
-                                      goa_filter_purified=args.goa_filter_purified,
-                                      report_header=args.report_header,
-                                      sort_js_mode=args.sort_js_mode,
+    benchlib.goa_generate_html_report(args, goa_results_df, 
+                                      goa_stats_dic, benchlib_path,
                                       html_report_out=html_goa_results_out)
 
     """

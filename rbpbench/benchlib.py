@@ -6,20 +6,22 @@ import subprocess
 import gzip
 import shutil
 import statistics
+from itertools import combinations, product
+from collections import defaultdict
 import matplotlib.pyplot as plt
 from matplotlib_venn import venn2, venn3
-from itertools import combinations
 from venn import venn
 from logomaker import Logo
 from markdown import markdown
 import pandas as pd
 import plotly.express as px
-from math import floor, log10, ceil
+from math import floor, log10, ceil, log
 import textdistance
 import numpy as np
 from upsetplot import UpSet
 from packaging import version
 from sklearn.decomposition import PCA
+from sklearn.preprocessing import MinMaxScaler
 # from sklearn.decomposition import SparsePCA
 from itertools import product
 from scipy.stats import fisher_exact
@@ -2951,7 +2953,7 @@ def get_exon_pos_count_list_dic(tid2tio_dic,
         for idx, exon in enumerate(exon_coords):
 
             exon_len = exon[1] - exon[0] + 1
-            exon_id = "exon;%i;%s" %(idx+1, tr_id)
+            exon_id = "exon;%s;%i" %(tr_id, idx+1)
             exon2pcl_dic[exon_id] = [0] * exon_len
 
     return exon2pcl_dic
@@ -2970,9 +2972,15 @@ class ExonIntronOverlap:
                  c_input_sites: int,
                  c_exon_sites = 0,
                  c_intron_sites = 0,
+                 c_intergenic_sites = 0,
                  c_us_ib_sites = 0,
                  c_ds_ib_sites = 0,
+                 c_us_ib_dist_sites = 0,  # upstream intron border distant (>intron_border_len) sites.
+                 c_ds_ib_dist_sites = 0,  # downstream intron border distant (>intron_border_len) sites.
                  c_eib_sites = 0,
+                 c_first_exon_sites = 0,
+                 c_last_exon_sites = 0,
+                 c_single_exon_sites = 0,
                  min_overlap = 0.9,
                  intron_border_len = 250,
                  ei_border_len = 50,
@@ -2983,9 +2991,15 @@ class ExonIntronOverlap:
         self.c_input_sites = c_input_sites
         self.c_exon_sites = c_exon_sites
         self.c_intron_sites = c_intron_sites
+        self.c_intergenic_sites = c_intergenic_sites
         self.c_us_ib_sites = c_us_ib_sites
         self.c_ds_ib_sites = c_ds_ib_sites
+        self.c_us_ib_dist_sites = c_us_ib_dist_sites
+        self.c_ds_ib_dist_sites = c_ds_ib_dist_sites
         self.c_eib_sites = c_eib_sites
+        self.c_first_exon_sites = c_first_exon_sites
+        self.c_last_exon_sites = c_last_exon_sites
+        self.c_single_exon_sites = c_single_exon_sites
         self.min_overlap = min_overlap
         self.intron_border_len = intron_border_len
         self.ei_border_len = ei_border_len
@@ -3378,6 +3392,7 @@ def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
                                               report_counts=True,
                                               add_tr_id=True,
                                               add_numbers=False,
+                                              number_format=1,
                                               empty_check=False):
     """
     Output exon and/or intron regions to BED given a dictionary of TranscriptInfo 
@@ -3391,10 +3406,14 @@ def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
         If True, add transcript ID after exon intron label (BED column 4), 
         format: intron;tr_id
     add_numbers:
-        If True, add exon + intron numbers.
-        
+        If True, add exon + intron numbers, with format: current_number-total_number
+    number_format:
+        1: exon;ENST1;1-3
+        2: exon;ENST1;1
+    
     """
     assert tid2tio_dic, "given tid2tio_dic empty"
+    assert number_format in [1,2], "invalid number_format given"
 
     OUTBED = open(out_bed, "w")
 
@@ -3409,11 +3428,13 @@ def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
 
         chr_id = tid2tio_dic[tr_id].chr_id
         tr_pol = tid2tio_dic[tr_id].tr_pol
+        exon_c = tid2tio_dic[tr_id].exon_c
         exon_coords = tid2tio_dic[tr_id].exon_coords
         assert exon_coords is not None, "exon coordinates list not set for transcript ID %s" %(tr_id)
     
         # Get intron coordinates.
         intron_coords = []
+        intron_c = 0
         if tr_pol == "+":
             for i in range(len(exon_coords) - 1):
                 intron_coords.append([exon_coords[i][1]+1, exon_coords[i+1][0]-1])
@@ -3423,43 +3444,59 @@ def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
         else:
             assert False, "invalid strand given (%s) for transcript ID %s" %(tr_pol, tr_id)
 
+        if intron_coords:
+            intron_c = len(intron_coords)
+        assert exon_c == intron_c + 1, "exon count (%i) does not match intron count (%i) + 1 for transcript ID %s" %(exon_c, intron_c, tr_id)
+
         if output_mode == 1:
             for idx, exon in enumerate(exon_coords):
                 c_exon_out += 1
                 exon_id = "exon"
-                if add_numbers:
-                    exon_id += ";%i" %(idx+1)
                 if add_tr_id:
                     exon_id += ";" + tr_id
+                if add_numbers:
+                    if number_format == 1:
+                        exon_id += ";%i-%i" %(idx+1, exon_c)
+                    elif number_format == 2:
+                        exon_id += ";%i" %(idx+1)
                 OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], exon_id, tr_pol))
 
             for idx, intron in enumerate(intron_coords):
                 c_intron_out += 1
                 intron_id = "intron"
-                if add_numbers:
-                    intron_id += ";%i" %(idx+1)
                 if add_tr_id:
                     intron_id += ";" + tr_id
+                if add_numbers:
+                    if number_format == 1:
+                        intron_id += ";%i-%i" %(idx+1, intron_c)
+                    elif number_format == 2:
+                        intron_id += ";%i" %(idx+1)
                 OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], intron_id, tr_pol))
 
         elif output_mode == 2:
             for idx, exon in enumerate(exon_coords):
                 c_exon_out += 1
                 exon_id = "exon"
-                if add_numbers:
-                    exon_id += ";%i" %(idx+1)
                 if add_tr_id:
                     exon_id += ";" + tr_id
+                if add_numbers:
+                    if number_format == 1:
+                        exon_id += ";%i-%i" %(idx+1, exon_c)
+                    elif number_format == 2:
+                        exon_id += ";%i" %(idx+1)
                 OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, exon[0]-1, exon[1], exon_id, tr_pol))
 
         elif output_mode == 3:
             for idx, intron in enumerate(intron_coords):
                 c_intron_out += 1
                 intron_id = "intron"
-                if add_numbers:
-                    intron_id += ";%i" %(idx+1)
                 if add_tr_id:
                     intron_id += ";" + tr_id
+                if add_numbers:
+                    if number_format == 1:
+                        intron_id += ";%i-%i" %(idx+1, intron_c)
+                    elif number_format == 2:
+                        intron_id += ";%i" %(idx+1)
                 OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, intron[0]-1, intron[1], intron_id, tr_pol))
 
     OUTBED.close()
@@ -3476,9 +3513,9 @@ def output_transcript_info_intron_exon_to_bed(tid2tio_dic, out_bed,
 def get_mrna_tids_and_sites(in_bed):
     """
     Given BED file with format:
-    chr1	1080	1085	exon;1;ENST01	0	-	chr1	1070	1085	s1	0	-
-    chr2	1010	1020	exon;1;ENST02	0	+	chr2	1010	1030	s2	0	+
-    chr2	1015	1020	exon;1;ENST02	0	+	chr2	1015	1030	s3	0	+
+    chr1	1080	1085	exon;ENST01;1	0	-	chr1	1070	1085	s1	0	-
+    chr2	1010	1020	exon;ENST02;1	0	+	chr2	1010	1030	s2	0	+
+    chr2	1015	1020	exon;ENST02;2	0	+	chr2	1015	1030	s3	0	+
 
     Extract transcript IDs (ENST01,..) and count site IDs (s1,...).
     
@@ -3495,7 +3532,7 @@ def get_mrna_tids_and_sites(in_bed):
                 continue
             cols = line.split("\t")
             exon_id = cols[3]
-            tr_id = exon_id.split(";")[2]
+            tr_id = exon_id.split(";")[1]
             site_id = cols[9]
             ol_mrna_tids_dic[tr_id] = 1
             seen_site_ids_dic[site_id] = 1
@@ -3512,9 +3549,9 @@ def fill_exon_pos_count_lists(exon_cov_bed, tid2tio_dic, exon2pcl_dic):
     Fill position count lists for exons in exon2pcl_dic.
 
     exon_cov_bed has following format:
-    chr1	1080	1085	exon;1;ENST01	0	-
-    chr2	1010	1020	exon;1;ENST02	0	+
-    chr2	1010	1020	exon;1;ENST02	0	+
+    chr1	1080	1085	exon;ENST01;1	0	-
+    chr2	1010	1020	exon;ENST02;1	0	+
+    chr2	1010	1020	exon;ENST02;1	0	+
 
     tid2tio_dic["ENST01"].exon_coords format (e1, e2, e3 order):
     ENST01 exon_coords: [[1081, 1100], [1041, 1050], [1001, 1010]]
@@ -3534,16 +3571,16 @@ def fill_exon_pos_count_lists(exon_cov_bed, tid2tio_dic, exon2pcl_dic):
     >>> exon_cov_bed = "test_data/test.exon_cov.bed"
     >>> tid2tio_dic = {}
     >>> tid2tio_dic["ENST02"] = TranscriptInfoExonTest("ENST02", "chr2", "+", [[1001, 1010], [1051, 1055]])
-    >>> exon2pcl_dic = {'exon;1;ENST02': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'exon;2;ENST02': [0, 0, 0, 0, 0], 'exon;1;666': [0]}
+    >>> exon2pcl_dic = {'exon;ENST02;1': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'exon;ENST02;2': [0, 0, 0, 0, 0], 'exon;666;1': [0]}
     >>> fill_exon_pos_count_lists(exon_cov_bed, tid2tio_dic, exon2pcl_dic)
     >>> exon2pcl_dic
-    {'exon;1;ENST02': [0, 0, 0, 0, 0, 1, 1, 2, 2, 2], 'exon;2;ENST02': [1, 1, 1, 0, 0], 'exon;1;666': [0]}
+    {'exon;ENST02;1': [0, 0, 0, 0, 0, 1, 1, 2, 2, 2], 'exon;ENST02;2': [1, 1, 1, 0, 0], 'exon;666;1': [0]}
     >>> tid2tio_dic = {}
     >>> tid2tio_dic["ENST01"] = TranscriptInfoExonTest("ENST01", "chr1", "-", [[1096, 1100], [1051, 1060]])
-    >>> exon2pcl_dic = {'exon;1;ENST01': [0, 0, 0, 0, 0], 'exon;2;ENST01': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}
+    >>> exon2pcl_dic = {'exon;ENST01;1': [0, 0, 0, 0, 0], 'exon;ENST01;2': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}
     >>> fill_exon_pos_count_lists(exon_cov_bed, tid2tio_dic, exon2pcl_dic)
     >>> exon2pcl_dic
-    {'exon;1;ENST01': [0, 0, 0, 0, 0], 'exon;2;ENST01': [0, 0, 0, 0, 0, 1, 2, 3, 4, 5]}
+    {'exon;ENST01;1': [0, 0, 0, 0, 0], 'exon;ENST01;2': [0, 0, 0, 0, 0, 1, 2, 3, 4, 5]}
 
     """
 
@@ -3563,12 +3600,12 @@ def fill_exon_pos_count_lists(exon_cov_bed, tid2tio_dic, exon2pcl_dic):
             ex_id = cols[3]
             ex_strand = cols[5]
 
-            tr_id = ex_id.split(";")[2]
+            tr_id = ex_id.split(";")[1]
             
             if tr_id not in tid2tio_dic:
                 continue
 
-            ex_nr = int(ex_id.split(";")[1])
+            ex_nr = int(ex_id.split(";")[2])
             ex_s = tid2tio_dic[tr_id].exon_coords[ex_nr-1][0]
             ex_e = tid2tio_dic[tr_id].exon_coords[ex_nr-1][1]
 
@@ -4213,6 +4250,7 @@ def bed_filter_by_seqs_dic(seqs_dic, in_bed, out_bed,
 
 def output_exon_annotations(tid2tio_dic, out_bed,
                             custom_annot_dic=None,
+                            add_numbers=False,
                             append=False):
     """
     Output detailed exon annotations to BED file (out_bed.
@@ -4274,24 +4312,43 @@ def output_exon_annotations(tid2tio_dic, out_bed,
 
     OUTEXAN = open(out_bed, write_op)
 
-    for tid in tid2tio_dic:
-        tio = tid2tio_dic[tid]
+    for tr_id in tid2tio_dic:
+        tio = tid2tio_dic[tr_id]
+        exon_c = tio.exon_c
+        cds_label = "CDS;%s" %(tr_id)
+        utr5_label = "5'UTR;%s" %(tr_id)
+        utr3_label = "3'UTR;%s" %(tr_id)
 
         if tio.cds_s is not None:
-            for exon in tio.exon_coords:
+            for idx, exon in enumerate(tio.exon_coords):
+
+                exon_nr_label = ""
+                if add_numbers:
+                    exon_nr = idx + 1
+                    exon_nr_label =  ";%i-%i" %(exon_nr, exon_c)
+
                 cds_se, utr5_se, utr3_se, cds, utr5, utr3 = get_cds_exon_overlap(tio.cds_s, tio.cds_e, exon[0], exon[1], strand=tio.tr_pol)
                 if cds:
-                    OUTEXAN.write("%s\t%i\t%i\tCDS;%s\t0\t%s\n" %(tio.chr_id, cds_se[0]-1, cds_se[1], tio.tr_id, tio.tr_pol))
+                    OUTEXAN.write("%s\t%i\t%i\t%s%s\t0\t%s\n" %(tio.chr_id, cds_se[0]-1, cds_se[1], cds_label, exon_nr_label, tio.tr_pol))
                 if utr5:
-                    OUTEXAN.write("%s\t%i\t%i\t5'UTR;%s\t0\t%s\n" %(tio.chr_id, utr5_se[0]-1, utr5_se[1], tio.tr_id, tio.tr_pol))
+                    OUTEXAN.write("%s\t%i\t%i\t%s%s\t0\t%s\n" %(tio.chr_id, utr5_se[0]-1, utr5_se[1], utr5_label, exon_nr_label, tio.tr_pol))
                 if utr3:
-                    OUTEXAN.write("%s\t%i\t%i\t3'UTR;%s\t0\t%s\n" %(tio.chr_id, utr3_se[0]-1, utr3_se[1], tio.tr_id, tio.tr_pol))
+                    OUTEXAN.write("%s\t%i\t%i\t%s%s\t0\t%s\n" %(tio.chr_id, utr3_se[0]-1, utr3_se[1], utr3_label, exon_nr_label, tio.tr_pol))
         else:
+
             label = other_annot
             if tio.tr_biotype in valid_annot_dic:
                 label = valid_annot_dic[tio.tr_biotype]
-            for exon in tio.exon_coords:
-                OUTEXAN.write("%s\t%i\t%i\t%s;%s\t0\t%s\n" %(tio.chr_id, exon[0]-1, exon[1], label, tio.tr_id, tio.tr_pol))
+            label += ";%s" %(tr_id)
+
+            for idx, exon in enumerate(tio.exon_coords):
+
+                exon_nr_label = ""
+                if add_numbers:
+                    exon_nr = idx + 1
+                    exon_nr_label =  ";%i-%i" %(exon_nr, exon_c)
+
+                OUTEXAN.write("%s\t%i\t%i\t%s%s\t0\t%s\n" %(tio.chr_id, exon[0]-1, exon[1], label, exon_nr_label, tio.tr_pol))
 
     OUTEXAN.close()
 
@@ -4441,21 +4498,22 @@ def get_regex_hit_region_annotations(overlap_annotations_bed,
 
             if cols[annot_col] != ".":
                 annot_ids = cols[annot_col].split(";")
-                assert len(annot_ids) == 2, "len(annot_ids) != 2 (expected ; separated string, but got: \"%s\")" %(cols[9])
+                assert len(annot_ids) == 3, "len(annot_ids) != 3 (expected ; separated string, but got: \"%s\")" %(cols[9])
                 annot_id = annot_ids[0]
                 tr_id = annot_ids[1]
 
-            c_overlap_nts = cols[c_ol_nt_col]
+            c_overlap_nts = int(cols[c_ol_nt_col])
 
             if reg_id not in reg2maxol_dic:
                 reg2maxol_dic[reg_id] = c_overlap_nts
                 reg2annot_dic[reg_id] = [annot_id, tr_id]
             else:
-                if c_overlap_nts > reg2maxol_dic[reg_id]:
+                stored_c_overlap_nts = reg2maxol_dic[reg_id]
+                if c_overlap_nts > stored_c_overlap_nts:
                     reg2maxol_dic[reg_id] = c_overlap_nts
                     reg2annot_dic[reg_id][0] = annot_id
                     reg2annot_dic[reg_id][1] = tr_id
-                elif c_overlap_nts == reg2maxol_dic[reg_id]:  # if region overlaps with > 1 feature by same amount.
+                elif c_overlap_nts == stored_c_overlap_nts:  # if region overlaps with > 1 feature by same amount.
                     if tid2tio_dic is not None:
                         best_tid = reg2annot_dic[reg_id][1]
                         new_best_tid = select_more_prominent_tid(tr_id, best_tid, tid2tio_dic)
@@ -4733,18 +4791,19 @@ def get_motif_hit_region_annotations(overlap_annotations_bed,
                 annot_id = annot_ids[0]
                 tr_id = annot_ids[1]
 
-            c_overlap_nts = cols[c_ol_nt_col]
+            c_overlap_nts = int(cols[c_ol_nt_col])
 
             if reg_id not in reg2maxol_dic:
                 reg2maxol_dic[reg_id] = c_overlap_nts
                 reg2annot_dic[reg_id] = [annot_id, tr_id]
             else:
-                if c_overlap_nts > reg2maxol_dic[reg_id]:
+                stored_c_overlap_nts = reg2maxol_dic[reg_id]
+                if c_overlap_nts > stored_c_overlap_nts:
                     reg2maxol_dic[reg_id] = c_overlap_nts
                     reg2annot_dic[reg_id][0] = annot_id
                     reg2annot_dic[reg_id][1] = tr_id
 
-                elif c_overlap_nts == reg2maxol_dic[reg_id]:  # if region overlaps with > 1 feature by same amount.
+                elif c_overlap_nts == stored_c_overlap_nts:  # if region overlaps with > 1 feature by same amount.
                     if tid2tio_dic is not None:
                         best_tid = reg2annot_dic[reg_id][1]
                         new_best_tid = select_more_prominent_tid(tr_id, best_tid, tid2tio_dic)
@@ -4828,7 +4887,7 @@ def get_mrna_region_annotations_v2(overlap_annotations_bed,
             tr_id = annot_ids[0]
             annot_id = annot_ids[1]
 
-            c_overlap_nts = cols[c_ol_nt_col]
+            c_overlap_nts = int(cols[c_ol_nt_col])
 
             if reg_id not in reg2maxol_dic:
                 reg2maxol_dic[reg_id] = c_overlap_nts
@@ -4851,27 +4910,373 @@ def get_mrna_region_annotations_v2(overlap_annotations_bed,
 
 ################################################################################
 
+def get_dist_to_next_border(site_s, site_e, reg_s, reg_e, reg_strand,
+                            skip_sites_not_within=True):
+    """
+    Get distance of site that is within a region to closest border of the region. 
+    Take the center of the site to calculate the distance. Also return whether
+    the closest border is upstream (i.e. 5' end) or downstream (i.e. 3' end) of
+    the site.
+    If site center position is not within region, return -1, "-"
+
+    site_s + reg_s are 0-based coordinates.
+    site_e + reg_e are 1-based coordinates.
+
+    skip_sites_not_within:
+        If True, return -1, "-" if site center position not within region.
+
+    >>> get_dist_to_next_border(11, 20, 5, 20, "+")
+    (3, 'down')
+    >>> get_dist_to_next_border(11, 20, 5, 20, "-")
+    (3, 'up')
+    >>> get_dist_to_next_border(10, 11, 5, 20, "+")
+    (5, 'up')
+    >>> get_dist_to_next_border(10, 11, 5, 20, "-")
+    (5, 'down')
+    >>> get_dist_to_next_border(9, 10, 4, 15, "+")
+    (5, 'down')
+    >>> get_dist_to_next_border(9, 10, 4, 15, "-")
+    (5, 'down')
+    
+    """
+    # Get site center position.
+    site_cp = get_center_position(site_s, site_e)  # 1-based center.
+
+    reg_s += 1  # make 1-based.
+
+    if site_cp < reg_s or site_cp > reg_e:
+        if skip_sites_not_within:
+            return -1, "-"
+        else:
+            assert False, "site center position not within region (site_cp: %i, region: %i-%i,%s)" %(site_cp, reg_s, reg_e, reg_strand)
+
+    # Get distance of site_cp to closest region border.
+    dist_up = site_cp - reg_s
+    dist_down = reg_e - site_cp
+    if reg_strand == "-":
+        dist_up = reg_e - site_cp
+        dist_down = site_cp - reg_s
+
+    assert dist_up >= 0, "dist_up < 0 (dist_up = %i, site_cp: %i, reg_s: %i, reg_e: %i, reg_strand: %s)" %(dist_up, site_cp, reg_s, reg_e, reg_strand)
+    assert dist_down >= 0, "dist_down < 0 (dist_down = %i, site_cp: %i, reg_s: %i, reg_e: %i, reg_strand: %s)" %(dist_down, site_cp, reg_s, reg_e, reg_strand)
+
+    if dist_up < dist_down:
+        return dist_up, "up"
+    else:
+        return dist_down, "down"
+
+
+################################################################################
+
+def get_eib_annot_c_strict(annot_list, eib_annot_c_dic,
+                           ib_len=250,
+                           eib_len=50):
+    """
+    Get exon+intron+eib overlap counts for example annot_list (with ib_strict in dictionary).
+    Add counts to eib_annot_c_dic.
+    Format:
+    eib_annot_c_dic = {
+        "exonic" : 0,
+        "intronic" : 0,
+        "intergenic" : 0,
+        "eib" : 0,
+        "us_ib_strict" : 0,
+        "ds_ib_strict" : 0,
+        "us_ib" : 0,
+        "ds_ib" : 0,
+        "first_exon" : 0,
+        "last_exon" : 0,
+        "single_exon" : 0
+    }
+
+    To add, counts in first + last exon (for > 1 exon transcripts).
+
+    reg2annot_dic format: reg_id -> 
+    [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr, gene_id, gene_name, tr_biotype]
+    For intergenic regions:
+    ["intergenic", False, -1, "-", -1, "-", "-", "-", "-"]
+    For intronic/exonic regions with center outside:
+    [annot_id, tr_id, -1, "-", annot_reg_len, exon_intron_nr, gene_id, gene_name, tr_biotype]
+
+    >>> eib_annot_c_dic = {"exonic" : 0, "intronic" : 0, "intergenic" : 0, "eib" : 0, "us_ib_strict" : 0, "ds_ib_strict" : 0, "us_ib" : 0, "ds_ib" : 0, "first_exon" : 0, "last_exon" : 0, "single_exon" : 0}
+    >>> annot_list = ["intron", "ENST1", 10, "down", 100, "1-1", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c_strict(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 0, 'intronic': 1, 'intergenic': 0, 'eib': 1, 'us_ib_strict': 0, 'ds_ib_strict': 0, 'us_ib': 0, 'ds_ib': 1, 'first_exon': 0, 'last_exon': 0, 'single_exon': 0}
+    >>> annot_list = ["intron", "ENST1", 10, "down", 1000, "1-1", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c_strict(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 0, 'intronic': 2, 'intergenic': 0, 'eib': 2, 'us_ib_strict': 0, 'ds_ib_strict': 1, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 0, 'last_exon': 0, 'single_exon': 0}
+    >>> annot_list = ["exon", "ENST1", 10, "down", 1000, "1-1", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c_strict(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 1, 'intronic': 2, 'intergenic': 0, 'eib': 2, 'us_ib_strict': 0, 'ds_ib_strict': 1, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 0, 'last_exon': 0, 'single_exon': 1}
+    >>> annot_list = ["exon", "ENST1", 10, "down", 1000, "1-2", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c_strict(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 2, 'intronic': 2, 'intergenic': 0, 'eib': 3, 'us_ib_strict': 0, 'ds_ib_strict': 1, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 0, 'single_exon': 1}
+    >>> annot_list = ["exon", "ENST1", 10, "down", 1000, "2-2", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c_strict(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 3, 'intronic': 2, 'intergenic': 0, 'eib': 3, 'us_ib_strict': 0, 'ds_ib_strict': 1, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
+    >>> annot_list = ["intergenic", False, -1, "-", -1, "0-0", "-", "-", "-"]
+    >>> get_eib_annot_c_strict(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 3, 'intronic': 2, 'intergenic': 1, 'eib': 3, 'us_ib_strict': 0, 'ds_ib_strict': 1, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
+    >>> annot_list = ["exon", "ENST1", 10, "up", 1000, "2-3", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c_strict(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 4, 'intronic': 2, 'intergenic': 1, 'eib': 4, 'us_ib_strict': 0, 'ds_ib_strict': 1, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
+    >>> annot_list = ["exon", "ENST1", 60, "up", 1000, "2-3", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c_strict(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 5, 'intronic': 2, 'intergenic': 1, 'eib': 4, 'us_ib_strict': 0, 'ds_ib_strict': 1, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
+    >>> annot_list = ["intron", "ENST1", 100, "up", 1000, "1-1", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c_strict(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 5, 'intronic': 3, 'intergenic': 1, 'eib': 4, 'us_ib_strict': 1, 'ds_ib_strict': 1, 'us_ib': 1, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
+    >>> annot_list = ["intron", "ENST1", 300, "up", 1000, "1-1", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c_strict(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 5, 'intronic': 4, 'intergenic': 1, 'eib': 4, 'us_ib_strict': 1, 'ds_ib_strict': 1, 'us_ib': 1, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
+
+    """
+
+    assert eib_annot_c_dic, "eib_annot_c_dic empty"
+    assert len(annot_list) == 9, "len(annot_list) != 9 for annot_list \"%s\"" %(annot_list)
+    exp_intron_len = ib_len * 2
+
+    annot_id = annot_list[0]
+    border_dist = annot_list[2]
+    us_ds_label = annot_list[3]
+    annot_reg_len = annot_list[4]
+    exon_intron_nr_c = annot_list[5]
+    exon_intron_nr = int(exon_intron_nr_c.split("-")[0])
+    exon_intron_c = int(exon_intron_nr_c.split("-")[1])
+
+    if annot_id == "intron":
+        assert exon_intron_nr > 0, "exon_intron_nr <= 0 for annot_list \"%s\"" %(annot_list)
+        eib_annot_c_dic["intronic"] += 1
+        if border_dist >= 0:
+            if border_dist <= ib_len:
+                if us_ds_label == "up":
+                    eib_annot_c_dic["us_ib"] += 1
+                elif us_ds_label == "down":
+                    eib_annot_c_dic["ds_ib"] += 1
+                if annot_reg_len >= exp_intron_len:
+                    if us_ds_label == "up":
+                        eib_annot_c_dic["us_ib_strict"] += 1
+                    elif us_ds_label == "down":
+                        eib_annot_c_dic["ds_ib_strict"] += 1
+            if border_dist <= eib_len:
+                eib_annot_c_dic["eib"] += 1
+
+    elif annot_id == "intergenic":
+        eib_annot_c_dic["intergenic"] += 1
+    else:  # exonic sites.
+        assert exon_intron_nr > 0, "exon_intron_nr <= 0 for annot_list \"%s\"" %(annot_list)
+        eib_annot_c_dic["exonic"] += 1
+        # Only intron-exon borders check ...
+        if border_dist >= 0:
+            # If in first exon.
+            if exon_intron_nr == 1 and exon_intron_c > 1:
+                eib_annot_c_dic["first_exon"] += 1
+            # If in last exon.
+            if exon_intron_nr == exon_intron_c and exon_intron_c > 1:
+                eib_annot_c_dic["last_exon"] += 1
+            # If on single exon.
+            if exon_intron_c == 1:
+                eib_annot_c_dic["single_exon"] += 1
+            else:
+                # If first exon, only look at distance to 3' end.
+                if exon_intron_nr == 1:
+                    if us_ds_label == "down":
+                        if border_dist <= eib_len:
+                            eib_annot_c_dic["eib"] += 1
+                elif exon_intron_nr == exon_intron_c:  # last exon, only look at distance to 5' end.
+                    if us_ds_label == "up":
+                        if border_dist <= eib_len:
+                            eib_annot_c_dic["eib"] += 1
+                else:  # exon in the middle, look at both borders.
+                    if border_dist <= eib_len:
+                        eib_annot_c_dic["eib"] += 1
+
+
+################################################################################
+
+def get_eib_annot_c(annot_list, eib_annot_c_dic,
+                    ib_len=250,
+                    eib_len=50):
+    """
+    Get exon+intron+eib overlap counts for example annot_list (with ib_dist in dictionary).
+    Add counts to eib_annot_c_dic.
+    Format:
+    eib_annot_c_dic = {
+        "exonic" : 0,
+        "intronic" : 0,
+        "intergenic" : 0,
+        "eib" : 0,
+        "us_ib_dist" : 0,
+        "ds_ib_dist" : 0,
+        "us_ib" : 0,
+        "ds_ib" : 0,
+        "first_exon" : 0,
+        "last_exon" : 0,
+        "single_exon" : 0
+    }
+
+    To add, counts in first + last exon (for > 1 exon transcripts).
+
+    reg2annot_dic format: reg_id -> 
+    [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr, gene_id, gene_name, tr_biotype]
+    For intergenic regions:
+    ["intergenic", False, -1, "-", -1, "-", "-", "-", "-"]
+    For intronic/exonic regions with center outside:
+    [annot_id, tr_id, -1, "-", annot_reg_len, exon_intron_nr, gene_id, gene_name, tr_biotype]
+
+    >>> eib_annot_c_dic = {"exonic" : 0, "intronic" : 0, "intergenic" : 0, "eib" : 0, "us_ib_dist" : 0, "ds_ib_dist" : 0, "us_ib" : 0, "ds_ib" : 0, "first_exon" : 0, "last_exon" : 0, "single_exon" : 0}
+    >>> annot_list = ["intron", "ENST1", 10, "down", 100, "1-1", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 0, 'intronic': 1, 'intergenic': 0, 'eib': 1, 'us_ib_dist': 0, 'ds_ib_dist': 0, 'us_ib': 0, 'ds_ib': 1, 'first_exon': 0, 'last_exon': 0, 'single_exon': 0}
+    >>> annot_list = ["intron", "ENST1", 10, "down", 1000, "1-1", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 0, 'intronic': 2, 'intergenic': 0, 'eib': 2, 'us_ib_dist': 0, 'ds_ib_dist': 0, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 0, 'last_exon': 0, 'single_exon': 0}
+    >>> annot_list = ["exon", "ENST1", 10, "down", 1000, "1-1", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 1, 'intronic': 2, 'intergenic': 0, 'eib': 2, 'us_ib_dist': 0, 'ds_ib_dist': 0, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 0, 'last_exon': 0, 'single_exon': 1}
+    >>> annot_list = ["exon", "ENST1", 10, "down", 1000, "1-2", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 2, 'intronic': 2, 'intergenic': 0, 'eib': 3, 'us_ib_dist': 0, 'ds_ib_dist': 0, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 0, 'single_exon': 1}
+    >>> annot_list = ["exon", "ENST1", 10, "down", 1000, "2-2", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 3, 'intronic': 2, 'intergenic': 0, 'eib': 3, 'us_ib_dist': 0, 'ds_ib_dist': 0, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
+    >>> annot_list = ["intergenic", False, -1, "-", -1, "0-0", "-", "-", "-"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 3, 'intronic': 2, 'intergenic': 1, 'eib': 3, 'us_ib_dist': 0, 'ds_ib_dist': 0, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
+    >>> annot_list = ["exon", "ENST1", 10, "up", 1000, "2-3", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 4, 'intronic': 2, 'intergenic': 1, 'eib': 4, 'us_ib_dist': 0, 'ds_ib_dist': 0, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
+    >>> annot_list = ["exon", "ENST1", 60, "up", 1000, "2-3", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 5, 'intronic': 2, 'intergenic': 1, 'eib': 4, 'us_ib_dist': 0, 'ds_ib_dist': 0, 'us_ib': 0, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
+    >>> annot_list = ["intron", "ENST1", 100, "up", 1000, "1-1", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 5, 'intronic': 3, 'intergenic': 1, 'eib': 4, 'us_ib_dist': 0, 'ds_ib_dist': 0, 'us_ib': 1, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
+    >>> annot_list = ["intron", "ENST1", 300, "up", 1000, "1-1", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 5, 'intronic': 4, 'intergenic': 1, 'eib': 4, 'us_ib_dist': 1, 'ds_ib_dist': 0, 'us_ib': 1, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
+    >>> annot_list = ["intron", "ENST1", 300, "down", 1000, "1-1", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 5, 'intronic': 5, 'intergenic': 1, 'eib': 4, 'us_ib_dist': 1, 'ds_ib_dist': 1, 'us_ib': 1, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 1, 'single_exon': 1}
+    >>> annot_list = ["exon", "ENST1", 10, "down", 50, "3-3", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 6, 'intronic': 5, 'intergenic': 1, 'eib': 5, 'us_ib_dist': 1, 'ds_ib_dist': 1, 'us_ib': 1, 'ds_ib': 2, 'first_exon': 1, 'last_exon': 2, 'single_exon': 1}
+    >>> annot_list = ["exon", "ENST1", 10, "up", 50, "1-3", "ENSG1", "GENE1", "protein_coding"]
+    >>> get_eib_annot_c(annot_list, eib_annot_c_dic)
+    >>> eib_annot_c_dic
+    {'exonic': 7, 'intronic': 5, 'intergenic': 1, 'eib': 6, 'us_ib_dist': 1, 'ds_ib_dist': 1, 'us_ib': 1, 'ds_ib': 2, 'first_exon': 2, 'last_exon': 2, 'single_exon': 1}
+
+    """
+
+    assert eib_annot_c_dic, "eib_annot_c_dic empty"
+    assert len(annot_list) == 9, "len(annot_list) != 9 for annot_list \"%s\"" %(annot_list)
+    # exp_intron_len = ib_len * 2
+
+    annot_id = annot_list[0]
+    border_dist = annot_list[2]
+    us_ds_label = annot_list[3]
+    annot_reg_len = annot_list[4]
+    exon_intron_nr_c = annot_list[5]
+    exon_intron_nr = int(exon_intron_nr_c.split("-")[0])
+    exon_intron_c = int(exon_intron_nr_c.split("-")[1])
+
+    if annot_id == "intron":
+        assert exon_intron_nr > 0, "exon_intron_nr <= 0 for annot_list \"%s\"" %(annot_list)
+        eib_annot_c_dic["intronic"] += 1
+        if border_dist >= 0:
+            if border_dist <= ib_len:
+                if us_ds_label == "up":
+                    eib_annot_c_dic["us_ib"] += 1
+                elif us_ds_label == "down":
+                    eib_annot_c_dic["ds_ib"] += 1
+            else:
+                if us_ds_label == "up":
+                    eib_annot_c_dic["us_ib_dist"] += 1
+                elif us_ds_label == "down":
+                    eib_annot_c_dic["ds_ib_dist"] += 1
+            if border_dist <= eib_len:
+                eib_annot_c_dic["eib"] += 1
+
+    elif annot_id == "intergenic":
+        eib_annot_c_dic["intergenic"] += 1
+    else:  # exonic sites.
+        assert exon_intron_nr > 0, "exon_intron_nr <= 0 for annot_list \"%s\"" %(annot_list)
+        eib_annot_c_dic["exonic"] += 1
+        if border_dist >= 0:
+            # If in first exon.
+            if exon_intron_nr == 1 and exon_intron_c > 1:
+                eib_annot_c_dic["first_exon"] += 1
+            # If in last exon.
+            if exon_intron_nr == exon_intron_c and exon_intron_c > 1:
+                eib_annot_c_dic["last_exon"] += 1
+            # If on single exon.
+            if exon_intron_c == 1:
+                eib_annot_c_dic["single_exon"] += 1
+            else:
+                if exon_intron_nr == 1:  # First exon.
+                    if us_ds_label == "down":
+                        if border_dist <= eib_len:
+                            eib_annot_c_dic["eib"] += 1
+                    if us_ds_label == "up":
+                        if annot_reg_len - border_dist <= eib_len:
+                            eib_annot_c_dic["eib"] += 1
+                elif exon_intron_nr == exon_intron_c:  # Last exon.
+                    if us_ds_label == "up":
+                        if border_dist <= eib_len:
+                            eib_annot_c_dic["eib"] += 1
+                    if us_ds_label == "down":
+                        if annot_reg_len - border_dist <= eib_len:
+                            eib_annot_c_dic["eib"] += 1
+                else:  # Exon in the middle.
+                    if border_dist <= eib_len:
+                        eib_annot_c_dic["eib"] += 1
+
+
+################################################################################
+
 def get_region_annotations(overlap_annotations_bed,
+                           tid2tio_dic,
                            motif_hits=False,
-                           tid2tio_dic=None,
                            reg_ids_dic=None):
     """
     Get region annotations from overlapping genomic regions with exon / intron 
     / transript biotype annotations.
 
+    tid2tio_dic:
+        To check that if two features have same overlap amount with region,
+        choose the more prominent transcript ID (i.e., better annotation).
+        Also, for exonic sites to get distances from exon borders.
+        Exonic sites == everything not "intron" or "intergenic".
     motif_hits:
         If True, the -a file is the motif hits BED file. In this case, the region ID
         has to be reconstructed from the BED region info.
         Format of reg_ids_dic key if motif_hits=True:
         "chr1:10-15(+)motif_id"
-    
-    tid2tio_dic:
-        If provided, if two features have same overlap amount with region,
-        choose the more prominent transcript ID (i.e., better annotation).
-        
     reg_ids_dic:
         If set, compare genomic region IDs with IDs in dictionary. If region ID 
-        from dictionary not in overlap_annotations_bed, set label "intergenic".
+        from dictionary not in overlap_annotations_bed, set to "intergenic".
 
     """
 
@@ -4888,13 +5293,14 @@ def get_region_annotations(overlap_annotations_bed,
         for line in f:
             cols = line.strip().split("\t")
             reg_id = cols[3]  # format: chr8:90314134-90314381(+) (if motif_hits=False)
+            reg_strand = cols[5]
+            reg_s = int(cols[1])
+            reg_e = int(cols[2])
 
             # If motif_ids, construct new unique region_id from BED region info.
             if motif_hits:
                 chr_id = cols[0]
-                reg_s = str(int(cols[1]) + 1)
-                reg_e = cols[2]
-                reg_strand = cols[5]
+
                 # col[3] has format: "rbp_id:motif_id;1;method_id:data_id". Extract motif_id from this string.
                 # m = re.search("^.+?:(.+?);", reg_id)
                 # assert m is not None, "Motif ID extraction failed for region ID \"%s\"" %(reg_id)
@@ -4904,39 +5310,81 @@ def get_region_annotations(overlap_annotations_bed,
                 motif_id = m.group(1)
 
                 # motif_id = reg_id.split(":")[1].split(";")[0]
-                reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + reg_strand + ")" + motif_id
+                reg_id = chr_id + ":" + str(reg_s+1) + "-" + str(reg_e) + "(" + reg_strand + ")" + motif_id
                 annot_col = 13  # These shift since motif hits BED contains additional (4) p-value and score columns.
                 c_ol_nt_col = 16
 
+            annot_reg_s = int(cols[annot_col-2])
+            annot_reg_e = int(cols[annot_col-1])
+
             annot_ids = cols[annot_col].split(";")
-            assert len(annot_ids) == 2, "len(annot_ids) != 2 (expected ; separated string, but got: \"%s\")" %(cols[9])
+            assert len(annot_ids) == 3, "len(annot_ids) != 3 (expected ; separated string, but got: \"%s\")" %(cols[9])
             annot_id = annot_ids[0]
             tr_id = annot_ids[1]
-            c_overlap_nts = cols[c_ol_nt_col]
+            c_overlap_nts = int(cols[c_ol_nt_col])
+
+            # Get distanced to intron borders (only for intron annotations).
+            border_dist = -1
+            us_ds_label = "-"
+            # Get exon/intron number.
+            exon_intron_nr_c = annot_ids[2]  # format: "exon_nr-exon_c" or "intron_nr-intron_c"
+            # Get exon/intron number + total count for transcript.
+            exon_intron_nr = int(exon_intron_nr_c.split("-")[0])
+            exon_intron_c = int(exon_intron_nr_c.split("-")[1])
+
+            # If not intronic site, we need to get exon start and end positions to calculate distance to border.
+            if annot_id != "intron":
+                c_exon_coords = len(tid2tio_dic[tr_id].exon_coords)
+                assert exon_intron_c == c_exon_coords, "exon_intron_c != c_exon_coords for annotation \"%s\" (%i != %i)" %(annot_ids, exon_intron_c, c_exon_coords)
+                annot_reg_s, annot_reg_e = tid2tio_dic[tr_id].exon_coords[exon_intron_nr-1]
+
+            annot_reg_len = annot_reg_e - annot_reg_s
+
+            # Get distance to closest annotation region border + if it is upstream (us) or downstream (ds).
+            # if annot_id == "intron":
+            border_dist, us_ds_label = get_dist_to_next_border(reg_s, reg_e, annot_reg_s, annot_reg_e, reg_strand,
+                                                               skip_sites_not_within=True)  # Return False if site not within.
+
+            # if border_dist == -1:
+            #     print(reg_id, "reg:", reg_s, reg_e, "annot_reg:", annot_reg_s, annot_reg_e, "annot_id:", annot_id, "tr_id:", tr_id)
+
             if reg_id not in reg2maxol_dic:
                 reg2maxol_dic[reg_id] = c_overlap_nts
-                reg2annot_dic[reg_id] = [annot_id, tr_id]
+                reg2annot_dic[reg_id] = [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr_c]
             else:
-                if c_overlap_nts > reg2maxol_dic[reg_id]:
+                stored_c_overlap_nts = reg2maxol_dic[reg_id]
+                if c_overlap_nts > stored_c_overlap_nts:
                     reg2maxol_dic[reg_id] = c_overlap_nts
                     reg2annot_dic[reg_id][0] = annot_id
                     reg2annot_dic[reg_id][1] = tr_id
-                elif c_overlap_nts == reg2maxol_dic[reg_id]:  # if region overlaps with > 1 feature by same amount.
-                    if tid2tio_dic is not None:
-                        best_tid = reg2annot_dic[reg_id][1]
-                        new_best_tid = select_more_prominent_tid(tr_id, best_tid, tid2tio_dic)
-                        # If current tr_id has better annotation, update region annotation.
-                        if new_best_tid == tr_id:
-                            reg2maxol_dic[reg_id] = c_overlap_nts
-                            reg2annot_dic[reg_id][0] = annot_id
-                            reg2annot_dic[reg_id][1] = new_best_tid
+                    reg2annot_dic[reg_id][2] = border_dist
+                    reg2annot_dic[reg_id][3] = us_ds_label
+                    reg2annot_dic[reg_id][4] = annot_reg_len
+                    reg2annot_dic[reg_id][5] = exon_intron_nr_c
+                elif c_overlap_nts == stored_c_overlap_nts:  # if region overlaps with > 1 feature by same amount.
+                    # if tid2tio_dic is not None:
+                    best_tid = reg2annot_dic[reg_id][1]
+                    new_best_tid = select_more_prominent_tid(tr_id, best_tid, tid2tio_dic)
+                    # If current tr_id has better annotation, update region annotation.
+                    if new_best_tid == tr_id:
+                        reg2maxol_dic[reg_id] = c_overlap_nts
+                        reg2annot_dic[reg_id][0] = annot_id
+                        reg2annot_dic[reg_id][1] = new_best_tid
+                        reg2annot_dic[reg_id][2] = border_dist
+                        reg2annot_dic[reg_id][3] = us_ds_label
+                        reg2annot_dic[reg_id][4] = annot_reg_len
+                        reg2annot_dic[reg_id][5] = exon_intron_nr_c
 
+            test_reg_id = "chr19:3980035-3980070(-)"
+            if reg_id == test_reg_id:
+                print("test_reg_id:", reg_id, "annot_id:", annot_id, "tr_id:", tr_id, "border_dist:", border_dist, "us_ds_label:", us_ds_label, "exon_intron_nr_c:", exon_intron_nr_c, "c_overlap_nts:", c_overlap_nts)
+                print("set:", reg2annot_dic[reg_id])
     f.closed
 
     if reg_ids_dic is not None:
         for reg_id in reg_ids_dic:
             if reg_id not in reg2annot_dic:
-                reg2annot_dic[reg_id] = ["intergenic", False]
+                reg2annot_dic[reg_id] = ["intergenic", False, -1, "-", -1, "0-0"]
 
     return reg2annot_dic
 
@@ -4988,7 +5436,7 @@ def get_mrna_region_annotations(overlap_annotations_bed,
             mrna_reg_s = cols[11]
             mrna_reg_e = cols[12]
             mrna_reg_id = cols[13]
-            c_overlap_nts = cols[16]
+            c_overlap_nts = int(cols[16])
 
             # col[3] has format: "rbp_id:motif_id;1;method_id:data_id". Extract motif_id from this string.
             # m = re.search("^.+?:(.+?);", reg_id)
@@ -5272,6 +5720,7 @@ def select_more_prominent_tid(tid1, tid2, tid2tio_dic):
     transcript (i.e., with better experimental evidence).
 
     Features to compare:
+    tidtio_dic[tid].mane_select  # 0 or 1
     tidtio_dic[tid].basic_tag  # 0 or 1
     tidtio_dic[tid].ensembl_canonical  # 0 or 1
     tidtio_dic[tid].tsl_id  # 1-5 or "NA"
@@ -5290,6 +5739,10 @@ def select_more_prominent_tid(tid1, tid2, tid2tio_dic):
 
     if tid1 == tid2:
         return tid1
+    if tid2tio_dic[tid1].mane_select > tid2tio_dic[tid2].mane_select:
+        return tid1
+    if tid2tio_dic[tid1].mane_select < tid2tio_dic[tid2].mane_select:
+        return tid2
     if tid2tio_dic[tid1].basic_tag > tid2tio_dic[tid2].basic_tag:
         return tid1
     if tid2tio_dic[tid1].basic_tag < tid2tio_dic[tid2].basic_tag:
@@ -8153,8 +8606,12 @@ def insert_line_breaks(sequence,
     """
     Insert line breaks for inserting sequence into hover box.
     
+    >>> insert_line_breaks("AAAACCCCGG", line_len=4)
+    'AAAA<br>CCCC<br>GG'
+
     """
-    return '<br>'.join(sequence[i:i+line_len] for i in range(0, len(sequence), 40))
+    # return '<br>'.join(sequence[i:i+line_len] for i in range(0, len(sequence), 40))
+    return '<br>'.join(sequence[i:i+line_len] for i in range(0, len(sequence), line_len))
 
 
 ################################################################################
@@ -8453,7 +8910,7 @@ def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll,
         hovertemplate='<b>%{hovertext}</b><br>Annotation percentages: %{customdata[1]}<extra></extra>'
     )
 
-    fig.update_traces(marker=dict(size=8, line=dict(width=0.5, color='white')))
+    fig.update_traces(marker=dict(size=12, line=dict(width=0.75, color='white')))
     # fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
     fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
 
@@ -8646,9 +9103,504 @@ def create_pca_motif_sim_dir_plot_plotly(motif_ids_list, motif_sim_ll,
 
 ################################################################################
 
+def create_seq_var_plot_plotly(seq_var_ll, seq_var_kmer_l, plot_out,
+                               kmer_size=1,
+                               top_bottom_n=5,
+                               remove_zero_val=True,
+                               include_plotlyjs="cdn",
+                               full_html=False):
+    """
+    Create sequence variation plot, use PCA to reduce dimensions of single k-mer 
+    coefficients of variations in the datasets.
+    
+    Formats:
+    seq_var_ll = [dataset_id, average_cv, single_cv1, single_cv2 ... ]
+    seq_var_kmer_l = [kmer1, kmer2, ...]
+
+    remove_zero_val:
+        In top CV rankings remove zero CV values.
+
+    """
+
+    assert seq_var_ll, "seq_var_ll empty"
+    assert seq_var_kmer_l, "seq_var_kmer_l empty"
+    assert top_bottom_n <= 10, "top_bottom_n > 10"
+    assert kmer_size < 6, "kmer_size > 5"
+
+    color_scale = ['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+
+    single_var_ll = [seq_var_l[2:] for seq_var_l in seq_var_ll]
+
+    kmer_cvs_str_list = []
+
+    # Construct k-mer CV strings for hover box.
+    for idx1, single_var_l in enumerate(single_var_ll):
+
+        # Average CV.
+        avg_cv = seq_var_ll[idx1][1]
+
+        kmer2cv_dic = {}
+        for idx2, kmer_cv in enumerate(single_var_l):
+            kmer = seq_var_kmer_l[idx2]
+            kmer2cv_dic[kmer] = kmer_cv
+
+        kmer_cv_str = '<span style="font-family: \'Courier New\', monospace;">'
+
+        if kmer_size < 3:
+            kmer_cv_str += "Single k-mer CVs:<br>"
+            for kmer, kmer_cv in sorted(kmer2cv_dic.items(), key=lambda x: x[1], reverse=False):
+                kmer_cv_str += kmer + ": " + str(round(kmer_cv, 5)) + "<br>"
+        else:
+            kmer_cv_str += "Top %i k-mer CVs:<br>" %(top_bottom_n)
+            top_idx = 0
+            for kmer, kmer_cv in sorted(kmer2cv_dic.items(), key=lambda x: x[1], reverse=False):
+                if remove_zero_val and kmer_cv == 0:
+                    continue
+                kmer_cv_str += kmer + ": " + str(round(kmer_cv, 5)) + "<br>"
+                if top_idx == top_bottom_n-1:
+                    break
+                top_idx += 1
+            kmer_cv_str += "Bottom %i k-mer CVs:<br>" %(top_bottom_n)
+            for kmer, kmer_cv in sorted(kmer2cv_dic.items(), key=lambda x: x[1], reverse=True)[:top_bottom_n]:
+                kmer_cv_str += kmer + ": " + str(round(kmer_cv, 5)) + "<br>"
+
+        kmer_cv_str += "Average CV: " + str(round(avg_cv, 5)) + '</span><extra></extra>'
+
+        kmer_cvs_str_list.append(kmer_cv_str)
+
+    exp_n_cvs = 4 ** kmer_size
+    assert len(single_var_ll[0]) == exp_n_cvs, "unexpected number of CVs in seq_var_ll"
+
+    pca = PCA(n_components=2)
+    data_2d_pca = pca.fit_transform(single_var_ll)
+    df = pd.DataFrame(data_2d_pca, columns=['PC1', 'PC2'])
+
+    df['Dataset ID'] = [seq_var_l[0] for seq_var_l in seq_var_ll]
+    df['k-mer CVs'] = kmer_cvs_str_list
+    df['Average CV'] = [seq_var_l[1] for seq_var_l in seq_var_ll]
+    hover_data = ['Average CV', 'k-mer CVs']
+
+    # # If mono-nucleotide k-mers, add k-mer CVs to hover box.
+    # if kmer_size < 3:
+    #     for idx, kmer in enumerate(seq_var_kmer_l):
+    #         df[kmer] = [round(seq_var_l[2+idx], 5) for seq_var_l in seq_var_ll]
+    #         hover_data.append(kmer)
+
+    explained_variance = pca.explained_variance_ratio_ * 100
+    color = 'Average CV'
+
+    fig = px.scatter(
+        df,
+        x='PC1',
+        y='PC2',
+        color=color,
+        # title='2D Visualization with Dataset IDs',
+        labels={
+            'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+            'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
+        },
+        hover_name='Dataset ID',
+        color_continuous_scale=color_scale,
+        hover_data=hover_data
+    )
+
+    # if kmer_size == 1:
+    #     fig.update_traces(
+    #         hovertemplate=(
+    #             '<b>%{hovertext}</b><br>'
+    #             'A CV: %{customdata[1]}<br>'
+    #             'C CV: %{customdata[2]}<br>'
+    #             'G CV: %{customdata[3]}<br>'
+    #             'T CV: %{customdata[4]}<br>'
+    #             'Average CV: %{customdata[0]}<extra></extra>'
+    #         )
+    #     )
+
+    # if kmer_size < 3:
+    #     # Construct k-mer CV string.
+    #     kmer_cv_str = ""
+    #     for index, kmer in enumerate(seq_var_kmer_l):
+    #         kmer_cv_str += kmer + " CV: %{customdata[" + str(index+1) + "]}<br>"
+    #     fig.update_traces(
+    #         hovertemplate=(
+    #             '<b>%{hovertext}</b><br><span style="font-family: \'Courier New\', monospace;">'
+    #             + kmer_cv_str +
+    #             'Average CV: %{customdata[0]}</span><extra></extra>'
+    #         )
+    #     )
+
+    # else:
+
+    fig.update_traces(
+        hovertemplate=(
+            '<b>%{hovertext}</b><br>%{customdata[1]}'
+        )
+    )
+
+    fig.update_traces(marker=dict(size=12, line=dict(width=0.75, color='white')))
+
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
+def create_seq_var_plot_plotly_v2(seq_var_ll, seq_var_kmer_l, plot_out,
+                               kmer_size=1,
+                               top_bottom_n=5,
+                               remove_zero_val=True,
+                               seq_len_stats_ll=False,
+                               color_mode=1,
+                               include_plotlyjs="cdn",
+                               full_html=False):
+    """
+    Create sequence variation plot, use PCA to reduce dimensions of single k-mer 
+    site reatios in the datasets.
+    
+    Formats:
+    seq_var_ll = [dataset_id, avg_site_ratio. present_kmers_ratio, site_ratio_kmer1, site_ratio_kmer2 ... ]
+    seq_var_kmer_l = [kmer1, kmer2, ...]
+
+    remove_zero_val:
+        If True, do not report zero site ratios/percentages in bottom rankings.
+
+    """
+
+    assert seq_var_ll, "seq_var_ll empty"
+    assert seq_var_kmer_l, "seq_var_kmer_l empty"
+    assert top_bottom_n <= 10, "top_bottom_n > 10"
+    assert kmer_size < 6, "kmer_size > 5"
+
+    color_scale = ['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+
+    single_var_ll = [seq_var_l[3:] for seq_var_l in seq_var_ll]
+
+    kmer_str_list = []
+    
+    # Construct strings for hover box.
+    for idx1, single_var_l in enumerate(single_var_ll):
+
+        # Average site ratio.
+        dataset_id = seq_var_ll[idx1][0]
+        avg_site_ratio = seq_var_ll[idx1][1]
+        present_kmers_ratio = seq_var_ll[idx1][2]
+
+        # Some sequence length stats.
+        c_regions, median_len, min_len, max_len = False, False, False, False
+        if seq_len_stats_ll:
+            c_regions = seq_len_stats_ll[idx1][1]
+            # mean_len = round(seq_len_stats_ll[idx1][2], 1)
+            median_len = round(seq_len_stats_ll[idx1][3], 1)
+            min_len = seq_len_stats_ll[idx1][6]
+            max_len = seq_len_stats_ll[idx1][7]
+
+        kmer2site_ratio_dic = {}
+        for idx2, site_ratio in enumerate(single_var_l):
+            kmer = seq_var_kmer_l[idx2]
+            kmer2site_ratio_dic[kmer] = site_ratio
+
+        kmer_str = '<span style="font-family: \'Courier New\', monospace;">'
+
+        if kmer_size < 3:
+            kmer_str += "%i-mer site %%:<br>" %(kmer_size)
+            for kmer, site_ratio in sorted(kmer2site_ratio_dic.items(), key=lambda x: x[1], reverse=True):
+                kmer_str += kmer + ": " + str(round(site_ratio*100, 3)) + "<br>"
+        else:
+            kmer_str += "Top %i %i-mer site %%:<br>" %(top_bottom_n, kmer_size)
+            top_idx = 0
+            for kmer, site_ratio in sorted(kmer2site_ratio_dic.items(), key=lambda x: x[1], reverse=True):
+                # if remove_zero_val and site_ratio == 0:
+                #     continue
+                kmer_str += kmer + ": " + str(round(site_ratio*100, 3)) + "<br>"
+                if top_idx == top_bottom_n-1:
+                    break
+                top_idx += 1
+            kmer_str += "Bottom %i %i-mer site %%:<br>" %(top_bottom_n, kmer_size)
+            bottom_idx = 0
+            for kmer, site_ratio in sorted(kmer2site_ratio_dic.items(), key=lambda x: x[1], reverse=False):
+                if remove_zero_val and site_ratio == 0:
+                    continue
+                kmer_str += kmer + ": " + str(round(site_ratio*100, 3)) + "<br>"
+                if bottom_idx == top_bottom_n-1:
+                    break
+                bottom_idx += 1
+
+        kmer_str += "Present %i-mer %%:      " %(kmer_size) + str(round(present_kmers_ratio*100, 3)) + "<br>"
+        kmer_str += "Average %i-mer site %%: " %(kmer_size) + str(round(avg_site_ratio*100, 3))
+
+        if c_regions:
+            kmer_str += "<br># regions:     %i" %(c_regions)
+        if median_len:
+            kmer_str += "<br>Median length: %s" %(str(median_len))
+        if min_len:
+            kmer_str += "<br>Min length:    %i" %(min_len)
+        if max_len:
+            kmer_str += "<br>Max length:    %i" %(max_len)
+
+        kmer_str += '</span><extra></extra>'
+
+        kmer_str_list.append(kmer_str)
+
+    exp_n_ratios = 4 ** kmer_size
+    assert len(single_var_ll[0]) == exp_n_ratios, "unexpected number of site ratios in seq_var_ll"
+
+    pca = PCA(n_components=2)
+    data_2d_pca = pca.fit_transform(single_var_ll)
+    df = pd.DataFrame(data_2d_pca, columns=['PC1', 'PC2'])
+
+    df['Dataset ID'] = [seq_var_l[0] for seq_var_l in seq_var_ll]
+    df['k-mer site %'] = kmer_str_list
+    df['Mean site %'] = [seq_var_l[1]*100 for seq_var_l in seq_var_ll]
+    df['Present k %'] = [seq_var_l[2]*100 for seq_var_l in seq_var_ll]
+    hover_data = ['Mean site %', 'Present k %', 'k-mer site %']
+
+    explained_variance = pca.explained_variance_ratio_ * 100
+
+    if color_mode == 1:
+        color = 'Mean site %'
+    elif color_mode == 2:
+        color = 'Present k %'
+    else:
+        assert False, "unexpected color_mode given"
+
+    fig = px.scatter(
+        df,
+        x='PC1',
+        y='PC2',
+        color=color,
+        labels={
+            'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+            'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
+        },
+        hover_name='Dataset ID',
+        color_continuous_scale=color_scale,
+        hover_data=hover_data
+    )
+
+    fig.update_traces(
+        hovertemplate=(
+            '<b>%{hovertext}</b><br>%{customdata[2]}'
+        )
+    )
+
+    fig.update_traces(marker=dict(size=12, line=dict(width=0.75, color='white')))
+
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
+def create_eib_comp_plot_plotly(id2eib_stats_dic, id2eib_perc_dic, plot_out,
+                                plot_3d=False,
+                                id2hk_gene_stats_dic=False,
+                                include_plotlyjs="cdn",
+                                full_html=False):
+    """
+    Create exon-intron + border ratios comparison plot with plotly.
+
+    Use PCA to reduce dimensions.
+    
+    Formats:
+    id2eib_stats_dic[internal_id] = 
+    [combined_id, ei_ol_stats.c_input_sites, exon_sites_ratio, intron_sites_ratio, us_ib_sites_ratio, 
+    ds_ib_sites_ratio, us_ib_dist_sites_ratio, ds_ib_dist_sites_ratio, eib_sites_ratio, first_exon_sites_ratio, 
+    last_exon_sites_ratio, single_exon_sites_ratio]
+    id2eib_perc_dic[internal_id] = [exon_sites_perc, intron_sites_perc, us_ib_sites_perc, ds_ib_sites_perc, 
+    us_ib_dist_sites_perc, ds_ib_dist_sites_perc, eib_sites_perc, first_exon_sites_perc, 
+    last_exon_sites_perc, single_exon_sites_perc]
+
+    """
+
+    assert id2eib_stats_dic, "id2eib_stats_dic empty"
+    assert id2eib_perc_dic, "id2eib_perc_dic empty"
+
+    color_scale = ['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+
+    eib_ratios_ll = []
+
+    for internal_id in sorted(id2eib_stats_dic):
+        combined_id = id2eib_stats_dic[internal_id][0]
+        # c_input_sites = id2eib_stats_dic[internal_id][1]
+        # exon_sites_ratio = id2eib_stats_dic[internal_id][2]
+        # intron_sites_ratio = id2eib_stats_dic[internal_id][3]
+        # us_ib_sites_ratio = id2eib_stats_dic[internal_id][4]
+        # ds_ib_sites_ratio = id2eib_stats_dic[internal_id][5]
+        # eib_sites_ratio = id2eib_stats_dic[internal_id][6]
+        # Append elements 2-6.
+        eib_ratios_ll.append(id2eib_stats_dic[internal_id][2:])
+
+    if plot_3d:
+        pca = PCA(n_components=3)
+        data_3d_pca = pca.fit_transform(eib_ratios_ll)
+        df = pd.DataFrame(data_3d_pca, columns=['PC1', 'PC2', 'PC3'])
+    else:
+        pca = PCA(n_components=2)
+        data_2d_pca = pca.fit_transform(eib_ratios_ll)
+        df = pd.DataFrame(data_2d_pca, columns=['PC1', 'PC2'])
+
+    df['Dataset ID'] = [id2eib_stats_dic[internal_id][0] for internal_id in sorted(id2eib_stats_dic)]
+    df['# input regions'] = [id2eib_stats_dic[internal_id][1] for internal_id in sorted(id2eib_stats_dic)]
+    df['% exonic sites'] = [id2eib_perc_dic[internal_id][0] for internal_id in sorted(id2eib_perc_dic)]
+    df['% intronic sites'] = [id2eib_perc_dic[internal_id][1] for internal_id in sorted(id2eib_perc_dic)]
+    df['% us ib'] = [id2eib_perc_dic[internal_id][2] for internal_id in sorted(id2eib_perc_dic)]
+    df['% ds ib'] = [id2eib_perc_dic[internal_id][3] for internal_id in sorted(id2eib_perc_dic)]
+    df['% us dist ib'] = [id2eib_perc_dic[internal_id][4] for internal_id in sorted(id2eib_perc_dic)]
+    df['% ds dist ib'] = [id2eib_perc_dic[internal_id][5] for internal_id in sorted(id2eib_perc_dic)]
+    df['% eib'] = [id2eib_perc_dic[internal_id][6] for internal_id in sorted(id2eib_perc_dic)]
+    df['% first exon'] = [id2eib_perc_dic[internal_id][7] for internal_id in sorted(id2eib_perc_dic)]
+    df['% last exon'] = [id2eib_perc_dic[internal_id][8] for internal_id in sorted(id2eib_perc_dic)]
+    df['% single exon'] = [id2eib_perc_dic[internal_id][9] for internal_id in sorted(id2eib_perc_dic)]
+    # df['Exon sites perc'] = [id2eib_perc_dic[internal_id][0] for internal_id in sorted(id2eib_perc_dic)]
+    # df['Intron sites perc'] = [id2eib_perc_dic[internal_id][1] for internal_id in sorted(id2eib_perc_dic)]
+    # df['us ib sites perc'] = [id2eib_perc_dic[internal_id][2] for internal_id in sorted(id2eib_perc_dic)]
+    # df['ds ib sites perc'] = [id2eib_perc_dic[internal_id][3] for internal_id in sorted(id2eib_perc_dic)]
+    # df['eib sites perc'] = [id2eib_perc_dic[internal_id][4] for internal_id in sorted(id2eib_perc_dic)]
+
+    # 11 features.
+    hover_data= ['# input regions', '% exonic sites', '% intronic sites', '% us ib', '% ds ib', '% us dist ib', '% ds dist ib', '% eib', '% first exon', '% last exon', '% single exon']
+    color = '% intronic sites'
+
+    if id2hk_gene_stats_dic:
+        # Genes (actually transcripts).
+        df['# all genes'] = [id2hk_gene_stats_dic[internal_id][0] for internal_id in sorted(id2hk_gene_stats_dic)]
+        df['# HK genes'] = [id2hk_gene_stats_dic[internal_id][1] for internal_id in sorted(id2hk_gene_stats_dic)]
+        df['% HK genes'] = [id2hk_gene_stats_dic[internal_id][2] for internal_id in sorted(id2hk_gene_stats_dic)]
+        hover_data += ['# all genes', '# HK genes', '% HK genes']
+        color = '% HK genes'
+
+    explained_variance = pca.explained_variance_ratio_ * 100
+
+    if plot_3d:
+
+        fig = px.scatter_3d(
+            df,  # Use the DataFrame directly
+            x='PC1',
+            y='PC2',
+            z='PC3',
+            color=color,
+            # title='2D Visualization with Dataset IDs',
+            labels={
+                'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+                'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)',
+                'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
+            },
+            hover_name='Dataset ID',
+            color_continuous_scale=color_scale,
+            hover_data=hover_data
+        )
+
+        if id2hk_gene_stats_dic:
+
+            fig.update_traces(
+                hovertemplate=(
+                    '<b>%{hovertext}</b><br>'
+                    'Input regions (#): %{customdata[0]}<br>'
+                    'Exon: %{customdata[1]}%<br>'
+                    'Intron: %{customdata[2]}%<br>'
+                    'US intron border: %{customdata[3]}%<br>'
+                    'DS intron border: %{customdata[4]}%<br>'
+                    'US distant intron: %{customdata[5]}%<br>'
+                    'DS distant intron: %{customdata[6]}%<br>'
+                    'Exon-intron border: %{customdata[7]}%<extra></extra>'
+                    'First exon: %{customdata[8]}%<br>'
+                    'Last exon: %{customdata[9]}%<br>'
+                    'Single exon: %{customdata[10]}%<br>'
+                    'Occupied genes (#): %{customdata[11]}<br>'
+                    'Occupied HK genes (#): %{customdata[12]}<br>'
+                    'Occupied HK genes (%): %{customdata[13]}<extra></extra>'
+                )
+            )
+
+        else:
+
+            fig.update_traces(
+                hovertemplate=(
+                    '<b>%{hovertext}</b><br>'
+                    'Input regions (#): %{customdata[0]}<br>'
+                    'Exon: %{customdata[1]}%<br>'
+                    'Intron: %{customdata[2]}%<br>'
+                    'US intron border: %{customdata[3]}%<br>'
+                    'DS intron border: %{customdata[4]}%<br>'
+                    'US distant intron: %{customdata[5]}%<br>'
+                    'DS distant intron: %{customdata[6]}%<br>'
+                    'Exon-intron border: %{customdata[7]}%<extra></extra>'
+                    'First exon: %{customdata[8]}%<br>'
+                    'Last exon: %{customdata[9]}%<br>'
+                    'Single exon: %{customdata[10]}%<extra></extra>'
+                )
+            )
+
+        fig.update_traces(marker=dict(size=3, line=dict(width=0.5, color='white')))
+
+    else:
+
+        fig = px.scatter(
+            df,
+            x='PC1',
+            y='PC2',
+            color=color,
+            # title='2D Visualization with Dataset IDs',
+            labels={
+                'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+                'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
+            },
+            hover_name='Dataset ID',
+            color_continuous_scale=color_scale,
+            hover_data=hover_data
+        )
+
+        if id2hk_gene_stats_dic:
+
+            fig.update_traces(
+                hovertemplate=(
+                    '<b>%{hovertext}</b><br>'
+                    'Input regions (#): %{customdata[0]}<br>'
+                    'Exon: %{customdata[1]}%<br>'
+                    'Intron: %{customdata[2]}%<br>'
+                    'US intron border: %{customdata[3]}%<br>'
+                    'DS intron border: %{customdata[4]}%<br>'
+                    'US distant intron: %{customdata[5]}%<br>'
+                    'DS distant intron: %{customdata[6]}%<br>'
+                    'Exon-intron border: %{customdata[7]}%<br>'
+                    'First exon: %{customdata[8]}%<br>'
+                    'Last exon: %{customdata[9]}%<br>'
+                    'Single exon: %{customdata[10]}%<br>'
+                    'Occupied genes (#): %{customdata[11]}<br>'
+                    'Occupied HK genes (#): %{customdata[12]}<br>'
+                    'Occupied HK genes (%): %{customdata[13]}<extra></extra>'
+                )
+            )
+
+        else:
+
+            fig.update_traces(
+                hovertemplate=(
+                    '<b>%{hovertext}</b><br>'
+                    'Input regions (#): %{customdata[0]}<br>'
+                    'Exon: %{customdata[1]}%<br>'
+                    'Intron: %{customdata[2]}%<br>'
+                    'US intron border: %{customdata[3]}%<br>'
+                    'DS intron border: %{customdata[4]}%<br>'
+                    'US distant intron: %{customdata[5]}%<br>'
+                    'DS distant intron: %{customdata[6]}%<br>'
+                    'Exon-intron border: %{customdata[7]}%<br>'
+                    'First exon: %{customdata[8]}%<br>'
+                    'Last exon: %{customdata[9]}%<br>'
+                    'Single exon: %{customdata[10]}%<extra></extra>'
+                )
+            )
+
+
+        fig.update_traces(marker=dict(size=12, line=dict(width=0.75, color='white')))
+
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
 def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic, 
                                    plot_out,
                                    sparse_pca=False,
+                                   id2hk_gene_stats_dic=False,
                                    add_motif_db_info=False,
                                    include_plotlyjs="cdn",
                                    full_html=False):
@@ -8663,13 +9615,17 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
     
     """
 
-    assert id2occ_list_dic, "id2lst_dic empty"
+    assert id2occ_list_dic, "id2occ_list_dic empty"
 
     occ_ll = []
     dataset_ids_list = []
     c_one_labels_list = []
     perc_one_labels_list = []
     c_total_number_genes = 0
+
+    c_all_tr_list = []
+    c_hk_tr_list = []
+    perc_hk_tr_list = []
 
     for internal_id in sorted(id2occ_list_dic):
 
@@ -8697,9 +9653,23 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
         occ_ll.append(id2occ_list_dic[internal_id])
         dataset_ids_list.append(combined_id)
 
+        if id2hk_gene_stats_dic:
+            c_all_tr = id2hk_gene_stats_dic[internal_id][0]
+            c_hk_tr = id2hk_gene_stats_dic[internal_id][1]
+            perc_hk_tr = id2hk_gene_stats_dic[internal_id][2]
+            c_all_tr_list.append(c_all_tr)
+            c_hk_tr_list.append(c_hk_tr)
+            perc_hk_tr_list.append(perc_hk_tr)
+
         # print("combined_id:", combined_id)
         # print(id2occ_list_dic[internal_id])
 
+    hover_data = ['# occupied genes', '% occupied genes']
+    color = '% occupied genes'
+
+    if id2hk_gene_stats_dic:
+        hover_data += ['# all transcripts', '# hk transcripts', '% HK genes']
+        color = '% HK genes'
 
     color_scale = ['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
 
@@ -8732,6 +9702,10 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
         df['Dataset ID'] = dataset_ids_list
         df['# occupied genes'] = c_one_labels_list
         df['% occupied genes'] = perc_one_labels_list
+        if id2hk_gene_stats_dic:
+            df['# all transcripts'] = c_all_tr_list
+            df['# hk transcripts'] = c_hk_tr_list
+            df['% HK genes'] = perc_hk_tr_list
 
         explained_variance = pca.explained_variance_ratio_ * 100
 
@@ -8740,7 +9714,7 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
             x='PC1',
             y='PC2',
             z='PC3',
-            color='% occupied genes',
+            color=color,
             title='3D Visualization with Dataset IDs',
             labels={
                 'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
@@ -8749,12 +9723,20 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
             },
             hover_name='Dataset ID',
             color_continuous_scale=color_scale,
-            hover_data=['# occupied genes', '% occupied genes']
+            hover_data=hover_data
         )
 
-    fig.update_traces(
-        hovertemplate='<b>%{hovertext}</b><br>Occupied genes (#): %{customdata[0]}<br>Occupied genes (%): %{customdata[1]}<extra></extra>'
-    )
+    if id2hk_gene_stats_dic:
+
+        fig.update_traces(
+            hovertemplate='<b>%{hovertext}</b><br>Occupied genes (#): %{customdata[0]}<br>Occupied genes (%): %{customdata[1]}<br>Occupied HK genes (#): %{customdata[3]}<br>Occupied HK genes (%): %{customdata[4]}<extra></extra>'
+        )
+
+    else:
+
+        fig.update_traces(
+            hovertemplate='<b>%{hovertext}</b><br>Occupied genes (#): %{customdata[0]}<br>Occupied genes (%): %{customdata[1]}<extra></extra>'
+        )
 
 
     fig.update_scenes(aspectmode='cube')
@@ -8766,18 +9748,235 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
 
 ################################################################################
 
-def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll, plot_out,
+def calculate_k_site_ratios(reg2seq_dic, k=1,
+                            nucleotides=['A', 'C', 'G', 'T'],
+                            only_observed=True):
+    """
+    Calculate k-mer site ratios (i.e., ratios of sequences where k-mers 
+    are present).
+    Return single k-mer site ratios dictionary, the average site 
+    ratio value over all k-mers, and the number of k-mers present ratio.
+
+    only_observed:
+        If True, calculate the average site ratio only for observed k-mers.
+
+    >>> reg2seq_dic = {1: 'ACGT', 2: 'AC'}
+    >>> kmer2sr_dic, avg_sr, pk_rat = calculate_k_site_ratios(reg2seq_dic, k=1)    
+    >>> kmer2sr_dic, avg_sr, pk_rat
+    ({'A': 1.0, 'C': 1.0, 'G': 0.5, 'T': 0.5}, 0.75, 1.0)
+    >>> reg2seq_dic = {1: 'ACG'}
+    >>> kmer2sr_dic, avg_sr, pk_rat = calculate_k_site_ratios(reg2seq_dic, k=1, only_observed=False)
+    >>> kmer2sr_dic, avg_sr, pk_rat
+    ({'A': 1.0, 'C': 1.0, 'G': 1.0, 'T': 0.0}, 0.75, 0.75)
+    >>> kmer2sr_dic, avg_sr, pk_rat = calculate_k_site_ratios(reg2seq_dic, k=1, only_observed=True)
+    >>> kmer2sr_dic, avg_sr, pk_rat
+    ({'A': 1.0, 'C': 1.0, 'G': 1.0, 'T': 0.0}, 1.0, 0.75)
+    >>> reg2seq_dic = {1: 'ACGT', 2: 'CC'}
+    >>> kmer2sr_dic, avg_sr, pk_rat = calculate_k_site_ratios(reg2seq_dic, k=2, only_observed=True)
+    >>> kmer2sr_dic, avg_sr, pk_rat
+    ({'AA': 0.0, 'AC': 0.5, 'AG': 0.0, 'AT': 0.0, 'CA': 0.0, 'CC': 0.5, 'CG': 0.5, 'CT': 0.0, 'GA': 0.0, 'GC': 0.0, 'GG': 0.0, 'GT': 0.5, 'TA': 0.0, 'TC': 0.0, 'TG': 0.0, 'TT': 0.0}, 0.5, 0.25)
+    >>> kmer2sr_dic, avg_sr, pk_rat = calculate_k_site_ratios(reg2seq_dic, k=2, only_observed=False)
+    >>> kmer2sr_dic, avg_sr, pk_rat
+    ({'AA': 0.0, 'AC': 0.5, 'AG': 0.0, 'AT': 0.0, 'CA': 0.0, 'CC': 0.5, 'CG': 0.5, 'CT': 0.0, 'GA': 0.0, 'GC': 0.0, 'GG': 0.0, 'GT': 0.5, 'TA': 0.0, 'TC': 0.0, 'TG': 0.0, 'TT': 0.0}, 0.125, 0.25)
+
+    """
+    assert reg2seq_dic, "reg2seq_dic empty"
+
+    # Generate all possible k-mers for specified k.
+    kmers = [''.join(p) for p in product(nucleotides, repeat=k)]
+    # Calculate number of expected k-mers.
+    exp_num_kmers = len(nucleotides) ** k
+
+    # Number of sequences containing each k-mer.
+    kmer2sitec_dic = {}
+    for kmer in kmers:
+        kmer2sitec_dic[kmer] = 0
+
+    # Count k-mers for each sequence.
+    seq_len_list = []
+    for reg_id in sorted(reg2seq_dic):
+        seq = reg2seq_dic[reg_id]
+        # Number of k-mers in the sequence.
+        length = len(seq) - k + 1
+        kmer_c = 0
+        if length > 0:
+            # Count each k-mer in the sequence.
+            counts = defaultdict(int)
+            for i in range(length):
+                kmer = seq[i:i + k]
+                if kmer in kmers:  # Only valid k-mers.
+                    counts[kmer] += 1
+
+            # Count number of sequences containing each k-mer.
+            for kmer in counts:
+                if counts[kmer] > 0:
+                    kmer2sitec_dic[kmer] += 1
+
+    kmer2site_ratio_dic = {}
+    site_ratios_list = []
+    c_seqs = len(reg2seq_dic)
+    c_zero_count_kmers = 0
+    for kmer, sitec in kmer2sitec_dic.items():
+        site_ratio = sitec / c_seqs
+        if only_observed:
+            if sitec > 0:  # Calculate average ratio only using k-mers present in sequences.
+                site_ratios_list.append(site_ratio)
+        else:
+            site_ratios_list.append(site_ratio)
+        kmer2site_ratio_dic[kmer] = site_ratio
+        if sitec == 0:
+            c_zero_count_kmers += 1
+
+    assert len(kmer2site_ratio_dic) == exp_num_kmers, "unexpected number of k-mers (expected: %i, got: %i)" % (exp_num_kmers, len(kmer2site_ratio_dic))
+
+    c_count_kmers = exp_num_kmers - c_zero_count_kmers
+    # Ratio of k-mers present in sequences.
+    present_kmers_ratio = c_count_kmers / exp_num_kmers
+
+    # Get average site ratio over all k-mers.
+    average_site_ratio = statistics.mean(site_ratios_list) if site_ratios_list else 0
+
+    return kmer2site_ratio_dic, average_site_ratio, present_kmers_ratio
+
+
+################################################################################
+
+def calculate_k_nucleotide_cv(reg2seq_dic, k=1,
+                              nucleotides=['A', 'C', 'G', 'T'],
+                              kmer2stats_dic=None,
+                              reg2sc_dic=False,
+                              only_observed=True):
+    """
+    Calculate the coefficient of variation (CV) for each k-mer in the sequences.
+    Return the single k-mer CVs and the average CV over all k-mers.
+
+    only_observed:
+        If True, calculate the average CV only for observed k-mers.
+        If False, calculate the average CV for all possible k-mers.
+    kmer2stats_dic:
+        If supplied, store k-mer total count and ratio.
+        kmer2stats_dic[kmer] = [count, ratio, site_ratio, corr]
+        corr if reg2sc_dic is supplied.
+    
+    """
+    # Generate all possible k-mers for specified k.
+    kmers = [''.join(p) for p in product(nucleotides, repeat=k)]
+    # Calculate number of expected k-mers.
+    exp_num_kmers = len(nucleotides) ** k
+
+    kmer_ratios = {kmer: [] for kmer in kmers}
+    
+    observed_kmer_dic = {}
+    total_c = 0
+    kmer2count_dic = {}
+    for kmer in kmers:
+        kmer2count_dic[kmer] = 0
+    # Number of sequences containing each k-mer.
+    kmer2sitec_dic = {}
+    for kmer in kmers:
+        kmer2sitec_dic[kmer] = 0
+
+    # Calculate k-mer ratios for each sequence.
+    reg_ids_list = []
+    for reg_id in sorted(reg2seq_dic):
+        seq = reg2seq_dic[reg_id]
+        reg_ids_list.append(reg_id)
+        length = len(seq) - k + 1  # Number of k-mers in the sequence.
+        kmer_c = 0
+        if length > 0:
+            # Count each k-mer in the sequence.
+            counts = defaultdict(int)
+            for i in range(length):
+                kmer = seq[i:i + k]
+                if kmer in kmer_ratios:  # Only valid k-mers.
+                    counts[kmer] += 1
+                    kmer2count_dic[kmer] += 1
+                    observed_kmer_dic[kmer] = 1
+                    kmer_c += 1
+                    total_c += 1
+            
+            # Store the ratio of each k-mer.
+            for kmer in kmers:
+                kmer_ratios[kmer].append(counts[kmer] / kmer_c)
+
+            # Count number of sequences containing each k-mer.
+            for kmer in counts:
+                if counts[kmer] > 0:
+                    kmer2sitec_dic[kmer] += 1
+        else:
+            # Store zeros for all k-mers.
+            for kmer in kmers:
+                kmer_ratios[kmer].append(0)
+
+    for kmer in kmer_ratios:
+        length = len(kmer_ratios[kmer])
+        assert length == len(reg_ids_list), "unexpected number of ratios for k-mer %s (# ratios: %i, # region IDs: %i)" %(kmer, length, len(reg_ids_list))
+
+    if kmer2stats_dic is not None:
+        for kmer, count in kmer2count_dic.items():
+            kmer_ratio = count / total_c
+            site_ratio = (kmer2sitec_dic[kmer] / len(reg2seq_dic)) if len(reg2seq_dic) else 0
+            kmer2stats_dic[kmer] = [count, kmer_ratio, site_ratio, 0]
+
+    if reg2sc_dic is not None:
+        scores_list = []
+        for reg_id in reg_ids_list:
+            assert reg_id in reg2sc_dic, "reg_id not in reg2sc_dic"
+            scores_list.append(reg2sc_dic[reg_id])
+        # Calculate the correlation between k-mer ratios and scores.
+        scores = pd.Series(scores_list, index=reg_ids_list)
+        df = pd.DataFrame(kmer_ratios, index=reg_ids_list)
+        corrs = df.corrwith(scores, method='spearman')
+        # Make dictionary with k-mer -> correlation.
+        kmer2corr_dic = corrs.to_dict()
+        for kmer in kmer2corr_dic:
+            kmer2stats_dic[kmer][3] = round(kmer2corr_dic[kmer], 5)
+
+    # Calculate the coefficient of variation (CV) for each k-mer.
+    kmer_cv = {}
+    for kmer, ratios in kmer_ratios.items():
+        if ratios:  # Only for k-mers present in the sequences.
+            mean = np.mean(ratios)
+            std_dev = np.std(ratios)
+            cv = (std_dev / mean) if mean != 0 else 0.0
+            kmer_cv[kmer] = cv
+
+    assert len(kmer_cv) == exp_num_kmers, "unexpected number of k-mers (expected: %i, got: %i)" % (exp_num_kmers, len(kmer_cv))
+
+    if only_observed:
+        # Calculate the average CV for observed k-mers only using observed_kmer_dic.
+        observed_cvs = [cv for kmer, cv in kmer_cv.items() if observed_kmer_dic.get(kmer, 0)]
+        average_cv = np.mean(observed_cvs) if observed_cvs else 0
+    else:
+        # Calculate the average CV for all k-mers.
+        average_cv = np.mean(list(kmer_cv.values())) if kmer_cv else 0
+
+    # Convert kmer_cv from numpy float to python float.
+    kmer_cv = {k: float(v) for k, v in kmer_cv.items()}
+
+    return kmer_cv, average_cv
+
+
+################################################################################
+
+def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll,
+                                 seq_len_stats_ll, plot_out, 
+                                 seq_feat_ll=False,
                                  include_plotlyjs="cdn",
                                  full_html=False):
     
     """
     Create plotly 3d scatter plot of PCA reduced k-mer frequencies.
 
+    seq_len_stats_ll + seq_feat_ll in same order as dataset_ids_list.
+
     kmer_list:
         1d list of k-mers, corresponding in order to k-mer frequency vectors in
         kmer_freqs_ll.
 
     """
+
+    assert seq_len_stats_ll, "seq_len_stats_ll empty"
 
     kmer_len = len(kmer_list[0])
     n_top_kmers = 10
@@ -8800,36 +9999,90 @@ def create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll, plo
     # data = np.array(kmer_freqs_ll)
     pca = PCA(n_components=3)  # Reduce data to 3 dimensions.
     data_3d_pca = pca.fit_transform(kmer_freqs_ll)
+    explained_variance = pca.explained_variance_ratio_ * 100
 
     df = pd.DataFrame(data_3d_pca, columns=['PC1', 'PC2', 'PC3'])
     df['Dataset ID'] = dataset_ids_list
     df[top_kmer_str_header] = top_kmer_str_list
+    df['# input regions'] = [seq_len_stats[1] for seq_len_stats in seq_len_stats_ll]
+    hover_data = [top_kmer_str_header, '# input regions']
+    color = '# input regions'
+    
+    if seq_feat_ll:
+        df['Mean complexity'] = [seq_feat_l[1] for seq_feat_l in seq_feat_ll]
 
-    explained_variance = pca.explained_variance_ratio_ * 100
+        mono_nts_str_list = []
+        for seq_feat_l in seq_feat_ll:
+            # mono_nts_str = "A: %s%%<br>C: %s%%<br>G: %s%%<br>T: %s%%" %(seq_feat_l[1], seq_feat_l[2], seq_feat_l[3], seq_feat_l[4])
+            mono_nts_str = "A: %s%%, C: %s%%, G: %s%%, T: %s%%" %(seq_feat_l[2], seq_feat_l[3], seq_feat_l[4], seq_feat_l[5])
+            mono_nts_str_list.append(mono_nts_str)
+
+        df['Mono-nucleotide percentages'] = mono_nts_str_list
+
+        hover_data.append('Mean complexity')
+        hover_data.append('Mono-nucleotide percentages')
+        color = 'Mean complexity'
+
+    color_scale = ['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+    # color_scale = ['#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
 
     fig = px.scatter_3d(
-        df,  # Use the DataFrame directly
+        df,
         x='PC1',
         y='PC2',
         z='PC3',
+        color=color,
         title='3D Visualization with Dataset IDs',
         labels={
             'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
             'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)',
             'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
         },
-        #hover_data=['Dataset ID'],  # This adds dataset IDs to the hover information
         hover_name='Dataset ID',
-        hover_data=[top_kmer_str_header]
+        color_continuous_scale=color_scale,
+        hover_data=hover_data
     )
 
-    fig.update_traces(
-        hovertemplate='<b>%{hovertext}</b><br>Top ' + str(n_top_kmers) + ' ' + str(kmer_len) + '-mer percentages: %{customdata[0]}<extra></extra>'
-    )
+    if seq_feat_ll:
+        fig.update_traces(
+            hovertemplate = (
+                '<b>%{hovertext}</b><br>Top ' + str(n_top_kmers) + ' ' + str(kmer_len) + 
+                '-mer percentages:<span style="font-family: \'Courier New\', monospace;">%{customdata[0]}</span>Input regions (#):<br>%{customdata[1]}<br>Mean sequence complexity:<br>%{customdata[2]}<br>Mono-nucleotide percentages:<br>%{customdata[3]}<extra></extra>'
+            )
+        )
+
+    else:
+        fig.update_traces(
+            hovertemplate = (
+                '<b>%{hovertext}</b><br>Top ' + str(n_top_kmers) + ' ' + str(kmer_len) + 
+                '-mer percentages:<span style="font-family: \'Courier New\', monospace;">%{customdata[0]}</span>Input regions (#):<br>%{customdata[1]}<extra></extra>'
+            )
+        )
+
+
+    # fig = px.scatter_3d(
+    #     df,
+    #     x='PC1',
+    #     y='PC2',
+    #     z='PC3',
+    #     title='3D Visualization with Dataset IDs',
+    #     labels={
+    #         'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+    #         'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)',
+    #         'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
+    #     },
+    #     hover_name='Dataset ID',
+    #     hover_data=[top_kmer_str_header]
+    # )
+
+    # fig.update_traces(
+    #     hovertemplate='<b>%{hovertext}</b><br>Top ' + str(n_top_kmers) + ' ' + str(kmer_len) + '-mer percentages: %{customdata[0]}<extra></extra>'
+    # )
 
     # fig.update_traces(hovertemplate='%{hovertext}')  # This sets the hover template to only show the hover text
     fig.update_scenes(aspectmode='cube')
-    fig.update_traces(marker=dict(size=3))
+    # fig.update_traces(marker=dict(size=3))
+    fig.update_traces(marker=dict(size=3, line=dict(width=0.5, color='white')))
     fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
     fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
 
@@ -9045,27 +10298,21 @@ def create_gene_occ_cooc_plot_plotly(df_gene_occ, gene_cooc_lll, plot_out,
 
 ################################################################################
 
-def goa_generate_html_report(goa_results_df, goa_stats_dic,
-                             out_folder, benchlib_path,
-                             goa_min_depth=None,
-                             goa_max_child=None,
-                             goa_filter_purified=False,
-                             report_header=False,
-                             sort_js_mode=1,
+def goa_generate_html_report(args, goa_results_df, 
+                             goa_stats_dic, benchlib_path,
                              html_report_out="goa_results.rbpbench_goa.html"):
     """
     Generate GOA results HTML report (rbpbench goa mode).
 
     """
+    out_folder = args.out_folder
+    if args.plot_abs_paths:
+        out_folder = os.path.abspath(out_folder)
 
     html_out = out_folder + "/" + "goa_results.rbpbench_goa.html"
     md_out = out_folder + "/" + "goa_results.rbpbench_goa.md"
     if html_report_out:
         html_out = html_report_out
-
-    report_header_info = "GO enrichment analysis (GOA) report"
-    if report_header:
-        report_header_info = "RBPBench GO enrichment analysis (GOA) report"
 
     """
     Setup sorttable.js to make tables in HTML sortable.
@@ -9074,13 +10321,23 @@ def goa_generate_html_report(goa_results_df, goa_stats_dic,
     sorttable_js_path = benchlib_path + "/content/sorttable.js"
     assert os.path.exists(sorttable_js_path), "sorttable.js not at %s" %(sorttable_js_path)
     sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
-    if sort_js_mode == 2:
+    if args.sort_js_mode == 2:
         shutil.copy(sorttable_js_path, out_folder)
         sorttable_js_path = out_folder + "/sorttable.js"
         sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
-    elif sort_js_mode == 3:
+    elif args.sort_js_mode == 3:
         js_code = read_file_content_into_str_var(sorttable_js_path)
         sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
+
+    # Logo path.
+    logo_path_html = "logo.png"
+    logo_path_out_folder = out_folder + "/" + logo_path_html
+    if args.plot_abs_paths:
+        logo_path_html = out_folder + "/" + logo_path_html
+
+    logo_path = benchlib_path + "/content/logo.png"
+    assert os.path.exists(logo_path), "logo.png not found in %s" %(logo_path)
+    shutil.copy(logo_path, logo_path_out_folder)
 
     # HTML head section.
     html_head = """<!DOCTYPE html>
@@ -9100,9 +10357,22 @@ def goa_generate_html_report(goa_results_df, goa_stats_dic,
     .page {
         page-break-after: always;
     }
+    .title-container {
+        display: flex;
+        align-items: center;
+    }
+    .title-container img {
+        margin-right: 10px;
+    }
 </style>
 
 </head>
+
+<div class="title-container">
+    <img src="%s" alt="Logo" width="175">
+    <h1>GO Enrichment Analysis Report</h1>
+</div>
+
 <body>
 """
 
@@ -9116,12 +10386,10 @@ def goa_generate_html_report(goa_results_df, goa_stats_dic,
     # Markdown part.
     mdtext = """
 
-# %s
-
 List of available statistics and plots generated
 by RBPBench (rbpbench goa):
 
-- [GO enrichment analysis results](#goa-results)""" %(report_header_info)
+- [GO enrichment analysis results](#goa-results)"""
     mdtext += "\n"
     mdtext += "\n&nbsp;\n"
 
@@ -9135,15 +10403,15 @@ by RBPBench (rbpbench goa):
 
     filter_purified_info = " GO terms with significantly higher and lower concentration ([e,p]) in study group are shown."
     filter_purified_info2 = "significant"
-    if goa_filter_purified:
+    if args.goa_filter_purified:
         filter_purified_info = " Only GO terms with significantly higher concentration in study group are shown."
         filter_purified_info2 = "significantly enriched"
         c_goa_results = len(goa_results_df[goa_results_df["enrichment"] == "e"])
     filter_further_info = ""
-    if goa_max_child is not None: 
-        filter_further_info += " Only GO terms with <= %i children are shown." %(goa_max_child)
-    if goa_min_depth is not None:
-        filter_further_info += " Only GO terms with >= %i depth are shown." %(goa_min_depth)
+    if args.goa_max_child is not None: 
+        filter_further_info += " Only GO terms with <= %i children are shown." %(args.goa_max_child)
+    if args.goa_min_depth is not None:
+        filter_further_info += " Only GO terms with >= %i depth are shown." %(args.goa_min_depth)
     if filter_further_info:
         filter_further_info += " Note that additional filters (children + depth) can result in an empty table. For all significant GO terms (i.e., unfiltered results) check *goa_results.tsv* output table."
 
@@ -9186,15 +10454,15 @@ by RBPBench (rbpbench goa):
             go_perc_genes = row['perc_genes']
             go_n_children = row['n_children']
 
-            if goa_filter_purified:
+            if args.goa_filter_purified:
                 if go_enrichment == "p":
                     continue
 
-            if goa_max_child is not None:
-                if go_n_children > goa_max_child:
+            if args.goa_max_child is not None:
+                if go_n_children > args.goa_max_child:
                     continue
-            if goa_min_depth is not None:
-                if go_depth < goa_min_depth:
+            if args.goa_min_depth is not None:
+                if go_depth < args.goa_min_depth:
                     continue
 
             mdtext += '<tr>' + "\n"
@@ -9314,7 +10582,11 @@ def batch_generate_html_report(args,
                                id2hit_reg_annot_dic,
                                benchlib_path,
                                seq_len_stats_ll,
+                               seq_feat_ll=False,
+                               seq_var_ll=False,
+                               seq_var_kmer_l=False,
                                html_report_out="report.rbpbench_batch.html",
+                               id2hk_gene_stats_dic=False,
                                id2motif_enrich_stats_dic=False,
                                id2regex_stats_dic=False,
                                regex_annot_dic=False,
@@ -9356,10 +10628,6 @@ def batch_generate_html_report(args,
     md_out = out_folder + "/" + "report.rbpbench_batch.md"
     if html_report_out:
         html_out = html_report_out
-
-    report_header_info = "Batch search report"
-    if args.report_header:
-        report_header_info = "RBPBench batch search report"
 
     """
     Setup sorttable.js to make tables in HTML sortable.
@@ -9414,7 +10682,6 @@ def batch_generate_html_report(args,
         include_plotlyjs = False
         # plotly_full_html = True
 
-    
     annot_dic = {}
     annot2color_dic = {}
     if id2reg_annot_dic:  # if --gtf provided.
@@ -9440,6 +10707,12 @@ def batch_generate_html_report(args,
             annot2color_dic[annot] = hex_colors[idx]
             idx += 1
 
+    # Logo path.
+    logo_path_html = plots_folder + "/logo.png"
+    if not os.path.exists(logo_path_html):
+        logo_path = benchlib_path + "/content/logo.png"
+        assert os.path.exists(logo_path), "logo.png not found in %s" %(logo_path)
+        shutil.copy(logo_path, plots_out_folder)
 
     # HTML head section.
     html_head = """<!DOCTYPE html>
@@ -9460,11 +10733,24 @@ def batch_generate_html_report(args,
     .page {
         page-break-after: always;
     }
+    .title-container {
+        display: flex;
+        align-items: center;
+    }
+    .title-container img {
+        margin-right: 10px; /* Adjust the spacing as needed */
+    }
 </style>
 
 </head>
+
+<div class="title-container">
+    <img src="%s" alt="Logo" width="175">
+    <h1>Batch Report</h1>
+</div>
+
 <body>
-""" %(plotly_js_html)
+""" %(plotly_js_html, logo_path_html)
 
     # HTML tail section.
     html_tail = """
@@ -9476,16 +10762,15 @@ def batch_generate_html_report(args,
     # Markdown part.
     mdtext = """
 
-# %s
-
 List of available statistics and plots generated
 by RBPBench (rbpbench batch --report):
 
-- [Input datasets sequence length statistics](#seq-len-stats)""" %(report_header_info)
+- [Input datasets sequence length statistics](#seq-len-stats)"""
     mdtext += "\n"
 
     if ei_ol_stats_dic:
         mdtext += "- [Input datasets exon-intron overlap statistics](#ei-ol-stats)\n"
+        mdtext += "- [Input datasets exon-intron overlap comparative plot](#ei-ol-plot)\n"
 
     if id2motif_enrich_stats_dic: # if not empty.
         mdtext += "- [Input datasets RBP region score motif enrichment statistics](#motif-enrich-stats)\n"
@@ -9494,7 +10779,13 @@ by RBPBench (rbpbench batch --report):
         mdtext += "- [Regular expression motif enrichment statistics](#regex-enrich-stats)\n"
         mdtext += "- [Regular expression RBP motif co-occurrence statistics](#regex-rbp-cooc-stats)\n"
 
+    if seq_feat_ll:
+        mdtext += "- [Input datasets nucleotide percentages statistics](#nt-perc-stats)\n"
+
     mdtext += "- [Input datasets k-mer frequencies comparative plot](#kmer-comp-plot)\n"
+
+    if seq_var_ll:
+        mdtext += "- [Input datasets k-mer variation comparative plot](#seq-var-plot)\n"
 
     if id2reg_annot_dic:  # if --gtf provided.
         mdtext += "- [Input datasets occupied gene regions comparative plot](#occ-comp-plot)\n"
@@ -9548,7 +10839,6 @@ by RBPBench (rbpbench batch --report):
         seq_stats_info = "--unstranded option selected, i.e., both strands of a region are included in the length statistics, but the two strands are counted as one region."
     elif args.unstranded and args.unstranded_ct:
         seq_stats_info = "--unstranded and --unstranded-ct options selected, i.e., both strands of a region are included in the length statistics, and each strand counts as separate region."
-
 
     mdtext += """
 ## Input datasets sequence length statistics ### {#seq-len-stats}
@@ -9614,9 +10904,11 @@ Input dataset ID format: %s. %s
     # mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
     # mdtext += "\n&nbsp;\n"
 
-    if ei_ol_stats_dic:
+    id2eib_stats_dic = {}  # For plotly plot.
+    id2eib_perc_dic = {}  # For plotly plot.
 
-        perc_min_overlap = round(args.gtf_eib_min_overlap * 100, 1)
+    if ei_ol_stats_dic:  # True if --gtf provided.
+
         ib_len =  args.gtf_intron_border_len
         eib_len = args.ei_border_len
 
@@ -9624,11 +10916,11 @@ Input dataset ID format: %s. %s
 ## Input datasets exon-intron overlap statistics ### {#ei-ol-stats}
 
 **Table:** Exon, intron + border region overlap statistics for each input dataset.
-Minimum overlap between exon/intron region and input region to be counted as overlapping = %s%% (change via --gtf-eib-min-overlap).
-Considered intron border region length = %i nt. Considered exon-intron border region = +/- %i nt relative to border.
+Considered intron border region length = %i nt (change via --gtf-intron-border-len). 
+Considered exon-intron border region = +/- %i nt relative to border.
 %s
 
-""" %(str(perc_min_overlap), ib_len, eib_len, seq_stats_info)
+""" %(ib_len, eib_len, seq_stats_info)
 
 
         mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
@@ -9638,9 +10930,14 @@ Considered intron border region length = %i nt. Considered exon-intron border re
         mdtext += "<th># input regions</th>\n"
         mdtext += "<th>% exon regions</th>\n"
         mdtext += "<th>% intron regions</th>\n"
-        mdtext += "<th>% upstream intron border regions</th>\n"
-        mdtext += "<th>% downstream intron border regions</th>\n"
-        mdtext += "<th>% exon-intron border regions</th>\n"
+        mdtext += "<th>% us intron border</th>\n"
+        mdtext += "<th>% ds intron border</th>\n"
+        mdtext += "<th>% distant us intron</th>\n"
+        mdtext += "<th>% distant ds intron</th>\n"
+        mdtext += "<th>% exon-intron border</th>\n"
+        mdtext += "<th>% first exon</th>\n"
+        mdtext += "<th>% last exon</th>\n"
+        mdtext += "<th>% single exon</th>\n"
         mdtext += "</tr>\n"
         mdtext += "</thead>\n"
         mdtext += "<tbody>\n"
@@ -9659,23 +10956,88 @@ Considered intron border region length = %i nt. Considered exon-intron border re
             else:
                 combined_id = rbp_id + "," + method_id + "," + data_id
 
+            # ei_ol_stats = ei_ol_stats_dic[internal_id]
+            # exon_sites_perc = 0.0
+            # exon_sites_ratio = 0.0
+            # if ei_ol_stats.c_exon_sites and ei_ol_stats.c_input_sites:
+            #     exon_sites_perc = round(ei_ol_stats.c_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
+            #     exon_sites_ratio = round(ei_ol_stats.c_exon_sites / ei_ol_stats.c_input_sites, 3)
+            # intron_sites_perc = 0.0
+            # intron_sites_ratio = 0.0
+            # if ei_ol_stats.c_intron_sites and ei_ol_stats.c_input_sites:
+            #     intron_sites_perc = round(ei_ol_stats.c_intron_sites / ei_ol_stats.c_input_sites * 100, 1)
+            #     intron_sites_ratio = round(ei_ol_stats.c_intron_sites / ei_ol_stats.c_input_sites, 3)
+            # us_ib_sites_perc = 0.0
+            # us_ib_sites_ratio = 0.0
+            # if ei_ol_stats.c_us_ib_sites and ei_ol_stats.c_input_sites:
+            #     us_ib_sites_perc = round(ei_ol_stats.c_us_ib_sites / ei_ol_stats.c_input_sites * 100, 1)
+            #     us_ib_sites_ratio = round(ei_ol_stats.c_us_ib_sites / ei_ol_stats.c_input_sites, 3)
+            # ds_ib_sites_perc = 0.0
+            # ds_ib_sites_ratio = 0.0
+            # if ei_ol_stats.c_ds_ib_sites and ei_ol_stats.c_input_sites:
+            #     ds_ib_sites_perc = round(ei_ol_stats.c_ds_ib_sites / ei_ol_stats.c_input_sites * 100, 1)
+            #     ds_ib_sites_ratio = round(ei_ol_stats.c_ds_ib_sites / ei_ol_stats.c_input_sites, 3)
+            # eib_sites_perc = 0.0
+            # eib_sites_ratio = 0.0
+            # if ei_ol_stats.c_eib_sites and ei_ol_stats.c_input_sites:
+            #     eib_sites_perc = round(ei_ol_stats.c_eib_sites / ei_ol_stats.c_input_sites * 100, 1)
+            #     eib_sites_ratio = round(ei_ol_stats.c_eib_sites / ei_ol_stats.c_input_sites, 3)
+
             ei_ol_stats = ei_ol_stats_dic[internal_id]
             exon_sites_perc = 0.0
+            exon_sites_ratio = 0.0
             if ei_ol_stats.c_exon_sites and ei_ol_stats.c_input_sites:
                 exon_sites_perc = round(ei_ol_stats.c_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
+                exon_sites_ratio = round(ei_ol_stats.c_exon_sites / ei_ol_stats.c_input_sites, 3)
             intron_sites_perc = 0.0
+            intron_sites_ratio = 0.0
             if ei_ol_stats.c_intron_sites and ei_ol_stats.c_input_sites:
                 intron_sites_perc = round(ei_ol_stats.c_intron_sites / ei_ol_stats.c_input_sites * 100, 1)
+                intron_sites_ratio = round(ei_ol_stats.c_intron_sites / ei_ol_stats.c_input_sites, 3)
             us_ib_sites_perc = 0.0
+            us_ib_sites_ratio = 0.0
             if ei_ol_stats.c_us_ib_sites and ei_ol_stats.c_input_sites:
                 us_ib_sites_perc = round(ei_ol_stats.c_us_ib_sites / ei_ol_stats.c_input_sites * 100, 1)
+                us_ib_sites_ratio = round(ei_ol_stats.c_us_ib_sites / ei_ol_stats.c_input_sites, 3)
             ds_ib_sites_perc = 0.0
+            ds_ib_sites_ratio = 0.0
             if ei_ol_stats.c_ds_ib_sites and ei_ol_stats.c_input_sites:
                 ds_ib_sites_perc = round(ei_ol_stats.c_ds_ib_sites / ei_ol_stats.c_input_sites * 100, 1)
+                ds_ib_sites_ratio = round(ei_ol_stats.c_ds_ib_sites / ei_ol_stats.c_input_sites, 3)
+            us_ib_dist_sites_perc = 0.0
+            us_ib_dist_sites_ratio = 0.0
+            if ei_ol_stats.c_us_ib_dist_sites and ei_ol_stats.c_input_sites:
+                us_ib_dist_sites_perc = round(ei_ol_stats.c_us_ib_dist_sites / ei_ol_stats.c_input_sites * 100, 1)
+                us_ib_dist_sites_ratio = round(ei_ol_stats.c_us_ib_dist_sites / ei_ol_stats.c_input_sites, 3)
+            ds_ib_dist_sites_perc = 0.0
+            ds_ib_dist_sites_ratio = 0.0
+            if ei_ol_stats.c_ds_ib_dist_sites and ei_ol_stats.c_input_sites:
+                ds_ib_dist_sites_perc = round(ei_ol_stats.c_ds_ib_dist_sites / ei_ol_stats.c_input_sites * 100, 1)
+                ds_ib_dist_sites_ratio = round(ei_ol_stats.c_ds_ib_dist_sites / ei_ol_stats.c_input_sites, 3)
+            first_exon_sites_perc = 0.0
+            first_exon_sites_ratio = 0.0
+            if ei_ol_stats.c_first_exon_sites and ei_ol_stats.c_input_sites:
+                first_exon_sites_perc = round(ei_ol_stats.c_first_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
+                first_exon_sites_ratio = round(ei_ol_stats.c_first_exon_sites / ei_ol_stats.c_input_sites, 3)
+            last_exon_sites_perc = 0.0
+            last_exon_sites_ratio = 0.0
+            if ei_ol_stats.c_last_exon_sites and ei_ol_stats.c_input_sites:
+                last_exon_sites_perc = round(ei_ol_stats.c_last_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
+                last_exon_sites_ratio = round(ei_ol_stats.c_last_exon_sites / ei_ol_stats.c_input_sites, 3)
+            single_exon_sites_perc = 0.0
+            single_exon_sites_ratio = 0.0
+            if ei_ol_stats.c_single_exon_sites and ei_ol_stats.c_input_sites:
+                single_exon_sites_perc = round(ei_ol_stats.c_single_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
+                single_exon_sites_ratio = round(ei_ol_stats.c_single_exon_sites / ei_ol_stats.c_input_sites, 3)
             eib_sites_perc = 0.0
+            eib_sites_ratio = 0.0
             if ei_ol_stats.c_eib_sites and ei_ol_stats.c_input_sites:
                 eib_sites_perc = round(ei_ol_stats.c_eib_sites / ei_ol_stats.c_input_sites * 100, 1)
-        
+                eib_sites_ratio = round(ei_ol_stats.c_eib_sites / ei_ol_stats.c_input_sites, 3)
+
+            id2eib_stats_dic[internal_id] = [combined_id, ei_ol_stats.c_input_sites, exon_sites_ratio, intron_sites_ratio, us_ib_sites_ratio, ds_ib_sites_ratio, us_ib_dist_sites_ratio, ds_ib_dist_sites_ratio, eib_sites_ratio, first_exon_sites_ratio, last_exon_sites_ratio, single_exon_sites_ratio]
+            id2eib_perc_dic[internal_id] = [exon_sites_perc, intron_sites_perc, us_ib_sites_perc, ds_ib_sites_perc, us_ib_dist_sites_perc, ds_ib_dist_sites_perc, eib_sites_perc, first_exon_sites_perc, last_exon_sites_perc, single_exon_sites_perc]
+
             mdtext += "<tr>\n"
             mdtext += "<td>%s</td>\n" %(combined_id)
             mdtext += "<td>%i</td>\n" %(ei_ol_stats.c_input_sites)
@@ -9683,7 +11045,12 @@ Considered intron border region length = %i nt. Considered exon-intron border re
             mdtext += "<td>%.1f</td>\n" %(intron_sites_perc)
             mdtext += "<td>%.1f</td>\n" %(us_ib_sites_perc)
             mdtext += "<td>%.1f</td>\n" %(ds_ib_sites_perc)
+            mdtext += "<td>%.1f</td>\n" %(us_ib_dist_sites_perc)
+            mdtext += "<td>%.1f</td>\n" %(ds_ib_dist_sites_perc)
             mdtext += "<td>%.1f</td>\n" %(eib_sites_perc)
+            mdtext += "<td>%.1f</td>\n" %(first_exon_sites_perc)
+            mdtext += "<td>%.1f</td>\n" %(last_exon_sites_perc)
+            mdtext += "<td>%.1f</td>\n" %(single_exon_sites_perc)
             mdtext += "</tr>\n"
 
         mdtext += "</tbody>\n"
@@ -9693,16 +11060,89 @@ Considered intron border region length = %i nt. Considered exon-intron border re
         mdtext += "\nColumn IDs have the following meanings: "
         mdtext += "**Dataset ID** -> Dataset ID for input dataset with following format: %s, " %(dataset_id_format)
         mdtext += '**# input regions** -> number of considered input regions from input dataset, '
-        mdtext += '**% exon regions** -> % of input regions overlapping with exon regions, '
-        mdtext += '**% intron regions** -> % of input regions overlapping with intron regions, '
-        mdtext += '**%% upstream intron border regions** -> %% of input regions overlapping with upstream ends of intron regions (first %i nt), ' %(ib_len)
-        mdtext += '**%% downstream intron border regions** -> %% of input regions overlapping with downstream ends of intron regions (last %i nt), ' %(ib_len)
-        mdtext += '**%% exon-intron border regions** -> %% of input regions overlapping with exon-intron borders (+/- %i nt of exon-intron borders). ' %(eib_len)
-        mdtext += "Note that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered. " %(2*ib_len, ib_len)
-        mdtext += "Also note that the overlap is calculated between (optionally extended) input regions and transcript regions (one representative transcript, i.e., transcript with highest experimental support, chosen for each gene region, unless --tr-list provided). "
-        mdtext += "Thus, depending on set parameters (minimum overlap amount etc.), occasional overlap of annotated gene regions, and characteristics of input dataset, exon/intron overlap can vary, doesn't have to add up to 100, and can also be relatively low.\n"
+        mdtext += '**% exon regions** -> % of input regions overlapping with exon regions (== exonic regions), '
+        mdtext += '**% intron regions** -> % of input regions overlapping with intron regions (== intronic regions), '
+        mdtext += '**%% us intron border** -> %% of intronic regions closer to intron upstream borders + within first %i nt of intron, ' %(ib_len)
+        mdtext += '**%% ds intron border** -> %% of intronic regions closer to intron downstream borders + within first %i nt of intron, ' %(ib_len)
+        mdtext += '**%% distant us intron** -> %% of intronic regions closer to intron upstream borders and > %i nt away from intron borders, ' %(ib_len)
+        mdtext += '**%% distant ds intron** -> %% of intronic regions closer to intron downstream borders and > %i nt away from intron borders, ' %(ib_len)
+        mdtext += '**%% exon-intron border** -> %% of input regions overlapping with exon-intron borders (+/- %i nt of exon-intron borders). ' %(eib_len)
+        mdtext += "**% first exon** -> % of input regions overlapping with transcript first exons, "
+        mdtext += '**% last exon** -> % of input regions overlapping with transcript last exons, '
+        mdtext += '**% single exon** -> % of input regions overlapping with single exon transcripts. '
+        mdtext += "**NOTE** that for upstream/downstream intron end overlaps, the input region is always assigned "
+        mdtext += "to the closest intron border (based on distance between input region center position and intron ends), "
+        mdtext += "independent of intron length (i.e., intron length can also be < %i nt)." %(ib_len)
         mdtext += "\n&nbsp;\n"
 
+        # id2eib_stats_dic[internal_id] = [combined_id, ei_ol_stats.c_input_sites, exon_sites_ratio, intron_sites_ratio, us_ib_sites_ratio, ds_ib_sites_ratio, eib_sites_ratio]
+
+        mdtext += """
+## Input datasets exon-intron overlap comparative plot ### {#ei-ol-plot}
+
+"""
+        if len(dataset_ids_list) > 3:
+
+            eib_comp_plot_plotly =  "eib_comparative_plot.plotly.html"
+            eib_comp_plot_plotly_out = plots_out_folder + "/" + eib_comp_plot_plotly
+
+            create_eib_comp_plot_plotly(id2eib_stats_dic, id2eib_perc_dic, 
+                                        eib_comp_plot_plotly_out,
+                                        plot_3d=False,
+                                        id2hk_gene_stats_dic=False,
+                                        include_plotlyjs=include_plotlyjs,
+                                        full_html=plotly_full_html)
+
+            plot_path = plots_folder + "/" + eib_comp_plot_plotly
+
+            if args.plotly_js_mode in [5, 6, 7]:
+                # Read in plotly code.
+                # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+                js_code = read_file_content_into_str_var(eib_comp_plot_plotly_out)
+                js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1200px;")
+                mdtext += js_code + "\n"
+                # mdtext += '</div>'
+            else:
+                if plotly_embed_style == 1:
+                    # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                    mdtext += "<div>\n"
+                    mdtext += '<iframe src="' + plot_path + '" width="1200" height="1000"></iframe>' + "\n"
+                    mdtext += '</div>'
+                elif plotly_embed_style == 2:
+                    mdtext += '<object data="' + plot_path + '" width="1200" height="1000"> </object>' + "\n"
+
+            mdtext += r"""
+
+**Figure:** Exon, intron + border region overlap statistics visualized as 2D PCA plot.
+The closer two datasets (i.e., the dots representing them), the more similar the datasets are w.r.t. their exon-intron overlap statistics.
+Hover box shows: 
+dataset ID (bold-faced, format: %s), 
+**Input regions** -> \# of dataset regions,
+**Exon** -> %% of input regions overlapping with exon regions (== exonic regions),
+**Intron** -> %% of input regions overlapping with intron regions (== intronic regions),
+**US intron border** -> %% of intronic regions closer to intron upstream borders + within first %i nt of intron,
+**DS intron border** -> %% of intronic regions closer to intron downstream borders + within first %i nt of intron,
+**US distant intron** -> %% of intronic regions closer to intron upstream borders and > %i nt away from intron borders,
+**DS distant intron** -> %% of intronic regions closer to intron downstream borders and > %i nt away from intron borders,
+**Exon-intron border** -> %% of input regions overlapping with exon-intron borders (+/- %i nt of exon-intron borders),
+**First exon** -> %% of input regions overlapping with transcript first exons,
+**Last exon** -> %% of input regions overlapping with transcript last exons,
+**Single exon** -> %% of input regions overlapping with single exon transcripts.
+**NOTE** that for upstream/downstream intron end overlaps, the input region is always assigned
+to the closest intron border (based on distance between input region center position and intron ends),
+independent of intron length (i.e., intron length can also be < %i nt).
+&nbsp;
+
+""" %(dataset_id_format, ib_len, ib_len, ib_len, ib_len, eib_len, ib_len)
+
+        else:
+            mdtext += """
+
+No plot generated since < 4 datasets were provided.
+
+&nbsp;
+
+"""
 
 
     """
@@ -9733,7 +11173,7 @@ RBPbench checks whether regions with RBP motif hits have significantly different
 %s
 In other words, a low test p-value for a given dataset indicates 
 that %s-scoring regions are more likely to contain RBP motif hits.
-NOTE that if scores associated to input genomic regions are all the same, p-values become meaningless 
+**NOTE** that if scores associated to input genomic regions are all the same, p-values become meaningless 
 (i.e., they result in p-values of 1.0).
 By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
 
@@ -9807,7 +11247,7 @@ RBPbench checks whether regions containing regex hits have significantly differe
 %s
 In other words, a low test p-value for a given dataset indicates 
 that %s-scoring regions are more likely to contain regex hits.
-NOTE that if scores associated to input genomic regions are all the same, p-values become meaningless 
+**NOTE** that if scores associated to input genomic regions are all the same, p-values become meaningless 
 (i.e., they result in p-values of 1.0).
 By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
 
@@ -9964,6 +11404,104 @@ D: NOT regex AND NOT RBP.
 """ %(dataset_id_format, perc_sign, args.max_motif_dist)
 
 
+    """
+    Input datasets nucleotide percentages table.
+
+    """
+
+    if seq_feat_ll:
+
+        comp_info = "Mono-nucleotide contents (A, C, G, T) are used to calculate sequence complexity (change via --seq-comp-k). Equal A,C,G,T contents result in a complexity value of 1.0, while, e.g., an AA content of 100.0% results in a complexity of 0.0."
+        if args.seq_comp_k == 2:
+            comp_info = "Di-nucleotide contents (AA, AC, ..., TG, TT) are used to calculate sequence complexity (change via --seq-comp-k). Equal AA,AC,... contents result in a complexity value of 1.0, while, e.g., an AA content of 100.0% results in a complexity of 0.0."
+
+        mdtext += """
+## Input datasets nucleotide percentages statistics ### {#nt-perc-stats}
+
+**Table:** Input datasets nucleotide percentages statistics for all input datasets.
+Percentages of mono- and di-nucleotide contents (AC, AG, AT, CG, CT, GT) are given, as well as mean sequence complexity (Shannon entropy).
+
+"""
+
+        # mdtext += '| Dataset ID  | contingency table | avg min distance | perc close hits |  p-value |' + " \n"
+        # mdtext += '| :-: | :-: | :-: | :-: | :-: |' + " \n"
+
+        mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>Dataset ID</th>\n"
+        mdtext += "<th>% A</th>\n"
+        mdtext += "<th>% C</th>\n"
+        mdtext += "<th>% G</th>\n"
+        mdtext += "<th>% T</th>\n"
+        mdtext += "<th>% AC</th>\n"
+        mdtext += "<th>% AG</th>\n"
+        mdtext += "<th>% AT</th>\n"
+        mdtext += "<th>% CG</th>\n"
+        mdtext += "<th>% CT</th>\n"
+        mdtext += "<th>% GT</th>\n"
+        mdtext += "<th>Mean complexity</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
+
+        for seq_feat_l in seq_feat_ll:
+            dataset_id = seq_feat_l[0]
+            seq_comp = str(seq_feat_l[1])
+            perc_a = str(seq_feat_l[2])
+            perc_c = str(seq_feat_l[3])
+            perc_g = str(seq_feat_l[4])
+            perc_t = str(seq_feat_l[5])
+            perc_ac = str(seq_feat_l[6])
+            perc_ag = str(seq_feat_l[7])
+            perc_at = str(seq_feat_l[8])
+            perc_cg = str(seq_feat_l[9])
+            perc_ct = str(seq_feat_l[10])
+            perc_gt = str(seq_feat_l[11])
+
+            mdtext += "<tr>\n"
+            mdtext += "<td>%s</td>\n" %(dataset_id)
+            mdtext += "<td>%s</td>\n" %(perc_a)
+            mdtext += "<td>%s</td>\n" %(perc_c)
+            mdtext += "<td>%s</td>\n" %(perc_g)
+            mdtext += "<td>%s</td>\n" %(perc_t)
+            mdtext += "<td>%s</td>\n" %(perc_ac)
+            mdtext += "<td>%s</td>\n" %(perc_ag)
+            mdtext += "<td>%s</td>\n" %(perc_at)
+            mdtext += "<td>%s</td>\n" %(perc_cg)
+            mdtext += "<td>%s</td>\n" %(perc_ct)
+            mdtext += "<td>%s</td>\n" %(perc_gt)
+            mdtext += "<td>%s</td>\n" %(seq_comp)
+            mdtext += "</tr>\n"
+
+        mdtext += "</tbody>\n"
+        mdtext += "</table>\n"
+        
+        mdtext += "\n&nbsp;\n&nbsp;\n"
+
+        perc_sign = "%"
+
+        mdtext += """
+
+Column IDs have the following meanings: 
+**Dataset ID** -> Dataset ID with following format: %s,
+**%% A** -> percentage of A nucleotides in input regions,
+**%% C** -> percentage of C nucleotides in input regions,
+**%% G** -> percentage of G nucleotides in input regions,
+**%% T** -> percentage of T nucleotides in input regions,
+**%% AC** -> AC content percentage in input regions,
+**%% AG** -> AG content percentage in input regions,
+**%% AT** -> AT content percentage in input regions,
+**%% CG** -> CG content percentage in input regions,
+**%% CT** -> CT content percentage in input regions,
+**%% GT** -> GT content percentage in input regions,
+**Mean complexity** -> Mean sequence complexity (Shannon entropy) of input regions. 
+%s
+
+&nbsp;
+
+""" %(dataset_id_format, comp_info)
+
 
     """
     Input datasets k-mer frequencies comparative plot.
@@ -9981,7 +11519,9 @@ D: NOT regex AND NOT RBP.
         kmer_comp_plot_plotly_out = plots_out_folder + "/" + kmer_comp_plot_plotly
 
         create_kmer_comp_plot_plotly(dataset_ids_list, kmer_list, kmer_freqs_ll, 
+                                     seq_len_stats_ll,
                                      kmer_comp_plot_plotly_out,
+                                     seq_feat_ll=seq_feat_ll,
                                      include_plotlyjs=include_plotlyjs,
                                      full_html=plotly_full_html)
 
@@ -9991,22 +11531,23 @@ D: NOT regex AND NOT RBP.
             # Read in plotly code.
             # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
             js_code = read_file_content_into_str_var(kmer_comp_plot_plotly_out)
-            js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1000px;")
+            js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1200px;")
             mdtext += js_code + "\n"
             # mdtext += '</div>'
         else:
             if plotly_embed_style == 1:
                 # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
                 mdtext += "<div>\n"
-                mdtext += '<iframe src="' + plot_path + '" width="1000" height="1000"></iframe>' + "\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1200" height="1000"></iframe>' + "\n"
                 mdtext += '</div>'
             elif plotly_embed_style == 2:
-                mdtext += '<object data="' + plot_path + '" width="1000" height="1000"> </object>' + "\n"
+                mdtext += '<object data="' + plot_path + '" width="1200" height="1000"> </object>' + "\n"
 
         mdtext += """
 
-**Figure:** Comparison of input datasets, using k-mer (k = %i) frequencies of input region sequences (3-dimensional PCA) as features, 
-to show similarities of input datasets based on their sequence k-mer frequencies (points close to each other have similar k-mer frequencies).
+**Figure:** Comparison of input datasets, using k-mer frequencies (k = %i, change via --kmer-size) of input region sequences 
+(3-dimensional PCA) as features, to show similarities of input datasets based on their sequence k-mer frequencies 
+(points close to each other have similar k-mer frequencies).
 Input dataset IDs (show via hovering over data points) have following format: %s.
 
 &nbsp;
@@ -10021,6 +11562,155 @@ No plot generated since < 4 datasets were provided.
 &nbsp;
 
 """
+
+    """
+    Input datasets sequence / k-mer variation comparative plot.
+
+    """
+
+    if seq_var_ll:
+
+        assert seq_var_kmer_l, "no k-mer list provided for sequence variation plot"
+
+        top_bottom_n = 10
+        remove_zero_val = True
+        color_mode = 1
+
+        mdtext += """
+## Input datasets k-mer variation comparative plot ### {#seq-var-plot}
+
+"""
+        if len(dataset_ids_list) > 3:
+
+            seq_var_plot_plotly =  "seq_variation_plot.plotly.html"
+            seq_var_plot_plotly_out = plots_out_folder + "/" + seq_var_plot_plotly
+
+            if args.seq_var_feat_mode == 1:
+
+                create_seq_var_plot_plotly_v2(seq_var_ll, seq_var_kmer_l,
+                                        seq_var_plot_plotly_out,
+                                        kmer_size=args.seq_var_kmer_size,
+                                        top_bottom_n=top_bottom_n,
+                                        color_mode=args.seq_var_color_mode,
+                                        remove_zero_val=remove_zero_val,
+                                        seq_len_stats_ll=seq_len_stats_ll,
+                                        include_plotlyjs=include_plotlyjs,
+                                        full_html=plotly_full_html)
+
+            elif args.seq_var_feat_mode == 2:
+
+                create_seq_var_plot_plotly(seq_var_ll, seq_var_kmer_l,
+                                        seq_var_plot_plotly_out,
+                                        kmer_size=args.seq_var_kmer_size,
+                                        top_bottom_n=top_bottom_n,
+                                        remove_zero_val=remove_zero_val,
+                                        include_plotlyjs=include_plotlyjs,
+                                        full_html=plotly_full_html)
+
+            else:
+                assert False, "invalid seq_var_feat_mode given"
+
+            plot_path = plots_folder + "/" + seq_var_plot_plotly
+
+            if args.plotly_js_mode in [5, 6, 7]:
+                js_code = read_file_content_into_str_var(seq_var_plot_plotly_out)
+                js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1200px;")
+                mdtext += js_code + "\n"
+            else:
+                if plotly_embed_style == 1:
+                    mdtext += "<div>\n"
+                    mdtext += '<iframe src="' + plot_path + '" width="1200" height="1000"></iframe>' + "\n"
+                    mdtext += '</div>'
+                elif plotly_embed_style == 2:
+                    mdtext += '<object data="' + plot_path + '" width="1200" height="1000"> </object>' + "\n"
+
+            if args.seq_var_feat_mode == 1:
+
+                color_info = (
+                    "Points are colored by the mean site percentage (change via --seq-var-color-mode), "
+                    "which is the average of the site percentages of all present k-mers in the dataset. "
+                    "A higher mean percentage for a dataset means that the present k-mers are more evenly distributed over the dataset sequences. "
+                    "This can stem from a larger sequence lengths, or in general a more diverse set of sequences, "
+                    "possibly reflecting RBP binding preferences."
+                )                
+
+                if args.seq_var_color_mode == 2:
+                    color_info = (
+                        "Points are colored by the percentage of present k-mers in the dataset (change via --seq-var-color-mode). "
+                        "A percentage of 100%% means that all k-mers are present, while lower percentages can occur e.g. if k-mer size is high, "
+                        "the number of dataset sequences is low, or if the sequences are less diverse (e.g. containing many repeat regions)."
+                    )
+
+                mdtext += r"""
+
+**Figure:** Sequence k-mer variations for each input dataset visualized as 2D PCA plot.
+For each k-mer, the percentage of sites containing the k-mer is used as feature (k = %i, change via --seq-var-kmer-size).
+The closer two datasets in the PCA plot (i.e., the dots representing them), the more similar their k-mer site percentage profiles.
+The hover box shows the k-mers ranked by site percentages (k-mers not present in any sites are not listed). It can be assumed 
+that k-mers with high site percentages contribute more to the RBP binding (possibly also as direct binding motifs), 
+while low percentage k-mers likely should also have low affinity to the RBP.
+%s
+Hover box content:
+Dataset ID (bold-faced, format: %s),
+sorted k-mer site percentages, 
+**Present k-mer %%** -> percentage of all possible k-mers present in the dataset.
+**Average k-mer %%** -> mean site percentage of all k-mers present in the dataset.
+**# regions** -> number of input regions (i.e., sequences) in dataset.
+**Median length** -> median length of input regions.
+**Mean length** -> mean length of input regions.
+**Min length** -> minimum input region length.
+**Max length** -> maximum input region length.
+
+&nbsp;
+
+""" %(args.seq_var_kmer_size, color_info, dataset_id_format)
+
+            elif args.seq_var_feat_mode == 2:
+
+                mdtext += r"""
+
+**Figure:** Sequence k-mer variations for each input dataset visualized as 2D PCA plot.
+For each dataset, the variation of each k-mer is calculated over all sequences (k = %i, change via --seq-var-kmer-size).
+The k-mer ratio is calculated for each sequence (number of times k-mer occurs / number of k-mers in sequence), 
+resulting in a list of ratios for each k-mer.
+The ratios are then used to calculate the standard deviation and mean for each k-mer.
+Based on these, the coefficient of variation (CV) is calculated for each k-mer, 
+which is defined as the standard deviation of ratios divided by the mean ratio.
+For every dataset, the list of single k-mer CVs is used as PCA input for dimension reduction.
+Thus, the closer two datasets in the PCA plot (i.e., the dots representing them), 
+the more similar the k-mer variations in their sequences.
+A CV of 0.0 for a given k-mer would mean that all dataset sequences have exactly the same ratio of the k-mer.
+A CV of > 1.0 for given k-mer means that the standard deviation is larger than the mean, 
+indicating a higher variation of the k-mer ratio in the sequences (although larger CVs are expected for larger k-mer sizes).
+The lower a k-mer CV in a dataset, the more even its k-mer ratio over the dataset sequences.
+In general, we can assume that k-mers with high CVs are less important for the RBP binding, since
+they do not occur evenly over the dataset. In contrast, k-mers with low CVs are more 
+evenly distributed over the dataset sequences, and thus should be more important for RBP binding 
+(assuming a sufficient dataset quality + an affinity of the RBP towards specific k-mer sequences). 
+The average CV (mean over all single k-mer CVs) is used for coloring.
+**Hover box content:**
+dataset ID (bold-faced, format: %s),
+single k-mer CVs -> single k-mer CVs sorted by ascending CV (for k-mer sizes > 2 only top and bottom %i CVs are shown),
+Average CV -> average CV ratio of the dataset.
+
+&nbsp;
+
+""" %(args.seq_var_kmer_size, dataset_id_format, top_bottom_n)
+
+
+        else:
+            mdtext += """
+
+No plot generated since < 4 datasets were provided.
+
+&nbsp;
+
+"""
+
+
+
+
+
 
 
 
@@ -10050,6 +11740,7 @@ No plot generated since < 4 datasets were provided.
             create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
                                            occ_comp_plot_plotly_out,
                                            sparse_pca=False,
+                                           id2hk_gene_stats_dic=id2hk_gene_stats_dic,
                                            add_motif_db_info=add_motif_db_info,
                                            include_plotlyjs=include_plotlyjs,
                                            full_html=plotly_full_html)
@@ -10797,6 +12488,170 @@ def filter_rbp2regidx_dic(rbp2regidx_dic,
 
 ################################################################################
 
+def create_seq_var_violin_plot_plotly(kmer2stats_dic, single_cv_dic, avg_cv, plot_out, 
+                                      kmer_size=3,
+                                      remove_zero_val=True,
+                                      color_mode=1,
+                                      include_plotlyjs="cdn",
+                                      full_html=False):
+    """
+    Create sequence k-mer variation violin plot.
+
+    color_mode:
+        If 1, color by score correlation.
+        If 2, color by k-mer percentage.
+
+
+    """
+    assert kmer2stats_dic, "kmer2stats_dic empty"
+    assert single_cv_dic, "single_cv_dic empty"
+
+    kmer_list = []
+    for kmer in sorted(single_cv_dic):
+        if remove_zero_val and single_cv_dic[kmer] == 0:
+            continue
+        kmer_list.append(kmer)
+ 
+    # in_df = pd.DataFrame({
+    #     'k-mer': kmer_list,
+    #     'k-mer CV': [round(single_cv_dic[kmer], 5) for kmer in kmer_list],
+    #     'k-mer count': [kmer2stats_dic[kmer][0] for kmer in kmer_list],
+    #     'k-mer percentage': [round(kmer2stats_dic[kmer][1] * 100, 5) for kmer in kmer_list],
+    #     'Site percentage' : [round(kmer2stats_dic[kmer][2] * 100, 3) for kmer in kmer_list],
+    #     'Score correlation' : [kmer2stats_dic[kmer][3] for kmer in kmer_list]
+    # })
+
+    # fig = px.violin(
+    #     in_df, 
+    #     y='k-mer CV', 
+    #     box=True, 
+    #     points='all', 
+    #     color='Score correlation', 
+    # )
+    # fig.update_traces(
+    #     customdata=in_df[['k-mer', 'k-mer CV', 'k-mer count', 'k-mer percentage', 'Site percentage', 'Score correlation']].values,
+    #     hovertemplate=(
+    #         # '<span style="font-family: \'Courier New\', monospace;">>%{customdata[0]}</span><br>'
+    #         # '<span style="font-family: \'Courier New\', monospace;">%{customdata[1]}</span><br>'
+    #         # '<b>%{customdata[0]}</b><br>'
+    #         '<span style="font-family: \'Courier New\', monospace;">'
+    #         'k-mer:       <b>%{customdata[0]}</b><br>'
+    #         'Variation:    %{customdata[1]}<br>'
+    #         'k-mer #:     %{customdata[2]}<br>'
+    #         'k-mer %:     %{customdata[3]}<br>'
+    #         'Site %:      %{customdata[4]}<br>'
+    #         'Correlation: %{customdata[5]}<br>'
+    #         '</span><extra></extra>'
+    #     ),
+    #     line_color='#2b7bba',  # Set the color of the line
+    #     fillcolor='rgba(43, 123, 186, 0.5)',  # Set the color of the filled area with transparency
+    #     marker=dict(color='#2b7bba')  # Set the color of the points
+    # )
+    # fig.update_layout(xaxis_title='Density', yaxis_title='k-mer variation', violinmode='overlay')
+
+    color_scale = ['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+    hover_data = ['k-mer', 'k-mer CV', 'k-mer count', 'k-mer %', 'Site %', 'Correlation']
+    color = 'Correlation'
+    if color_mode == 2:
+        color = 'k-mer %'
+
+    # Create DataFrame
+    in_df = pd.DataFrame({
+        'k-mer': kmer_list,
+        'k-mer CV': [round(single_cv_dic[kmer], 5) for kmer in kmer_list],
+        'k-mer count': [kmer2stats_dic[kmer][0] for kmer in kmer_list],
+        'k-mer %': [round(kmer2stats_dic[kmer][1] * 100, 5) for kmer in kmer_list],
+        'Site %': [round(kmer2stats_dic[kmer][2] * 100, 3) for kmer in kmer_list],
+        'Correlation': [kmer2stats_dic[kmer][3] for kmer in kmer_list]
+    })
+
+    # Create the scatter plot
+    fig = px.scatter(
+        in_df,
+        x='k-mer CV',
+        y='Site %',
+        color=color,
+        color_continuous_scale=color_scale,  # Set a color scale
+        # hover_data=hover_data
+    )
+
+    fig.update_traces(
+        customdata=in_df[hover_data].values,
+        hovertemplate=(
+            # '<span style="font-family: \'Courier New\', monospace;">>%{customdata[0]}</span><br>'
+            # '<span style="font-family: \'Courier New\', monospace;">%{customdata[1]}</span><br>'
+            # '<b>%{customdata[0]}</b><br>'
+            '<span style="font-family: \'Courier New\', monospace;">'
+            'k-mer:       <b>%{customdata[0]}</b><br>'
+            'Variation:   %{customdata[1]}<br>'
+            'k-mer #:     %{customdata[2]}<br>'
+            'k-mer %:     %{customdata[3]}<br>'
+            'Site %:      %{customdata[4]}<br>'
+            'Correlation: %{customdata[5]}<br>'
+            '</span><extra></extra>'
+        ),
+        # line_color='#2b7bba',  # Set the color of the line
+        # fillcolor='rgba(43, 123, 186, 0.5)',  # Set the color of the filled area with transparency
+        # marker=dict(color='#2b7bba')  # Set the color of the points
+    )
+
+    # fig.update_traces(
+    #     hovertemplate=(
+    #         '<span style="font-family: \'Courier New\', monospace;">'
+    #         'k-mer:       <b>%{customdata[0]}</b><br>'
+    #         'Variation:    %{customdata[1]}<br>'
+    #         'k-mer #:     %{customdata[2]}<br>'
+    #         'k-mer %:     %{customdata[3]}<br>'
+    #         'Site %:      %{customdata[4]}<br>'
+    #         'Correlation: %{customdata[5]}<br>'
+    #         '</span><extra></extra>'
+    #     )
+    # )
+
+
+    #     fig = px.scatter(
+    #         df,
+    #         x='PC1',
+    #         y='PC2',
+    #         color='Annotation',
+    #         color_discrete_map=annot2color_dic,
+    #         labels={
+    #             'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+    #             'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
+    #         },
+    #         # hover_name='Region ID',
+    #         hover_data=hover_data
+    #     )
+
+
+    # fig.update_traces(
+    #     hovertemplate=(
+    #         '<span style="font-family: \'Courier New\', monospace;">'
+    #         'k-mer:       <b>%{customdata[0]}</b><br>'
+    #         'Variation:    %{customdata[1]}<br>'
+    #         'k-mer #:     %{customdata[2]}<br>'
+    #         'k-mer %:     %{customdata[3]}<br>'
+    #         'Site %:      %{customdata[4]}<br>'
+    #         'Correlation: %{customdata[5]}<br>'
+    #         '</span><extra></extra>'
+    #     )
+    # )
+
+    # Adding '<extra></extra>' removes si
+    # Update layout for titles and axis labels
+    fig.update_layout(
+        xaxis_title="k-mer variation",
+        yaxis_title="Site %"
+        # coloraxis_colorbar=dict(title="Score Correlation")  # Add color bar title
+    )
+
+    fig.write_html(plot_out,
+                   full_html=full_html,
+                   include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
 def create_len_distr_violin_plot_plotly(in_df, plot_out,
                                         include_plotlyjs="cdn",
                                         full_html=False):
@@ -10829,7 +12684,22 @@ def create_len_distr_violin_plot_plotly(in_df, plot_out,
 
     fig = px.violin(in_df, y='Sequence Length', box=True, points='all')
     # Set customdata and hovertemplate
-    fig.update_traces(customdata=in_df[['Sequence ID', 'Sequence', 'Motif hits']].values, hovertemplate='>%{customdata[0]}<br>%{customdata[1]}<br>Sequence Length: %{y}<br>Motif hits:<br>%{customdata[2]}')
+    # fig.update_traces(customdata=in_df[['Sequence ID', 'Sequence', 'Motif hits']].values, hovertemplate='>%{customdata[0]}<br>%{customdata[1]}<br>Sequence Length: %{y}<br>Motif hits:<br>%{customdata[2]}')
+    fig.update_traces(
+        customdata=in_df[['Sequence ID', 'Sequence', 'Motif hits']].values,
+        hovertemplate=(
+            '<span style="font-family: \'Courier New\', monospace;">>%{customdata[0]}</span><br>'
+            '<span style="font-family: \'Courier New\', monospace;">%{customdata[1]}</span><br>'
+            # '>%{customdata[0]}<br>'
+            # '%{customdata[1]}<br>'
+            'Sequence Length: %{y}<br>'
+            'Motif hits:<br>'
+            '%{customdata[2]}'
+        ),
+        line_color='#2b7bba',  # Set the color of the line
+        fillcolor='rgba(43, 123, 186, 0.5)',  # Set the color of the filled area with transparency
+        marker=dict(color='#2b7bba')  # Set the color of the points
+    )
     fig.update_layout(xaxis_title='Density', yaxis_title='Sequence Length', violinmode='overlay')
     fig.write_html(plot_out,
                    full_html=full_html,
@@ -11011,10 +12881,6 @@ def enmo_generate_html_report(args,
     # if args.regex:
     #     regex_motif_info = "Used regex motif: '%s'." %(args.regex)
 
-    report_header_info = "Motif enrichment report"
-    if args.report_header:
-        report_header_info = "RBPBench motif enrichment report"
-
     """
     Setup plotly .js to support plotly plots.
 
@@ -11064,6 +12930,13 @@ def enmo_generate_html_report(args,
         js_code = read_file_content_into_str_var(sorttable_js_path)
         sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
 
+    # Logo path.
+    logo_path_html = plots_folder + "/logo.png"
+    if not os.path.exists(logo_path_html):
+        logo_path = benchlib_path + "/content/logo.png"
+        assert os.path.exists(logo_path), "logo.png not found in %s" %(logo_path)
+        shutil.copy(logo_path, plots_out_folder)
+
     # HTML head section.
     html_head = """<!DOCTYPE html>
 <html>
@@ -11083,11 +12956,24 @@ def enmo_generate_html_report(args,
     .page {
         page-break-after: always;
     }
+    .title-container {
+        display: flex;
+        align-items: center;
+    }
+    .title-container img {
+        margin-right: 10px; /* Adjust the spacing as needed */
+    }
 </style>
 
 </head>
+
+<div class="title-container">
+    <img src="%s" alt="Logo" width="175">
+    <h1>Motif Enrichment Report</h1>
+</div>
+
 <body>
-""" %(plotly_js_html)
+""" %(plotly_js_html, logo_path_html)
 
     # HTML tail section.
     html_tail = """
@@ -11099,14 +12985,12 @@ def enmo_generate_html_report(args,
     # Markdown part.
     mdtext = """
 
-# %s
-
 List of available statistics and plots generated
 by RBPBench (rbpbench %s):
 
 - [Motif enrichment statistics](#enmo-stats)
 - [Motif co-occurrences heat map](#cooc-heat-map)
-- [Sequence motif similarity vs significance PCA plot](#motif-sim-sig-plot)""" %(report_header_info, rbpbench_mode)
+- [Sequence motif similarity vs significance PCA plot](#motif-sim-sig-plot)""" %(rbpbench_mode)
 
     mdtext += "\n"
 
@@ -11759,10 +13643,6 @@ def nemo_generate_html_report(args,
     # if args.regex:
     #     regex_motif_info = "Used regex motif: '%s'." %(args.regex)
 
-    report_header_info = "Neighboring motif enrichment report"
-    if args.report_header:
-        report_header_info = "RBPBench neighboring motif enrichment report"
-
     """
     Setup plotly .js to support plotly plots.
 
@@ -11812,6 +13692,13 @@ def nemo_generate_html_report(args,
         js_code = read_file_content_into_str_var(sorttable_js_path)
         sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
 
+    # Logo path.
+    logo_path_html = plots_folder + "/logo.png"
+    if not os.path.exists(logo_path_html):
+        logo_path = benchlib_path + "/content/logo.png"
+        assert os.path.exists(logo_path), "logo.png not found in %s" %(logo_path)
+        shutil.copy(logo_path, plots_out_folder)
+
     # HTML head section.
     html_head = """<!DOCTYPE html>
 <html>
@@ -11831,11 +13718,24 @@ def nemo_generate_html_report(args,
     .page {
         page-break-after: always;
     }
+    .title-container {
+        display: flex;
+        align-items: center;
+    }
+    .title-container img {
+        margin-right: 10px; /* Adjust the spacing as needed */
+    }
 </style>
 
 </head>
+
+<div class="title-container">
+    <img src="%s" alt="Logo" width="175">
+    <h1>Neighboring Motif Enrichment Report</h1>
+</div>
+
 <body>
-""" %(plotly_js_html)
+""" %(plotly_js_html, logo_path_html)
 
     # HTML tail section.
     html_tail = """
@@ -11847,15 +13747,13 @@ def nemo_generate_html_report(args,
     # Markdown part.
     mdtext = """
 
-# %s
-
 List of available statistics and plots generated
 by RBPBench (rbpbench %s):
 
 - [Neighboring motif enrichment statistics](#nemo-stats)
 - [Motif co-occurrences heat map](#cooc-heat-map)
 - [Sequence motif similarity vs significance PCA plot](#motif-sim-sig-plot)
-- [Sequence motif similarity vs direction PCA plot](#motif-sim-dir-plot)""" %(report_header_info, rbpbench_mode)
+- [Sequence motif similarity vs direction PCA plot](#motif-sim-dir-plot)""" %(rbpbench_mode)
 
     mdtext += "\n"
 
@@ -12739,7 +14637,9 @@ def create_kmer_sc_plotly_scatter_plot(pos_mer_dic, neg_mer_dic, k,
     #                   color_discrete_sequence=[dot_col])
     # plot.layout.template = 'seaborn'
 
-    plot = px.scatter(data_frame=df, x=pos_label, y=neg_label, hover_name=kmer_label)
+    dot_col = "#2b7bba"
+
+    plot = px.scatter(data_frame=df, x=pos_label, y=neg_label, hover_name=kmer_label, color_discrete_sequence=[dot_col])
 
     plot.update_layout(yaxis_range=[min_perc, max_perc])
     plot.update_layout(xaxis_range=[min_perc, max_perc])
@@ -12933,6 +14833,25 @@ def calc_exp_kmer_perc(kmer_k):
 
 ################################################################################
 
+def min_max_scale(values, new_min=0, new_max=1):
+    # Find the minimum and maximum of the input values
+    min_val = min(values)
+    max_val = max(values)
+
+    # Handle edge case where all values are the same
+    if min_val == max_val:
+        return [new_min for _ in values]
+
+    # Apply min-max scaling
+    scaled_values = [
+        new_min + (val - min_val) * (new_max - new_min) / (max_val - min_val)
+        for val in values
+    ]
+    return scaled_values
+
+
+################################################################################
+
 def search_generate_html_report(args,
                                 df_pval, pval_cont_lll,
                                 search_rbps_dic,
@@ -12955,6 +14874,7 @@ def search_generate_html_report(args,
                                 plotly_full_html=False,
                                 rbpbench_mode="search --report",
                                 disable_motif_enrich_table=False,
+                                disable_top_kmers_plot=False,
                                 reg_seq_str="regions",
                                 reg2seq_dic=False,
                                 reg2sc_dic=False,
@@ -13004,10 +14924,6 @@ def search_generate_html_report(args,
     regex_motif_info = ""
     if args.regex:
         regex_motif_info = "Used regex motif: '%s'." %(name2ids_dic[args.regex_id][0])
-
-    report_header_info = "Search report"
-    if args.report_header:
-        report_header_info = "RBPBench search report"
 
     # Number of input regions.
     c_in_regions = 0
@@ -13069,6 +14985,13 @@ def search_generate_html_report(args,
         include_plotlyjs = False
         # plotly_full_html = True
 
+    # Logo path.
+    logo_path_html = plots_folder + "/logo.png"
+    if not os.path.exists(logo_path_html):
+        logo_path = benchlib_path + "/content/logo.png"
+        assert os.path.exists(logo_path), "logo.png not found in %s" %(logo_path)
+        shutil.copy(logo_path, plots_out_folder)
+
     # HTML head section.
     html_head = """<!DOCTYPE html>
 <html>
@@ -13088,43 +15011,64 @@ def search_generate_html_report(args,
     .page {
         page-break-after: always;
     }
+
+    .title-container {
+        display: flex;
+        align-items: center;
+    }
+    .title-container img {
+        margin-right: 10px; /* Adjust the spacing as needed */
+    }
+
 </style>
 
 </head>
+
+<div class="title-container">
+    <img src="%s" alt="Logo" width="175">
+    <h1>Search Report</h1>
+</div>
+
+
 <body>
-""" %(plotly_js_html)
+""" %(plotly_js_html, logo_path_html)
+
 
     # HTML tail section.
     html_tail = """
 %s
 </body>
+
+
 </html>
 """ %(sorttable_js_html)
 
     motif_enrich_info = "- [RBP region score motif enrichment statistics](#rbp-enrich-stats)"
     if disable_motif_enrich_table:
         motif_enrich_info = ""
-    if motif_enrich_info and args.kmer_plot:
-        motif_enrich_info += "\n- [Top vs bottom scoring regions k-mer distribution](#kmer-dist)"
-    elif not motif_enrich_info and args.kmer_plot:
-        motif_enrich_info = "- [Top vs bottom scoring regions k-mer distribution](#kmer-dist)"
 
     # Markdown part.
     mdtext = """
-
-# %s
 
 List of available statistics and plots generated
 by RBPBench (rbpbench %s):
 
 %s
-- [RBP motif co-occurrences heat map](#cooc-heat-map)""" %(report_header_info, rbpbench_mode, motif_enrich_info)
+- [RBP motif co-occurrences heat map](#cooc-heat-map)""" %(rbpbench_mode, motif_enrich_info)
 
     mdtext += "\n"
 
     # Additional plot if GTF annotations given.
     if seq_len_df is not None:
         mdtext += "- [Input sequence length distribution](#seq-len-plot)\n"
+    if not disable_top_kmers_plot:
+        mdtext += "- [Input sequences top k-mers plot](#seqs-top-kmer-plot)\n"
+    if not args.disable_kmer_tb_plot:
+        mdtext += "- [Top vs bottom scoring regions k-mer distribution](#kmer-dist)\n"
+    if reg2seq_dic and not args.disable_kmer_var_plot:
+        mdtext += "- [Input sequences k-mer variation plot](#seq-var-plot)\n"
+    if not args.disable_kmer_pca_plot:
+        mdtext += "- [Input sequences by k-mer content plot](#input-seqs-kmer)\n"
 
     # Additional plot if GTF annotations given.
     if reg2annot_dic:
@@ -13135,6 +15079,9 @@ by RBPBench (rbpbench %s):
 
     if ei_ol_stats_dic:
         mdtext += "- [Exon-intron overlap statistics](#ei-ol-stats)\n"
+
+    if reg2annot_dic:
+        mdtext += "- [Intronic regions intron border distances](#intron-border-dist)\n"
 
     # Upset plot.
     # mdtext += "\n"
@@ -13188,7 +15135,7 @@ RBPbench checks whether motif-containing regions have significantly different sc
 %s
 In other words, a low test p-value for a given RBP indicates 
 that %s-scoring regions are more likely to contain motif hits of the respective RBP.
-NOTE that if scores associated to input genomic regions are all the same, p-values become meaningless 
+**NOTE** that if scores associated to input genomic regions are all the same, p-values become meaningless 
 (i.e., they result in p-values of 1.0).
 By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
 %s
@@ -13255,95 +15202,6 @@ By default, BED genomic regions input file column 5 is used as the score column 
         mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
         mdtext += "\n&nbsp;\n"
 
-    """
-    Top vs bottom scoring regions k-mer distribution
-    #kmer-dist
-
-    reg2sc_dic:
-        region ID -> score dictionary.
-
-    """
-    if args.kmer_plot:
-
-        top_seqs_dic = {}
-        bottom_seqs_dic = {}
-
-        rev_sort = True  # True if scores (i.e. the higher the better site quality).
-        if args.bed_sc_thr_rev_filter:  # If scores are e.g. p-values, reverse filtering.
-            rev_sort = False
-
-        top_ids, bottom_ids = split_regions_by_sc(reg2sc_dic, 
-                                                  top_n=args.kmer_plot_top_n, 
-                                                  bottom_n=args.kmer_plot_bottom_n,
-                                                  rev_sort=rev_sort)
-
-        c_top_sites = len(top_ids)
-        c_bottom_sites = len(bottom_ids)
-
-        for reg_id in top_ids:
-            top_seqs_dic[reg_id] = reg2seq_dic[reg_id]
-        for reg_id in bottom_ids:
-            bottom_seqs_dic[reg_id] = reg2seq_dic[reg_id]
-
-        top_kmer_dic = seqs_dic_count_kmer_freqs(top_seqs_dic, args.kmer_plot_k, 
-                                                 rna=False,
-                                                 return_ratios=True,
-                                                 perc=True,
-                                                 report_key_error=False,
-                                                 skip_non_dic_keys=True,
-                                                 convert_to_uc=True)
-        bottom_kmer_dic = seqs_dic_count_kmer_freqs(bottom_seqs_dic, args.kmer_plot_k, 
-                                                    rna=False,
-                                                    return_ratios=True,
-                                                    perc=True,
-                                                    report_key_error=False,
-                                                    skip_non_dic_keys=True,
-                                                    convert_to_uc=True)
-
-
-
-        mdtext += """
-## Top vs bottom scoring regions k-mer distribution ### {#kmer-dist}
-
-"""
-
-        plotly_kmer_plot = "plotly_scatter_kmer.html"
-        plotly_kmer_plot_out = plots_out_folder + "/" + plotly_kmer_plot
-
-        # Create k-mer plotly scatter plot.
-        create_kmer_sc_plotly_scatter_plot(top_kmer_dic, bottom_kmer_dic, args.kmer_plot_k,
-                                           plotly_kmer_plot_out, plotly_js_path,
-                                           pos_label=f"{args.kmer_plot_k}-mer % top scoring sites",
-                                           neg_label=f"{args.kmer_plot_k}-mer % bottom scoring sites",
-                                           kmer_label=f"{args.kmer_plot_k}-mer")
-
-        # Plot paths inside html report.
-        plotly_kmer_plot_path = plots_folder + "/" + plotly_kmer_plot
-
-        # R2 score.
-        r2_kmer = calc_r2_corr_measure(top_kmer_dic, bottom_kmer_dic,
-                                       is_dic=True)
-
-        # Expected k-mer percentage.
-        exp_kmer_perc = calc_exp_kmer_perc(args.kmer_plot_k)
-
-        if args.plotly_js_mode in [5, 6, 7]:
-            js_code = read_file_content_into_str_var(plotly_kmer_plot_out)
-            js_code = js_code.replace("height:100%; width:100%;", "height:800px; width:800px;")
-            mdtext += js_code + "\n"
-        else:
-            mdtext += "<div>\n"
-            mdtext += '<iframe src="' + plotly_kmer_plot_path + '" width="800" height="800"></iframe>' + "\n"
-            mdtext += '</div>'
-
-        mdtext += """
-
-**Figure:** Sequence %i-mer percentages in the top %i scoring and bottom %i scoring input sites. In case of
-a uniform distribution with all %i-mers present, each %i-mer would have a percentage = %s. R2 = %.6f.
-
-&nbsp;
-
-""" %(args.kmer_plot_k, c_top_sites, c_bottom_sites, args.kmer_plot_k, args.kmer_plot_k, str(exp_kmer_perc), r2_kmer)
 
 
     """
@@ -13481,7 +15339,7 @@ for easier distinction between significant and non-significant co-occurrences.
         mdtext += """
 
 **Figure:** Input sequence lengths (after filtering and optional extension) violin plot.
-Hover box over data points shows sequence ID, sequence (60 nt per line), sequence length, and motif hits. 
+Hover box over data points shows sequence ID, sequence (50 nt per line), sequence length, and motif hits. 
 Motif hit format: motif ID, motif start - motif end.
 Violin plot shows density distribution of sequence lengths, including min, max, median, 
 and length quartiles (q1: 25th percentile, q3: 75th percentile).
@@ -13489,8 +15347,382 @@ and length quartiles (q1: 25th percentile, q3: 75th percentile).
 &nbsp;
 
 """
-    # Hover box over data points shows sequence ID, sequence, sequence length, and motif hits. 
-    # Motif hit format: motif ID, motif start - motif end, p-value (for sequence motifs) or bit score (structure models).
+
+    if not disable_top_kmers_plot:
+
+        assert reg2seq_dic, "No region sequences supplied to report function"
+
+        mdtext += """
+## Input sequences top k-mers plot ### {#seqs-top-kmer-plot}
+
+"""
+
+        plot_k = args.kmer_plot_k
+
+        seqs_kmer_dic = seqs_dic_count_kmer_freqs(reg2seq_dic, 5, 
+                                                  rna=False,
+                                                  return_ratios=True,
+                                                  perc=True,
+                                                  report_key_error=False,
+                                                  skip_non_dic_keys=True,
+                                                  convert_to_uc=True)
+
+        n_top_kmers = 20
+
+        top_kmers_list = []
+        top_kmer_perc_list = []
+
+        for kmer, perc in sorted(seqs_kmer_dic.items(), key=lambda x: x[1], reverse=True)[:n_top_kmers]:
+            top_kmers_list.append(kmer)
+            top_kmer_perc_list.append(perc)
+
+        # Average percentage in seqs_kmer_dic.
+        avg_perc = sum(seqs_kmer_dic.values()) / len(seqs_kmer_dic)
+
+        fig, ax = plt.subplots(figsize=(11, 3.5))
+
+        ax.bar(top_kmers_list, top_kmer_perc_list, color='#e5ecf6', zorder=2)  # #e5ecf6 lightgray
+
+        ax.set_ylabel(str(plot_k) + "-mer %")
+
+        # Expected k-mer percentage.
+        exp_kmer_perc = calc_exp_kmer_perc(args.kmer_plot_k)
+
+        # Add horizontal line for expected uniform percentage.
+        ax.axhline(y=exp_kmer_perc, color='red', linestyle='--', linewidth=1, label=f'Expected uniform % ({exp_kmer_perc:.2f}%)')
+
+        # ax.set_yticks(range(0, 101, 10))
+
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+
+        ax.grid(axis='y', color='#e5ecf6', linestyle='-', alpha=0.7, linewidth=0.7, zorder=1)
+
+        plt.xticks(rotation=-45, ha='center')
+
+        plt.subplots_adjust(left=0.06, right=0.99, top=0.95, bottom=0.20)
+        # plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.25)
+
+        top_kmers_plot = "seqs_top_kmers.bar_plot.png"
+        top_kmers_plot_out = plots_out_folder + "/" + top_kmers_plot
+        plot_path = plots_folder + "/" + top_kmers_plot
+
+        plt.savefig(top_kmers_plot_out, dpi=140)
+
+        if args.plot_pdf and top_kmers_plot_out.endswith('.png'):
+            pdf_out = top_kmers_plot_out[:-4] + '.pdf'
+            plt.savefig(pdf_out, dpi=140)
+
+        plt.close()
+        mdtext += '<image src = "' + plot_path + '" width="1100px"></image>'  + "\n"
+
+        mdtext += """
+**Figure:** Top %i %i-mers encountered in input sequences. 
+In case of a uniform distribution with all %i-mers present, each %i-mer would have a percentage of %s%% (marked by red line).
+
+&nbsp;
+
+""" %(n_top_kmers, plot_k, plot_k, plot_k, exp_kmer_perc)
+
+
+    """
+    Top vs bottom scoring regions k-mer distribution.
+
+    reg2sc_dic:
+        region ID -> score dictionary.
+
+    """
+    if not args.disable_kmer_tb_plot:
+
+        assert reg2sc_dic, "No region scores supplied (reg2sc_dic missing) for plotting top vs bottom scoring regions k-mer plot"
+
+        top_seqs_dic = {}
+        bottom_seqs_dic = {}
+
+        rev_sort = True  # True if scores (i.e. the higher the better site quality).
+        if args.bed_sc_thr_rev_filter:  # If scores are e.g. p-values, reverse filtering.
+            rev_sort = False
+
+        top_ids, bottom_ids = split_regions_by_sc(reg2sc_dic, 
+                                                  top_n=args.kmer_tb_plot_top_n, 
+                                                  bottom_n=args.kmer_tb_plot_bottom_n,
+                                                  rev_sort=rev_sort)
+
+        c_top_sites = len(top_ids)
+        c_bottom_sites = len(bottom_ids)
+
+        for reg_id in top_ids:
+            top_seqs_dic[reg_id] = reg2seq_dic[reg_id]
+        for reg_id in bottom_ids:
+            bottom_seqs_dic[reg_id] = reg2seq_dic[reg_id]
+
+        top_kmer_dic = seqs_dic_count_kmer_freqs(top_seqs_dic, args.kmer_plot_k, 
+                                                 rna=False,
+                                                 return_ratios=True,
+                                                 perc=True,
+                                                 report_key_error=False,
+                                                 skip_non_dic_keys=True,
+                                                 convert_to_uc=True)
+        bottom_kmer_dic = seqs_dic_count_kmer_freqs(bottom_seqs_dic, args.kmer_plot_k, 
+                                                    rna=False,
+                                                    return_ratios=True,
+                                                    perc=True,
+                                                    report_key_error=False,
+                                                    skip_non_dic_keys=True,
+                                                    convert_to_uc=True)
+
+
+        mdtext += """
+## Top vs bottom scoring regions k-mer distribution ### {#kmer-dist}
+
+"""
+
+        plotly_kmer_plot = "plotly_scatter_kmer.html"
+        plotly_kmer_plot_out = plots_out_folder + "/" + plotly_kmer_plot
+
+        # Create k-mer plotly scatter plot.
+        create_kmer_sc_plotly_scatter_plot(top_kmer_dic, bottom_kmer_dic, args.kmer_plot_k,
+                                           plotly_kmer_plot_out, plotly_js_path,
+                                           pos_label=f"{args.kmer_plot_k}-mer % top scoring sites",
+                                           neg_label=f"{args.kmer_plot_k}-mer % bottom scoring sites",
+                                           kmer_label=f"{args.kmer_plot_k}-mer")
+
+        # Plot paths inside html report.
+        plotly_kmer_plot_path = plots_folder + "/" + plotly_kmer_plot
+
+        # R2 score.
+        r2_kmer = calc_r2_corr_measure(top_kmer_dic, bottom_kmer_dic,
+                                       is_dic=True)
+
+        # Expected k-mer percentage.
+        exp_kmer_perc = calc_exp_kmer_perc(args.kmer_plot_k)
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            js_code = read_file_content_into_str_var(plotly_kmer_plot_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:800px; width:800px;")
+            mdtext += js_code + "\n"
+        else:
+            mdtext += "<div>\n"
+            mdtext += '<iframe src="' + plotly_kmer_plot_path + '" width="800" height="800"></iframe>' + "\n"
+            mdtext += '</div>'
+
+        mdtext += """
+
+**Figure:** Sequence %i-mer percentages in the top %i scoring and bottom %i scoring input sites. In case of
+a uniform distribution with all %i-mers present, each %i-mer would have a percentage of %s%%. R2 = %.6f.
+By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
+**NOTE** that this plot is only meaningful if the provided scores are related to binding site quality / binding affinity.
+In this case, the plot can hint at RBP binding preferences (corresponding to enriched k-mers in the top input sites). 
+Plot can be further modified by specifying top and bottom n scoring regions (--kmer-tb-plot-top-n, --kmer-tb-plot-bottom-n, 
+by default top and bottom are split in half), or change k (--kmer-plot-k).
+
+&nbsp;
+
+""" %(args.kmer_plot_k, c_top_sites, c_bottom_sites, args.kmer_plot_k, args.kmer_plot_k, str(exp_kmer_perc), r2_kmer)
+
+
+    """
+    Input sequences k-mer variation plot.
+
+    """
+
+    if reg2seq_dic and not args.disable_kmer_var_plot:
+
+        mdtext += """
+## Input sequences k-mer variation plot ### {#seq-var-plot}
+
+
+"""
+        remove_zero_val = True
+
+        kmer2stats_dic = {}
+        single_cv_dic, avg_cv = calculate_k_nucleotide_cv(reg2seq_dic,
+                                                          k=args.kmer_plot_k,
+                                                          nucleotides=['A', 'C', 'G', 'T'],
+                                                          kmer2stats_dic=kmer2stats_dic,
+                                                          reg2sc_dic=reg2sc_dic,
+                                                          only_observed=True)
+
+        seq_var_plot_plotly =  "seq_kmer_var_plot.plotly.html"
+        seq_var_plot_plotly_out = plots_out_folder + "/" + seq_var_plot_plotly
+
+        create_seq_var_violin_plot_plotly(kmer2stats_dic, single_cv_dic, avg_cv, 
+                                          seq_var_plot_plotly_out,
+                                          kmer_size=args.kmer_plot_k,
+                                          remove_zero_val=remove_zero_val,
+                                          color_mode=args.kmer_var_color_mode,
+                                          include_plotlyjs=include_plotlyjs,
+                                          full_html=plotly_full_html)
+
+        plot_path = plots_folder + "/" + seq_var_plot_plotly
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            js_code = read_file_content_into_str_var(seq_var_plot_plotly_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1000px;")
+            mdtext += js_code + "\n"
+        else:
+            if plotly_embed_style == 1:
+                mdtext += "<div>\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1000" height="1000"></iframe>' + "\n"
+                mdtext += '</div>'
+            elif plotly_embed_style == 2:
+                mdtext += '<object data="' + plot_path + '" width="1000" height="1000"> </object>' + "\n"
+
+        mdtext += """
+
+**Figure:** k-mer variations in input sequences. Set k-mer size = %i (change via --kmer-plot-k).
+x-axis: k-mer variation, describing the variation of the k-mer over all input sequences (see coefficient of variation (CV) in hover box description).
+y-axis: site %%, i.e., percentage of sequences where k-mer is present.
+By default, the correlation (Spearman correlation coefficient) between k-mer ratios and input region scores is used for coloring 
+(alternatively use --seq-var-mode to change to k-mer %%).
+Hover box:
+**k-mer** -> observed k-mer.
+**Variation** -> coefficient of variation (CV) of the k-mer ratios over all input site sequences. 
+CV is defined as the standard deviation of ratios divided by the mean ratio. 
+Thus, the lower the CV of a k-mer, the more even its ratios over the input site sequences.
+A CV of 0.0 for a given k-mer would mean that all sequences have exactly the same ratio of the k-mer.
+In general, we can assume that k-mers with high CVs are less important for the RBP binding, since
+they do not occur evenly over the dataset. In contrast, k-mers with low CVs are more 
+evenly distributed over the dataset sequences, and thus should be more important for RBP binding 
+(assuming a sufficient dataset quality + an affinity of the RBP towards specific k-mer sequences). 
+**k-mer #** -> number of times k-mer appears in all input sequences.
+**k-mer %%** -> percentage of k-mer over all k-mers in the input sequences.
+**Site %%** -> percentage of sequences where k-mer is present.
+**Correlation** -> correlation coefficient (Spearman) between k-mer ratios and input region scores.
+
+&nbsp;
+
+""" %(args.kmer_plot_k)
+
+
+    # Region ID to motifs string for plotting.
+    reg2motifs_dic = {}  # If false motif info not added to hover box.
+
+    # Snatch motif hit info from seq_len_df.
+    if not args.kmer_pca_plot_no_motifs:
+        try:
+            assert not seq_len_df.empty, "seq_len_df dataframe is defined but empty"
+        except NameError:
+            raise NameError("seq_len_df dataframe is not defined")
+
+        reg2motifs_dic = seq_len_df.set_index('Sequence ID')['Motif hits'].to_dict()
+
+    if not args.disable_kmer_pca_plot:
+
+        mdtext += """
+## Input sequences by k-mer content plot ### {#input-seqs-kmer}
+
+"""
+        seqs_kmer_k = args.kmer_pca_plot_k
+        add_seq_comp = True
+        if args.kmer_pca_plot_no_comp:
+            add_seq_comp = False
+        min_max_norm_seq_comp = False
+
+        # Get kmer -> count dictionary.
+        # kmer2c_dic = get_kmer_dic(seqs_kmer_k, rna=False)
+
+        reg2ntps_dic = {}
+        # Average mono-nucleotide percentages over whole dataset. 
+        ntps_dic = {"A" : 0.0,
+                    "C" : 0.0,
+                    "G" : 0.0,
+                    "T" : 0.0}
+
+        reg2kmer_rat_dic = seqs_dic_get_kmer_ratios(reg2seq_dic, seqs_kmer_k,
+                                                    rna=False,
+                                                    report_key_error=False,
+                                                    skip_non_dic_keys=True,
+                                                    add_seq_comp=add_seq_comp,
+                                                    add_gc_skew=False,
+                                                    add_at_skew=False,
+                                                    add_at_content=False,
+                                                    add_1nt_ratios=False,
+                                                    seq_comp_k=args.kmer_pca_plot_comp_k,
+                                                    ntps_dic=ntps_dic,
+                                                    reg2ntps_dic=reg2ntps_dic,
+                                                    convert_to_uc=True)
+
+        # Normalize sequence complexity value (min max normalization).
+        if min_max_norm_seq_comp:
+            last_values = []
+            for reg_id in sorted(reg2kmer_rat_dic):
+                last_values.append(reg2kmer_rat_dic[reg_id][-1])
+            scaled_last_values = min_max_scale(last_values)
+            i = 0
+            for reg_id in sorted(reg2kmer_rat_dic):
+                reg2kmer_rat_dic[reg_id][-1] = scaled_last_values[i]
+                i += 1
+        
+        # Ratios ready?
+        if reg2kmer_rat_dic:
+
+            seqs_kmer_plot_plotly =  "seqs_kmer_plot.plotly.html"
+            seqs_kmer_plot_plotly_out = plots_out_folder + "/" + seqs_kmer_plot_plotly
+
+            create_seqs_kmer_plot_plotly(reg2seq_dic, reg2kmer_rat_dic, seqs_kmer_plot_plotly_out,
+                                         k=seqs_kmer_k,
+                                         annot2color_dic=annot2color_dic,
+                                         reg2annot_dic=reg2annot_dic,
+                                         reg2motifs_dic=reg2motifs_dic,
+                                         reg2ntps_dic=reg2ntps_dic,
+                                         include_plotlyjs=include_plotlyjs,
+                                         full_html=plotly_full_html)
+
+            plot_path = plots_folder + "/" + seqs_kmer_plot_plotly
+
+            plot_width = 1000
+            if reg2annot_dic:
+                plot_width = 1200
+
+            if args.plotly_js_mode in [5, 6, 7]:
+                # Read in plotly code.
+                # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+                js_code = read_file_content_into_str_var(seq_len_plot_plotly_out)
+                js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:%ipx;" %(plot_width))
+                mdtext += js_code + "\n"
+                # mdtext += '</div>'
+            else:
+                if plotly_embed_style == 1:
+                    # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                    mdtext += "<div>\n"
+                    # mdtext += '<iframe src="' + plot_path + '" width="1000" height="1000"></iframe>' + "\n"
+                    mdtext += '<iframe src="' + plot_path + '" width="%i" height="1000"></iframe>' %(plot_width) + "\n"
+                    mdtext += '</div>'
+                elif plotly_embed_style == 2:
+                    # mdtext += '<object data="' + plot_path + '" width="1000" height="1000"> </object>' + "\n"
+                    mdtext += '<iframe src="' + plot_path + '" width="%i" height="1000"></iframe>' %(plot_width) + "\n"
+
+            add_info = ""
+            if add_seq_comp:
+                add_info = "Apart from the k-mer features, sequence complexity (i.e., Shannon entropy) is used as an additional feature for each sequence."
+
+            add_avg_mono_nt_perc = ""
+            if ntps_dic:
+                add_avg_mono_nt_perc = "Average mono-nucleotide percentages over all input sequences: A = %.2f%%, C = %.2f%%, G = %.2f%%, T = %.2f%%." %(ntps_dic["A"], ntps_dic["C"], ntps_dic["G"], ntps_dic["T"])
+
+            mdtext += """
+
+**Figure:** Input sequences by k-mer content plot (k = %i, change via --kmer-pca-plot-k). 
+Input sequences are represented by their k-mer content and visualized as 2D PCA plot.
+The closer two sequences are, the more similar their k-mer content.
+%s
+%s
+
+&nbsp;
+
+""" %(args.kmer_pca_plot_k, add_info, add_avg_mono_nt_perc)
+
+        else:
+            mdtext += """
+
+No sequence k-mers content plot generated since no k-mer contents extracted from input sequences (not enough sequences or sequences shorter than set --kmer-pca-plot-k?).
+
+&nbsp;
+
+"""
+
 
 
     """
@@ -13517,16 +15749,20 @@ No plot generated since no motif hits found in input regions.
 """
         else:
 
+            add_all_reg_bar = True
+            if args.disable_all_reg_bar:
+                add_all_reg_bar = False
+
             create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
                                                        plot_out=annot_stacked_bars_plot_out,
                                                        annot2color_dic=annot2color_dic,
                                                        plot_pdf=args.plot_pdf,
-                                                       add_all_reg_bar=args.add_all_reg_bar)
+                                                       add_all_reg_bar=add_all_reg_bar)
 
             plot_path = plots_folder + "/" + annot_stacked_bars_plot
 
             more_infos = ""
-            if args.add_all_reg_bar:
+            if add_all_reg_bar:
                 more_infos = "**All**: annotations for all input regions (with and without motif hits)."
 
             mdtext += '<img src="' + plot_path + '" alt="Annotation stacked bars plot"' + "\n"
@@ -13596,7 +15832,7 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
         mdtext += """
 **Figure:** mRNA region coverage profile for provided input regions (# input regions = %i, # of input regions overlapping with mRNAs = %i). 
 Percentage of input regions overlapping with mRNA exons = %s%%. 
-NOTE that if this percentage is low, it likely means that the input regions (if derived from CLIP-seq or similar protocols) 
+**NOTE** that if this percentage is low, it likely means that the input regions (if derived from CLIP-seq or similar protocols) 
 originate from an intron binding RBP, making the plot less informative (since the RBP is typically not binding to spliced mRNAs).
 Minimum overlap amount with mRNA exons required for input region to be counted as overlapping = %s%% (set via --gtf-min-mrna-overlap).
 All overlapping input region positions are used for the coverage calculation.
@@ -13634,20 +15870,35 @@ mRNA region lengths used for plotting are derived from the occupied mRNA regions
         ds_ib_sites_perc = 0.0
         if ei_ol_stats.c_ds_ib_sites and ei_ol_stats.c_input_sites:
             ds_ib_sites_perc = round(ei_ol_stats.c_ds_ib_sites / ei_ol_stats.c_input_sites * 100, 1)
+        us_ib_dist_sites_perc = 0.0
+        if ei_ol_stats.c_us_ib_dist_sites and ei_ol_stats.c_input_sites:
+            us_ib_dist_sites_perc = round(ei_ol_stats.c_us_ib_dist_sites / ei_ol_stats.c_input_sites * 100, 1)
+        ds_ib_dist_sites_perc = 0.0
+        if ei_ol_stats.c_ds_ib_dist_sites and ei_ol_stats.c_input_sites:
+            ds_ib_dist_sites_perc = round(ei_ol_stats.c_ds_ib_dist_sites / ei_ol_stats.c_input_sites * 100, 1)
+        first_exon_sites_perc = 0.0
+        if ei_ol_stats.c_first_exon_sites and ei_ol_stats.c_input_sites:
+            first_exon_sites_perc = round(ei_ol_stats.c_first_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
+        last_exon_sites_perc = 0.0
+        if ei_ol_stats.c_last_exon_sites and ei_ol_stats.c_input_sites:
+            last_exon_sites_perc = round(ei_ol_stats.c_last_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
+        single_exon_sites_perc = 0.0
+        if ei_ol_stats.c_single_exon_sites and ei_ol_stats.c_input_sites:
+            single_exon_sites_perc = round(ei_ol_stats.c_single_exon_sites / ei_ol_stats.c_input_sites * 100, 1)
         eib_sites_perc = 0.0
         if ei_ol_stats.c_eib_sites and ei_ol_stats.c_input_sites:
             eib_sites_perc = round(ei_ol_stats.c_eib_sites / ei_ol_stats.c_input_sites * 100, 1)
-        perc_min_overlap = round(args.gtf_eib_min_overlap * 100, 1)
+        perc_min_overlap = round(args.gtf_feat_min_overlap * 100, 1)
 
         intron_bl =  args.gtf_intron_border_len
 
         # Make bar plot.
-        categories = ['Exon\nregions', 'Intron\nregions', '%i nt us\nintron regions' %(intron_bl), '%i nt ds\nintron regions' %(intron_bl), '+/- 50 nt exon\nintron borders']
-        percentages = [exon_sites_perc, intron_sites_perc, us_ib_sites_perc, ds_ib_sites_perc, eib_sites_perc]
+        categories = ['Exon\nregions', 'Intron\nregions', '%i nt us\nintron\nregions' %(intron_bl), '%i nt ds\nintron\nregions' %(intron_bl), '> %i nt\nus intron\nregions' %(intron_bl), '> %i nt\nds intron\nregions' %(intron_bl), '+/- 50 nt\nexon-intron\nborders', 'First exon', 'Last exon', 'Single exon']
+        percentages = [exon_sites_perc, intron_sites_perc, us_ib_sites_perc, ds_ib_sites_perc, us_ib_dist_sites_perc, ds_ib_dist_sites_perc, eib_sites_perc, first_exon_sites_perc, last_exon_sites_perc, single_exon_sites_perc]
 
-        fig, ax = plt.subplots(figsize=(7.5, 4))
+        fig, ax = plt.subplots(figsize=(10.5, 4))
 
-        ax.bar(categories, percentages, color='lightgray', zorder=2)
+        ax.bar(categories, percentages, color='#e5ecf6', zorder=2)
 
         ax.set_ylabel('Input regions overlapping with %')
 
@@ -13657,46 +15908,163 @@ mRNA region lengths used for plotting are derived from the occupied mRNA regions
         ax.spines['right'].set_visible(False)
         ax.spines['bottom'].set_visible(False)
 
-        ax.grid(axis='y', color='lightgray', linestyle='-', alpha=0.7, linewidth=0.7, zorder=1)
+        ax.grid(axis='y', color='#e5ecf6', linestyle='-', alpha=0.7, linewidth=0.7, zorder=1)  # #e5ecf6 lightgray
 
-        # plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.25)
+        plt.subplots_adjust(left=0.06, right=0.99, top=0.95, bottom=0.15)
 
         eib_stats_plot = "eib_ol_stats.bar_plot.png"
         eib_stats_plot_out = plots_out_folder + "/" + eib_stats_plot
         plot_path = plots_folder + "/" + eib_stats_plot
 
-        plt.savefig(eib_stats_plot_out, dpi=135)
+        plt.savefig(eib_stats_plot_out, dpi=150)
 
         if args.plot_pdf and eib_stats_plot_out.endswith('.png'):
             pdf_out = eib_stats_plot_out[:-4] + '.pdf'
-            plt.savefig(pdf_out, dpi=135)
+            plt.savefig(pdf_out, dpi=150)
 
         plt.close()
-        mdtext += '<image src = "' + plot_path + '" width="900px"></image>'  + "\n"
+        mdtext += '<image src = "' + plot_path + '" width="1200px"></image>'  + "\n"
         # mdtext += '<img src="' + plots_path + '" alt="Exon intron overlap plot"' + "\n"
         # mdtext += 'title="mRNA region occupancy plot" />' + "\n"
+
 
         mdtext += r"""
 **Figure:** Exon, intron + border region overlap statistics. \# input regions = %i. 
 \# input regions overlapping with exon regions = %i.
 \# input regions overlapping with intron regions = %i.
-Minimum overlap between exon/intron region and input region to be counted as overlapping = %s%% (change via --gtf-eib-min-overlap).
 Categories:
-**Exon regions** -> %% of input regions overlapping with exon regions.
-**Intron regions** -> %% of input regions overlapping with intron regions.
-**%i nt us intron regions** -> %% of input regions overlapping with upstream ends of intron regions (first %i nt) (\# %i).
-**%i nt ds intron regions** -> %% of input regions overlapping with downstream ends of intron regions (last %i nt) (\# %i).
+**Exon regions** -> %% of input regions overlapping with exon regions (== exonic regions).
+**Intron regions** -> %% of input regions overlapping with intron regions (== intronic regions).
+**%i nt us intron regions** -> %% of intronic regions closer to intron upstream borders + within first %i nt of intron (\# %i).
+**%i nt ds intron regions** -> %% of intronic regions closer to intron downstream borders + within first %i nt of intron (\# %i).
+**> %i nt us intron regions** -> %% of intronic regions closer to intron upstream borders and > %i nt away from intron borders (\# %i).
+**> %i nt ds intron regions** -> %% of intronic regions closer to intron downstream borders and > %i nt away from intron borders (\# %i).
 **+/- 50 nt exon intron borders** -> %% of input regions overlapping with exon-intron borders 
 (50 nt upstream and downstream of exon-intron borders) (\# %i).
-Note that for upstream/downstream intron region overlaps, only introns >= %i (2*%i) nt are considered. 
-Also note that the overlap is calculated between (optionally extended) input regions and transcript regions 
-(one representative transcript, i.e., transcript with highest experimental support, chosen for each gene region, unless --tr-list provided). 
-Thus, depending on set parameters (minimum overlap amount etc.), occasional overlap of annotated gene regions, 
-and characteristics of input dataset, exon/intron overlap can vary, doesn't have to add up to 100, and can also be relatively low.
+**Exon regions** -> %% of input regions overlapping with exon regions (== exonic regions).
+**First exon** -> %% of input regions overlapping with transcript first exons (\# %i).
+**Last exon** -> %% of input regions overlapping with transcript last exons (\# %i).
+**Single exon** -> %% of input regions overlapping with single exon transcripts (\# %i).
+**NOTE** that for upstream/downstream intron end overlaps, the input region is always assigned 
+to the closest intron border (based on distance between input region center position and intron ends), 
+independent of intron length (i.e., intron length can also be < %i nt).
 
 &nbsp;
 
-""" %(ei_ol_stats.c_input_sites, ei_ol_stats.c_exon_sites, ei_ol_stats.c_intron_sites, str(perc_min_overlap), intron_bl, intron_bl, ei_ol_stats.c_us_ib_sites, intron_bl, intron_bl, ei_ol_stats.c_ds_ib_sites, ei_ol_stats.c_eib_sites, 2*intron_bl, intron_bl)
+""" %(ei_ol_stats.c_input_sites, ei_ol_stats.c_exon_sites, ei_ol_stats.c_intron_sites, intron_bl, intron_bl, ei_ol_stats.c_us_ib_sites, intron_bl, intron_bl, ei_ol_stats.c_ds_ib_sites, intron_bl, intron_bl, ei_ol_stats.c_us_ib_dist_sites, intron_bl, intron_bl, ei_ol_stats.c_ds_ib_dist_sites, ei_ol_stats.c_eib_sites, ei_ol_stats.c_first_exon_sites, ei_ol_stats.c_last_exon_sites, ei_ol_stats.c_single_exon_sites, intron_bl)
+
+
+    """
+    Intronic regions intron border distance plots.
+
+    """
+
+    if reg2annot_dic:
+
+        assert reg2seq_dic, "reg2seq_dic for intronic regions intron border distance plots"
+
+        mdtext += """
+## Intronic regions intron border distances ### {#intron-border-dist}
+
+"""
+        # reg2annot_dic format: reg_id -> [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr, gene_id, gene_name, tr_biotype]
+        intron_regions = False
+        for reg_id in reg2annot_dic:
+            annot_id = reg2annot_dic[reg_id][0]
+            if annot_id == "intron":
+                intron_regions = True
+                break
+                
+        c_us_regions = 0
+        c_ds_regions = 0  
+        for reg_id in reg2annot_dic:
+            annot_id = reg2annot_dic[reg_id][0]
+            if annot_id == "intron":
+                us_ds_label = reg2annot_dic[reg_id][3]
+                if us_ds_label == "up":
+                    c_us_regions += 1
+                elif us_ds_label == "down":
+                    c_ds_regions += 1
+
+        c_all_regions = c_us_regions + c_ds_regions
+        perc_us_regions = 0.0
+        perc_ds_regions = 0.0
+        if c_all_regions:
+            perc_us_regions = round(c_us_regions / c_all_regions * 100, 1)
+            perc_ds_regions = round(c_ds_regions / c_all_regions * 100, 1)
+
+        if intron_regions:
+
+            us_intron_border_dist_plot_plotly =  "us_intron_border_dist_plot.plotly.html"
+            us_intron_border_dist_plot_plotly_out = plots_out_folder + "/" + us_intron_border_dist_plot_plotly
+            ds_intron_border_dist_plot_plotly =  "ds_intron_border_dist_plot.plotly.html"
+            ds_intron_border_dist_plot_plotly_out = plots_out_folder + "/" + ds_intron_border_dist_plot_plotly
+
+            create_intron_border_dist_plot_plotly(reg2annot_dic, reg2seq_dic,
+                                                  us_intron_border_dist_plot_plotly_out,
+                                                  ds_intron_border_dist_plot_plotly_out,
+                                                  reg2motifs_dic=reg2motifs_dic,
+                                                  include_plotlyjs=include_plotlyjs,
+                                                  full_html=plotly_full_html)
+
+
+            us_plot_path = plots_folder + "/" + us_intron_border_dist_plot_plotly
+            ds_plot_path = plots_folder + "/" + ds_intron_border_dist_plot_plotly
+
+            # Upstream plot.
+            if args.plotly_js_mode in [5, 6, 7]:
+                js_code = read_file_content_into_str_var(us_intron_border_dist_plot_plotly_out)
+                js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1000px;")
+                mdtext += js_code + "\n"
+            else:
+                if plotly_embed_style == 1:
+                    mdtext += "<div>\n"
+                    mdtext += '<iframe src="' + us_plot_path + '" width="1200" height="800"></iframe>' + "\n"
+                    mdtext += '</div>'
+                elif plotly_embed_style == 2:
+                    mdtext += '<iframe src="' + us_plot_path + '" width="1200" height="800"></iframe>' + "\n"
+
+
+            mdtext += """
+
+**Figure:** Distances of intronic input regions to their next intron border. Only input regions closer to the upstream 
+border are shown (# regions = %i, percentage =  %s%%). The input region center position is taken to calculate the distance.
+
+&nbsp;
+
+""" %(c_us_regions, str(perc_us_regions))
+
+            # Downstream plot.
+            if args.plotly_js_mode in [5, 6, 7]:
+                js_code = read_file_content_into_str_var(ds_intron_border_dist_plot_plotly_out)
+                js_code = js_code.replace("height:100%; width:100%;", "height:800px; width:1200px;")
+                mdtext += js_code + "\n"
+            else:
+                if plotly_embed_style == 1:
+                    mdtext += "<div>\n"
+                    mdtext += '<iframe src="' + ds_plot_path + '" width="1200" height="800"></iframe>' + "\n"
+                    mdtext += '</div>'
+                elif plotly_embed_style == 2:
+                    mdtext += '<iframe src="' + ds_plot_path + '" width="1200" height="800"></iframe>' + "\n"
+
+            mdtext += """
+
+**Figure:** Distances of intronic input regions to their next intron border. Only input regions closer to the downstream 
+border are shown (# regions = %i, percentage =  %s%%). The input region center position is taken to calculate the distance.
+
+&nbsp;
+
+""" %(c_ds_regions, str(perc_ds_regions))
+
+
+        else:
+            mdtext += """
+
+No intronic regions intron border distance plot generated since there are no input regions overlapping with introns.
+
+&nbsp;
+
+"""
 
 
 
@@ -14871,7 +17239,7 @@ def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg
                                                plot_pdf=False,
                                                all_regions_id="All"):
     """
-    Create a stacked bars plot, with each bar showing the annotations for one RBPs,
+    Create a stacked bars plot, with each bar showing the annotations for one RBP,
     i.e. with which GTF annotations the sites with motifs of the RBP overlap.
 
     rbp2regidx_dic:
@@ -15002,6 +17370,895 @@ def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg
 
 ################################################################################
 
+def create_intron_border_dist_plot_plotly(reg2annot_dic, reg2seq_dic,
+                                          us_intron_border_dist_plot_out,
+                                          ds_intron_border_dist_plot_out,
+                                          reg2motifs_dic=False,
+                                          include_plotlyjs="cdn",
+                                          full_html=False):
+    """
+    Create two plotly plots showing distances of intronic regions to upstream
+    and downstream intron borders.
+
+    reg2annot_dic format: reg_id -> 
+    [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr, gene_id, gene_name, tr_biotype]
+
+    """
+    assert reg2annot_dic, "given reg2annot_dic empty"
+
+    import plotly.graph_objects as go
+
+    reg_ids_list = []
+    for reg_id in sorted(reg2annot_dic):
+        annot_id = reg2annot_dic[reg_id][0]
+        if annot_id == "intron":
+            reg_ids_list.append(reg_id)
+
+    df = pd.DataFrame(reg_ids_list, columns=["Region ID"])
+
+    df['Transcript ID'] = [reg2annot_dic[reg_id][1] for reg_id in reg_ids_list]
+    df['Distance'] = [reg2annot_dic[reg_id][2] for reg_id in reg_ids_list]
+    df['Category'] = [reg2annot_dic[reg_id][3] for reg_id in reg_ids_list]  # down or up.
+    df['annot_reg_len'] = [reg2annot_dic[reg_id][4] for reg_id in reg_ids_list]
+    df['exon_intron_nr'] = [reg2annot_dic[reg_id][5] for reg_id in reg_ids_list]
+    df['Gene ID'] = [reg2annot_dic[reg_id][6] for reg_id in reg_ids_list]
+    df['Gene name'] = [reg2annot_dic[reg_id][7] for reg_id in reg_ids_list]
+    df['Transcript biotype'] = [reg2annot_dic[reg_id][8] for reg_id in reg_ids_list]
+    df['Sequence'] = [insert_line_breaks(reg2seq_dic[reg_id], line_len=50) for reg_id in reg_ids_list]
+    df['Sequence length'] = [len(reg2seq_dic[reg_id]) for reg_id in reg_ids_list]
+
+    if reg2motifs_dic:
+        df['Motif hits'] = [reg2motifs_dic[reg_id] for reg_id in reg_ids_list]
+
+    df_up = df[df['Category'] == 'up']
+    df_down = df[df['Category'] == 'down']
+
+    hover_data = ['Region ID', 'Sequence', 'Sequence length', 'Transcript ID', 'Gene ID', 'Gene name', 'Transcript biotype', 'Distance', 'annot_reg_len', 'exon_intron_nr']
+
+    motif_hover_info = ''
+    if reg2motifs_dic:
+        hover_data += ['Motif hits']
+        motif_hover_info = '<br>Motif hits:<br>%{customdata[10]}'
+
+    """
+    Create upstream plot.
+
+    """
+    fig = go.Figure()
+
+    fig.add_trace(go.Violin(
+        x=df_up['Distance'],
+        y=df_up['Category'],
+        box_visible=False,
+        points="all",
+        side='positive',  # Show upwards.
+        bandwidth=100.0,  # Higher values == smoothing.
+        spanmode='hard',  # Ensure density starts at 0.
+        orientation='h',  # Make the plot horizontal.
+        # name='down',
+        jitter=0.1,  # Reduce jitter to move points closer.
+        pointpos=-0.3,  # Move points further down.
+        line_color='#2ca02c',  # Set the color of the points and the line
+        fillcolor='#2ca02c'  # Set the color of the filled area
+    ))
+
+    fig.update_layout(
+        xaxis_title="Distance to upstream intron border",
+        yaxis=dict(
+            showticklabels=False  # Remove y-axis labels.
+        ),
+        # yaxis_title="Category",
+        violingap=0.1,  # Reduce gap between violins
+        violingroupgap=0.1  # Reduce group gap
+    )
+
+    # hover_data:
+    # ['Region ID', 'Sequence', 'Sequence length', 'Transcript ID', 'Gene ID', 'Gene name', 
+    # 'Transcript biotype', 'Distance', 'annot_reg_len', 'exon_intron_nr', 'Motif hits']
+
+    fig.update_traces(
+        width=0.3,
+        customdata=df_up[hover_data].values,
+        hovertemplate=(
+            '<span style="font-family: \'Courier New\', monospace;">>%{customdata[0]}</span><br>'
+            '<span style="font-family: \'Courier New\', monospace;">%{customdata[1]}</span><br>'
+            'Sequence Length: %{customdata[2]}<br>'
+            'Transcript ID: %{customdata[3]}<br>'
+            'Gene ID: %{customdata[4]}<br>'
+            'Gene name: %{customdata[5]}<br>'
+            'Transcript biotype: %{customdata[6]}<br>'
+            'Border distance: %{customdata[7]}<br>'
+            'Intron length: %{customdata[8]}<br>'
+            'Intron number: %{customdata[9]}' + motif_hover_info + '<extra></extra>'
+        )
+    )
+
+    fig.write_html(us_intron_border_dist_plot_out,
+                   full_html=full_html,
+                   include_plotlyjs=include_plotlyjs)
+
+    """
+    Create downstream plot.
+
+    """
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Violin(
+        x=df_down['Distance'],
+        y=df_down['Category'],
+        box_visible=False,
+        points="all",
+        side='positive',  # Show upwards.
+        bandwidth=100.0,  # Higher values == smoothing.
+        spanmode='hard',  # Ensure density starts at 0.
+        orientation='h',  # Make the plot horizontal.
+        # name='down',
+        jitter=0.1,  # Reduce jitter to move points closer.
+        pointpos=-0.3,  # Move points further down.
+        line_color='#2ca02c',  # Set the color of the points and the line
+        fillcolor='#2ca02c'  # Set the color of the filled area
+    ))
+
+    fig.update_layout(
+        xaxis_title="Distance to downstream intron border",
+        yaxis=dict(
+            showticklabels=False  # Remove y-axis labels.
+        ),
+        # yaxis_title="Category",
+        xaxis=dict(
+            autorange='reversed'  # Reverse the x-axis, for downstream data part.
+        ),
+        violingap=0.1,  # Reduce gap between violins
+        violingroupgap=0.1  # Reduce group gap
+    )
+
+    fig.update_traces(
+        width=0.3,
+        customdata=df_down[hover_data].values,
+        hovertemplate=(
+            '<span style="font-family: \'Courier New\', monospace;">>%{customdata[0]}</span><br>'
+            '<span style="font-family: \'Courier New\', monospace;">%{customdata[1]}</span><br>'
+            'Sequence Length: %{customdata[2]}<br>'
+            'Transcript ID: %{customdata[3]}<br>'
+            'Gene ID: %{customdata[4]}<br>'
+            'Gene name: %{customdata[5]}<br>'
+            'Transcript biotype: %{customdata[6]}<br>'
+            'Border distance: %{customdata[7]}<br>'
+            'Intron length: %{customdata[8]}<br>'
+            'Intron number: %{customdata[9]}' + motif_hover_info + '<extra></extra>'
+        )
+    )
+
+    fig.write_html(ds_intron_border_dist_plot_out,
+                   full_html=full_html,
+                   include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
+def create_seqs_kmer_plot_plotly(reg2seq_dic, reg2kmer_rat_dic, plot_out,
+                                 k=3,
+                                 annot2color_dic=False,
+                                 reg2annot_dic=False,
+                                 reg2motifs_dic=False,
+                                 reg2ntps_dic=False,
+                                 include_plotlyjs="cdn",
+                                 full_html=False):
+    """
+    Create a plotly scatter plot with PCA of sequence k-mer ratios.
+
+    """
+
+    if reg2annot_dic:
+        assert annot2color_dic, "reg2annot_dic set but given annot2color_dic empty"
+    if annot2color_dic:
+        assert reg2annot_dic, "annot2color_dic set but given reg2annot_dic empty"
+
+    reg_ids_list = []
+    reg_kmer_rat_ll = []
+    for reg_id in sorted(reg2kmer_rat_dic):
+        reg_ids_list.append(reg_id)
+        reg_kmer_rat_ll.append(reg2kmer_rat_dic[reg_id])
+
+    pca = PCA(n_components=2)
+    data_2d_pca = pca.fit_transform(reg_kmer_rat_ll)
+    df = pd.DataFrame(data_2d_pca, columns=['PC1', 'PC2'])
+    explained_variance = pca.explained_variance_ratio_ * 100
+
+    df['Region ID'] = reg_ids_list
+    df['Sequence'] = [insert_line_breaks(reg2seq_dic[reg_id], line_len=50) for reg_id in reg_ids_list]
+    df['Sequence length'] = [len(reg2seq_dic[reg_id]) for reg_id in reg_ids_list]
+
+    if reg2motifs_dic:
+        df['Motif hits'] = [reg2motifs_dic[reg_id] for reg_id in reg_ids_list]
+    if reg2ntps_dic:
+        df['Mono-nucleotide percentages'] = [reg2ntps_dic[reg_id] for reg_id in reg_ids_list]
+    motif_hover_info = ''
+    hover_data = ['Region ID', 'Sequence', 'Sequence length']
+
+    if reg2annot_dic:
+
+        # reg2annot_dic format: 
+        # reg_id -> [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr, gene_id, gene_name, tr_biotype]
+
+        df['Annotation'] = [str(reg2annot_dic[reg_id][0]) for reg_id in reg_ids_list]
+        df['Transcript ID'] = [reg2annot_dic[reg_id][1] for reg_id in reg_ids_list]
+        df['Gene ID'] = [reg2annot_dic[reg_id][6] for reg_id in reg_ids_list]
+        df['Gene name'] = [reg2annot_dic[reg_id][7] for reg_id in reg_ids_list]
+        df['Transcript biotype'] = [reg2annot_dic[reg_id][8] for reg_id in reg_ids_list]
+
+        hover_data += ['Annotation', 'Transcript ID', 'Gene ID', 'Gene name', 'Transcript biotype']
+
+        if reg2motifs_dic:
+            hover_data += ['Motif hits']
+            motif_hover_info = '<br>Motif hits:<br>%{customdata[8]}'
+        if reg2ntps_dic:
+            hover_data += ['Mono-nucleotide percentages']
+            if reg2motifs_dic:
+                motif_hover_info += '<br>Mono-nucleotide percentages:<br>%{customdata[9]}'
+            else:
+                motif_hover_info = '<br>Mono-nucleotide percentages:<br>%{customdata[8]}'
+
+        fig = px.scatter(
+            df,
+            x='PC1',
+            y='PC2',
+            color='Annotation',
+            color_discrete_map=annot2color_dic,
+            labels={
+                'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+                'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
+            },
+            # hover_name='Region ID',
+            hover_data=hover_data
+        )
+
+        # Adding '<extra></extra>' removes side bars on left/right of hover boxes with annotation labels.
+        fig.update_traces(
+            # customdata=df[['Region ID', 'Sequence', 'Sequence length', 'Annotation', 'Transcript ID', 'Gene ID', 'Gene name', 'Transcript biotype']].values, 
+            hovertemplate=(
+                '<span style="font-family: \'Courier New\', monospace;">>%{customdata[0]}</span><br>'
+                '<span style="font-family: \'Courier New\', monospace;">%{customdata[1]}</span><br>'
+                # '%{customdata[1]}<br>'
+                'Sequence Length: %{customdata[2]}<br>'
+                'Annotation: %{customdata[3]}<br>'
+                'Transcript ID: %{customdata[4]}<br>'
+                'Gene ID: %{customdata[5]}<br>'
+                'Gene name: %{customdata[6]}<br>'
+                'Transcript biotype: %{customdata[7]}' + motif_hover_info + '<extra></extra>'
+            )
+            # hoverinfo='skip'  # Disable default hover info
+        )
+
+    else:
+
+        if reg2motifs_dic:
+            hover_data += ['Motif hits']
+            motif_hover_info = '<br>Motif hits:<br>%{customdata[3]}'
+        if reg2ntps_dic:
+            hover_data += ['Mono-nucleotide percentages']
+            if reg2motifs_dic:
+                motif_hover_info += '<br>Mono-nucleotide percentages:<br>%{customdata[4]}'
+            else:
+                motif_hover_info = '<br>Mono-nucleotide percentages:<br>%{customdata[3]}'
+
+        fig = px.scatter(
+            df,
+            x='PC1',
+            y='PC2',
+            labels={
+                'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+                'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
+            },
+            hover_data=hover_data
+        )
+
+        fig.update_traces(
+            hovertemplate=(
+                '>%{customdata[0]}<br>'
+                '%{customdata[1]}<br>'
+                'Sequence Length: %{customdata[2]}' + motif_hover_info + '<extra></extra>'
+            )
+        )
+
+    fig.update_traces(marker=dict(size=8, line=dict(width=0.5, color='white')))
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+
+    """
+
+    fig = px.violin(in_df, y='Sequence Length', box=True, points='all')
+    # Set customdata and hovertemplate
+    fig.update_traces(customdata=in_df[['Sequence ID', 'Sequence', 'Motif hits']].values, hovertemplate='>%{customdata[0]}<br>%{customdata[1]}<br>Sequence Length: %{y}<br>Motif hits:<br>%{customdata[2]}')
+    fig.update_layout(xaxis_title='Density', yaxis_title='Sequence Length', violinmode='overlay')
+    fig.write_html(plot_out,
+                   full_html=full_html,
+                   include_plotlyjs=include_plotlyjs)
+
+
+
+
+    fig.update_traces(customdata=df[['Region ID', 'Sequence', 'Sequence length', 'Annotation', 'Transcript ID', 'Gene ID', 'Gene name', 'Transcript biotype']].values, 
+                      hovertemplate='>%{customdata[0]}<br>%{customdata[1]}<br>Sequence Length: %{y}<br>Motif hits:<br>%{customdata[2]}')
+
+
+    fig.update_traces(
+        hovertemplate='<b>%{hovertext}</b><br>Annotation percentages: %{customdata[1]}<extra></extra>'
+    )
+
+    # Get highest percentage for every dataset.
+    highest_perc_annot_list = []
+    perc_annot_str_list = []
+    for annots_l in annots_ll:
+        perc_annot_string = "<br>"
+        highest_perc_annot = "-"
+        highest_freq = 0.0
+        for idx, annot_freq in enumerate(annots_l):
+            annot = annot_ids_list[idx]
+            if annot_freq > highest_freq:
+                highest_freq = annot_freq
+                highest_perc_annot = annot
+            # Make percentage out of frequency and round to two decimal places.
+            annot_perc = round(annot_freq * 100, 2)
+            perc_annot_string += annot + ": " + str(annot_perc) + '%<br>'
+        highest_perc_annot_list.append(highest_perc_annot)
+        perc_annot_str_list.append(perc_annot_string)
+    
+
+    pca = PCA(n_components=2)  # Reduce data to 2 dimensions.
+    data_2d_pca = pca.fit_transform(annots_ll)
+    df = pd.DataFrame(data_2d_pca, columns=['PC1', 'PC2'])
+    df['Dataset ID'] = dataset_ids_list
+    df['Highest % annotation'] = highest_perc_annot_list
+    df['Annotation percentages'] = perc_annot_str_list
+
+    explained_variance = pca.explained_variance_ratio_ * 100
+
+    fig = px.scatter(
+        df,  # Use the DataFrame directly
+        x='PC1',
+        y='PC2',
+        color='Highest % annotation',
+        color_discrete_map=annot2color_dic,
+        # title='2D Visualization with Dataset IDs',
+        labels={
+            'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+            'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
+        },
+        hover_name='Dataset ID',
+        hover_data=['Highest % annotation', 'Annotation percentages']
+    )
+
+    fig.update_traces(
+        hovertemplate='<b>%{hovertext}</b><br>Annotation percentages: %{customdata[1]}<extra></extra>'
+    )
+
+    fig.update_traces(marker=dict(size=8, line=dict(width=0.5, color='white')))
+    # fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+    """
+
+
+################################################################################
+
+def seqs_dic_get_kmer_ratios(seqs_dic, k,
+                             rna=False,
+                             report_key_error=False,
+                             skip_non_dic_keys=True,
+                             add_seq_comp=False,
+                             add_gc_skew=False,
+                             add_at_skew=False,
+                             add_at_content=False,
+                             add_1nt_ratios=False,
+                             seq_comp_k=1,
+                             reg2ntps_dic=None,
+                             ntps_dic=False,
+                             convert_to_uc=True):
+    """
+    Given a dictionary with mappings: sequence ID -> sequence,
+    return dictionary with mapping:
+    sequence ID -> list of k-mer ratios for the sequence.
+
+    ntps_dic:
+        If set, calculate average mono-nucleotide percentages of seqs_dic.
+
+    >>> seqs_dic = {'seq1': 'AACGN', 'seq2': 'ACGT', 'seq3': 'tttt'}
+    >>> seqs_dic_get_kmer_ratios(seqs_dic, 1)
+    {'seq1': [0.5, 0.25, 0.25, 0.0], 'seq2': [0.25, 0.25, 0.25, 0.25], 'seq3': [0.0, 0.0, 0.0, 1.0]}
+    >>> seqs_dic = {'seq1': 'AACTT'}
+    >>> seqs_dic_get_kmer_ratios(seqs_dic, 2)
+    {'seq1': [0.25, 0.25, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25]}
+
+    """
+    # Checks.
+    assert seqs_dic, "given dictinary seqs_dic empty"
+    assert k, "invalid k given"
+    assert k > 0, "invalid k given"
+
+    reg2kmer_rat_dic = {}
+
+    for seq_id in seqs_dic:
+
+        seq = seqs_dic[seq_id]
+
+        if convert_to_uc:
+            seq = seq.upper()
+
+        count_dic = get_kmer_dic(k, rna=rna)
+
+        total_c = 0
+
+        # Count k-mers in sequence.
+        for i in range(len(seq)-k+1):
+            kmer = seq[i:i+k]
+            if skip_non_dic_keys:
+                if kmer not in count_dic:
+                    continue
+            else:
+                if report_key_error:
+                    assert kmer in count_dic, "k-mer \"%s\" not in count_dic" %(kmer)
+            if kmer in count_dic:
+                count_dic[kmer] += 1
+                total_c += 1
+        
+        # This can happen if sequence length < k.
+        if total_c == 0:
+            continue
+
+        for kmer in count_dic:
+            ratio = count_dic[kmer] / total_c
+            count_dic[kmer] = ratio
+
+        # Convert count_dic to list.
+        kmer_rat_list = []
+        for kmer in count_dic:
+            kmer_rat_list.append(count_dic[kmer])
+
+        # Single-nt counts.
+        ntc_dic = get_ntc_dic(seq, rna=rna)
+        eff_seq_l = 0
+        for nt in ntc_dic:
+            eff_seq_l += ntc_dic[nt]
+
+        assert eff_seq_l, "effective sequence length is 0 for sequence %s" %(seq_id)
+
+        # region ID -> nucleotide percentages string.
+        if reg2ntps_dic is not None:
+            ntps_list = []
+            for nt in ntc_dic:
+                nt_perc = (ntc_dic[nt] / eff_seq_l) * 100
+                if ntps_dic:
+                    ntps_dic[nt] += nt_perc
+                ntps = "%s: %.2f%%" %(nt, nt_perc)
+                ntps_list.append(ntps)
+            reg2ntps_dic[seq_id] = ", ".join(ntps_list)
+
+        if add_seq_comp:
+            seq_comp = calc_seq_entropy(eff_seq_l, ntc_dic,
+                                        k=seq_comp_k)
+            kmer_rat_list.append(seq_comp)
+        
+        if add_gc_skew:
+            gc_skew = calc_seq_gc_skew_ntc(ntc_dic)
+            kmer_rat_list.append(gc_skew)
+        
+        if add_at_skew:
+            at_skew = calc_seq_at_skew_ntc(ntc_dic, rna=rna)
+            kmer_rat_list.append(at_skew)
+
+        if add_at_content:
+            at_content = calc_seq_at_content_ntc(eff_seq_l, ntc_dic, rna=rna)
+            kmer_rat_list.append(at_content)
+
+        if add_1nt_ratios:
+            for nt in ntc_dic:
+                nt_ratio = ntc_dic[nt] / eff_seq_l
+                kmer_rat_list.append(nt_ratio)
+
+        reg2kmer_rat_dic[seq_id] = kmer_rat_list
+
+    if ntps_dic:
+        for nt in ntps_dic:
+            ntps_dic[nt] = ntps_dic[nt] / len(seqs_dic)
+
+    return reg2kmer_rat_dic
+
+
+################################################################################
+
+def seqs_dic_calc_entropies(seqs_dic,
+                            rna=True,
+                            k=1,
+                            return_dic=False):
+    """
+    Given a dictionary of sequences, calculate entropies for each sequence
+    and return list of entropy values.
+
+    seqs_dic:
+    Dictionary with sequences.
+    k:
+    k-mer size for entropy calculation.
+
+    rna:
+    Use RNA alphabet for counting (uppercase chars only)
+
+    >>> seqs_dic = {'seq1': 'AAAAAAAA', 'seq2': 'AAAACCCC', 'seq3': 'AACCGGUU'}
+    >>> seqs_dic_calc_entropies(seqs_dic)
+    [0, 0.5, 1.0]
+
+    """
+    assert seqs_dic, "given dictionary seqs_dic empty"
+    entr_list = []
+    if return_dic:
+        entr_dic = {}
+    for seq_id in seqs_dic:
+        seq = seqs_dic[seq_id]
+        seq_l = len(seq)
+        # Make uppercase (otherwise seq_l not correct).
+        seq = seq.upper()
+        # Get nt count dic.
+        count_dic = {}
+        if k == 1:
+            count_dic = seq_count_nt_freqs(seq, rna=rna)
+        else:
+            count_dic = get_kmer_counts_dic(seq, k, rna=rna)
+
+        # Calculate sequence entropy.
+        seq_entr = calc_seq_entropy(seq_l, count_dic,
+                                    k=k)
+        #if seq_entr > 0.5:
+        #    print("Entropy: %.2f" %(seq_entr))
+        #    print("%s: %s" %(seq_id, seq))
+        if return_dic:
+            entr_dic[seq_id] = seq_entr
+        else:
+            entr_list.append(seq_entr)
+    if return_dic:
+        return entr_dic
+    else:
+        return entr_list
+
+
+################################################################################
+
+def get_bint_perc_from_ntc_dic(ntc_dic):
+    """
+    Given a DNA nucleotide counts ntc_dic with format:
+    {'A': 4, 'C': 3, 'G': 2, 'T': 1}
+    Get AC, AG, AT, CG, CT, GT percentages.
+    4 elements, select 2, no order, no repeated elements:
+    Binomial coefficient -> 6
+
+    >>> ntc_dic = {'A': 4, 'C': 3, 'G': 2, 'T': 1}
+    >>> get_bint_perc_from_ntc_dic(ntc_dic)
+    {'AC': 70.0, 'AG': 60.0, 'AT': 50.0, 'CG': 50.0, 'CT': 40.0, 'GT': 30.0}
+    >>> ntc_dic = {'A': 4, 'C': 6, 'G': 0, 'T': 0}
+    >>> get_bint_perc_from_ntc_dic(ntc_dic)
+    {'AC': 100.0, 'AG': 40.0, 'AT': 40.0, 'CG': 60.0, 'CT': 60.0, 'GT': 0.0}
+
+    """
+
+    assert ntc_dic, "given dictionary ntc_dic empty"
+    # Get total number.
+    total_n = 0
+    for nt in ntc_dic:
+        total_n += ntc_dic[nt]
+    bint_perc_dic = {}
+
+    perc_ac = ((ntc_dic["A"] + ntc_dic["C"]) / total_n ) * 100
+    perc_ag = ((ntc_dic["A"] + ntc_dic["G"]) / total_n ) * 100
+    perc_at = ((ntc_dic["A"] + ntc_dic["T"]) / total_n ) * 100
+    perc_cg = ((ntc_dic["C"] + ntc_dic["G"]) / total_n ) * 100
+    perc_ct = ((ntc_dic["C"] + ntc_dic["T"]) / total_n ) * 100
+    perc_gt = ((ntc_dic["G"] + ntc_dic["T"]) / total_n ) * 100
+
+    bint_perc_dic = {}
+
+    bint_perc_dic["AC"] = perc_ac
+    bint_perc_dic["AG"] = perc_ag
+    bint_perc_dic["AT"] = perc_at
+    bint_perc_dic["CG"] = perc_cg
+    bint_perc_dic["CT"] = perc_ct
+    bint_perc_dic["GT"] = perc_gt
+
+    return bint_perc_dic
+
+
+################################################################################
+
+def seqs_dic_count_nt_freqs(seqs_dic,
+                            rna=False,
+                            convert_to_uc=False,
+                            count_dic=False):
+    """
+    Given a dictionary with sequences seqs_dic, count how many times each
+    nucleotide is found in all sequences (== get nt frequencies).
+    Return nucleotide frequencies count dictionary.
+
+    By default, a DNA dictionary (A,C,G,T) is used, counting only these
+    characters (note they are uppercase!).
+
+    rna:
+    Instead of DNA dictionary, use RNA dictionary (A,C,G,U) for counting.
+
+    convert_to_uc:
+    Convert sequences to uppercase before counting.
+
+    count_dic:
+    Supply a custom dictionary for counting only characters in
+    this dictionary + adding counts to this dictionary.
+
+    >>> seqs_dic = {'s1': 'AAAA', 's2': 'CCCGGT'}
+    >>> seqs_dic_count_nt_freqs(seqs_dic)
+    {'A': 4, 'C': 3, 'G': 2, 'T': 1}
+    >>> seqs_dic_count_nt_freqs(seqs_dic, rna=True)
+    {'A': 4, 'C': 3, 'G': 2, 'U': 0}
+
+    """
+    assert seqs_dic, "given dictionary seqs_dic empty"
+    if not count_dic:
+        count_dic = {'A': 0, 'C': 0, 'G': 0, 'T': 0}
+        if rna:
+            count_dic = {'A': 0, 'C': 0, 'G': 0, 'U': 0}
+    for seq_id in seqs_dic:
+        seq = seqs_dic[seq_id]
+        if convert_to_uc:
+            seq = seq.upper()
+        seq_count_nt_freqs(seq, rna=rna, count_dic=count_dic)
+    return count_dic
+
+
+################################################################################
+
+def seq_count_nt_freqs(seq,
+                       rna=False,
+                       count_dic=False):
+    """
+    Count nucleotide (character) frequencies in given sequence seq.
+    Return count_dic with frequencies.
+    If count_dic is given, add count to count_dic.
+
+    rna:
+    Instead of DNA dictionary, use RNA dictionary (A,C,G,U) for counting.
+
+    count_dic:
+    Supply a custom dictionary for counting only characters in
+    this dictionary + adding counts to this dictionary.
+
+    >>> seq = 'AAAACCCGGT'
+    >>> seq_count_nt_freqs(seq)
+    {'A': 4, 'C': 3, 'G': 2, 'T': 1}
+    >>> seq = 'acgtacgt'
+    >>> seq_count_nt_freqs(seq)
+    {'A': 0, 'C': 0, 'G': 0, 'T': 0}
+
+    """
+
+    assert seq, "given sequence string seq empty"
+    if not count_dic:
+        count_dic = {'A': 0, 'C': 0, 'G': 0, 'T': 0}
+        if rna:
+            count_dic = {'A': 0, 'C': 0, 'G': 0, 'U': 0}
+    # Conver to list.
+    seq_list = list(seq)
+    for nt in seq_list:
+        if nt in count_dic:
+            count_dic[nt] += 1
+    return count_dic
+
+
+################################################################################
+
+def calc_seq_gc_skew(seq):
+    """
+    Calculate GC skew of a given sequence seq.
+
+    >>> seq = 'AATTGGCC'
+    >>> calc_seq_gc_skew(seq)
+    0.0
+    >>> seq = 'AATTCC'
+    >>> calc_seq_gc_skew(seq)
+    -1.0
+
+    """
+    assert seq, "given sequence string seq empty"
+    seq = seq.upper()
+    g_c = seq.count('G')
+    c_c = seq.count('C')
+    if g_c + c_c == 0:
+        return 0
+    else:
+        return (g_c - c_c) / (g_c + c_c)
+
+
+################################################################################
+
+def calc_seq_at_skew(seq):
+    """
+    Calculate AT skew of a given sequence seq.
+
+    >>> seq = 'AATTGGCC'
+    >>> calc_seq_at_skew(seq)
+    0.0
+    >>> seq = 'AAGGCC'
+    >>> calc_seq_at_skew(seq)
+    1.0
+
+    """
+    assert seq, "given sequence string seq empty"
+    seq = seq.upper()
+    a_c = seq.count('A')
+    t_c = seq.count('T')
+    if a_c + t_c == 0:
+        return 0
+    else:
+        return (a_c - t_c) / (a_c + t_c)
+
+
+
+################################################################################
+
+def calc_seq_gc_skew_ntc(ntc_dic):
+    """
+    Calculate GC skew of a given a nucleotides count dictionary.
+
+    >>> ntc_dic = {'A': 2, 'C': 2, 'G': 2, 'T': 2}
+    >>> calc_seq_gc_skew_ntc(ntc_dic)
+    0.0
+    >>> ntc_dic = {'A': 2, 'C': 2, 'G': 0, 'T': 2}
+    >>> calc_seq_gc_skew_ntc(ntc_dic)
+    -1.0
+
+    """
+    assert ntc_dic, "given ntc_dic empty"
+
+    g_c = ntc_dic["G"]
+    c_c = ntc_dic["C"]
+    if g_c + c_c == 0:
+        return 0
+    else:
+        return (g_c - c_c) / (g_c + c_c)
+
+
+################################################################################
+
+def calc_seq_at_skew_ntc(ntc_dic,
+                         rna=False):
+    """
+    Calculate AT skew of a given a nucleotides count dictionary.
+
+    >>> ntc_dic = {'A': 2, 'C': 2, 'G': 2, 'T': 2}
+    >>> calc_seq_at_skew_ntc(ntc_dic)
+    0.0
+    >>> ntc_dic = {'A': 2, 'C': 2, 'G': 2, 'T': 0}
+    >>> calc_seq_at_skew_ntc(ntc_dic)
+    1.0
+
+    """
+    assert ntc_dic, "given ntc_dic empty"
+
+    a_c = ntc_dic["A"]
+    if rna:
+        t_c = ntc_dic["U"]
+    else:
+        t_c = ntc_dic["T"]
+    if a_c + t_c == 0:
+        return 0
+    else:
+        return (a_c - t_c) / (a_c + t_c)
+
+
+################################################################################
+
+def calc_seq_at_content_ntc(seq_l, ntc_dic,
+                            rna=False):
+    """
+    Calculate AT content of a given a nucleotides count dictionary.
+
+    >>> ntc_dic = {'A': 2, 'C': 2, 'G': 2, 'T': 2}
+    >>> calc_seq_at_content_ntc(8, ntc_dic)
+    0.5
+    >>> ntc_dic = {'A': 1, 'C': 2, 'G': 2, 'T': 0}
+    >>> calc_seq_at_content_ntc(5, ntc_dic)
+    0.2
+
+    """
+    assert ntc_dic, "given ntc_dic empty"
+    assert seq_l, "given sequence length seq_l 0 or empty"
+
+    a_c = ntc_dic["A"]
+    if rna:
+        t_c = ntc_dic["U"]
+    else:
+        t_c = ntc_dic["T"]
+
+    return (a_c + t_c) / seq_l
+
+
+################################################################################
+
+def calc_seq_entropy(seq_l, ntc_dic,
+                     k=1):
+    """
+    Given a dictionary of nucleotide counts for a sequence ntc_dic and
+    the length of the sequence seq_l, compute the Shannon entropy of
+    the sequence.
+
+    Formula (see CE formula) taken from:
+    https://www.ncbi.nlm.nih.gov/pubmed/15215465
+
+    >>> seq_l = 8
+    >>> ntc_dic = {'A': 8, 'C': 0, 'G': 0, 'U': 0}
+    >>> calc_seq_entropy(seq_l, ntc_dic)
+    0
+    >>> ntc_dic = {'A': 4, 'C': 4, 'G': 0, 'U': 0}
+    >>> calc_seq_entropy(seq_l, ntc_dic)
+    0.5
+    >>> ntc_dic = {'A': 2, 'C': 2, 'G': 2, 'U': 2}
+    >>> calc_seq_entropy(seq_l, ntc_dic)
+    1.0
+    >>> seq_l = 4
+    >>> ntc_dic = {'AA': 3, 'AC': 0, 'AG': 0, 'AT': 0, 'CA': 0, 'CC': 0, 'CG': 0, 'CT': 0, 'GA': 0, 'GC': 0, 'GG': 0, 'GT': 0, 'TA': 0, 'TC': 0, 'TG': 0, 'TT': 0}
+    >>> calc_seq_entropy(seq_l, ntc_dic, k=2)
+    0
+    >>> seq_l = 17
+    >>> ntc_dic = {'AA': 1, 'AC': 1, 'AG': 1, 'AT': 1, 'CA': 1, 'CC': 1, 'CG': 1, 'CT': 1, 'GA': 1, 'GC': 1, 'GG': 1, 'GT': 1, 'TA': 1, 'TC': 1, 'TG': 1, 'TT': 1}
+    >>> calc_seq_entropy(seq_l, ntc_dic, k=2)
+    1.0
+
+    """
+    assert seq_l, "invalid sequence length seq_l given"
+
+    # Shannon entropy.
+    ce = 0
+    n_kmers = len(ntc_dic)  # number of k-mers, .e.g. 4 for k=1, 16 for k=2.
+    for nt in ntc_dic:
+        c = ntc_dic[nt]
+        total_c = seq_l - k + 1 # total number of k-mers in sequence.
+
+        if c != 0:
+            ce += (c/total_c) * log((c/total_c), n_kmers)
+    if ce == 0:
+        return 0
+    else:
+        return -1*ce
+
+
+################################################################################
+
+def ntc_dic_to_ratio_dic(ntc_dic,
+                         perc=False):
+    """
+    Given a dictionary of nucleotide counts, return dictionary of nucleotide
+    ratios (count / total nucleotide number).
+
+    perc:
+    If True, make percentages out of ratios (*100).
+
+    >>> ntc_dic = {'A': 5, 'C': 2, 'G': 2, 'T': 1}
+    >>> ntc_dic_to_ratio_dic(ntc_dic)
+    {'A': 0.5, 'C': 0.2, 'G': 0.2, 'T': 0.1}
+
+    """
+    assert ntc_dic, "given dictionary ntc_dic empty"
+    # Get total number.
+    total_n = 0
+    for nt in ntc_dic:
+        total_n += ntc_dic[nt]
+    ntr_dic = {}
+    for nt in ntc_dic:
+        ntc = ntc_dic[nt]
+        ntr = ntc / total_n
+        if perc:
+            ntr = ntr*100
+        ntr_dic[nt] = ntr
+    return ntr_dic
+
+
+################################################################################
+
 def seqs_dic_count_kmer_freqs(seqs_dic, k,
                               rna=False,
                               perc=False,
@@ -15073,6 +18330,56 @@ def seqs_dic_count_kmer_freqs(seqs_dic, k,
             else:
                 count_dic[kmer] = ratio
     # Return k-mer counts or ratios.
+    return count_dic
+
+
+################################################################################
+
+def get_ntc_dic(seq, rna=False):
+    """
+    Get single nucleotide count dictionary.
+
+    >>> seq = 'ACGTACGT'
+    >>> get_ntc_dic(seq)
+    {'A': 2, 'C': 2, 'G': 2, 'T': 2}
+
+    """
+
+    ntc_dic = get_kmer_dic(1, rna=rna)
+
+    for nt in seq:
+        if nt in ntc_dic:
+            ntc_dic[nt] += 1
+
+    return ntc_dic
+
+
+################################################################################
+
+def get_kmer_counts_dic(seq, k, rna=False):
+    """
+    Get k-mer counts dictionary for sequence.
+
+    >>> seq = 'ACGT'
+    >>> get_kmer_counts_dic(seq, 2)
+    {'AA': 0, 'AC': 1, 'AG': 0, 'AT': 0, 'CA': 0, 'CC': 0, 'CG': 1, 'CT': 0, 'GA': 0, 'GC': 0, 'GG': 0, 'GT': 1, 'TA': 0, 'TC': 0, 'TG': 0, 'TT': 0}
+    >>> seq = 'ACGTA'
+    >>> get_kmer_counts_dic(seq, 1)
+    {'A': 2, 'C': 1, 'G': 1, 'T': 1}
+
+    """
+
+    count_dic = get_kmer_dic(k, rna=rna)
+    total_c = 0
+
+    for i in range(len(seq)-k+1):
+        kmer = seq[i:i+k]
+        if kmer in count_dic:
+            count_dic[kmer] += 1
+            total_c += 1
+    
+    assert total_c, "no k-mers counted for given sequence \"%s\" (sequence lengths < set k ?)" %(seq)
+
     return count_dic
 
 
@@ -15383,10 +18690,6 @@ def search_generate_html_motif_plots(args, search_rbps_dic,
         site_type_uc = "Sequence"
         site_type = "sequence"
 
-    report_header_info = "Motif Plots and Hit Statistics"
-    if args.report_header:
-        report_header_info = "RBPBench Motif Plots and Hit Statistics"
-
     """
     Setup sorttable.js to make tables in HTML sortable.
 
@@ -15402,6 +18705,12 @@ def search_generate_html_motif_plots(args, search_rbps_dic,
         js_code = read_file_content_into_str_var(sorttable_js_path)
         sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
 
+    # Logo path.
+    logo_path_html = plots_folder + "/logo.png"
+    if not os.path.exists(logo_path_html):
+        logo_path = benchlib_path + "/content/logo.png"
+        assert os.path.exists(logo_path), "logo.png not found in %s" %(logo_path)
+        shutil.copy(logo_path, plots_out_folder)
 
     # HTML head section.
     html_head = """<!DOCTYPE html>
@@ -15421,11 +18730,26 @@ def search_generate_html_motif_plots(args, search_rbps_dic,
     .page {
         page-break-after: always;
     }
+    .title-container {
+        display: flex;
+        align-items: center;
+    }
+    .title-container img {
+        margin-right: 10px; /* Adjust the spacing as needed */
+    }
 </style>
 
 </head>
+
+<div class="title-container">
+    <img src="%s" alt="Logo" width="175">
+    <h1>Motif Plots and Hit Statistics</h1>
+</div>
+
+
 <body>
-""" 
+""" %(logo_path_html)
+
 
     # HTML tail section.
     html_tail = """
@@ -15437,13 +18761,11 @@ def search_generate_html_motif_plots(args, search_rbps_dic,
     # Markdown part.
     mdtext = """
 
-# %s
-
 List of available motif hit statistics and motif plots generated
 by RBPBench (rbpbench %s):
 
 - [Motif hit statistics](#motif-hit-stats)
-""" %(report_header_info, rbpbench_mode)
+""" %(rbpbench_mode)
 
     if args.run_goa:
         mdtext += "- [Motif hit GO enrichment analysis results](#goa-results)\n"
@@ -15988,7 +19310,6 @@ def compare_generate_html_report(args,
     out_folder = args.out_folder
     plot_abs_paths = args.plot_abs_paths
     sort_js_mode = args.sort_js_mode
-    report_header = args.report_header
 
     # Use absolute paths?
     if plot_abs_paths:
@@ -16006,10 +19327,6 @@ def compare_generate_html_report(args,
     if html_report_out:
         html_out = html_report_out
 
-    report_header_info = "Comparison report"
-    if report_header:
-        report_header_info = "RBPBench comparison report"
-
     """
     Setup sorttable.js to make tables in HTML sortable.
 
@@ -16024,6 +19341,13 @@ def compare_generate_html_report(args,
     elif sort_js_mode == 3:
         js_code = read_file_content_into_str_var(sorttable_js_path)
         sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
+
+    # Logo path.
+    logo_path_html = plots_folder + "/logo.png"
+    if not os.path.exists(logo_path_html):
+        logo_path = benchlib_path + "/content/logo.png"
+        assert os.path.exists(logo_path), "logo.png not found in %s" %(logo_path)
+        shutil.copy(logo_path, plots_out_folder)
 
     # HTML head section.
     html_head = """<!DOCTYPE html>
@@ -16043,11 +19367,24 @@ def compare_generate_html_report(args,
     .page {
         page-break-after: always;
     }
+    .title-container {
+        display: flex;
+        align-items: center;
+    }
+    .title-container img {
+        margin-right: 10px; /* Adjust the spacing as needed */
+    }
 </style>
 
 </head>
+
+<div class="title-container">
+    <img src="%s" alt="Logo" width="175">
+    <h1>Search Report</h1>
+</div>
+
 <body>
-""" 
+""" %(logo_path_html)
 
     # HTML tail section.
     html_tail = """
@@ -16059,12 +19396,10 @@ def compare_generate_html_report(args,
     # Markdown part.
     mdtext = """
 
-# %s
-
 List of available comparison statistics generated
 by RBPBench (rbpbench compare):
 
-""" %(report_header_info)
+"""
 
     # Comparisons based on method ID.
     method_ids_dic = {}
