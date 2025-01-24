@@ -16349,12 +16349,15 @@ def main_enmo(args):
             benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
                                                 output_mode=3,  # only introns.
                                                 report_counts=True,
-                                                add_tr_id=True,
+                                                add_tr_id=True,  # new reg_id format: intron;ENST000006666
+                                                add_numbers=True,  # new reg_id format: intron;ENST000006666;1-2
+                                                number_format=1,  # format intron;ENST000006666;1-2
                                                 empty_check=False)
-        
+
             # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.
             print("Output exon annotations to BED ... ")
             benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
+                                             add_numbers=True,
                                              append=True)
 
             # Overlap with input regions.
@@ -18761,12 +18764,15 @@ def main_nemo(args):
             benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
                                                 output_mode=3,  # only introns.
                                                 report_counts=True,
-                                                add_tr_id=True,
+                                                add_tr_id=True,  # new reg_id format: intron;ENST000006666
+                                                add_numbers=True,  # new reg_id format: intron;ENST000006666;1-2 ADDED
+                                                number_format=1,  # format intron;ENST000006666;1-2 ADDED
                                                 empty_check=False)
         
             # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.
             print("Output exon annotations to BED ... ")
             benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
+                                             add_numbers=True,
                                              append=True)
 
             # Overlap with input regions.
