@@ -2006,7 +2006,7 @@ def read_fasta_into_dic(fasta_file,
     header_idx = 0
 
     # Compile regex patterns.
-    header_pattern = re.compile(r">(.+)" if full_header else r">(\S+)")  # \S any non-whitespaces match.
+    header_pattern = re.compile(r"^>(.+)" if full_header else r"^>(\S+)")  # \S any non-whitespaces match.
     bed_pattern = re.compile(r"^(.+)::")
     seq_pattern = re.compile(r"[ACGTUN]+", re.I)
     n_pattern = re.compile(r"N", re.I)
@@ -6775,7 +6775,7 @@ def genome_fasta_get_chr_sizes_file(in_genome_fa, out_chr_sizes_file,
 
     OUTCHRLEN = open(out_chr_sizes_file, "w")
 
-    header_pattern = re.compile(r"^>(.+)")
+    header_pattern = re.compile(r"^>(\S+)")
 
     with open(in_genome_fa) as f:
         for line in f:
@@ -6821,13 +6821,12 @@ def genome_fasta_get_chr_sizes(in_genome_fa,
     seq_id = "id"
     seq_len = 0
 
-    header_pattern = re.compile(r"^>(.+)")
+    header_pattern = re.compile(r"^>(\S+)")
 
     with open(in_genome_fa) as f:
         for line in f:
             if line.startswith(">"):
                 m = header_pattern.match(line)
-                new_id = m.group(1)
                 new_id = m.group(1)
                 if check_ids:
                     assert new_id not in seq_len_dic, "non-unique sequence ID \"%s\" found in --in genome FASTA file. Please provide unique sequence IDs" %(new_id)
