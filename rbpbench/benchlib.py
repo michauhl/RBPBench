@@ -29,7 +29,6 @@ from scipy.stats import false_discovery_control  # Benjamini-Hochberg correction
 from goatools.obo_parser import GODag
 from goatools.goea.go_enrichment_ns import GOEnrichmentStudy
 from decimal import Decimal, getcontext
-from . import __version__
 
 """
 
@@ -47,12 +46,6 @@ python3 -m doctest -v benchlib.py
 
 
 """
-
-
-################################################################################
-
-def get_version():
-    return __version__
 
 
 ################################################################################
@@ -82,6 +75,298 @@ def calc_edit_dist_query_list(query_str, lst):
         pair_dist_dic[s2] = d
 
     return pair_dist_dic
+
+
+################################################################################
+
+def bed_read_in_regions(in_bed,
+                        no_id_check=False,
+                        use_regions_as_ids=False):
+    """
+    Read in BED regions into a dictionary.
+
+    """
+
+    bed_regions_dic = {}
+
+    with open(in_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            chr_id = cols[0]
+            start = int(cols[1])
+            end = int(cols[2])
+            reg_id = cols[3]
+            pol = cols[5]
+            
+            if use_regions_as_ids:
+                reg_id = chr_id + ":" + str(start) + "-" + str(end) + "," + pol
+
+            if no_id_check:
+                if reg_id in bed_regions_dic:
+                    # Overwrite existing region.
+                    print("WARNING: region ID \"%s\" already found in \"%s\". Overwriting existing region .." % (reg_id, in_bed))
+            else:
+                assert reg_id not in bed_regions_dic, "region ID \"%s\" already found in \"%s\". Please provide BED file with unique col4 IDs or set --use-regions" % (reg_id, in_bed)
+            bed_regions_dic[reg_id] = [chr_id, start, end, pol]
+
+    f.closed
+    return bed_regions_dic
+
+
+################################################################################
+
+def get_region_dic_stats(region_dic):
+    """
+    region_dic format:
+    {region_id: [chr_id, start, end, strand]} with 0-based start.
+
+    """
+    assert region_dic, "region_dic empty"
+    # Get length stats.
+    region_lengths =  []
+    for reg_id, reg_info in region_dic.items():
+        reg_len = reg_info[2] - reg_info[1]
+        region_lengths.append(reg_len)
+    # Get mean, median, min, max.
+    mean_len = statistics.mean(region_lengths)
+    median_len = statistics.median(region_lengths)
+    min_len = min(region_lengths)
+    max_len = max(region_lengths)
+    # Get number of regions.
+    num_regions = len(region_lengths)
+    return num_regions, mean_len, median_len, min_len, max_len
+
+
+################################################################################
+
+def compare_conservation_scores(in_regions_dic, control_regions_dic, 
+                                out_folder,
+                                pc_bw=False,
+                                pp_bw=False,
+                                avg_stats_out=False,
+                                single_pos_stats_out=False,
+                                wrs_alt_hypo="greater"):
+    """
+    Extract and compare phylogenomic conservation scores for given genomic input 
+    and control sites.
+
+    
+    in_regions_dic / control_regions_dic format:
+    {region_id: [chr_id, start, end, strand]} with 0-based start.
+
+    AALAMO
+
+    TABOUT = open(out_tsv, "w")
+
+    heads = ["#rbp_id"]
+    for rbp_id in rbp_list:
+        heads.append(rbp_id)
+    heads_str = "\t".join(heads)
+    TABOUT.write("%s\n" %(heads_str))
+    for i,r in enumerate(pval_ll):
+        # print("i:", i)
+        # print("rbp_list[i]:", rbp_list[i])
+        # sys.exit()
+        row = [rbp_list[i]]
+        for e in pval_ll[i]:
+            row.append(str(e))
+        row_str = "\t".join(row)
+        TABOUT.write("%s\n" %(row_str))
+    TABOUT.close()
+
+    """
+
+    assert in_regions_dic, "in_regions_dic empty"
+    assert control_regions_dic, "control_regions_dic empty"
+    assert pc_bw or pp_bw, "No conservation scores provided. Please provide --phastcons and/or --phylop files"
+    assert os.path.exists(out_folder), "given --out folder \"%s\" not found" % (out_folder)
+    assert os.path.exists(pc_bw), "given --phastcons file \"%s\" not found" % (pc_bw)
+    assert os.path.exists(pp_bw), "given --phylop file \"%s\" not found" % (pp_bw)
+
+    import pyBigWig
+
+    # Get region length stats.
+    in_regions_stats = get_region_dic_stats(in_regions_dic)
+    control_regions_stats = get_region_dic_stats(control_regions_dic)
+
+    in_reg_avg_phastcons_dic = {}
+    in_reg_avg_phylop_dic = {}
+    ctrl_reg_avg_phastcons_dic = {}
+    ctrl_reg_avg_phylop_dic = {}
+
+    """
+    PhastCons conservation scores.
+
+    """
+
+    if pc_bw:
+
+        print("Reading in phastCons conservation scores ... ")
+
+        pc_bw_data = pyBigWig.open(pc_bw)
+
+        for reg_id, reg_info in in_regions_dic.items():
+
+            chr_id = reg_info[0]
+            start = reg_info[1]
+            end = reg_info[2]
+
+            try:
+                # Get conservation scores for the region.
+                scores = pc_bw_data.values(chr_id, start, end, numpy=False)
+                # Convert NaN values to 0.0.
+                scores = [0.0 if np.isnan(s) else s for s in scores]
+                avg_score = statistics.mean(scores) if scores else 0.0
+
+                in_reg_avg_phastcons_dic[reg_id] = avg_score
+            except RuntimeError:
+                print(f"Skipping --bed region {chr_id}:{start}-{end} (coordinates not in bigWig)")
+
+        for reg_id, reg_info in control_regions_dic.items():
+
+            chr_id = reg_info[0]
+            start = reg_info[1]
+            end = reg_info[2]
+
+            try:
+                # Get conservation scores for the region.
+                scores = pc_bw_data.values(chr_id, start, end, numpy=False)
+                # Convert NaN values to 0.0.
+                scores = [0.0 if np.isnan(s) else s for s in scores]
+                avg_score = statistics.mean(scores) if scores else 0.0
+                ctrl_reg_avg_phastcons_dic[reg_id] = avg_score
+            except RuntimeError:
+                print(f"Skipping --control-bed region {chr_id}:{start}-{end} (coordinates not in bigWig)")
+
+        pc_bw_data.close()
+
+        in_scores = []
+        for reg_id, reg_info in in_regions_dic.items():
+            in_scores.append(in_reg_avg_phastcons_dic[reg_id])
+        control_scores = []
+        for reg_id, reg_info in control_regions_dic.items():
+            control_scores.append(ctrl_reg_avg_phastcons_dic[reg_id])
+
+        # Compare distributions.
+        stat, pval = stats.mannwhitneyu(in_scores, control_scores, alternative=wrs_alt_hypo)
+        print(f"Mann-Whitney U test: U = {stat:.2f}, p = {pval:.4g}")
+
+        plt.figure(figsize=(6, 4))
+        plt.violinplot([in_scores, control_scores], showmeans=True, widths=0.8)
+        plt.xticks([1, 2], ['Regions', 'Control regions'])
+        plt.ylabel('Mean region phastCons conservation score')
+        plt.title('phastCons Conservation Score Distribution')
+
+        # Optional: Add p-value to plot
+        plt.text(1.5, max(max(in_scores), max(control_scores)), f'p = {pval:.3g}', 
+                ha='center', va='bottom', fontsize=10)
+
+        plt.tight_layout()
+        # plt.show()
+        plt.savefig(os.path.join(args.out_folder, "phastCons_scores.png"), dpi=300)
+
+
+    """
+    PhyloP conservation scores.
+
+    """
+
+    if args.pp_bw is not None:
+        # Check if pp_bw is a link or a file.
+        if args.pp_bw.startswith("http"):
+            print("Downloading phyloP conservation scores to --out folder (this might take some time!) ... ")
+            os.system("wget -q %s -O %s" % (args.pp_bw, os.path.join(args.out_folder, "phyloP.bw")))
+            args.pp_bw = os.path.join(args.out_folder, "phyloP.bw")
+        
+        assert os.path.exists(args.pp_bw), "given --phylop file \"%s\" not found" % (args.pc_bw)
+
+        print("Reading in phyloP conservation scores ... ")
+
+        pp_bw = pyBigWig.open(args.pp_bw)
+
+        for reg_id, reg_info in in_regions_dic.items():
+
+            chr_id = reg_info[0]
+            start = reg_info[1]
+            end = reg_info[2]
+
+            try:
+                # Get conservation scores for the region.
+                scores = pp_bw.values(chr_id, start, end, numpy=False)
+                # Convert NaN values to 0.0.
+                scores = [0.0 if np.isnan(s) else s for s in scores]
+                avg_score = statistics.mean(scores) if scores else 0.0
+                in_reg_avg_phylop_dic[reg_id] = avg_score
+            except RuntimeError:
+                print(f"Skipping --bed region {chr_id}:{start}-{end} (coordinates not in bigWig)")
+
+        for reg_id, reg_info in control_regions_dic.items():
+
+            chr_id = reg_info[0]
+            start = reg_info[1]
+            end = reg_info[2]
+
+            try:
+                # Get conservation scores for the region.
+                scores = pp_bw.values(chr_id, start, end, numpy=False)
+                # Convert NaN values to 0.0.
+                scores = [0.0 if np.isnan(s) else s for s in scores]
+                avg_score = statistics.mean(scores) if scores else 0.0
+                ctrl_reg_avg_phylop_dic[reg_id] = avg_score
+            except RuntimeError:
+                print(f"Skipping --control-bed region {chr_id}:{start}-{end} (coordinates not in bigWig)")
+
+        pp_bw.close()
+
+        in_scores = []
+        for reg_id, reg_info in in_regions_dic.items():
+            in_scores.append(in_reg_avg_phylop_dic[reg_id])
+        control_scores = []
+        for reg_id, reg_info in control_regions_dic.items():
+            control_scores.append(ctrl_reg_avg_phylop_dic[reg_id])
+
+        # Compare distributions.
+        stat, pval = stats.mannwhitneyu(in_scores, control_scores, alternative=wrs_alt_hypo)
+        print(f"Mann-Whitney U test: U = {stat:.2f}, p = {pval:.4g}")
+
+        plt.figure(figsize=(6, 4))
+        plt.violinplot([in_scores, control_scores], showmeans=True, widths=0.8)
+        plt.xticks([1, 2], ['Regions', 'Control regions'])
+        plt.ylabel('Mean region phyloP conservation score')
+        plt.title('phyloP Conservation Score Distribution')
+
+        # Optional: Add p-value to plot
+        plt.text(1.5, max(max(in_scores), max(control_scores)), f'p = {pval:.3g}', 
+                ha='center', va='bottom', fontsize=10)
+
+        plt.tight_layout()
+        # plt.show()
+        plt.savefig(os.path.join(args.out_folder, "phyloP_scores.png"), dpi=300)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ################################################################################
@@ -2963,7 +3248,6 @@ def get_exon_pos_count_list_dic(tid2tio_dic,
             exon2pcl_dic[exon_id] = [0] * exon_len
 
     return exon2pcl_dic
-
 
 
 ################################################################################
@@ -10305,6 +10589,7 @@ def create_gene_occ_cooc_plot_plotly(df_gene_occ, gene_cooc_lll, plot_out,
 
 def goa_generate_html_report(args, goa_results_df, 
                              goa_stats_dic, benchlib_path,
+                             version="1.x",
                              html_report_out="goa_results.rbpbench_goa.html"):
     """
     Generate GOA results HTML report (rbpbench goa mode).
@@ -10313,6 +10598,9 @@ def goa_generate_html_report(args, goa_results_df,
     out_folder = args.out_folder
     if args.plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
+
+    # Version string.
+    version_str = "v" + version
 
     html_out = out_folder + "/" + "goa_results.rbpbench_goa.html"
     md_out = out_folder + "/" + "goa_results.rbpbench_goa.md"
@@ -10392,9 +10680,9 @@ def goa_generate_html_report(args, goa_results_df,
     mdtext = """
 
 List of available statistics and plots generated
-by RBPBench (rbpbench goa):
+by RBPBench (%s, rbpbench goa):
 
-- [GO enrichment analysis results](#goa-results)"""
+- [GO enrichment analysis results](#goa-results)""" %(version_str)
     mdtext += "\n"
     mdtext += "\n&nbsp;\n"
 
@@ -10604,6 +10892,7 @@ def batch_generate_html_report(args,
                                heatmap_cluster_olo=False,
                                goa_results_df=False,
                                goa_stats_dic=False,
+                               version="1.x",
                                plots_subfolder="html_report_plots"):
     """
     Create plots for RBPBench batch run results.
@@ -10618,6 +10907,9 @@ def batch_generate_html_report(args,
     out_folder = args.out_folder
     if args.plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
+
+    # Version string.
+    version_str = "v" + version
 
     plots_folder = plots_subfolder
     plots_out_folder = out_folder + "/" + plots_folder
@@ -10768,9 +11060,10 @@ def batch_generate_html_report(args,
     mdtext = """
 
 List of available statistics and plots generated
-by RBPBench (rbpbench batch --report):
+by RBPBench (%s, rbpbench batch --report):
 
-- [Input datasets sequence length statistics](#seq-len-stats)"""
+- [Input datasets sequence length statistics](#seq-len-stats)""" %(version_str)
+    
     mdtext += "\n"
 
     if ei_ol_stats_dic:
@@ -12202,9 +12495,6 @@ No significant GO terms found due to no GO IDs associated with target genes. # o
     OUTHTML.close()
 
 
-
-
-
 ################################################################################
 
 def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic, 
@@ -12845,6 +13135,7 @@ def enmo_generate_html_report(args,
                               plotly_embed_style=1,
                               rbpbench_mode="search --report",
                               html_report_out="report.rbpbench_enmo.html",
+                              version="1.x",
                               plots_subfolder="html_report_plots"):
 
     """
@@ -12856,7 +13147,10 @@ def enmo_generate_html_report(args,
     out_folder = args.out_folder
     if args.plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
-    
+
+    # Version string.
+    version_str = "v" + version
+
     plots_folder = plots_subfolder
     plots_out_folder = out_folder + "/" + plots_folder
     if args.plot_abs_paths:
@@ -12991,11 +13285,11 @@ def enmo_generate_html_report(args,
     mdtext = """
 
 List of available statistics and plots generated
-by RBPBench (rbpbench %s):
+by RBPBench (%s, rbpbench %s):
 
 - [Motif enrichment statistics](#enmo-stats)
 - [Motif co-occurrences heat map](#cooc-heat-map)
-- [Sequence motif similarity vs significance PCA plot](#motif-sim-sig-plot)""" %(rbpbench_mode)
+- [Sequence motif similarity vs significance PCA plot](#motif-sim-sig-plot)""" %(version_str, rbpbench_mode)
 
     mdtext += "\n"
 
@@ -13607,6 +13901,7 @@ def nemo_generate_html_report(args,
                               plotly_embed_style=1,
                               rbpbench_mode="nemo",
                               html_report_out="report.rbpbench_nemo.html",
+                              version="1.x",
                               plots_subfolder="html_report_plots"):
 
     """
@@ -13618,7 +13913,10 @@ def nemo_generate_html_report(args,
     out_folder = args.out_folder
     if args.plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
-    
+
+    # Version string.
+    version_str = "v" + version
+
     plots_folder = plots_subfolder
     plots_out_folder = out_folder + "/" + plots_folder
     if args.plot_abs_paths:
@@ -13753,12 +14051,12 @@ def nemo_generate_html_report(args,
     mdtext = """
 
 List of available statistics and plots generated
-by RBPBench (rbpbench %s):
+by RBPBench (%s, rbpbench %s):
 
 - [Neighboring motif enrichment statistics](#nemo-stats)
 - [Motif co-occurrences heat map](#cooc-heat-map)
 - [Sequence motif similarity vs significance PCA plot](#motif-sim-sig-plot)
-- [Sequence motif similarity vs direction PCA plot](#motif-sim-dir-plot)""" %(rbpbench_mode)
+- [Sequence motif similarity vs direction PCA plot](#motif-sim-dir-plot)""" %(version_str, rbpbench_mode)
 
     mdtext += "\n"
 
@@ -14883,6 +15181,7 @@ def search_generate_html_report(args,
                                 reg_seq_str="regions",
                                 reg2seq_dic=False,
                                 reg2sc_dic=False,
+                                version="1.x",
                                 plots_subfolder="html_report_plots"):
     """
     Create additional hit statistics for selected RBPs, 
@@ -14894,7 +15193,10 @@ def search_generate_html_report(args,
     out_folder = args.out_folder
     if args.plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
-    
+
+    # Version string.
+    version_str = "v" + version
+
     plots_folder = plots_subfolder
     plots_out_folder = out_folder + "/" + plots_folder
     if args.plot_abs_paths:
@@ -15038,12 +15340,10 @@ def search_generate_html_report(args,
 <body>
 """ %(plotly_js_html, logo_path_html)
 
-
     # HTML tail section.
     html_tail = """
 %s
 </body>
-
 
 </html>
 """ %(sorttable_js_html)
@@ -15056,10 +15356,10 @@ def search_generate_html_report(args,
     mdtext = """
 
 List of available statistics and plots generated
-by RBPBench (rbpbench %s):
+by RBPBench (%s, rbpbench %s):
 
 %s
-- [RBP motif co-occurrences heat map](#cooc-heat-map)""" %(rbpbench_mode, motif_enrich_info)
+- [RBP motif co-occurrences heat map](#cooc-heat-map)""" %(version_str, rbpbench_mode, motif_enrich_info)
 
     mdtext += "\n"
 
@@ -15783,10 +16083,6 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
 &nbsp;
 
 """ %(more_infos)
-
-
-
-
 
 
     """
@@ -18658,7 +18954,7 @@ def search_generate_html_motif_plots(args, search_rbps_dic,
                                      goa_results_tsv="goa_results.tsv",
                                      id2pids_dic=False,
                                      id2exp_dic=False,
-                                     version=__version__,
+                                     version="1.x",
                                      plots_subfolder="html_motif_plots"):
     """
     Create motif plots for selected RBPs.
@@ -18669,7 +18965,10 @@ def search_generate_html_motif_plots(args, search_rbps_dic,
     # Use absolute paths?
     if args.plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
-    
+
+    # Version string.
+    version_str = "v" + version
+
     plots_folder = plots_subfolder
     plots_out_folder = out_folder + "/" + plots_folder
     if args.plot_abs_paths:
@@ -18768,10 +19067,10 @@ def search_generate_html_motif_plots(args, search_rbps_dic,
     mdtext = """
 
 List of available motif hit statistics and motif plots generated
-by RBPBench (rbpbench %s):
+by RBPBench (%s, rbpbench %s):
 
 - [Motif hit statistics](#motif-hit-stats)
-""" %(rbpbench_mode)
+""" %(version_str, rbpbench_mode)
 
     if args.run_goa:
         mdtext += "- [Motif hit GO enrichment analysis results](#goa-results)\n"
@@ -19308,6 +19607,7 @@ def compare_generate_html_report(args,
                                  rbp_stats_dic, motif_stats_dic,
                                  benchlib_path,
                                  html_report_out="report.rbpbench_compare.html",
+                                 version="1.x",
                                  plots_subfolder="html_plots"):
     """
     Create comparison statistics and HTML report.
@@ -19316,6 +19616,9 @@ def compare_generate_html_report(args,
     out_folder = args.out_folder
     plot_abs_paths = args.plot_abs_paths
     sort_js_mode = args.sort_js_mode
+
+    # Version string.
+    version_str = "v" + version
 
     # Use absolute paths?
     if plot_abs_paths:
@@ -19403,9 +19706,9 @@ def compare_generate_html_report(args,
     mdtext = """
 
 List of available comparison statistics generated
-by RBPBench (rbpbench compare):
+by RBPBench (%s, rbpbench compare):
 
-"""
+""" %(version_str)
 
     # Comparisons based on method ID.
     method_ids_dic = {}
