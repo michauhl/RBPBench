@@ -747,15 +747,15 @@ A low p-value indicates that input sites have significantly higher conservation 
 This mode can thus be used e.g. to compare different sets of motif hit regions, 
 or sets from different peak callers. An HTML report is produced to summarize and visually inspect the results.
 
-Compatible phastCons and phyloP conservation score files can be downloaded from the UCSC, e.g. using the conservation scores 
-obtained from alignments of 99 vertebrate genomes to the human genome:
+Compatible phastCons and phyloP conservation score files (.bigWig format) can be downloaded from the UCSC, 
+e.g. using the conservation scores obtained from alignments of 99 vertebrate genomes to the human genome:
 
 ```
-wget https://hgdownload.cse.ucsc.edu/goldenpath/hg38/phyloP100way/hg38.phyloP100way.bww
+wget https://hgdownload.cse.ucsc.edu/goldenpath/hg38/phyloP100way/hg38.phyloP100way.bw
 wget https://hgdownload.cse.ucsc.edu/goldenpath/hg38/phastCons100way/hg38.phastCons100way.bw
 ```
 
-Note that `rbpbench con` also works with just phastCons or phyloP files.
+Note that `rbpbench con` also works with just a phastCons or a phyloP file as input.
 
 As an example, we can again use the mRNA region end positions as input sites (`mrna_region_end_pos.bed` from the example [above](#nemo-mode)), 
 and for the control sites we can shift the end positions downstream by 50 nt:
