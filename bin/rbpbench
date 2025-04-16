@@ -2883,8 +2883,6 @@ def setup_argument_parser():
     """
     Compare phylogenomic conservation between two sets of genomic sites.
 
-    AALAMO
-
     """
     p_cn = subparsers.add_parser('con',
                                 help='Compare conservation in genomic sites')
@@ -2892,18 +2890,18 @@ def setup_argument_parser():
     # Add required arguments group.
     p_cnm = p_cn.add_argument_group("required arguments")
     # Required arguments for con.
-    p_cnm.add_argument("--bed",
+    p_cnm.add_argument("--in",
                    dest="in_bed",
                    type=str,
                    metavar='str',
                    required = True,
                    help = "Genomic sites of interest in BED format")
-    p_cnm.add_argument("--control-bed",
+    p_cnm.add_argument("--ctrl-in",
                    dest="in_control_bed",
                    type=str,
                    metavar='str',
                    required=True,
-                   help = "Genomic control sites to compare to --bed genomic sites regarding conservation scores in BED format")
+                   help = "Genomic control sites to compare to --in genomic sites regarding conservation scores in BED format")
     p_cnm.add_argument("--out",
                    dest="out_folder",
                    type=str,
@@ -2925,7 +2923,7 @@ def setup_argument_parser():
                    dest="use_regions",
                    default = False,
                    action = "store_true",
-                   help="Use genomic regions as --bed / --control-bed input site IDs instead of BED col4 IDs (default: False)")
+                   help="Use genomic regions as --in / --ctrl-in input site IDs instead of BED col4 IDs (default: False)")
     p_cn.add_argument("--no-id-check",
                    dest="no_id_check",
                    default = False,
@@ -2936,7 +2934,25 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2],
-                   help="Defines Wilcoxon rank sum test alternative hypothesis for testing whether --bed sites have significantly different average conservation scores compared to --control-bed sites. 1: test for higher (greater) scores, 2: test for lower (less) scores (default: 1)")
+                   help="Defines Wilcoxon rank sum test alternative hypothesis for testing whether --in sites have significantly different average conservation scores compared to --ctrl-in sites. 1: test for higher (greater) scores, 2: test for lower (less) scores (default: 1)")
+    # Report / plot options.
+    p_cn.add_argument("--plot-abs-paths",
+                   dest="plot_abs_paths",
+                   default = False,
+                   action = "store_true",
+                   help = "Store plot files with absolute paths in HTML files. Default is relative paths (default: False)")
+    p_cn.add_argument("--plot-pdf",
+                   dest="plot_pdf",
+                   default = False,
+                   action = "store_true",
+                   help = "Also output .png plots as .pdf in plotting subfolder (default: False)")
+    p_cn.add_argument("--sort-js-mode",
+                   dest="sort_js_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to output folder. 3: include .js code in HTML (default: 1)")
+
 
     """
     Run STREME on input sites for motif discovery.
@@ -6337,7 +6353,6 @@ def main_search(args):
                                         reg_seq_str="regions",
                                         reg2seq_dic=out_seqs_dic,
                                         reg2sc_dic=reg2sc_dic,
-                                        version=__version__,
                                         plots_subfolder=plots_subfolder)
 
 
@@ -20385,8 +20400,6 @@ def main_con(args):
     """
     Compare conservation in two sets of genomic sites.
 
-    AALAMO
-
     """
 
     print("Running CON for you ... ")
@@ -20397,12 +20410,12 @@ def main_con(args):
     if not os.path.exists(args.out_folder):
         os.makedirs(args.out_folder)
 
+
     """
     Library path.
     """
     benchlib_path = os.path.dirname(benchlib.__file__)
-    db_path = benchlib_path + "/content"
-
+    # db_path = benchlib_path + "/content"
 
     print("Reading in BED regions  ... ")
 
@@ -20442,211 +20455,54 @@ def main_con(args):
             os.system("wget -q %s -O %s" % (args.pp_bw, os.path.join(args.out_folder, "phyloP.bw")))
             args.pp_bw = os.path.join(args.out_folder, "phyloP.bw")
         
-        assert os.path.exists(args.pp_bw), "given --phylop file \"%s\" not found" % (args.pc_bw)
-
-
-
-
-
-
-
-    in_reg_avg_phastcons_dic = {}
-    in_reg_avg_phylop_dic = {}
-    ctrl_reg_avg_phastcons_dic = {}
-    ctrl_reg_avg_phylop_dic = {}
-
+        assert os.path.exists(args.pp_bw), "given --phylop file \"%s\" not found" % (args.pp_bw)
 
 
     """
-    PhastCons conservation scores.
-
-    AALAMO
+    Extract scores and create HTML report.
 
     """
+    html_report_out = "report.rbpbench_con.html"
+    in_con_sc_name = "in_regions.avg_con_sc.tsv"
+    ctrl_con_sc_name = "control_regions.avg_con_sc.tsv"
 
-    # Wilcoxon rank-sum test / Mann Whitney U test mode.
-    wrs_alt_hypo = "greater"
-    if args.wrs_mode == 1:
-        wrs_alt_hypo = "greater"
-        print("Check if --bed regions have significantly higher conservation scores ... ")
-    elif args.wrs_mode == 2:
-        wrs_alt_hypo = "less"
-        print("Check if --bed regions have significantly lower conservation scores ... ")
-    else:
-        assert False, "Invalid Wilcoxon rank-sum (Mann Whitney U) test mode: %i" %(args.wrs_mode)
-
-
-
-
-    if args.pc_bw is not None:
-        # Check if pc_bw is a link or a file.
-        if args.pc_bw.startswith("http"):
-            print("Downloading phastCons conservation scores to --out folder (this might take some time!) ... ")
-            os.system("wget -q %s -O %s" % (args.pc_bw, os.path.join(args.out_folder, "phastCons.bw")))
-            args.pc_bw = os.path.join(args.out_folder, "phastCons.bw")
-        
-        assert os.path.exists(args.pc_bw), "given --phastcons file \"%s\" not found" % (args.pc_bw)
-
-        print("Reading in phastCons conservation scores ... ")
-
-        pc_bw = pyBigWig.open(args.pc_bw)
-
-        for reg_id, reg_info in in_regions_dic.items():
-
-            chr_id = reg_info[0]
-            start = reg_info[1]
-            end = reg_info[2]
-
-            try:
-                # Get conservation scores for the region.
-                scores = pc_bw.values(chr_id, start, end, numpy=False)
-                # Convert NaN values to 0.0.
-                scores = [0.0 if np.isnan(s) else s for s in scores]
-                avg_score = statistics.mean(scores) if scores else 0.0
-
-                in_reg_avg_phastcons_dic[reg_id] = avg_score
-            except RuntimeError:
-                print(f"Skipping --bed region {chr_id}:{start}-{end} (coordinates not in bigWig)")
-
-        for reg_id, reg_info in control_regions_dic.items():
-
-            chr_id = reg_info[0]
-            start = reg_info[1]
-            end = reg_info[2]
-
-            try:
-                # Get conservation scores for the region.
-                scores = pc_bw.values(chr_id, start, end, numpy=False)
-                # Convert NaN values to 0.0.
-                scores = [0.0 if np.isnan(s) else s for s in scores]
-                avg_score = statistics.mean(scores) if scores else 0.0
-                ctrl_reg_avg_phastcons_dic[reg_id] = avg_score
-            except RuntimeError:
-                print(f"Skipping --control-bed region {chr_id}:{start}-{end} (coordinates not in bigWig)")
-
-        pc_bw.close()
-
-        in_scores = []
-        for reg_id, reg_info in in_regions_dic.items():
-            in_scores.append(in_reg_avg_phastcons_dic[reg_id])
-        control_scores = []
-        for reg_id, reg_info in control_regions_dic.items():
-            control_scores.append(ctrl_reg_avg_phastcons_dic[reg_id])
-
-        # Compare distributions.
-        stat, pval = stats.mannwhitneyu(in_scores, control_scores, alternative=wrs_alt_hypo)
-        print(f"Mann-Whitney U test: U = {stat:.2f}, p = {pval:.4g}")
-
-        plt.figure(figsize=(6, 4))
-        plt.violinplot([in_scores, control_scores], showmeans=True, widths=0.8)
-        plt.xticks([1, 2], ['Regions', 'Control regions'])
-        plt.ylabel('Mean region phastCons conservation score')
-        plt.title('phastCons Conservation Score Distribution')
-
-        # Optional: Add p-value to plot
-        plt.text(1.5, max(max(in_scores), max(control_scores)), f'p = {pval:.3g}', 
-                ha='center', va='bottom', fontsize=10)
-
-        plt.tight_layout()
-        # plt.show()
-        plt.savefig(os.path.join(args.out_folder, "phastCons_scores.png"), dpi=300)
+    benchlib.compare_conservation_scores(args,
+                                in_regions_dic, control_regions_dic, 
+                                benchlib_path,
+                                pc_bw=args.pc_bw,
+                                pp_bw=args.pp_bw,
+                                html_report_out=html_report_out,
+                                in_con_sc_name=in_con_sc_name,
+                                ctrl_con_sc_name=ctrl_con_sc_name,
+                                pc_plot_name="phastCons_scores.png",
+                                pp_plot_name="phyloP_scores.png")
 
 
     """
-    PhyloP conservation scores.
+    Output parameter settings.
 
     """
+    settings_file = os.path.join(args.out_folder, "settings.rbpbench_con.out")
 
-    if args.pp_bw is not None:
-        # Check if pp_bw is a link or a file.
-        if args.pp_bw.startswith("http"):
-            print("Downloading phyloP conservation scores to --out folder (this might take some time!) ... ")
-            os.system("wget -q %s -O %s" % (args.pp_bw, os.path.join(args.out_folder, "phyloP.bw")))
-            args.pp_bw = os.path.join(args.out_folder, "phyloP.bw")
-        
-        assert os.path.exists(args.pp_bw), "given --phylop file \"%s\" not found" % (args.pc_bw)
+    # Output mode settings.
+    print("Output parameter settings ... ")
+    SETOUT = open(settings_file, "w")
+    for arg in vars(args):
+        SETOUT.write("%s\t%s\n" %(arg, str(getattr(args, arg))))
+    SETOUT.close()
 
-        print("Reading in phyloP conservation scores ... ")
+    in_con_sc_path = os.path.join(args.out_folder, in_con_sc_name)
+    ctrl_con_sc_path = os.path.join(args.out_folder, ctrl_con_sc_name)
+    html_report_path = os.path.join(args.out_folder, html_report_out)
 
-        pp_bw = pyBigWig.open(args.pp_bw)
-
-        for reg_id, reg_info in in_regions_dic.items():
-
-            chr_id = reg_info[0]
-            start = reg_info[1]
-            end = reg_info[2]
-
-            try:
-                # Get conservation scores for the region.
-                scores = pp_bw.values(chr_id, start, end, numpy=False)
-                # Convert NaN values to 0.0.
-                scores = [0.0 if np.isnan(s) else s for s in scores]
-                avg_score = statistics.mean(scores) if scores else 0.0
-                in_reg_avg_phylop_dic[reg_id] = avg_score
-            except RuntimeError:
-                print(f"Skipping --bed region {chr_id}:{start}-{end} (coordinates not in bigWig)")
-
-        for reg_id, reg_info in control_regions_dic.items():
-
-            chr_id = reg_info[0]
-            start = reg_info[1]
-            end = reg_info[2]
-
-            try:
-                # Get conservation scores for the region.
-                scores = pp_bw.values(chr_id, start, end, numpy=False)
-                # Convert NaN values to 0.0.
-                scores = [0.0 if np.isnan(s) else s for s in scores]
-                avg_score = statistics.mean(scores) if scores else 0.0
-                ctrl_reg_avg_phylop_dic[reg_id] = avg_score
-            except RuntimeError:
-                print(f"Skipping --control-bed region {chr_id}:{start}-{end} (coordinates not in bigWig)")
-
-        pp_bw.close()
-
-        in_scores = []
-        for reg_id, reg_info in in_regions_dic.items():
-            in_scores.append(in_reg_avg_phylop_dic[reg_id])
-        control_scores = []
-        for reg_id, reg_info in control_regions_dic.items():
-            control_scores.append(ctrl_reg_avg_phylop_dic[reg_id])
-
-        # Compare distributions.
-        stat, pval = stats.mannwhitneyu(in_scores, control_scores, alternative=wrs_alt_hypo)
-        print(f"Mann-Whitney U test: U = {stat:.2f}, p = {pval:.4g}")
-
-        plt.figure(figsize=(6, 4))
-        plt.violinplot([in_scores, control_scores], showmeans=True, widths=0.8)
-        plt.xticks([1, 2], ['Regions', 'Control regions'])
-        plt.ylabel('Mean region phyloP conservation score')
-        plt.title('phyloP Conservation Score Distribution')
-
-        # Optional: Add p-value to plot
-        plt.text(1.5, max(max(in_scores), max(control_scores)), f'p = {pval:.3g}', 
-                ha='center', va='bottom', fontsize=10)
-
-        plt.tight_layout()
-        # plt.show()
-        plt.savefig(os.path.join(args.out_folder, "phyloP_scores.png"), dpi=300)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    print("")
+    print("OUTPUT FILES")
+    print("============")
+    print("")
+    print("Input sites scores .tsv:\n%s" %(in_con_sc_path))
+    print("Control sites scores .tsv:\n%s" %(ctrl_con_sc_path))
+    print("Conservation scores comparison report .html:\n%s" %(html_report_path))
+    print("")
 
 
 
@@ -22640,6 +22496,7 @@ if __name__ == '__main__':
         sys.exit()
     # Read in command line arguments.
     args = parser.parse_args()
+    args.version = __version__
 
     # Show some banner.
     print(benchlib.print_some_banner())

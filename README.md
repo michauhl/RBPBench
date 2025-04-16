@@ -76,7 +76,7 @@ rbpbench -h
 Manual installation of RBPBench is only slightly more work. First we create the Conda environment with all necessary dependencies:
 
 ```
-conda create -n rbpbench -c conda-forge -c bioconda logomaker markdown meme scipy plotly textdistance venn matplotlib-venn infernal bedtools upsetplot scikit-learn goatools python
+conda create -n rbpbench -c conda-forge -c bioconda logomaker markdown meme scipy plotly textdistance venn matplotlib-venn infernal bedtools upsetplot scikit-learn goatools python pyBigWig
 ```
 
 Next we activate the environment, clone the RBPBench repository, and install RBPBench:
@@ -734,6 +734,55 @@ We can clearly identify the known stop codon triplet sequences (in DNA: TAA, TAG
 at position 0.
 
 
+
+#### Comparing conservation scores between two sets of genomic sites
+
+It can be informative to compare the conservation scores of two sets of genomic sites.
+`rbpbench con` allows us to do this, supporting both phastCons and phyloP conservation scores 
+for the comparison. Two sets of genomic sites in BED format have to be provided 
+(input sites via `--in`, control sites via `--ctrl-in`).
+For each genomic site the average conservation score is taken (i.e., by averaging over all single position scores), 
+and the distributions of the two sets are compared using the Wilcoxon rank-sum test. 
+A low p-value indicates that input sites have significantly higher conservation scores. 
+This mode can thus be used e.g. to compare different sets of motif hit regions, 
+or sets from different peak callers. An HTML report is produced for easy comparison of the two sets.
+
+
+Compatible phastCons and phyloP conservation score files can be downloaded from the UCSC:
+
+```
+wget https://hgdownload.cse.ucsc.edu/goldenpath/hg38/phyloP100way/hg38.phyloP100way.bww
+wget https://hgdownload.cse.ucsc.edu/goldenpath/hg38/phastCons100way/hg38.phastCons100way.bw
+```
+
+Note that `rbpbench con` also works with just phastCons or phyloP files.
+
+As an example, we can again use the mRNA region end positions as input sites (`mrna_region_end_pos.bed` from the example [above](#nemo-mode)), 
+and for the control sites we can shift the end positions downstream by 50 nt:
+
+```
+bed_shift_regions.py --in mrna_region_end_pos.bed --num 50 > mrna_region_end_pos.50ds_shift.bed
+```
+
+This should result in a drop in conservation scores in the control sites. 
+We can check this with the following example call:
+
+```
+rbpbench con --in mrna_region_end_pos.bed --ctrl-in mrna_region_end_pos.50ds_shift.bed --phylop hg38.phyloP100way.bw --phastcons hg38.phastCons100way.bw --out mrna_region_end_pos_con_sc_out
+```
+
+Inspecting the conservation score distribution plots in `test_con_smrna_region_end_pos_con_sc_outc_out/report.rbpbench_con.html` confirms the assumption 
+(plus the p-values are highly significant as well):
+
+
+<img src="docs/con.ex1.png" alt="Conservation score distribution comparison"
+  title="Conservation score distribution comparison" width="800" />
+
+**Fig. 17:** Comparison of phastCons and phyloP conservation score distributions between input sites (mRNA region end positions) and control sites (mRNA region end positions shifted downstream by 50 nt).
+
+
+
+
 ## Documentation
 
 This documentation provides further details on RBPBench (version 1.0.x).
@@ -769,6 +818,7 @@ positional arguments:
     searchlongrna       Search motifs in spliced full transcripts
     enmo                Check for enriched motifs in input sites
     nemo                Check for neighboring motifs in input sites
+    con                 Compare conservation in genomic sites
     streme              Discover motifs in input sites using STREME
     tomtom              Compare motif(s) with database using TOMOTM
     goa                 Run GO enrichment analysis on gene list
@@ -838,6 +888,8 @@ translation regulation, and RNA stability & decay).
 
 ##### More modes
 
+```rbpbench con``` be used to compare conservation scores in two sets of genomic sites. For example, 
+we can compare different sets of motif hit regions, or sets from different peak callers.
 ```rbpbench streme``` allows to discover new motifs using STREME from MEME suite. 
 ```rbpbench goa``` enables us to run GO term enrichment analysis (GOA) on a set of genes, e.g. obtained 
 from the output tables of other modes (like genes covered by input regions from ```rbpbench search```
@@ -1362,6 +1414,7 @@ of the binding site quality, and thus also the presence of known binding motifs.
 include setting k (`--kmer-plot-k`), or change the splitting behavior via setting `--kmer-plot-top-n`
 and/or `--kmer-plot-bottom-n`. This way, we can e.g. compare the top 1000 scoring (`--kmer-plot-top-n 1000`) 
 with the bottom 1000 scoring (`--kmer-plot-bottom-n 1000`) sites.
+
 
 
 
