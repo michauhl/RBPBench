@@ -745,10 +745,10 @@ For each genomic site the average conservation score is taken (i.e., by averagin
 and the distributions of the two sets are compared using the Wilcoxon rank-sum test. 
 A low p-value indicates that input sites have significantly higher conservation scores. 
 This mode can thus be used e.g. to compare different sets of motif hit regions, 
-or sets from different peak callers. An HTML report is produced for easy comparison of the two sets.
+or sets from different peak callers. An HTML report is produced to summarize and visually inspect the results.
 
-
-Compatible phastCons and phyloP conservation score files can be downloaded from the UCSC:
+Compatible phastCons and phyloP conservation score files can be downloaded from the UCSC, e.g. using the conservation scores 
+obtained from alignments of 99 vertebrate genomes to the human genome:
 
 ```
 wget https://hgdownload.cse.ucsc.edu/goldenpath/hg38/phyloP100way/hg38.phyloP100way.bww
@@ -765,7 +765,7 @@ bed_shift_regions.py --in mrna_region_end_pos.bed --num 50 > mrna_region_end_pos
 ```
 
 This should result in a drop in conservation scores in the control sites. 
-We can check this with the following example call:
+We can simply check this with the following example call:
 
 ```
 rbpbench con --in mrna_region_end_pos.bed --ctrl-in mrna_region_end_pos.50ds_shift.bed --phylop hg38.phyloP100way.bw --phastcons hg38.phastCons100way.bw --out mrna_region_end_pos_con_sc_out
