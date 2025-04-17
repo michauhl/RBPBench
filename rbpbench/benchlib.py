@@ -625,7 +625,7 @@ def compare_conservation_scores(args,
         stat, pc_pval = mannwhitneyu(in_scores, control_scores, alternative=wrs_alt_hypo)
         # Round p-value to 4 significant digits.
         pc_pval = round_to_n_significant_digits_v2(pc_pval, 4,
-                                                   min_val=1e-304)
+                                                   min_val=0.0)
 
         print(f"Wilcoxon rank-sum test: U = {stat:.2f}, p = {pc_pval:.4g}")
 
@@ -695,8 +695,8 @@ def compare_conservation_scores(args,
         stat, pp_pval = mannwhitneyu(in_scores, control_scores, alternative=wrs_alt_hypo)
         # Round p-value to 4 significant digits.
         pp_pval = round_to_n_significant_digits_v2(pp_pval, 4,
-                                                   min_val=1e-304)
-
+                                                   min_val=0.0)
+        
         print(f"Wilcoxon rank-sum test: U = {stat:.2f}, p = {pp_pval:.4g}")
 
         create_con_sc_violin_plot(in_scores, control_scores, pp_plot_path, 
