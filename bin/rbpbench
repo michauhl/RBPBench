@@ -253,7 +253,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2],
-                   help="Defines Wilcoxon rank sum test alternative hypothesis for testing whether motif-containing regions have significantly different scores. 1: test for higher (greater) scores, 2: test for lower (less) scores (default: 1)")
+                   help="Defines Wilcoxon rank-sum test alternative hypothesis for testing whether motif-containing regions have significantly different scores. 1: test for higher (greater) scores, 2: test for lower (less) scores (default: 1)")
     p_s.add_argument("--fisher-mode",
                    dest="fisher_mode",
                    type=int,
@@ -784,7 +784,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2],
-                   help="Defines Wilcoxon rank sum test alternative hypothesis for testing whether motif-containing regions have significantly different scores. 1: test for higher (greater) scores, 2: test for lower (less) scores (default: 1)")
+                   help="Defines Wilcoxon rank-sum test alternative hypothesis for testing whether motif-containing regions have significantly different scores. 1: test for higher (greater) scores, 2: test for lower (less) scores (default: 1)")
     p_b.add_argument("--fisher-mode",
                    dest="fisher_mode",
                    type=int,
@@ -2934,7 +2934,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2],
-                   help="Defines Wilcoxon rank sum test alternative hypothesis for testing whether --in sites have significantly different average conservation scores compared to --ctrl-in sites. 1: test for higher (greater) scores, 2: test for lower (less) scores (default: 1)")
+                   help="Defines Wilcoxon rank-sum test alternative hypothesis for testing whether --in sites have significantly different average conservation scores compared to --ctrl-in sites. 1: test for higher (greater) scores, 2: test for lower (less) scores (default: 1)")
     # Report / plot options.
     p_cn.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",

@@ -596,10 +596,10 @@ rbpbench nemo --in mrna_region_end_pos.bed --genome hg38.fa --gtf Homo_sapiens.G
 
 We can see that the table is slightly expanded compared to the `rbpbench enmo` table. I.e., we now have additional 
 info on whether motif hits tend to occur more in up- or downstream regions relative to the input regions (signified by 
-Wilcoxon rank sum (WRS) p-value, as well as a motif distance plot showing the distribution of motif hit center locations relative to the centered input regions).
-A low WRS p-value in this table means that there is a preference for either up- or downstream binding (two-sided test).
+Wilcoxon rank-sum test p-value, as well as a motif distance plot showing the distribution of motif hit center locations relative to the centered input regions).
+A low test p-value in this table means that there is a preference for either up- or downstream binding (two-sided test).
 The top enriched motifs are the motifs essentially describing the polyadenylation signal sequence (AATAAA), which is known 
-to often occur near 3'UTR ends. This preference we can also nicely see in the motif distance plots (plus it is significant w.r.t. WRS p-value).
+to often occur near 3'UTR ends. This preference we can also nicely see in the motif distance plots (plus it is significant w.r.t. test p-value).
 Looking at the regions downstream the annotated mRNA ends, we see a preference of T and GT-rich motifs (which continues as we would go beyond 
 the top 10). These GT-rich (or actually GU-rich in RNA) elements (GREs) are too known to frequently occur at transcript ends, 
 namely downstream the polyadenylation signal. Both elements have well known roles in the regulation of mRNA stability and degradation. 
@@ -949,7 +949,7 @@ chr1	19094999	19095025	PUM1_K562_IDR	5.11052671530143	-
 
 Additional columns (> 6) will be ignored, although the region score column 
 can be different from column 5 (default). You can specify which column should be used 
-as region score via `--bed-score-col` (used for Wilcoxon rank sum test and optionally for 
+as region score via `--bed-score-col` (used for Wilcoxon rank-sum test and optionally for 
 filtering out regions by `--bed-sc-thr`).
 Before motif search, the input regions are filtered and optionally extended via `--ext` 
 (e.g. `--ext 20` for up- and downstream extension of 20 nt or `--ext 30,10` for different up- 
@@ -1213,7 +1213,7 @@ results in only the best hit (lowest p-value, highest bit score) being reported 
 
 Given a set of input regions with associated scores (by default BED column 5 is used, change via `--bed-score-col`),
 RBPBench for each selected RBP checks whether motif-containing input regions 
-have significantly higher scores (using Wilcoxon rank sum test).
+have significantly higher scores (using Wilcoxon rank-sum test).
 This means that a low test p-value for a given RBP indicates that higher-scoring regions are more likely to contain motif hits of the respective RBP. If we assume that the score (e.g. log2 fold change) is somehow correlated with RBP binding affinity,
 the test thus can give clues on which RBPs preferentially bind to the provided regions.
 Note that the test is only informative if the scores are themselves informative w.r.t. RBP binding (e.g., not all the same), 

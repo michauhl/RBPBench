@@ -419,8 +419,8 @@ score for each site (i.e., averaged over all site positions).
         mdtext += """
 **Figure:** Distribution of phastCons conservation scores in input and control sites.
 For each site, the average phastCons score is used (i.e., average over all genomic site positions).
-Wilcoxon rank sum test p-value = %s.
-Wilcoxon rank sum test is applied to check for significant differences between input and control site scores.
+Wilcoxon rank-sum test p-value = %s.
+Wilcoxon rank-sum test is applied to check for significant differences between input and control site scores.
 %s
  # input sites = %i, # control sites = %i, mean input score = %.2f, mean control score = %.2f,
  # median input score = %.2f, median control score = %.2f,
@@ -472,8 +472,8 @@ score for each site (i.e., averaged over all site positions).
         mdtext += """
 **Figure:** Distribution of phyloP conservation scores in input and control sites.
 For each site, the average phyloP score is used (i.e., average over all genomic site positions).
-Wilcoxon rank sum test p-value = %s.
-Wilcoxon rank sum test is applied to check for significant differences between input and control site scores.
+Wilcoxon rank-sum test p-value = %s.
+Wilcoxon rank-sum test is applied to check for significant differences between input and control site scores.
 %s
  # input sites = %i, # control sites = %i, mean input score = %.2f, mean control score = %.2f,
  # median input score = %.2f, median control score = %.2f,
@@ -496,7 +496,6 @@ Wilcoxon rank sum test is applied to check for significant differences between i
     OUTHTML = open(html_out,"w")
     OUTHTML.write("%s\n" %(html_content))
     OUTHTML.close()
-
 
 
 ################################################################################
@@ -628,7 +627,7 @@ def compare_conservation_scores(args,
         pc_pval = round_to_n_significant_digits_v2(pc_pval, 4,
                                                    min_val=1e-304)
 
-        print(f"Wilcoxon rank sum test: U = {stat:.2f}, p = {pc_pval:.4g}")
+        print(f"Wilcoxon rank-sum test: U = {stat:.2f}, p = {pc_pval:.4g}")
 
         create_con_sc_violin_plot(in_scores, control_scores, pc_plot_path, 
                                   pval=pc_pval,
@@ -698,7 +697,7 @@ def compare_conservation_scores(args,
         pp_pval = round_to_n_significant_digits_v2(pp_pval, 4,
                                                    min_val=1e-304)
 
-        print(f"Wilcoxon rank sum test: U = {stat:.2f}, p = {pp_pval:.4g}")
+        print(f"Wilcoxon rank-sum test: U = {stat:.2f}, p = {pp_pval:.4g}")
 
         create_con_sc_violin_plot(in_scores, control_scores, pp_plot_path, 
                                   pval=pp_pval,
@@ -11864,10 +11863,10 @@ No plot generated since < 4 datasets were provided.
     """
 
     # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
-    wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low p-values mean hit-containing regions have significantly higher scores."
+    wrs_mode_info1 = "Wilcoxon rank-sum test alternative hypothesis is set to 'greater', i.e., low p-values mean hit-containing regions have significantly higher scores."
     wrs_mode_info2 = "higher"
     if args.wrs_mode == 2:
-        wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low p-values mean hit-containing regions have significantly lower scores."
+        wrs_mode_info1 = "Wilcoxon rank-sum test alternative hypothesis is set to 'less', i.e., low p-values mean hit-containing regions have significantly lower scores."
         wrs_mode_info2 = "lower"
 
     if id2motif_enrich_stats_dic:
@@ -14509,7 +14508,7 @@ by RBPBench (%s, rbpbench %s):
     else:
         assert False, "Invalid motif enrichment p-value mode (--nemo-pval-mode) set: %i" %(args.nemo_pval_mode)
 
-    # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
+    # Inform about set alterntive hypothesis for Wilcoxon rank-sum test.
     # wrs_mode_info = ""
     # if args.wrs_mode == 1:
     #     wrs_mode_info = "Wilcoxon rank sum test alternative hypothesis is set to 'two-sided', i.e., low WRS p-values (WRS p-value column) mean either up- or downstream context regions have significantly higher motif hit counts."
@@ -14519,7 +14518,7 @@ by RBPBench (%s, rbpbench %s):
     #     wrs_mode_info = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low WRS p-values (WRS p-value column) mean downstream context regions have significantly higher motif hit counts."
     # else:
     #     assert False, "Invalid Wilcoxon rank sum test mode (--wrs-mode) set: %i" %(args.wrs_mode)
-    wrs_mode_info = "Wilcoxon rank sum test alternative hypothesis is set to 'two-sided', i.e., low WRS p-values (WRS p-value column) mean either up- or downstream context regions have significantly higher motif hit counts."
+    wrs_mode_info = "Wilcoxon rank-sum test alternative hypothesis is set to 'two-sided', i.e., low WRS p-values (WRS p-value column) mean either up- or downstream context regions have significantly higher motif hit counts."
 
     ol_info = "Motif hits that overlap with the actual input sites are not counted."
     if args.allow_overlaps:
@@ -14551,7 +14550,7 @@ Fisher's exact test is used to assess the significance of motif enrichment.
 %s
 For full motif results list regardless of significance, see *motif_enrichment_stats.tsv* output table.
 To test whether up- or downstream regions have significantly higher motif hit counts, 
-Wilcoxon rank sum (WRS) test is applied.
+Wilcoxon rank-sum (WRS) test is applied.
 %s
 %s
 
@@ -14710,7 +14709,7 @@ Wilcoxon rank sum (WRS) test is applied.
     mdtext += '**avg bg dist** -> average distance of motif hits to center of background sites (positive value indicates motifs tend to be located upstream of input sites, whereas negative value indicates downstream), '
     # mdtext += '**max bg dist** -> distance position with maximum count (i.e., where most motif hit centers lie relative to background site centers), '
     # mdtext += '**# max bg dist** -> number of motif hits at distance position with maximum count for background sites, '
-    mdtext += '**WRS p-value** -> Wilcoxon rank sum test p-value to test for significantly different counts in up- and downstream context regions.' + "\n"
+    mdtext += '**WRS p-value** -> Wilcoxon rank-sum test p-value to test for significantly different counts in up- and downstream context regions.' + "\n"
     mdtext += "**Motif distance plot** -> visualization of motif distance plot (counting motif hit center occurrences relative to input site centers), "
     mdtext += '**p-value** -> Fisher exact test p-value (corrected).' + "\n"
     mdtext += "\n&nbsp;\n"
@@ -14998,7 +14997,7 @@ No motif similarity vs significance plot generated since there are < 3 significa
         mdtext += """
 
 **Figure:** Sequence motif similarity vs direction PCA plot. Motifs are arranged by their similarity and colored by their preferred binding direction relative to the provided central sites (up- or downstream context). 
-Significance of directional preference is given as the -log10 of the Wilcoxon rank sum test p-value (used as legend color, i.e., the more negative or positive the value the more significant the preference).
+Significance of directional preference is given as the -log10 of the Wilcoxon rank sum-test p-value (used as legend color, i.e., the more negative or positive the value the more significant the preference).
 A negative -log10 p-value indicates a preference for upstream context, whereas a positive value indicates a preference for downstream context.
 A -log10 p-value close to 0 indicates no significant directional preference.
 Motifs closer together in the plot translates to higher motif similarity.
@@ -15014,9 +15013,9 @@ B: # input regions without motif hits,
 C: # background regions with motif hits,
 D: # background regions without motif hits.
 **p-value** -> Fisher exact test p-value (corrected) derived from contingency table.
-**WRS p-value (upstream)** -> Wilcoxon rank sum test p-value to test for significantly higher counts in upstream context regions.
-**WRS p-value (downstream)** -> Wilcoxon rank sum test p-value to test for significantly higher counts in downstream context regions.
-**-log10(WRS p-value)** -> -log10 p-value of Wilcoxon rank sum test p-value used for coloring of motifs. 
+**WRS p-value (upstream)** -> Wilcoxon rank-sum test p-value to test for significantly higher counts in upstream context regions.
+**WRS p-value (downstream)** -> Wilcoxon rank-sum test p-value to test for significantly higher counts in downstream context regions.
+**-log10(WRS p-value)** -> -log10 p-value of Wilcoxon rank-sum test p-value used for coloring of motifs. 
 The smaller of the two WRS p-values is taken. A negative value indicates upstream preference, a positive value downstream preference.
 
 &nbsp;
@@ -15833,10 +15832,10 @@ by RBPBench (%s, rbpbench %s):
     if not disable_motif_enrich_table:
 
         # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
-        wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low p-values mean motif-containing regions have significantly higher scores."
+        wrs_mode_info1 = "Wilcoxon rank-sum test alternative hypothesis is set to 'greater', i.e., low p-values mean motif-containing regions have significantly higher scores."
         wrs_mode_info2 = "higher"
         if args.wrs_mode == 2:
-            wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low p-values mean motif-containing regions have significantly lower scores."
+            wrs_mode_info1 = "Wilcoxon rank-sum test alternative hypothesis is set to 'less', i.e., low p-values mean motif-containing regions have significantly lower scores."
             wrs_mode_info2 = "lower"
 
         mdtext += """
