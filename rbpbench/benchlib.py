@@ -26,10 +26,10 @@ from sklearn.preprocessing import MinMaxScaler
 from itertools import product
 from scipy.stats import fisher_exact
 from scipy.stats import false_discovery_control  # Benjamini-Hochberg correction.
+from scipy.stats import mannwhitneyu
 from goatools.obo_parser import GODag
 from goatools.goea.go_enrichment_ns import GOEnrichmentStudy
 from decimal import Decimal, getcontext
-
 
 """
 
@@ -76,6 +76,708 @@ def calc_edit_dist_query_list(query_str, lst):
         pair_dist_dic[s2] = d
 
     return pair_dist_dic
+
+
+################################################################################
+
+def bed_read_in_regions(in_bed,
+                        no_id_check=False,
+                        use_regions_as_ids=False):
+    """
+    Read in BED regions into a dictionary.
+
+    """
+
+    bed_regions_dic = {}
+
+    with open(in_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            chr_id = cols[0]
+            start = int(cols[1])
+            end = int(cols[2])
+            reg_id = cols[3]
+            pol = cols[5]
+            
+            if use_regions_as_ids:
+                reg_id = chr_id + ":" + str(start) + "-" + str(end) + "," + pol
+
+            if no_id_check:
+                if reg_id in bed_regions_dic:
+                    # Overwrite existing region.
+                    print("WARNING: region ID \"%s\" already found in \"%s\". Overwriting existing region .." % (reg_id, in_bed))
+            else:
+                assert reg_id not in bed_regions_dic, "region ID \"%s\" already found in \"%s\". Please provide BED file with unique col4 IDs or set --use-regions" % (reg_id, in_bed)
+            bed_regions_dic[reg_id] = [chr_id, start, end, pol]
+
+    f.closed
+    return bed_regions_dic
+
+
+################################################################################
+
+def get_region_dic_stats(region_dic):
+    """
+    region_dic format:
+    {region_id: [chr_id, start, end, strand]} with 0-based start.
+
+    """
+    assert region_dic, "region_dic empty"
+    # Get length stats.
+    region_lengths =  []
+    for reg_id, reg_info in region_dic.items():
+        reg_len = reg_info[2] - reg_info[1]
+        region_lengths.append(reg_len)
+    # Get mean, median, min, max.
+    mean_len = statistics.mean(region_lengths)
+    median_len = statistics.median(region_lengths)
+    min_len = min(region_lengths)
+    max_len = max(region_lengths)
+    # Get number of regions.
+    num_regions = len(region_lengths)
+    return num_regions, mean_len, median_len, min_len, max_len
+
+
+################################################################################
+
+def get_val_dic_stats(val_dic):
+    """
+    val_dic format:
+    {data_id: score_value}
+
+    """
+    assert val_dic, "val_dic empty"
+    val_list = []
+    for data_id, val in val_dic.items():
+        val_list.append(val)
+    # Get mean, median, min, max.
+    mean_val = statistics.mean(val_list)
+    median_val = statistics.median(val_list)
+    min_val = min(val_list)
+    max_val = max(val_list)
+    num_val = len(val_list)
+    return num_val, mean_val, median_val, min_val, max_val
+
+
+################################################################################
+
+def create_con_sc_violin_plot(in_scores, control_scores, plot_out, 
+                              pval=1.0,
+                              con_type="phastCons",
+                              in_id="Input sites",
+                              control_id="Control sites",
+                              add_pval=True,
+                              plot_title=False,
+                              plot_pdf=False):
+    """
+    Create conservation scores comparison plot.
+    
+    """
+
+    plt.figure(figsize=(6, 4))
+    plt.violinplot([in_scores, control_scores], showmeans=True, widths=0.8)
+    plt.xticks([1, 2], [in_id, control_id])
+    plt.ylabel("Mean site %s conservation score" %(con_type))
+    if plot_title:
+        plt.title("%s Conservation Score Distribution" %(con_type))
+
+    # Optional: Add p-value to plot.
+    if add_pval:
+        plt.text(1.5, max(max(in_scores), max(control_scores)), f'p = {pval:.3g}', 
+                ha='center', va='bottom', fontsize=10)
+
+    plt.tight_layout()
+    # plt.show()
+    plt.savefig(plot_out, dpi=250)
+
+    if plot_pdf and plot_out.endswith('.png'):
+        pdf_out = plot_out[:-4] + '.pdf'
+        # plt.savefig(pdf_out, dpi=110, bbox_inches='tight')
+        plt.savefig(pdf_out, dpi=110)
+
+
+################################################################################
+
+def con_generate_html_report(args, stats_dic, benchlib_path,
+                             html_report_out="report.rbpbench_con.html",
+                             pc_plot_name="phastCons_scores.png",
+                             pp_plot_name="phyloP_scores.png",
+                             pc_pval=1.0,
+                             pp_pval=1.0):
+
+    """
+    Create rbpbench con report.
+
+    """
+
+    # Check if plots are there.
+    pc_plot = False
+    pp_plot = False
+    pc_plot_path_check = os.path.join(args.out_folder, pc_plot_name)
+    pp_plot_path_check = os.path.join(args.out_folder, pp_plot_name)
+    pc_plot_path = pc_plot_name
+    pp_plot_path = pp_plot_name
+    if os.path.exists(pc_plot_path_check):
+        pc_plot = True
+    if os.path.exists(pp_plot_path_check):
+        pp_plot = True
+
+    if not pp_plot and not pc_plot:
+        assert False, "Neither %s nor %s plot found in output folder" %(pc_plot_name, pp_plot_name)
+
+    assert "in_regions_stats" in stats_dic, "in_regions_stats not in stats_dic"
+    assert "ctrl_regions_stats" in stats_dic, "ctrl_regions_stats not in stats_dic"
+
+    out_folder = args.out_folder
+    # Use absolute paths?
+    if args.plot_abs_paths:
+        out_folder = os.path.abspath(out_folder)
+        pc_plot_path = os.path.join(out_folder, pc_plot_name)
+        pp_plot_path = os.path.join(out_folder, pp_plot_name)
+
+    # Version string.
+    version_str = "v" + args.version
+
+    html_out = os.path.join(out_folder, html_report_out)
+    md_out = os.path.join(out_folder, "report.rbpbench_con.md")
+
+    """
+    Setup sorttable.js to make tables in HTML sortable.
+
+    """
+    sorttable_js_path = benchlib_path + "/content/sorttable.js"
+    assert os.path.exists(sorttable_js_path), "sorttable.js not at %s" %(sorttable_js_path)
+    sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    if args.sort_js_mode == 2:
+        shutil.copy(sorttable_js_path, out_folder)
+        sorttable_js_html = '<script src="sorttable.js" type="text/javascript"></script>'  # path in HTML code.
+    elif args.sort_js_mode == 3:
+        js_code = read_file_content_into_str_var(sorttable_js_path)
+        sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
+
+    # Logo path.
+    logo_path_html = os.path.join(out_folder, "logo.png")
+    if not os.path.exists(logo_path_html):
+        logo_path = benchlib_path + "/content/logo.png"
+        assert os.path.exists(logo_path), "logo.png not found in %s" %(logo_path)
+        shutil.copy(logo_path, out_folder)
+
+    # HTML head section.
+    html_head = """<!DOCTYPE html>
+<html>
+<head>
+<title>RBPBench - Conservation Scores Comparison Report</title>
+
+<style>
+    th, td {
+        border: 1px solid black;
+        padding: 8px;
+        text-align: center;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+    .page {
+        page-break-after: always;
+    }
+    .title-container {
+        display: flex;
+        align-items: center;
+    }
+    .title-container img {
+        margin-right: 10px; /* Adjust the spacing as needed */
+    }
+</style>
+
+</head>
+
+<div class="title-container">
+    <img src="logo.png" alt="Logo" width="175">
+    <h1>Conservation Scores Comparison Report</h1>
+</div>
+
+
+<body>
+"""
+
+
+    # HTML tail section.
+    html_tail = """
+%s
+</body>
+</html>
+""" %(sorttable_js_html)
+
+    # Markdown part.
+    mdtext = """
+
+List of available statistics and plots generated
+by RBPBench (%s, rbpbench con):
+
+- [Site length statistics](#site-len-stats)
+""" %(version_str)
+
+    if pc_plot:
+        mdtext += "- [PhastCons conservation scores comparison](#pc-comp)\n"
+    if pp_plot:
+        mdtext += "- [PhyloP conservation scores comparison](#pp-comp)\n"
+
+    mdtext += "\n"
+    mdtext += "\n&nbsp;\n"
+
+
+    """
+    Site lengths statistics table.
+
+    """
+
+    mdtext += """
+## Site length statistics ### {#site-len-stats}
+
+**Table:** Site length statistics for provided BED region files (input and control sites).
+
+"""
+
+    mdtext += '<table style="max-width: 750px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+    mdtext += "<thead>\n"
+    mdtext += "<tr>\n"
+    mdtext += "<th>Dataset ID</th>\n"
+    mdtext += "<th># sites</th>\n"
+    mdtext += "<th>Mean length</th>\n"
+    mdtext += "<th>Median length</th>\n"
+    mdtext += "<th>Min length</th>\n"
+    mdtext += "<th>Max length</th>\n"
+    mdtext += "</tr>\n"
+    mdtext += "</thead>\n"
+    mdtext += "<tbody>\n"
+
+    for dataset_id, dataset_stats in stats_dic.items():
+        if dataset_id == "in_regions_stats" or dataset_id == "ctrl_regions_stats":
+            data_id = "Input sites"
+            if dataset_id == "ctrl_regions_stats":
+                data_id = "Control sites"
+            mdtext += "<tr>\n"
+            mdtext += "<td>%s</td>\n" %(data_id)
+            mdtext += "<td>%i</td>\n" %(dataset_stats[0])
+            mdtext += "<td>%.2f</td>\n" %(dataset_stats[1])
+            mdtext += "<td>%.2f</td>\n" %(dataset_stats[2])
+            mdtext += "<td>%i</td>\n" %(dataset_stats[3])
+            mdtext += "<td>%i</td>\n" %(dataset_stats[4])
+            mdtext += "</tr>\n"
+
+    mdtext += "</tbody>\n"
+    mdtext += "</table>\n"
+
+    mdtext += "\n&nbsp;\n&nbsp;\n"
+    mdtext += "\nColumn IDs have the following meanings: "
+    mdtext += "**Dataset ID** -> dataset ID (input or control), sites provided via --in (input) and --ctrl-in (control), "
+    mdtext += '**# sites** -> number of genomic sites in dataset, '
+    mdtext += "**Mean length** -> mean site length in dataset, "
+    mdtext += "**Median length** -> median site length in dataset, "
+    mdtext += "**Min length** -> minimum site length in dataset, "
+    mdtext += "**Min length** -> minimum site length in dataset, "
+    mdtext += "**Max length** -> maximum site length in dataset." + "\n"
+    mdtext += "\n&nbsp;\n"
+
+
+    """"
+    PhastCons conservation scores comparison plot.
+
+    """
+
+    if pc_plot:
+
+        assert "in_phastcons_stats" in stats_dic, "in_phastcons_stats not in stats_dic"
+        assert "ctrl_phastcons_stats" in stats_dic, "ctrl_phastcons_stats not in stats_dic"
+
+        mdtext += """
+## PhastCons conservation scores comparison ### {#pc-comp}
+
+Distribution of phastCons conservation scores in input and control sites, taking the average conservation
+score for each site (i.e., averaged over all site positions).
+
+"""
+        # Stats.
+        in_c_sites = stats_dic["in_phastcons_stats"][0]
+        ctrl_c_sites = stats_dic["ctrl_phastcons_stats"][0]
+        in_mean = stats_dic["in_phastcons_stats"][1]
+        ctrl_mean = stats_dic["ctrl_phastcons_stats"][1]
+        in_median = stats_dic["in_phastcons_stats"][2]
+        ctrl_median = stats_dic["ctrl_phastcons_stats"][2]
+        in_min = stats_dic["in_phastcons_stats"][3]
+        ctrl_min = stats_dic["ctrl_phastcons_stats"][3]
+        in_max = stats_dic["in_phastcons_stats"][4]
+        ctrl_max = stats_dic["ctrl_phastcons_stats"][4]
+
+        # pc_pval
+        pval_info = "Small test p-values (< 0.05) indicate that input sites have significantly higher conservation scores than control sites."
+        if args.wrs_mode == 2:
+            pval_info = "Small test p-values (< 0.05) indicate that input sites have significantly lower conservation scores than control sites."
+
+        mdtext += '<img src="' + pc_plot_path + '" alt="phastCons scores comparison plot"' + "\n"
+        mdtext += 'title="phastCons scores comparison plot" width="1000" />' + "\n"
+        mdtext += """
+**Figure:** Distribution of phastCons conservation scores in input and control sites.
+For each site, the average phastCons score is used (i.e., average over all genomic site positions).
+Wilcoxon rank-sum test p-value = %s.
+Wilcoxon rank-sum test is applied to check for significant differences between input and control site scores.
+%s
+ # input sites = %i, # control sites = %i, mean input score = %.2f, mean control score = %.2f,
+ # median input score = %.2f, median control score = %.2f,
+ # min input score = %.2f, min control score = %.2f,
+ # max input score = %.2f, max control score = %.2f.
+
+&nbsp;
+
+""" %(str(pc_pval), pval_info, in_c_sites, ctrl_c_sites, in_mean, ctrl_mean, in_median, ctrl_median, in_min, ctrl_min, in_max, ctrl_max)
+
+
+
+    """"
+    PhyloP conservation scores comparison plot.
+
+    """
+
+    if pp_plot:
+
+        assert "in_phylop_stats" in stats_dic, "in_phylop_stats not in stats_dic"
+        assert "ctrl_phylop_stats" in stats_dic, "ctrl_phylop_stats not in stats_dic"
+
+        mdtext += """
+## PhyloP conservation scores comparison ### {#pp-comp}
+
+Distribution of phyloP conservation scores in input and control sites, taking the average conservation
+score for each site (i.e., averaged over all site positions).
+
+"""
+        # Stats.
+        in_c_sites = stats_dic["in_phylop_stats"][0]
+        ctrl_c_sites = stats_dic["ctrl_phylop_stats"][0]
+        in_mean = stats_dic["in_phylop_stats"][1]
+        ctrl_mean = stats_dic["ctrl_phylop_stats"][1]
+        in_median = stats_dic["in_phylop_stats"][2]
+        ctrl_median = stats_dic["ctrl_phylop_stats"][2]
+        in_min = stats_dic["in_phylop_stats"][3]
+        ctrl_min = stats_dic["ctrl_phylop_stats"][3]
+        in_max = stats_dic["in_phylop_stats"][4]
+        ctrl_max = stats_dic["ctrl_phylop_stats"][4]
+
+        # pc_pval
+        pval_info = "Small test p-values (< 0.05) indicate that input sites have significantly higher conservation scores than control sites."
+        if args.wrs_mode == 2:
+            pval_info = "Small test p-values (< 0.05) indicate that input sites have significantly lower conservation scores than control sites."
+
+        mdtext += '<img src="' + pp_plot_path + '" alt="phyloP scores comparison plot"' + "\n"
+        mdtext += 'title="phyloP scores comparison plot" width="1000" />' + "\n"
+        mdtext += """
+**Figure:** Distribution of phyloP conservation scores in input and control sites.
+For each site, the average phyloP score is used (i.e., average over all genomic site positions).
+Wilcoxon rank-sum test p-value = %s.
+Wilcoxon rank-sum test is applied to check for significant differences between input and control site scores.
+%s
+ # input sites = %i, # control sites = %i, mean input score = %.2f, mean control score = %.2f,
+ # median input score = %.2f, median control score = %.2f,
+ # min input score = %.2f, min control score = %.2f,
+ # max input score = %.2f, max control score = %.2f.
+
+&nbsp;
+
+""" %(str(pp_pval), pval_info, in_c_sites, ctrl_c_sites, in_mean, ctrl_mean, in_median, ctrl_median, in_min, ctrl_min, in_max, ctrl_max)
+
+
+    # Convert mdtext to html.
+    md2html = markdown(mdtext, extensions=['attr_list', 'tables'])
+
+    # OUTMD = open(md_out,"w")
+    # OUTMD.write("%s\n" %(mdtext))
+    # OUTMD.close()
+
+    html_content = html_head + md2html + html_tail
+    OUTHTML = open(html_out,"w")
+    OUTHTML.write("%s\n" %(html_content))
+    OUTHTML.close()
+
+
+################################################################################
+
+def compare_conservation_scores(args,
+                                in_regions_dic, control_regions_dic, 
+                                benchlib_path,
+                                pc_bw=False,
+                                pp_bw=False,
+                                html_report_out="report.rbpbench_con.html",
+                                in_con_sc_name="in_regions.avg_con_sc.tsv",
+                                ctrl_con_sc_name="control_regions.avg_con_sc.tsv",
+                                pc_plot_name="phastCons_scores.png",
+                                pp_plot_name="phyloP_scores.png"):
+    """
+    Extract and compare phylogenomic conservation scores for given genomic input 
+    and control sites.
+
+    in_regions_dic / control_regions_dic format:
+    {region_id: [chr_id, start, end, strand]} with 0-based start.
+
+    """
+
+    assert in_regions_dic, "in_regions_dic empty"
+    assert control_regions_dic, "control_regions_dic empty"
+    assert pc_bw or pp_bw, "No conservation scores provided. Please provide --phastcons and/or --phylop files"
+    assert os.path.exists(args.out_folder), "given --out folder \"%s\" not found" % (args.out_folder)
+    if pc_bw:
+        assert os.path.exists(pc_bw), "given --phastcons file \"%s\" not found" % (pc_bw)
+    if pp_bw:
+        assert os.path.exists(pp_bw), "given --phylop file \"%s\" not found" % (pp_bw)
+
+    import pyBigWig
+
+    # Get region length stats.
+    in_regions_stats = get_region_dic_stats(in_regions_dic)
+    ctrl_regions_stats = get_region_dic_stats(control_regions_dic)
+
+    in_reg_avg_phastcons_dic = {}
+    in_reg_avg_phylop_dic = {}
+    ctrl_reg_avg_phastcons_dic = {}
+    ctrl_reg_avg_phylop_dic = {}
+
+    pc_plot_path = os.path.join(args.out_folder, pc_plot_name)
+    pp_plot_path = os.path.join(args.out_folder, pp_plot_name)
+    html_report_path = os.path.join(args.out_folder, html_report_out)
+
+    # Remove old plots and HTML report.
+    if os.path.exists(pc_plot_path):
+        os.remove(pc_plot_path)
+    if os.path.exists(pp_plot_path):
+        os.remove(pp_plot_path)
+    if os.path.exists(html_report_path):
+        os.remove(html_report_path)
+
+    # Wilcoxon rank-sum test / Mann Whitney U test mode.
+    wrs_alt_hypo = "greater"
+    if args.wrs_mode == 1:
+        wrs_alt_hypo = "greater"
+        print("Check if --in sites have significantly higher conservation scores ... ")
+    elif args.wrs_mode == 2:
+        wrs_alt_hypo = "less"
+        print("Check if --in sites have significantly lower conservation scores ... ")
+    else:
+        assert False, "Invalid Wilcoxon rank-sum (Mann Whitney U) test mode: %i" %(args.wrs_mode)
+
+
+    pc_pval = 1.0
+    pp_pval = 1.0
+
+    """
+    PhastCons conservation scores.
+
+    """
+
+    if pc_bw:
+
+        print("Read in phastCons conservation scores ... ")
+
+        pc_bw_data = pyBigWig.open(pc_bw)
+
+        for reg_id, reg_info in in_regions_dic.items():
+
+            chr_id = reg_info[0]
+            start = reg_info[1]
+            end = reg_info[2]
+
+            try:
+                # Get conservation scores for the region.
+                scores = pc_bw_data.values(chr_id, start, end, numpy=False)
+                # Convert NaN values to 0.0.
+                scores = [0.0 if np.isnan(s) else s for s in scores]
+                avg_score = statistics.mean(scores) if scores else 0.0
+                in_reg_avg_phastcons_dic[reg_id] = avg_score
+            except RuntimeError:
+                print(f"Skipping --in site {chr_id}:{start}-{end} (coordinates not in bigWig)")
+
+        for reg_id, reg_info in control_regions_dic.items():
+
+            chr_id = reg_info[0]
+            start = reg_info[1]
+            end = reg_info[2]
+
+            try:
+                # Get conservation scores for the region.
+                scores = pc_bw_data.values(chr_id, start, end, numpy=False)
+                # Convert NaN values to 0.0.
+                scores = [0.0 if np.isnan(s) else s for s in scores]
+                avg_score = statistics.mean(scores) if scores else 0.0
+                ctrl_reg_avg_phastcons_dic[reg_id] = avg_score
+            except RuntimeError:
+                print(f"Skipping --ctrl-in site {chr_id}:{start}-{end} (coordinates not in bigWig)")
+
+        pc_bw_data.close()
+
+        # Make violin plot.
+        print("Create plot ... ")
+
+        in_scores = []
+        for reg_id, reg_info in in_regions_dic.items():
+            in_scores.append(in_reg_avg_phastcons_dic[reg_id])
+        control_scores = []
+        for reg_id, reg_info in control_regions_dic.items():
+            control_scores.append(ctrl_reg_avg_phastcons_dic[reg_id])
+
+        # Compare distributions.
+        stat, pc_pval = mannwhitneyu(in_scores, control_scores, alternative=wrs_alt_hypo)
+        # Round p-value to 4 significant digits.
+        pc_pval = round_to_n_significant_digits_v2(pc_pval, 4,
+                                                   min_val=0.0)
+
+        print(f"Wilcoxon rank-sum test: U = {stat:.2f}, p = {pc_pval:.4g}")
+
+        create_con_sc_violin_plot(in_scores, control_scores, pc_plot_path, 
+                                  pval=pc_pval,
+                                  con_type="phastCons",
+                                  add_pval=True,
+                                  plot_title=False,
+                                  plot_pdf=args.plot_pdf)
+
+    """
+    PhyloP conservation scores.
+
+    """
+
+    if pp_bw is not None:
+
+        print("Read in phyloP conservation scores ... ")
+
+        pp_bw_data = pyBigWig.open(pp_bw)
+
+        for reg_id, reg_info in in_regions_dic.items():
+
+            chr_id = reg_info[0]
+            start = reg_info[1]
+            end = reg_info[2]
+
+            try:
+                # Get conservation scores for the region.
+                scores = pp_bw_data.values(chr_id, start, end, numpy=False)
+                # Convert NaN values to 0.0.
+                scores = [0.0 if np.isnan(s) else s for s in scores]
+                avg_score = statistics.mean(scores) if scores else 0.0
+                in_reg_avg_phylop_dic[reg_id] = avg_score
+            except RuntimeError:
+                print(f"Skipping --in site {chr_id}:{start}-{end} (coordinates not in bigWig)")
+
+        for reg_id, reg_info in control_regions_dic.items():
+
+            chr_id = reg_info[0]
+            start = reg_info[1]
+            end = reg_info[2]
+
+            try:
+                # Get conservation scores for the region.
+                scores = pp_bw_data.values(chr_id, start, end, numpy=False)
+                # Convert NaN values to 0.0.
+                scores = [0.0 if np.isnan(s) else s for s in scores]
+                avg_score = statistics.mean(scores) if scores else 0.0
+                ctrl_reg_avg_phylop_dic[reg_id] = avg_score
+            except RuntimeError:
+                print(f"Skipping --ctrl-in site {chr_id}:{start}-{end} (coordinates not in bigWig)")
+
+        pp_bw_data.close()
+
+        # Make violin plot.
+        print("Create plot ... ")
+
+        in_scores = []
+        for reg_id, reg_info in in_regions_dic.items():
+            in_scores.append(in_reg_avg_phylop_dic[reg_id])
+        control_scores = []
+        for reg_id, reg_info in control_regions_dic.items():
+            control_scores.append(ctrl_reg_avg_phylop_dic[reg_id])
+
+        # Compare distributions.
+        stat, pp_pval = mannwhitneyu(in_scores, control_scores, alternative=wrs_alt_hypo)
+        # Round p-value to 4 significant digits.
+        pp_pval = round_to_n_significant_digits_v2(pp_pval, 4,
+                                                   min_val=0.0)
+        
+        print(f"Wilcoxon rank-sum test: U = {stat:.2f}, p = {pp_pval:.4g}")
+
+        create_con_sc_violin_plot(in_scores, control_scores, pp_plot_path, 
+                                  pval=pp_pval,
+                                  con_type="phyloP",
+                                  add_pval=True,
+                                  plot_title=False,
+                                  plot_pdf=args.plot_pdf)
+
+    stats_dic = {}
+    stats_dic["in_regions_stats"] = in_regions_stats
+    stats_dic["ctrl_regions_stats"] = ctrl_regions_stats
+
+    if pc_bw:
+        in_phastcons_stats = get_val_dic_stats(in_reg_avg_phastcons_dic)
+        ctrl_phastcons_stats = get_val_dic_stats(ctrl_reg_avg_phastcons_dic)
+        stats_dic["in_phastcons_stats"] = in_phastcons_stats
+        stats_dic["ctrl_phastcons_stats"] = ctrl_phastcons_stats
+
+    if pp_bw:
+        in_phylop_stats = get_val_dic_stats(in_reg_avg_phylop_dic)
+        ctrl_phylop_stats = get_val_dic_stats(ctrl_reg_avg_phylop_dic)
+        stats_dic["in_phylop_stats"] = in_phylop_stats
+        stats_dic["ctrl_phylop_stats"] = ctrl_phylop_stats
+
+
+    """
+    Create report.
+
+    """
+
+    print("Create HTML report ... ")
+
+    con_generate_html_report(args, stats_dic, benchlib_path,
+                             html_report_out=html_report_out,
+                             pc_plot_name=pc_plot_name,
+                             pp_plot_name=pp_plot_name,
+                             pc_pval=pc_pval,
+                             pp_pval=pp_pval)
+
+    """
+    Output site conservation scores.
+
+    """
+
+    print("Output site conservation scores ... ")
+
+    in_reg_con_sc_out = os.path.join(args.out_folder, in_con_sc_name)
+    ctrl_reg_con_sc_out = os.path.join(args.out_folder, ctrl_con_sc_name)
+
+    SCOUT = open(in_reg_con_sc_out, "w")
+    SCOUT.write("site_id\tchr_id\tsite_s\tsite_e\tphastcons_sc\tphylop_sc\n")
+
+    for reg_id, reg_info in in_regions_dic.items():
+        chr_id = reg_info[0]
+        start = reg_info[1]
+        end = reg_info[2]
+        avg_phastcons = in_reg_avg_phastcons_dic.get(reg_id, "-")
+        avg_phylop = in_reg_avg_phylop_dic.get(reg_id, "-")
+        avg_phastcons = str(avg_phastcons)
+        avg_phylop = str(avg_phylop)
+        row_str = "%s\t%s\t%s\t%s\t%s\t%s\n" % (reg_id, chr_id, start, end, avg_phastcons, avg_phylop)
+        SCOUT.write("%s" % (row_str))
+
+    SCOUT.close()
+
+    SCOUT = open(ctrl_reg_con_sc_out, "w")
+    SCOUT.write("site_id\tchr_id\tsite_s\tsite_e\tphastcons_sc\tphylop_sc\n")
+
+    for reg_id, reg_info in control_regions_dic.items():
+        chr_id = reg_info[0]
+        start = reg_info[1]
+        end = reg_info[2]
+        avg_phastcons = ctrl_reg_avg_phastcons_dic.get(reg_id, "-")
+        avg_phylop = ctrl_reg_avg_phylop_dic.get(reg_id, "-")
+        avg_phastcons = str(avg_phastcons)
+        avg_phylop = str(avg_phylop)
+        row_str = "%s\t%s\t%s\t%s\t%s\t%s\n" % (reg_id, chr_id, start, end, avg_phastcons, avg_phylop)
+        SCOUT.write("%s" % (row_str))
+
+    SCOUT.close()
 
 
 ################################################################################
@@ -2000,7 +2702,7 @@ def read_fasta_into_dic(fasta_file,
     header_idx = 0
 
     # Compile regex patterns.
-    header_pattern = re.compile(r">(.+)" if full_header else r">(\S+)")  # \S any non-whitespaces match.
+    header_pattern = re.compile(r"^>(.+)" if full_header else r"^>(\S+)")  # \S any non-whitespaces match.
     bed_pattern = re.compile(r"^(.+)::")
     seq_pattern = re.compile(r"[ACGTUN]+", re.I)
     n_pattern = re.compile(r"N", re.I)
@@ -2957,7 +3659,6 @@ def get_exon_pos_count_list_dic(tid2tio_dic,
             exon2pcl_dic[exon_id] = [0] * exon_len
 
     return exon2pcl_dic
-
 
 
 ################################################################################
@@ -6769,7 +7470,7 @@ def genome_fasta_get_chr_sizes_file(in_genome_fa, out_chr_sizes_file,
 
     OUTCHRLEN = open(out_chr_sizes_file, "w")
 
-    header_pattern = re.compile(r"^>(.+)")
+    header_pattern = re.compile(r"^>(\S+)")
 
     with open(in_genome_fa) as f:
         for line in f:
@@ -6815,13 +7516,12 @@ def genome_fasta_get_chr_sizes(in_genome_fa,
     seq_id = "id"
     seq_len = 0
 
-    header_pattern = re.compile(r"^>(.+)")
+    header_pattern = re.compile(r"^>(\S+)")
 
     with open(in_genome_fa) as f:
         for line in f:
             if line.startswith(">"):
                 m = header_pattern.match(line)
-                new_id = m.group(1)
                 new_id = m.group(1)
                 if check_ids:
                     assert new_id not in seq_len_dic, "non-unique sequence ID \"%s\" found in --in genome FASTA file. Please provide unique sequence IDs" %(new_id)
@@ -10309,6 +11009,9 @@ def goa_generate_html_report(args, goa_results_df,
     if args.plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
 
+    # Version string.
+    version_str = "v" + args.version
+
     html_out = out_folder + "/" + "goa_results.rbpbench_goa.html"
     md_out = out_folder + "/" + "goa_results.rbpbench_goa.md"
     if html_report_out:
@@ -10387,9 +11090,9 @@ def goa_generate_html_report(args, goa_results_df,
     mdtext = """
 
 List of available statistics and plots generated
-by RBPBench (rbpbench goa):
+by RBPBench (%s, rbpbench goa):
 
-- [GO enrichment analysis results](#goa-results)"""
+- [GO enrichment analysis results](#goa-results)""" %(version_str)
     mdtext += "\n"
     mdtext += "\n&nbsp;\n"
 
@@ -10614,6 +11317,9 @@ def batch_generate_html_report(args,
     if args.plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
 
+    # Version string.
+    version_str = "v" + args.version
+
     plots_folder = plots_subfolder
     plots_out_folder = out_folder + "/" + plots_folder
     if args.plot_abs_paths:
@@ -10763,9 +11469,10 @@ def batch_generate_html_report(args,
     mdtext = """
 
 List of available statistics and plots generated
-by RBPBench (rbpbench batch --report):
+by RBPBench (%s, rbpbench batch --report):
 
-- [Input datasets sequence length statistics](#seq-len-stats)"""
+- [Input datasets sequence length statistics](#seq-len-stats)""" %(version_str)
+    
     mdtext += "\n"
 
     if ei_ol_stats_dic:
@@ -11156,10 +11863,10 @@ No plot generated since < 4 datasets were provided.
     """
 
     # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
-    wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low p-values mean hit-containing regions have significantly higher scores."
+    wrs_mode_info1 = "Wilcoxon rank-sum test alternative hypothesis is set to 'greater', i.e., low p-values mean hit-containing regions have significantly higher scores."
     wrs_mode_info2 = "higher"
     if args.wrs_mode == 2:
-        wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low p-values mean hit-containing regions have significantly lower scores."
+        wrs_mode_info1 = "Wilcoxon rank-sum test alternative hypothesis is set to 'less', i.e., low p-values mean hit-containing regions have significantly lower scores."
         wrs_mode_info2 = "lower"
 
     if id2motif_enrich_stats_dic:
@@ -12197,9 +12904,6 @@ No significant GO terms found due to no GO IDs associated with target genes. # o
     OUTHTML.close()
 
 
-
-
-
 ################################################################################
 
 def create_mrna_region_occ_plot(motif_ids_list, mrna_reg_occ_dic, 
@@ -12851,7 +13555,10 @@ def enmo_generate_html_report(args,
     out_folder = args.out_folder
     if args.plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
-    
+
+    # Version string.
+    version_str = "v" + args.version
+
     plots_folder = plots_subfolder
     plots_out_folder = out_folder + "/" + plots_folder
     if args.plot_abs_paths:
@@ -12986,11 +13693,11 @@ def enmo_generate_html_report(args,
     mdtext = """
 
 List of available statistics and plots generated
-by RBPBench (rbpbench %s):
+by RBPBench (%s, rbpbench %s):
 
 - [Motif enrichment statistics](#enmo-stats)
 - [Motif co-occurrences heat map](#cooc-heat-map)
-- [Sequence motif similarity vs significance PCA plot](#motif-sim-sig-plot)""" %(rbpbench_mode)
+- [Sequence motif similarity vs significance PCA plot](#motif-sim-sig-plot)""" %(version_str, rbpbench_mode)
 
     mdtext += "\n"
 
@@ -13613,7 +14320,10 @@ def nemo_generate_html_report(args,
     out_folder = args.out_folder
     if args.plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
-    
+
+    # Version string.
+    version_str = "v" + args.version
+
     plots_folder = plots_subfolder
     plots_out_folder = out_folder + "/" + plots_folder
     if args.plot_abs_paths:
@@ -13748,12 +14458,12 @@ def nemo_generate_html_report(args,
     mdtext = """
 
 List of available statistics and plots generated
-by RBPBench (rbpbench %s):
+by RBPBench (%s, rbpbench %s):
 
 - [Neighboring motif enrichment statistics](#nemo-stats)
 - [Motif co-occurrences heat map](#cooc-heat-map)
 - [Sequence motif similarity vs significance PCA plot](#motif-sim-sig-plot)
-- [Sequence motif similarity vs direction PCA plot](#motif-sim-dir-plot)""" %(rbpbench_mode)
+- [Sequence motif similarity vs direction PCA plot](#motif-sim-dir-plot)""" %(version_str, rbpbench_mode)
 
     mdtext += "\n"
 
@@ -13798,7 +14508,7 @@ by RBPBench (rbpbench %s):
     else:
         assert False, "Invalid motif enrichment p-value mode (--nemo-pval-mode) set: %i" %(args.nemo_pval_mode)
 
-    # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
+    # Inform about set alterntive hypothesis for Wilcoxon rank-sum test.
     # wrs_mode_info = ""
     # if args.wrs_mode == 1:
     #     wrs_mode_info = "Wilcoxon rank sum test alternative hypothesis is set to 'two-sided', i.e., low WRS p-values (WRS p-value column) mean either up- or downstream context regions have significantly higher motif hit counts."
@@ -13808,7 +14518,7 @@ by RBPBench (rbpbench %s):
     #     wrs_mode_info = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low WRS p-values (WRS p-value column) mean downstream context regions have significantly higher motif hit counts."
     # else:
     #     assert False, "Invalid Wilcoxon rank sum test mode (--wrs-mode) set: %i" %(args.wrs_mode)
-    wrs_mode_info = "Wilcoxon rank sum test alternative hypothesis is set to 'two-sided', i.e., low WRS p-values (WRS p-value column) mean either up- or downstream context regions have significantly higher motif hit counts."
+    wrs_mode_info = "Wilcoxon rank-sum test alternative hypothesis is set to 'two-sided', i.e., low WRS p-values (WRS p-value column) mean either up- or downstream context regions have significantly higher motif hit counts."
 
     ol_info = "Motif hits that overlap with the actual input sites are not counted."
     if args.allow_overlaps:
@@ -13840,7 +14550,7 @@ Fisher's exact test is used to assess the significance of motif enrichment.
 %s
 For full motif results list regardless of significance, see *motif_enrichment_stats.tsv* output table.
 To test whether up- or downstream regions have significantly higher motif hit counts, 
-Wilcoxon rank sum (WRS) test is applied.
+Wilcoxon rank-sum (WRS) test is applied.
 %s
 %s
 
@@ -13999,7 +14709,7 @@ Wilcoxon rank sum (WRS) test is applied.
     mdtext += '**avg bg dist** -> average distance of motif hits to center of background sites (positive value indicates motifs tend to be located upstream of input sites, whereas negative value indicates downstream), '
     # mdtext += '**max bg dist** -> distance position with maximum count (i.e., where most motif hit centers lie relative to background site centers), '
     # mdtext += '**# max bg dist** -> number of motif hits at distance position with maximum count for background sites, '
-    mdtext += '**WRS p-value** -> Wilcoxon rank sum test p-value to test for significantly different counts in up- and downstream context regions.' + "\n"
+    mdtext += '**WRS p-value** -> Wilcoxon rank-sum test p-value to test for significantly different counts in up- and downstream context regions.' + "\n"
     mdtext += "**Motif distance plot** -> visualization of motif distance plot (counting motif hit center occurrences relative to input site centers), "
     mdtext += '**p-value** -> Fisher exact test p-value (corrected).' + "\n"
     mdtext += "\n&nbsp;\n"
@@ -14287,7 +14997,7 @@ No motif similarity vs significance plot generated since there are < 3 significa
         mdtext += """
 
 **Figure:** Sequence motif similarity vs direction PCA plot. Motifs are arranged by their similarity and colored by their preferred binding direction relative to the provided central sites (up- or downstream context). 
-Significance of directional preference is given as the -log10 of the Wilcoxon rank sum test p-value (used as legend color, i.e., the more negative or positive the value the more significant the preference).
+Significance of directional preference is given as the -log10 of the Wilcoxon rank sum-test p-value (used as legend color, i.e., the more negative or positive the value the more significant the preference).
 A negative -log10 p-value indicates a preference for upstream context, whereas a positive value indicates a preference for downstream context.
 A -log10 p-value close to 0 indicates no significant directional preference.
 Motifs closer together in the plot translates to higher motif similarity.
@@ -14303,9 +15013,9 @@ B: # input regions without motif hits,
 C: # background regions with motif hits,
 D: # background regions without motif hits.
 **p-value** -> Fisher exact test p-value (corrected) derived from contingency table.
-**WRS p-value (upstream)** -> Wilcoxon rank sum test p-value to test for significantly higher counts in upstream context regions.
-**WRS p-value (downstream)** -> Wilcoxon rank sum test p-value to test for significantly higher counts in downstream context regions.
-**-log10(WRS p-value)** -> -log10 p-value of Wilcoxon rank sum test p-value used for coloring of motifs. 
+**WRS p-value (upstream)** -> Wilcoxon rank-sum test p-value to test for significantly higher counts in upstream context regions.
+**WRS p-value (downstream)** -> Wilcoxon rank-sum test p-value to test for significantly higher counts in downstream context regions.
+**-log10(WRS p-value)** -> -log10 p-value of Wilcoxon rank-sum test p-value used for coloring of motifs. 
 The smaller of the two WRS p-values is taken. A negative value indicates upstream preference, a positive value downstream preference.
 
 &nbsp;
@@ -14889,7 +15599,10 @@ def search_generate_html_report(args,
     out_folder = args.out_folder
     if args.plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
-    
+
+    # Version string.
+    version_str = "v" + args.version
+
     plots_folder = plots_subfolder
     plots_out_folder = out_folder + "/" + plots_folder
     if args.plot_abs_paths:
@@ -15033,12 +15746,10 @@ def search_generate_html_report(args,
 <body>
 """ %(plotly_js_html, logo_path_html)
 
-
     # HTML tail section.
     html_tail = """
 %s
 </body>
-
 
 </html>
 """ %(sorttable_js_html)
@@ -15051,10 +15762,10 @@ def search_generate_html_report(args,
     mdtext = """
 
 List of available statistics and plots generated
-by RBPBench (rbpbench %s):
+by RBPBench (%s, rbpbench %s):
 
 %s
-- [RBP motif co-occurrences heat map](#cooc-heat-map)""" %(rbpbench_mode, motif_enrich_info)
+- [RBP motif co-occurrences heat map](#cooc-heat-map)""" %(version_str, rbpbench_mode, motif_enrich_info)
 
     mdtext += "\n"
 
@@ -15121,10 +15832,10 @@ by RBPBench (rbpbench %s):
     if not disable_motif_enrich_table:
 
         # Inform about set alterntive hypothesis for Wilcoxon rank sum test.
-        wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'greater', i.e., low p-values mean motif-containing regions have significantly higher scores."
+        wrs_mode_info1 = "Wilcoxon rank-sum test alternative hypothesis is set to 'greater', i.e., low p-values mean motif-containing regions have significantly higher scores."
         wrs_mode_info2 = "higher"
         if args.wrs_mode == 2:
-            wrs_mode_info1 = "Wilcoxon rank sum test alternative hypothesis is set to 'less', i.e., low p-values mean motif-containing regions have significantly lower scores."
+            wrs_mode_info1 = "Wilcoxon rank-sum test alternative hypothesis is set to 'less', i.e., low p-values mean motif-containing regions have significantly lower scores."
             wrs_mode_info2 = "lower"
 
         mdtext += """
@@ -15357,9 +16068,7 @@ and length quartiles (q1: 25th percentile, q3: 75th percentile).
 
 """
 
-        plot_k = args.kmer_plot_k
-
-        seqs_kmer_dic = seqs_dic_count_kmer_freqs(reg2seq_dic, 5, 
+        seqs_kmer_dic = seqs_dic_count_kmer_freqs(reg2seq_dic, args.kmer_plot_k, 
                                                   rna=False,
                                                   return_ratios=True,
                                                   perc=True,
@@ -15383,7 +16092,7 @@ and length quartiles (q1: 25th percentile, q3: 75th percentile).
 
         ax.bar(top_kmers_list, top_kmer_perc_list, color='#e5ecf6', zorder=2)  # #e5ecf6 lightgray
 
-        ax.set_ylabel(str(plot_k) + "-mer %")
+        ax.set_ylabel(str(args.kmer_plot_k) + "-mer %")
 
         # Expected k-mer percentage.
         exp_kmer_perc = calc_exp_kmer_perc(args.kmer_plot_k)
@@ -15420,10 +16129,11 @@ and length quartiles (q1: 25th percentile, q3: 75th percentile).
         mdtext += """
 **Figure:** Top %i %i-mers encountered in input sequences. 
 In case of a uniform distribution with all %i-mers present, each %i-mer would have a percentage of %s%% (marked by red line).
+Change k via --kmer-plot-k.
 
 &nbsp;
 
-""" %(n_top_kmers, plot_k, plot_k, plot_k, exp_kmer_perc)
+""" %(n_top_kmers, args.kmer_plot_k, args.kmer_plot_k, args.kmer_plot_k, exp_kmer_perc)
 
 
     """
@@ -15778,10 +16488,6 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
 &nbsp;
 
 """ %(more_infos)
-
-
-
-
 
 
     """
@@ -18663,7 +19369,10 @@ def search_generate_html_motif_plots(args, search_rbps_dic,
     # Use absolute paths?
     if args.plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
-    
+
+    # Version string.
+    version_str = "v" + args.version
+
     plots_folder = plots_subfolder
     plots_out_folder = out_folder + "/" + plots_folder
     if args.plot_abs_paths:
@@ -18762,10 +19471,10 @@ def search_generate_html_motif_plots(args, search_rbps_dic,
     mdtext = """
 
 List of available motif hit statistics and motif plots generated
-by RBPBench (rbpbench %s):
+by RBPBench (%s, rbpbench %s):
 
 - [Motif hit statistics](#motif-hit-stats)
-""" %(rbpbench_mode)
+""" %(version_str, rbpbench_mode)
 
     if args.run_goa:
         mdtext += "- [Motif hit GO enrichment analysis results](#goa-results)\n"
@@ -19311,6 +20020,9 @@ def compare_generate_html_report(args,
     plot_abs_paths = args.plot_abs_paths
     sort_js_mode = args.sort_js_mode
 
+    # Version string.
+    version_str = "v" + args.version
+
     # Use absolute paths?
     if plot_abs_paths:
         out_folder = os.path.abspath(out_folder)
@@ -19397,9 +20109,9 @@ def compare_generate_html_report(args,
     mdtext = """
 
 List of available comparison statistics generated
-by RBPBench (rbpbench compare):
+by RBPBench (%s, rbpbench compare):
 
-"""
+""" %(version_str)
 
     # Comparisons based on method ID.
     method_ids_dic = {}

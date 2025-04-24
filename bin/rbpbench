@@ -17,7 +17,7 @@ from scipy.stats import mannwhitneyu
 from scipy.stats import false_discovery_control  # Benjamini-Hochberg correction.
 
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 
 ################################################################################
 
@@ -253,7 +253,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2],
-                   help="Defines Wilcoxon rank sum test alternative hypothesis for testing whether motif-containing regions have significantly different scores. 1: test for higher (greater) scores, 2: test for lower (less) scores (default: 1)")
+                   help="Defines Wilcoxon rank-sum test alternative hypothesis for testing whether motif-containing regions have significantly different scores. 1: test for higher (greater) scores, 2: test for lower (less) scores (default: 1)")
     p_s.add_argument("--fisher-mode",
                    dest="fisher_mode",
                    type=int,
@@ -784,7 +784,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2],
-                   help="Defines Wilcoxon rank sum test alternative hypothesis for testing whether motif-containing regions have significantly different scores. 1: test for higher (greater) scores, 2: test for lower (less) scores (default: 1)")
+                   help="Defines Wilcoxon rank-sum test alternative hypothesis for testing whether motif-containing regions have significantly different scores. 1: test for higher (greater) scores, 2: test for lower (less) scores (default: 1)")
     p_b.add_argument("--fisher-mode",
                    dest="fisher_mode",
                    type=int,
@@ -2879,6 +2879,80 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3],
                    help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to plots output folder. 3: include .js code in HTML (default: 1)")
+
+    """
+    Compare phylogenomic conservation between two sets of genomic sites.
+
+    """
+    p_cn = subparsers.add_parser('con',
+                                help='Compare conservation in genomic sites')
+    p_cn.set_defaults(which='con')
+    # Add required arguments group.
+    p_cnm = p_cn.add_argument_group("required arguments")
+    # Required arguments for con.
+    p_cnm.add_argument("--in",
+                   dest="in_bed",
+                   type=str,
+                   metavar='str',
+                   required = True,
+                   help = "Genomic sites of interest in BED format")
+    p_cnm.add_argument("--ctrl-in",
+                   dest="in_control_bed",
+                   type=str,
+                   metavar='str',
+                   required=True,
+                   help = "Genomic control sites to compare to --in genomic sites regarding conservation scores in BED format")
+    p_cnm.add_argument("--out",
+                   dest="out_folder",
+                   type=str,
+                   metavar='str',
+                   required=True,
+                   help="Results output folder")
+    # Optional arguments for con.
+    p_cn.add_argument("--phastcons",
+                   dest="pc_bw",
+                   type=str,
+                   metavar='str',
+                   help = "Genomic .bigWig file with phastCons conservation scores")
+    p_cn.add_argument("--phylop",
+                   dest="pp_bw",
+                   type=str,
+                   metavar='str',
+                   help = "Genomic .bigWig file with phyloP conservation scores")
+    p_cn.add_argument("--use-regions",
+                   dest="use_regions",
+                   default = False,
+                   action = "store_true",
+                   help="Use genomic regions as --in / --ctrl-in input site IDs instead of BED col4 IDs (default: False)")
+    p_cn.add_argument("--no-id-check",
+                   dest="no_id_check",
+                   default = False,
+                   action = "store_true",
+                   help="Do not check region IDs, instead overwriting existing regions if they have identical IDs (default: False)")
+    p_cn.add_argument("--wrs-mode",
+                   dest="wrs_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Defines Wilcoxon rank-sum test alternative hypothesis for testing whether --in sites have significantly different average conservation scores compared to --ctrl-in sites. 1: test for higher (greater) scores, 2: test for lower (less) scores (default: 1)")
+    # Report / plot options.
+    p_cn.add_argument("--plot-abs-paths",
+                   dest="plot_abs_paths",
+                   default = False,
+                   action = "store_true",
+                   help = "Store plot files with absolute paths in HTML files. Default is relative paths (default: False)")
+    p_cn.add_argument("--plot-pdf",
+                   dest="plot_pdf",
+                   default = False,
+                   action = "store_true",
+                   help = "Also output .png plots as .pdf in plotting subfolder (default: False)")
+    p_cn.add_argument("--sort-js-mode",
+                   dest="sort_js_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to output folder. 3: include .js code in HTML (default: 1)")
+
 
     """
     Run STREME on input sites for motif discovery.
@@ -6310,6 +6384,7 @@ def main_search(args):
                                          reg_seq_str="regions",
                                          id2pids_dic=id2pids_dic,
                                          id2exp_dic=id2exp_dic,
+                                         version=__version__,
                                          plots_subfolder=plots_subfolder)
 
     """
@@ -8486,6 +8561,7 @@ def main_batch(args):
                                         heatmap_cluster_olo=heatmap_cluster_olo,
                                         goa_results_df=goa_results_df,
                                         goa_stats_dic=goa_stats_dic,
+                                        version=__version__,
                                         plots_subfolder=plots_subfolder)
 
     """
@@ -9983,6 +10059,7 @@ def main_searchseq(args):
                                          reg_seq_str="sequences",
                                          id2pids_dic=id2pids_dic,
                                          id2exp_dic=id2exp_dic,
+                                         version=__version__,
                                          plots_subfolder=plots_subfolder)
 
 
@@ -11515,6 +11592,7 @@ def main_searchlong(args):
                                         reg_seq_str="regions",
                                         id2pids_dic=id2pids_dic,
                                         id2exp_dic=id2exp_dic,
+                                        version=__version__,
                                         plots_subfolder=plots_subfolder)
 
 
@@ -13584,6 +13662,7 @@ def main_searchrna(args):
                                     reg_seq_str="regions",
                                     reg2seq_dic=out_seqs_dic,
                                     disable_motif_enrich_table=True,
+                                    version=__version__,
                                     plots_subfolder=plots_subfolder)
 
 
@@ -13616,6 +13695,7 @@ def main_searchrna(args):
                                          reg_seq_str="regions",
                                          id2pids_dic=id2pids_dic,
                                          id2exp_dic=id2exp_dic,
+                                         version=__version__,
                                          plots_subfolder=plots_subfolder)
 
     """
@@ -15381,6 +15461,7 @@ def main_searchlongrna(args):
                                         goa_stats_dic=goa_stats_dic,
                                         id2pids_dic=id2pids_dic,
                                         id2exp_dic=id2exp_dic,
+                                        version=__version__,
                                         plots_subfolder=plots_subfolder)
 
     """
@@ -17752,6 +17833,7 @@ class EnmoStats:
                                        annot2color_dic=annot2color_dic,
                                        rbpbench_mode="enmo",
                                        html_report_out=html_report_out,
+                                       version=__version__,
                                        plots_subfolder=plots_subfolder)
 
 
@@ -20272,6 +20354,7 @@ def main_nemo(args):
                                        annot2color_dic=annot2color_dic,
                                        rbpbench_mode="nemo",
                                        html_report_out=html_report_out,
+                                       version=__version__,
                                        plots_subfolder=plots_subfolder)
 
 
@@ -20309,6 +20392,118 @@ def main_nemo(args):
         print("Input region annotations .tsv:\n%s" %(reg_annot_table_file))
     print("Neighboring motif enrichment report .html:\n%s" %(html_report_out))
     print("")
+
+
+################################################################################
+
+def main_con(args):
+    """
+    Compare conservation in two sets of genomic sites.
+
+    """
+
+    print("Running CON for you ... ")
+
+    assert os.path.exists(args.in_bed), "given --bed file \"%s\" not found" % (args.in_bed)
+    assert os.path.exists(args.in_control_bed), "given --control-bed file \"%s\" not found" % (args.in_control_bed)
+
+    if not os.path.exists(args.out_folder):
+        os.makedirs(args.out_folder)
+
+
+    """
+    Library path.
+    """
+    benchlib_path = os.path.dirname(benchlib.__file__)
+    # db_path = benchlib_path + "/content"
+
+    print("Reading in BED regions  ... ")
+
+    # Read in regions of interest.
+    in_regions_dic = benchlib.bed_read_in_regions(args.in_bed,
+                                         no_id_check=args.no_id_check,
+                                         use_regions_as_ids=args.use_regions)
+    
+    print("# --bed regions: %i" % (len(in_regions_dic)))
+
+    # Read in control regions.
+    control_regions_dic = benchlib.bed_read_in_regions(args.in_control_bed,
+                                              no_id_check=args.no_id_check,
+                                              use_regions_as_ids=args.use_regions)
+    
+    print("# --control-bed regions: %i" % (len(control_regions_dic)))
+
+    # Check if conservation scores are provided.
+    if args.pc_bw is None and args.pp_bw is None:
+        print("No conservation scores provided! Please provide --phastcons and/or --phylop files/links")
+        exit(0)
+
+    # If URLs are provided.
+    if args.pc_bw is not None:
+        # Check if pc_bw is a link or a file.
+        if args.pc_bw.startswith("http"):
+            print("Downloading phastCons conservation scores to --out folder (this might take some time!) ... ")
+            os.system("wget -q %s -O %s" % (args.pc_bw, os.path.join(args.out_folder, "phastCons.bw")))
+            args.pc_bw = os.path.join(args.out_folder, "phastCons.bw")
+
+        assert os.path.exists(args.pc_bw), "given --phastcons file \"%s\" not found" % (args.pc_bw)
+
+    if args.pp_bw is not None:
+        # Check if pp_bw is a link or a file.
+        if args.pp_bw.startswith("http"):
+            print("Downloading phyloP conservation scores to --out folder (this might take some time!) ... ")
+            os.system("wget -q %s -O %s" % (args.pp_bw, os.path.join(args.out_folder, "phyloP.bw")))
+            args.pp_bw = os.path.join(args.out_folder, "phyloP.bw")
+        
+        assert os.path.exists(args.pp_bw), "given --phylop file \"%s\" not found" % (args.pp_bw)
+
+
+    """
+    Extract scores and create HTML report.
+
+    """
+    html_report_out = "report.rbpbench_con.html"
+    in_con_sc_name = "in_regions.avg_con_sc.tsv"
+    ctrl_con_sc_name = "control_regions.avg_con_sc.tsv"
+
+    benchlib.compare_conservation_scores(args,
+                                in_regions_dic, control_regions_dic, 
+                                benchlib_path,
+                                pc_bw=args.pc_bw,
+                                pp_bw=args.pp_bw,
+                                html_report_out=html_report_out,
+                                in_con_sc_name=in_con_sc_name,
+                                ctrl_con_sc_name=ctrl_con_sc_name,
+                                pc_plot_name="phastCons_scores.png",
+                                pp_plot_name="phyloP_scores.png")
+
+
+    """
+    Output parameter settings.
+
+    """
+    settings_file = os.path.join(args.out_folder, "settings.rbpbench_con.out")
+
+    # Output mode settings.
+    print("Output parameter settings ... ")
+    SETOUT = open(settings_file, "w")
+    for arg in vars(args):
+        SETOUT.write("%s\t%s\n" %(arg, str(getattr(args, arg))))
+    SETOUT.close()
+
+    in_con_sc_path = os.path.join(args.out_folder, in_con_sc_name)
+    ctrl_con_sc_path = os.path.join(args.out_folder, ctrl_con_sc_name)
+    html_report_path = os.path.join(args.out_folder, html_report_out)
+
+    print("")
+    print("OUTPUT FILES")
+    print("============")
+    print("")
+    print("Input sites scores .tsv:\n%s" %(in_con_sc_path))
+    print("Control sites scores .tsv:\n%s" %(ctrl_con_sc_path))
+    print("Conservation scores comparison report .html:\n%s" %(html_report_path))
+    print("")
+
 
 
 ################################################################################
@@ -21045,6 +21240,7 @@ def main_goa(args):
     
     benchlib.goa_generate_html_report(args, goa_results_df, 
                                       goa_stats_dic, benchlib_path,
+                                      version=__version__,
                                       html_report_out=html_goa_results_out)
 
     """
@@ -22110,6 +22306,7 @@ def main_compare(args):
                                           rbp_stats_dic, motif_stats_dic,
                                           benchlib_path,
                                           html_report_out=html_report_out,
+                                          version=__version__,
                                           plots_subfolder=plots_subfolder)
 
     """
@@ -22299,6 +22496,7 @@ if __name__ == '__main__':
         sys.exit()
     # Read in command line arguments.
     args = parser.parse_args()
+    args.version = __version__
 
     # Show some banner.
     print(benchlib.print_some_banner())
@@ -22322,6 +22520,8 @@ if __name__ == '__main__':
         main_enmo(args)
     elif args.which == 'nemo':
         main_nemo(args)
+    elif args.which == 'con':
+        main_con(args)
     elif args.which == 'streme':
         main_streme(args)
     elif args.which == 'tomtom':

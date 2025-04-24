@@ -76,7 +76,7 @@ rbpbench -h
 Manual installation of RBPBench is only slightly more work. First we create the Conda environment with all necessary dependencies:
 
 ```
-conda create -n rbpbench -c conda-forge -c bioconda logomaker markdown meme scipy plotly textdistance venn matplotlib-venn infernal bedtools upsetplot scikit-learn goatools python
+conda create -n rbpbench -c conda-forge -c bioconda python bedtools goatools infernal logomaker markdown matplotlib-venn meme plotly pybigwig scikit-learn scipy textdistance upsetplot venn
 ```
 
 Next we activate the environment, clone the RBPBench repository, and install RBPBench:
@@ -596,10 +596,10 @@ rbpbench nemo --in mrna_region_end_pos.bed --genome hg38.fa --gtf Homo_sapiens.G
 
 We can see that the table is slightly expanded compared to the `rbpbench enmo` table. I.e., we now have additional 
 info on whether motif hits tend to occur more in up- or downstream regions relative to the input regions (signified by 
-Wilcoxon rank sum (WRS) p-value, as well as a motif distance plot showing the distribution of motif hit center locations relative to the centered input regions).
-A low WRS p-value in this table means that there is a preference for either up- or downstream binding (two-sided test).
+Wilcoxon rank-sum test p-value, as well as a motif distance plot showing the distribution of motif hit center locations relative to the centered input regions).
+A low test p-value in this table means that there is a preference for either up- or downstream binding (two-sided test).
 The top enriched motifs are the motifs essentially describing the polyadenylation signal sequence (AATAAA), which is known 
-to often occur near 3'UTR ends. This preference we can also nicely see in the motif distance plots (plus it is significant w.r.t. WRS p-value).
+to often occur near 3'UTR ends. This preference we can also nicely see in the motif distance plots (plus it is significant w.r.t. test p-value).
 Looking at the regions downstream the annotated mRNA ends, we see a preference of T and GT-rich motifs (which continues as we would go beyond 
 the top 10). These GT-rich (or actually GU-rich in RNA) elements (GREs) are too known to frequently occur at transcript ends, 
 namely downstream the polyadenylation signal. Both elements have well known roles in the regulation of mRNA stability and degradation. 
@@ -734,6 +734,55 @@ We can clearly identify the known stop codon triplet sequences (in DNA: TAA, TAG
 at position 0.
 
 
+
+#### Comparing conservation scores between two sets of genomic sites
+
+It can be informative to compare the conservation scores of two sets of genomic sites.
+`rbpbench con` allows us to do this, supporting both phastCons and phyloP conservation scores 
+for the comparison. Two sets of genomic sites in BED format have to be provided 
+(input sites via `--in`, control sites via `--ctrl-in`).
+For each genomic site the average conservation score is taken (i.e., by averaging over all single position scores), 
+and the distributions of the two sets are compared using the Wilcoxon rank-sum test. 
+A low p-value indicates that input sites have significantly higher conservation scores. 
+This mode can thus be used e.g. to compare different sets of motif hit regions, 
+or sets from different peak callers. An HTML report is produced to summarize and visually inspect the results.
+
+Compatible phastCons and phyloP conservation score files (.bigWig format) can be downloaded from the UCSC, 
+e.g. using the conservation scores obtained from alignments of 99 vertebrate genomes to the human genome:
+
+```
+wget https://hgdownload.cse.ucsc.edu/goldenpath/hg38/phyloP100way/hg38.phyloP100way.bw
+wget https://hgdownload.cse.ucsc.edu/goldenpath/hg38/phastCons100way/hg38.phastCons100way.bw
+```
+
+Note that `rbpbench con` also works with just a phastCons or a phyloP file as input.
+
+As an example, we can again use the mRNA region end positions as input sites (`mrna_region_end_pos.bed` from the example [above](#nemo-mode)), 
+and for the control sites we can shift the end positions downstream by 50 nt:
+
+```
+bed_shift_regions.py --in mrna_region_end_pos.bed --num 50 > mrna_region_end_pos.50ds_shift.bed
+```
+
+This should result in a drop in conservation scores in the control sites. 
+We can simply check this with the following example call:
+
+```
+rbpbench con --in mrna_region_end_pos.bed --ctrl-in mrna_region_end_pos.50ds_shift.bed --phylop hg38.phyloP100way.bw --phastcons hg38.phastCons100way.bw --out mrna_region_end_pos_con_sc_out
+```
+
+Inspecting the conservation score distribution plots in `test_con_smrna_region_end_pos_con_sc_outc_out/report.rbpbench_con.html` confirms the assumption 
+(plus the p-values are highly significant as well):
+
+
+<img src="docs/con.ex1.png" alt="Conservation score distribution comparison"
+  title="Conservation score distribution comparison" width="800" />
+
+**Fig. 17:** Comparison of phastCons and phyloP conservation score distributions between input sites (mRNA region end positions) and control sites (mRNA region end positions shifted downstream by 50 nt).
+
+
+
+
 ## Documentation
 
 This documentation provides further details on RBPBench (version 1.0.x).
@@ -769,6 +818,7 @@ positional arguments:
     searchlongrna       Search motifs in spliced full transcripts
     enmo                Check for enriched motifs in input sites
     nemo                Check for neighboring motifs in input sites
+    con                 Compare conservation in genomic sites
     streme              Discover motifs in input sites using STREME
     tomtom              Compare motif(s) with database using TOMOTM
     goa                 Run GO enrichment analysis on gene list
@@ -838,6 +888,8 @@ translation regulation, and RNA stability & decay).
 
 ##### More modes
 
+```rbpbench con``` be used to compare conservation scores in two sets of genomic sites. For example, 
+we can compare different sets of motif hit regions, or sets from different peak callers.
 ```rbpbench streme``` allows to discover new motifs using STREME from MEME suite. 
 ```rbpbench goa``` enables us to run GO term enrichment analysis (GOA) on a set of genes, e.g. obtained 
 from the output tables of other modes (like genes covered by input regions from ```rbpbench search```
@@ -897,7 +949,7 @@ chr1	19094999	19095025	PUM1_K562_IDR	5.11052671530143	-
 
 Additional columns (> 6) will be ignored, although the region score column 
 can be different from column 5 (default). You can specify which column should be used 
-as region score via `--bed-score-col` (used for Wilcoxon rank sum test and optionally for 
+as region score via `--bed-score-col` (used for Wilcoxon rank-sum test and optionally for 
 filtering out regions by `--bed-sc-thr`).
 Before motif search, the input regions are filtered and optionally extended via `--ext` 
 (e.g. `--ext 20` for up- and downstream extension of 20 nt or `--ext 30,10` for different up- 
@@ -1161,7 +1213,7 @@ results in only the best hit (lowest p-value, highest bit score) being reported 
 
 Given a set of input regions with associated scores (by default BED column 5 is used, change via `--bed-score-col`),
 RBPBench for each selected RBP checks whether motif-containing input regions 
-have significantly higher scores (using Wilcoxon rank sum test).
+have significantly higher scores (using Wilcoxon rank-sum test).
 This means that a low test p-value for a given RBP indicates that higher-scoring regions are more likely to contain motif hits of the respective RBP. If we assume that the score (e.g. log2 fold change) is somehow correlated with RBP binding affinity,
 the test thus can give clues on which RBPs preferentially bind to the provided regions.
 Note that the test is only informative if the scores are themselves informative w.r.t. RBP binding (e.g., not all the same), 
@@ -1362,6 +1414,7 @@ of the binding site quality, and thus also the presence of known binding motifs.
 include setting k (`--kmer-plot-k`), or change the splitting behavior via setting `--kmer-plot-top-n`
 and/or `--kmer-plot-bottom-n`. This way, we can e.g. compare the top 1000 scoring (`--kmer-plot-top-n 1000`) 
 with the bottom 1000 scoring (`--kmer-plot-bottom-n 1000`) sites.
+
 
 
 
