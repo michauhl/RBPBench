@@ -657,9 +657,9 @@ rbpbench searchlongrna --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --o
 We can see that the DDX3X motifs are also found predominantly in 5'UTRs, as well as decreasingly in frequency along the CDS. Since we have more than one motif for DDX3X (i.e., two: `DDX3X_1`, `DDX3X_2`), profiles are plotted for each motif and then also the sum of profiles for the RBP in total. Furthermore, the motif hit coverage profile fits to what is known about DDX3X, namely that it is an RNA helicase involved e.g. in translation initiation. **Fig. 14** shows the two motifs:
 
 
-<img src="docs/searchlongrna.ex2.2.png" width="400" />
+<img src="docs/searchlongrna.ex2.2.png" width="600" />
 
-**Fig. 14**: DDX3X database motifs together with literature references, produced by `rbpbench searchlongrna`.
+**Fig. 14**: DDX3X database motifs together with hit statistics for matched sequences and literature references, produced by `rbpbench searchlongrna`.
 
 We can see that the motifs (identified from eCLIP data), show a preference for GC-rich sequences, underlining DDX3X's role as an RNA helicase resolving RNA structure.
 
