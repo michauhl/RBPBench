@@ -76,7 +76,7 @@ rbpbench -h
 Manual installation of RBPBench is only slightly more work. First we create the Conda environment with all necessary dependencies:
 
 ```
-conda create -n rbpbench -c conda-forge -c bioconda logomaker markdown meme scipy plotly textdistance venn matplotlib-venn infernal bedtools upsetplot scikit-learn goatools python pyBigWig
+conda create -n rbpbench -c conda-forge -c bioconda python bedtools goatools infernal logomaker markdown matplotlib-venn meme plotly pybigwig scikit-learn scipy textdistance upsetplot venn
 ```
 
 Next we activate the environment, clone the RBPBench repository, and install RBPBench:
