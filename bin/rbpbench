@@ -1552,8 +1552,8 @@ def setup_argument_parser():
                    dest="ext_up_down",
                    type=str,
                    metavar='str',
-                   default="20",
-                   help="Up- and downstream extension of --in transcript sites in nucleotides (nt). Set e.g. --ext 30 for 30 nt on both sides, or --ext 20,10 for different up- and downstream extension. Note that complete extension might not always be possible, e.g. for sites on short transcripts or sites at transcript ends (default: 20)")
+                   default="0",
+                   help="Up- and downstream extension of --in transcript sites in nucleotides (nt). Set e.g. --ext 30 for 30 nt on both sides, or --ext 20,10 for different up- and downstream extension. Note that complete extension might not always be possible, e.g. for sites on short transcripts or sites at transcript ends (default: 0)")
     p_scr.add_argument("--fisher-mode",
                    dest="fisher_mode",
                    type=int,
@@ -1727,6 +1727,40 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Keep only best FIMO/CMSEARCH motif hits (i.e., hit with lowest p-value / highest bit score for each motif sequence/site combination). By default, report all hits (default: False)")
+    # Sequence k-mers plot.
+    p_scr.add_argument("--disable-kmer-pca-plot",
+                   dest="disable_kmer_pca_plot",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable input sequences by k-mer content PCA plot (default: False)")
+    p_scr.add_argument("--kmer-pca-plot-k",
+                   dest="kmer_pca_plot_k",
+                   type=int,
+                   metavar='int',
+                   default=3,
+                   help="Set k for k-mer usage in sequences by k-mer content PCA plot (default: 3)")
+    p_scr.add_argument("--kmer-pca-plot-no-comp",
+                   dest="kmer_pca_plot_no_comp",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable adding sequence complexity as feature to sequences by k-mer content PCA plot (default: False)")
+    p_scr.add_argument("--kmer-pca-plot-comp-k",
+                   dest="kmer_pca_plot_comp_k",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Set k for sequence complexity (Shannon entropy) calculation. 1 == mono-nucleotides, 2 == di-nucleotides (default: 1)")
+    p_scr.add_argument("--kmer-pca-plot-no-motifs",
+                   dest="kmer_pca_plot_no_motifs",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable adding motif hits information to sequences by k-mer content PCA plot (default: False)")
+    p_scr.add_argument("--kmer-plot-k",
+                   dest="kmer_plot_k",
+                   type=int,
+                   metavar='int',
+                   default=4,
+                   help="Define k for k-mer distribution plots, including top k-mers plot, top vs bottom scoring sites plot, and k-mer variation plot (default: 4)")
     p_scr.add_argument("--set-rbp-id",
                    dest="set_rbp_id",
                    type=str,
@@ -3700,6 +3734,9 @@ def main_search(args):
 
     # Output unique motif hits.
     motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_search.bed"
+    # Output matched sequences stats.
+    matched_seqs_out = args.out_folder + "/matched_seq_stats.tsv"
+
     # Output RBP co-ooccurrence stats as table.
     cooc_stats_out = args.out_folder + "/rbp_cooc_stats.tsv"
 
@@ -5003,9 +5040,19 @@ def main_search(args):
 
     # Unique motif regions BED.
     motif_reg_dic = {}
+    # Format: match_c_dic[rbp_id][motif_id][matched_seq] = count, counting only unique motif hits.
+    match_c_dic = {}
+
+    for rbp_id in search_rbps_dic:
+        match_c_dic[rbp_id] = {}
+        for motif_id in search_rbps_dic[rbp_id].seq_motif_ids:
+            match_c_dic[rbp_id][motif_id] = {}
+        for motif_id in search_rbps_dic[rbp_id].str_motif_ids:
+            match_c_dic[rbp_id][motif_id] = {}
 
     # hit_id = "%s:%s-%s(%s)%s" %(cols[7], cols[8], cols[9], cols[10], cols[6])
 
+    # fimo_hits_list also includes regex hits.
     for fh in fimo_hits_list:
 
         rbp_id = id2name_dic[fh.motif_id]
@@ -5060,6 +5107,13 @@ def main_search(args):
         if hit_id not in motif_reg_dic:
             bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), matched_seq)
             motif_reg_dic[hit_id] = bed_row
+            if rbp_id not in match_c_dic:
+                match_c_dic[rbp_id] = {}
+            if fh.motif_id not in match_c_dic[rbp_id]:
+                match_c_dic[rbp_id][fh.motif_id] = {}
+            if matched_seq not in match_c_dic[rbp_id][fh.motif_id]:
+                match_c_dic[rbp_id][fh.motif_id][matched_seq] = 0
+            match_c_dic[rbp_id][fh.motif_id][matched_seq] += 1
 
         row_str = args.data_id + "\t"
         row_str += args.method_id + "\t"
@@ -5138,6 +5192,13 @@ def main_search(args):
         if hit_id not in motif_reg_dic:
             bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t-1.0\t-1.0\t%s\t%s\t-\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), matched_seq)
             motif_reg_dic[hit_id] = bed_row
+            if rbp_id not in match_c_dic:
+                match_c_dic[rbp_id] = {}
+            if cmsh.motif_id not in match_c_dic[rbp_id]:
+                match_c_dic[rbp_id][cmsh.motif_id] = {}
+            if matched_seq not in match_c_dic[rbp_id][cmsh.motif_id]:
+                match_c_dic[rbp_id][cmsh.motif_id][matched_seq] = 0
+            match_c_dic[rbp_id][cmsh.motif_id][matched_seq] += 1
 
         row_str = args.data_id + "\t"
         row_str += args.method_id + "\t"
@@ -5178,10 +5239,37 @@ def main_search(args):
     
     """
 
-    OUTBED = open(motif_hits_bed_out,"w")
+    OUTBED = open(motif_hits_bed_out, "w")
     for hit_id in motif_reg_dic:
         OUTBED.write("%s\n" %(motif_reg_dic[hit_id]))
     OUTBED.close()
+
+
+    """
+    Output matched sequence counts in table. 
+
+    Formats: 
+    match_c_total_dic[rbp_id][motif_id] = count
+    match_c_dic[rbp_id][motif_id][matched_seq] = count
+
+    """
+
+    OUTTSV = open(matched_seqs_out, "w")
+    OUTTSV.write("rbp_id\tmotif_id\tmatched_seq\tmatch_count\tmatch_perc\n")
+
+    match_c_total_dic = benchlib.get_match_c_total_dic(match_c_dic)
+
+    for rbp_id in match_c_dic:
+        for motif_id in match_c_dic[rbp_id]:
+            total_c = match_c_total_dic[rbp_id][motif_id]
+            for matched_seq in match_c_dic[rbp_id][motif_id]:
+                match_c = match_c_dic[rbp_id][motif_id][matched_seq]
+                match_perc = 0.0
+                if match_c > 0:
+                    match_perc = (float(match_c)/float(total_c)) * 100.0
+                row_str = "%s\t%s\t%s\t%i\t%.2f\n" %(rbp_id, motif_id, matched_seq, match_c, match_perc)
+                OUTTSV.write(row_str)
+    OUTTSV.close()
 
 
     """
@@ -6222,7 +6310,7 @@ def main_search(args):
 
         # Output motif hits BED again, with motif region annotations.
         print("Add motif hit annotations ... ")
-        OUTBED = open(motif_hits_bed_out,"w")
+        OUTBED = open(motif_hits_bed_out, "w")
         for hit_id in motif_reg_dic:
             annot = "-"
             if hit_id in motif_hit2annot_dic:
@@ -6279,7 +6367,7 @@ def main_search(args):
 
 
     """
-    Generate HTML report (--report).
+    Generate HTML report.
     
     """
 
@@ -6383,6 +6471,8 @@ def main_search(args):
                                          reg_seq_str="regions",
                                          id2pids_dic=id2pids_dic,
                                          id2exp_dic=id2exp_dic,
+                                         match_c_dic=match_c_dic,
+                                         match_c_total_dic=match_c_total_dic,
                                          plots_subfolder=plots_subfolder)
 
     """
@@ -6422,6 +6512,7 @@ def main_search(args):
     print("Filtered input regions .bed:\n%s" %(filtered_sites_bed))
     print("Filtered input regions .fa:\n%s" %(filtered_sites_fa))
     print("Motif hits .bed:\n%s" %(motif_hits_bed_out))
+    print("Matched sequence stats .tsv:\n%s" %(matched_seqs_out))
     print("RBP region occupancies .tsv:\n%s" %(rbp_reg_occ_table_out))
     print("RBP hit stats .tsv:\n%s" %(rbp_stats_out))
     print("Motif hit stats .tsv:\n%s" %(motif_stats_out))
@@ -7075,10 +7166,10 @@ def main_batch(args):
     internal_ids_list = []
     add_motif_db_info = False  # Whether to add the motif database string to the dataset IDs in the plots.
     # dataset_idx = 0  # For PCA plot.
-    seq_len_stats_ll = []  # For sequence length stats in --report.
-    seq_feat_ll = []  # For sequence feature stats in --report.
-    seq_var_ll = []  # For sequence variation stats in --report.
-    seq_var_kmer_l = []  # For sequence variation stats in --report.
+    seq_len_stats_ll = []  # For sequence length stats in report.
+    seq_feat_ll = []  # For sequence feature stats inreport.
+    seq_var_ll = []  # For sequence variation stats in report.
+    seq_var_kmer_l = []  # For sequence variation stats in report.
     ei_ol_stats_dic = {}
 
     for idx, bed_file in enumerate(bed_list):
@@ -8184,7 +8275,7 @@ def main_batch(args):
     OUTMTFSTATS.close()
 
     print("Output motif hits ... ")
-    OUTBED = open(motif_hits_bed_out,"w")
+    OUTBED = open(motif_hits_bed_out, "w")
     for hit_id in motif_reg_dic:
         OUTBED.write("%s\n" %(motif_reg_dic[hit_id]))
     OUTBED.close()
@@ -9081,6 +9172,8 @@ def main_searchseq(args):
 
     # Output unique motif hits.
     motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_searchseq.bed"
+    # Output matched sequences stats.
+    matched_seqs_out = args.out_folder + "/matched_seq_stats.tsv"
 
     # Temp files.
     # random_id = uuid.uuid1()
@@ -9887,6 +9980,14 @@ def main_searchseq(args):
 
     # Unique motif regions BED.
     motif_reg_dic = {}
+    match_c_dic = {}
+
+    for rbp_id in search_rbps_dic:
+        match_c_dic[rbp_id] = {}
+        for motif_id in search_rbps_dic[rbp_id].seq_motif_ids:
+            match_c_dic[rbp_id][motif_id] = {}
+        for motif_id in search_rbps_dic[rbp_id].str_motif_ids:
+            match_c_dic[rbp_id][motif_id] = {}
 
     # hit_id = "%s:%s-%s(%s)%s" %(cols[7], cols[8], cols[9], cols[10], cols[6])
 
@@ -9925,6 +10026,13 @@ def main_searchseq(args):
         if hit_id not in motif_reg_dic:
             bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), matched_seq)
             motif_reg_dic[hit_id] = bed_row
+            if rbp_id not in match_c_dic:
+                match_c_dic[rbp_id] = {}
+            if fh.motif_id not in match_c_dic[rbp_id]:
+                match_c_dic[rbp_id][fh.motif_id] = {}
+            if matched_seq not in match_c_dic[rbp_id][fh.motif_id]:
+                match_c_dic[rbp_id][fh.motif_id][matched_seq] = 0
+            match_c_dic[rbp_id][fh.motif_id][matched_seq] += 1
 
         row_str = args.data_id + "\t"
         row_str += args.method_id + "\t"
@@ -9985,6 +10093,13 @@ def main_searchseq(args):
         if hit_id not in motif_reg_dic:
             bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t-1.0\t-1.0\t%s\t%s\t-\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), matched_seq)
             motif_reg_dic[hit_id] = bed_row
+            if rbp_id not in match_c_dic:
+                match_c_dic[rbp_id] = {}
+            if cmsh.motif_id not in match_c_dic[rbp_id]:
+                match_c_dic[rbp_id][cmsh.motif_id] = {}
+            if matched_seq not in match_c_dic[rbp_id][cmsh.motif_id]:
+                match_c_dic[rbp_id][cmsh.motif_id][matched_seq] = 0
+            match_c_dic[rbp_id][cmsh.motif_id][matched_seq] += 1
 
         row_str = args.data_id + "\t"
         row_str += args.method_id + "\t"
@@ -10019,10 +10134,36 @@ def main_searchseq(args):
     Output unique motif hits as BED.
     """
 
-    OUTBED = open(motif_hits_bed_out,"w")
+    OUTBED = open(motif_hits_bed_out, "w")
     for hit_id in motif_reg_dic:
         OUTBED.write("%s\n" %(motif_reg_dic[hit_id]))
     OUTBED.close()
+
+    """
+    Output matched sequence counts in table. 
+
+    Formats: 
+    match_c_total_dic[rbp_id][motif_id] = count
+    match_c_dic[rbp_id][motif_id][matched_seq] = count
+
+    """
+
+    OUTTSV = open(matched_seqs_out, "w")
+    OUTTSV.write("rbp_id\tmotif_id\tmatched_seq\tmatch_count\tmatch_perc\n")
+
+    match_c_total_dic = benchlib.get_match_c_total_dic(match_c_dic)
+
+    for rbp_id in match_c_dic:
+        for motif_id in match_c_dic[rbp_id]:
+            total_c = match_c_total_dic[rbp_id][motif_id]
+            for matched_seq in match_c_dic[rbp_id][motif_id]:
+                match_c = match_c_dic[rbp_id][motif_id][matched_seq]
+                match_perc = 0.0
+                if match_c > 0:
+                    match_perc = (float(match_c)/float(total_c)) * 100.0
+                row_str = "%s\t%s\t%s\t%i\t%.2f\n" %(rbp_id, motif_id, matched_seq, match_c, match_perc)
+                OUTTSV.write(row_str)
+    OUTTSV.close()
 
 
     """
@@ -10056,6 +10197,8 @@ def main_searchseq(args):
                                          reg_seq_str="sequences",
                                          id2pids_dic=id2pids_dic,
                                          id2exp_dic=id2exp_dic,
+                                         match_c_dic=match_c_dic,
+                                         match_c_total_dic=match_c_total_dic,
                                          plots_subfolder=plots_subfolder)
 
 
@@ -10096,6 +10239,7 @@ def main_searchseq(args):
     # print("Filtered input regions .bed:\n%s" %(filtered_sites_bed))
     print("Filtered input sequences .fa:\n%s" %(filtered_seqs_fa))
     print("Motif hits .bed:\n%s" %(motif_hits_bed_out))
+    print("Matched sequence stats .tsv:\n%s" %(matched_seqs_out))
     print("RBP region occupancies .tsv:\n%s" %(rbp_reg_occ_table_out))
     print("RBP hit stats .tsv:\n%s" %(rbp_stats_out))
     print("Motif hit stats .tsv:\n%s" %(motif_stats_out))
@@ -10276,6 +10420,8 @@ def main_searchlong(args):
 
     # Output unique motif hits.
     motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_searchlong.bed"
+    # Output matched sequences stats.
+    matched_seqs_out = args.out_folder + "/matched_seq_stats.tsv"
 
     out_tmp_bed = args.out_folder + "/rbp_motif_hit_regions.tmp.bed"
     cmstat_tmp_out = args.out_folder + "/cmstat_out.tmp.txt"
@@ -11281,7 +11427,14 @@ def main_searchlong(args):
 
     # Unique motif regions BED.
     motif_reg_dic = {}
+    match_c_dic = {}
 
+    for rbp_id in search_rbps_dic:
+        match_c_dic[rbp_id] = {}
+        for motif_id in search_rbps_dic[rbp_id].seq_motif_ids:
+            match_c_dic[rbp_id][motif_id] = {}
+        for motif_id in search_rbps_dic[rbp_id].str_motif_ids:
+            match_c_dic[rbp_id][motif_id] = {}
 
     for fh in fimo_hits_list:
 
@@ -11306,6 +11459,13 @@ def main_searchlong(args):
         if hit_id not in motif_reg_dic:
             bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), matched_seq)
             motif_reg_dic[hit_id] = bed_row
+            if rbp_id not in match_c_dic:
+                match_c_dic[rbp_id] = {}
+            if fh.motif_id not in match_c_dic[rbp_id]:
+                match_c_dic[rbp_id][fh.motif_id] = {}
+            if matched_seq not in match_c_dic[rbp_id][fh.motif_id]:
+                match_c_dic[rbp_id][fh.motif_id][matched_seq] = 0
+            match_c_dic[rbp_id][fh.motif_id][matched_seq] += 1
 
         row_str = args.data_id + "\t"
         row_str += args.method_id + "\t"
@@ -11354,6 +11514,13 @@ def main_searchlong(args):
         if hit_id not in motif_reg_dic:
             bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t-1.0\t-1.0\t%s\t%s\t-\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), matched_seq)
             motif_reg_dic[hit_id] = bed_row
+            if rbp_id not in match_c_dic:
+                match_c_dic[rbp_id] = {}
+            if cmsh.motif_id not in match_c_dic[rbp_id]:
+                match_c_dic[rbp_id][cmsh.motif_id] = {}
+            if matched_seq not in match_c_dic[rbp_id][cmsh.motif_id]:
+                match_c_dic[rbp_id][cmsh.motif_id][matched_seq] = 0
+            match_c_dic[rbp_id][cmsh.motif_id][matched_seq] += 1
 
         row_str = args.data_id + "\t"
         row_str += args.method_id + "\t"
@@ -11394,10 +11561,37 @@ def main_searchlong(args):
     
     """
 
-    OUTBED = open(motif_hits_bed_out,"w")
+    OUTBED = open(motif_hits_bed_out, "w")
     for hit_id in motif_reg_dic:
         OUTBED.write("%s\n" %(motif_reg_dic[hit_id]))
     OUTBED.close()
+
+
+    """
+    Output matched sequence counts in table. 
+
+    Formats:
+    match_c_total_dic[rbp_id][motif_id] = count
+    match_c_dic[rbp_id][motif_id][matched_seq] = count
+
+    """
+
+    OUTTSV = open(matched_seqs_out, "w")
+    OUTTSV.write("rbp_id\tmotif_id\tmatched_seq\tmatch_count\tmatch_perc\n")
+
+    match_c_total_dic = benchlib.get_match_c_total_dic(match_c_dic)
+
+    for rbp_id in match_c_dic:
+        for motif_id in match_c_dic[rbp_id]:
+            total_c = match_c_total_dic[rbp_id][motif_id]
+            for matched_seq in match_c_dic[rbp_id][motif_id]:
+                match_c = match_c_dic[rbp_id][motif_id][matched_seq]
+                match_perc = 0.0
+                if match_c > 0:
+                    match_perc = (float(match_c)/float(total_c)) * 100.0
+                row_str = "%s\t%s\t%s\t%i\t%.2f\n" %(rbp_id, motif_id, matched_seq, match_c, match_perc)
+                OUTTSV.write(row_str)
+    OUTTSV.close()
 
 
     """
@@ -11470,7 +11664,7 @@ def main_searchlong(args):
         # OUTBED.close()
 
         # Output motif hits BED again, with motif region annotations.
-        OUTBED = open(motif_hits_bed_out,"w")
+        OUTBED = open(motif_hits_bed_out, "w")
         for hit_id in motif_reg_dic:
             annot = "-"
             if hit_id in motif_hit2annot_dic:
@@ -11588,6 +11782,8 @@ def main_searchlong(args):
                                         reg_seq_str="regions",
                                         id2pids_dic=id2pids_dic,
                                         id2exp_dic=id2exp_dic,
+                                        match_c_dic=match_c_dic,
+                                        match_c_total_dic=match_c_total_dic,
                                         plots_subfolder=plots_subfolder)
 
 
@@ -11628,6 +11824,7 @@ def main_searchlong(args):
     print("Filtered input regions .bed:\n%s" %(filtered_sites_bed))
     print("Filtered input regions .fa:\n%s" %(filtered_sites_fa))
     print("Motif hits .bed:\n%s" %(motif_hits_bed_out))
+    print("Matched sequence stats .tsv:\n%s" %(matched_seqs_out))
     # print("RBP region occupancies .tsv:\n%s" %(rbp_reg_occ_table_out))
     print("RBP hit stats .tsv:\n%s" %(rbp_stats_out))
     print("Motif hit stats .tsv:\n%s" %(motif_stats_out))
@@ -11826,6 +12023,8 @@ def main_searchrna(args):
 
     # Output unique motif hits.
     motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_searchrna.bed"
+    # Output matched sequences stats.
+    matched_seqs_out = args.out_folder + "/matched_seq_stats.tsv"
 
     # Temp files.
     # random_id = uuid.uuid1()
@@ -13075,6 +13274,14 @@ def main_searchrna(args):
 
     # Unique motif regions BED.
     motif_reg_dic = {}
+    match_c_dic = {}
+
+    for rbp_id in search_rbps_dic:
+        match_c_dic[rbp_id] = {}
+        for motif_id in search_rbps_dic[rbp_id].seq_motif_ids:
+            match_c_dic[rbp_id][motif_id] = {}
+        for motif_id in search_rbps_dic[rbp_id].str_motif_ids:
+            match_c_dic[rbp_id][motif_id] = {}
 
     # hit_id = "%s:%s-%s(%s)%s" %(cols[7], cols[8], cols[9], cols[10], cols[6])
 
@@ -13121,6 +13328,13 @@ def main_searchrna(args):
         if hit_id not in motif_reg_dic:
             bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), matched_seq)
             motif_reg_dic[hit_id] = bed_row
+            if rbp_id not in match_c_dic:
+                match_c_dic[rbp_id] = {}
+            if fh.motif_id not in match_c_dic[rbp_id]:
+                match_c_dic[rbp_id][fh.motif_id] = {}
+            if matched_seq not in match_c_dic[rbp_id][fh.motif_id]:
+                match_c_dic[rbp_id][fh.motif_id][matched_seq] = 0
+            match_c_dic[rbp_id][fh.motif_id][matched_seq] += 1
 
         row_str = args.data_id + "\t"
         row_str += args.method_id + "\t"
@@ -13189,6 +13403,13 @@ def main_searchrna(args):
         if hit_id not in motif_reg_dic:
             bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t-1.0\t-1.0\t%s\t%s\t-\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), matched_seq)
             motif_reg_dic[hit_id] = bed_row
+            if rbp_id not in match_c_dic:
+                match_c_dic[rbp_id] = {}
+            if cmsh.motif_id not in match_c_dic[rbp_id]:
+                match_c_dic[rbp_id][cmsh.motif_id] = {}
+            if matched_seq not in match_c_dic[rbp_id][cmsh.motif_id]:
+                match_c_dic[rbp_id][cmsh.motif_id][matched_seq] = 0
+            match_c_dic[rbp_id][cmsh.motif_id][matched_seq] += 1
 
         row_str = args.data_id + "\t"
         row_str += args.method_id + "\t"
@@ -13229,10 +13450,37 @@ def main_searchrna(args):
     
     """
 
-    OUTBED = open(motif_hits_bed_out,"w")
+    OUTBED = open(motif_hits_bed_out, "w")
     for hit_id in motif_reg_dic:
         OUTBED.write("%s\n" %(motif_reg_dic[hit_id]))
     OUTBED.close()
+
+
+    """
+    Output matched sequence counts in table. 
+
+    Formats: 
+    match_c_total_dic[rbp_id][motif_id] = count
+    match_c_dic[rbp_id][motif_id][matched_seq] = count
+
+    """
+
+    OUTTSV = open(matched_seqs_out, "w")
+    OUTTSV.write("rbp_id\tmotif_id\tmatched_seq\tmatch_count\tmatch_perc\n")
+
+    match_c_total_dic = benchlib.get_match_c_total_dic(match_c_dic)
+
+    for rbp_id in match_c_dic:
+        for motif_id in match_c_dic[rbp_id]:
+            total_c = match_c_total_dic[rbp_id][motif_id]
+            for matched_seq in match_c_dic[rbp_id][motif_id]:
+                match_c = match_c_dic[rbp_id][motif_id][matched_seq]
+                match_perc = 0.0
+                if match_c > 0:
+                    match_perc = (float(match_c)/float(total_c)) * 100.0
+                row_str = "%s\t%s\t%s\t%i\t%.2f\n" %(rbp_id, motif_id, matched_seq, match_c, match_perc)
+                OUTTSV.write(row_str)
+    OUTTSV.close()
 
 
     """
@@ -13586,7 +13834,7 @@ def main_searchrna(args):
 
 
     """
-    Generate HTML report (--report).
+    Generate HTML report.
     
     """
 
@@ -13634,7 +13882,8 @@ def main_searchrna(args):
     benchlib_path = os.path.dirname(benchlib.__file__)
 
     # Disable some functions from rbpbench search.
-    args.disable_kmer_plot = True
+    args.disable_kmer_tb_plot = True
+    args.disable_kmer_var_plot = True
 
     print("Create report ... ")
     benchlib.search_generate_html_report(args,
@@ -13689,6 +13938,8 @@ def main_searchrna(args):
                                          reg_seq_str="regions",
                                          id2pids_dic=id2pids_dic,
                                          id2exp_dic=id2exp_dic,
+                                         match_c_dic=match_c_dic,
+                                         match_c_total_dic=match_c_total_dic,
                                          plots_subfolder=plots_subfolder)
 
     """
@@ -13729,6 +13980,7 @@ def main_searchrna(args):
     print("Filtered input regions .bed:\n%s" %(filtered_sites_bed))
     print("Filtered input regions .fa:\n%s" %(filtered_sites_fa))
     print("Motif hits .bed:\n%s" %(motif_hits_bed_out))
+    print("Matched sequence stats .tsv:\n%s" %(matched_seqs_out))
     print("RBP region occupancies .tsv:\n%s" %(rbp_reg_occ_table_out))
     print("RBP hit stats .tsv:\n%s" %(rbp_stats_out))
     print("Motif hit stats .tsv:\n%s" %(motif_stats_out))
@@ -13918,6 +14170,9 @@ def main_searchlongrna(args):
 
     # Output unique motif hits.
     motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_searchlongrna.bed"
+    # Output matched sequences stats.
+    matched_seqs_out = args.out_folder + "/matched_seq_stats.tsv"
+
     # GOA results.
     goa_results_tsv = args.out_folder + "/goa_results_on_motif_hit_transcripts.tsv"
 
@@ -14899,6 +15154,14 @@ def main_searchlongrna(args):
 
     # Unique motif regions BED.
     motif_reg_dic = {}
+    match_c_dic = {}
+
+    for rbp_id in search_rbps_dic:
+        match_c_dic[rbp_id] = {}
+        for motif_id in search_rbps_dic[rbp_id].seq_motif_ids:
+            match_c_dic[rbp_id][motif_id] = {}
+        for motif_id in search_rbps_dic[rbp_id].str_motif_ids:
+            match_c_dic[rbp_id][motif_id] = {}
 
     for fh in fimo_hits_list:
 
@@ -15054,6 +15317,13 @@ def main_searchlongrna(args):
                 annot_str = annot[0]
             bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t%s\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), annot_str, matched_seq)
             motif_reg_dic[hit_id] = bed_row
+            if rbp_id not in match_c_dic:
+                match_c_dic[rbp_id] = {}
+            if fh.motif_id not in match_c_dic[rbp_id]:
+                match_c_dic[rbp_id][fh.motif_id] = {}
+            if matched_seq not in match_c_dic[rbp_id][fh.motif_id]:
+                match_c_dic[rbp_id][fh.motif_id][matched_seq] = 0
+            match_c_dic[rbp_id][fh.motif_id][matched_seq] += 1
 
         row_str = args.data_id + "\t"
         row_str += args.method_id + "\t"
@@ -15203,6 +15473,13 @@ def main_searchlongrna(args):
                 annot_str = annot[0]
             bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t-1.0\t-1.0\t%s\t%s\t%s\t%s" %(cmsh.chr_id, cmsh.start-1, cmsh.end, rbp_id, cmsh.motif_id, uniq_count, args.method_id, args.data_id, cmsh.strand, str(cmsh.score), str(cmsh.e_value), annot_str, matched_seq)
             motif_reg_dic[hit_id] = bed_row
+            if rbp_id not in match_c_dic:
+                match_c_dic[rbp_id] = {}
+            if cmsh.motif_id not in match_c_dic[rbp_id]:
+                match_c_dic[rbp_id][cmsh.motif_id] = {}
+            if matched_seq not in match_c_dic[rbp_id][cmsh.motif_id]:
+                match_c_dic[rbp_id][cmsh.motif_id][matched_seq] = 0
+            match_c_dic[rbp_id][cmsh.motif_id][matched_seq] += 1
 
         row_str = args.data_id + "\t"
         row_str += args.method_id + "\t"
@@ -15243,10 +15520,38 @@ def main_searchlongrna(args):
     
     """
 
-    OUTBED = open(motif_hits_bed_out,"w")
+    OUTBED = open(motif_hits_bed_out, "w")
     for hit_id in motif_reg_dic:
         OUTBED.write("%s\n" %(motif_reg_dic[hit_id]))
     OUTBED.close()
+
+
+    """
+    Output matched sequence counts in table. 
+
+    Formats: 
+    match_c_total_dic[rbp_id][motif_id] = count
+    match_c_dic[rbp_id][motif_id][matched_seq] = count
+
+    """
+
+    OUTTSV = open(matched_seqs_out, "w")
+    OUTTSV.write("rbp_id\tmotif_id\tmatched_seq\tmatch_count\tmatch_perc\n")
+
+    match_c_total_dic = benchlib.get_match_c_total_dic(match_c_dic)
+
+    for rbp_id in match_c_dic:
+        for motif_id in match_c_dic[rbp_id]:
+            total_c = match_c_total_dic[rbp_id][motif_id]
+            for matched_seq in match_c_dic[rbp_id][motif_id]:
+                match_c = match_c_dic[rbp_id][motif_id][matched_seq]
+                match_perc = 0.0
+                if match_c > 0:
+                    match_perc = (float(match_c)/float(total_c)) * 100.0
+                row_str = "%s\t%s\t%s\t%i\t%.2f\n" %(rbp_id, motif_id, matched_seq, match_c, match_perc)
+                OUTTSV.write(row_str)
+    OUTTSV.close()
+
 
     """
     GO enrichment analysis.
@@ -15454,6 +15759,8 @@ def main_searchlongrna(args):
                                         goa_stats_dic=goa_stats_dic,
                                         id2pids_dic=id2pids_dic,
                                         id2exp_dic=id2exp_dic,
+                                        match_c_dic=match_c_dic,
+                                        match_c_total_dic=match_c_total_dic,
                                         plots_subfolder=plots_subfolder)
 
     """
@@ -15493,6 +15800,7 @@ def main_searchlongrna(args):
     if args.only_mrna:
         print("mRNA regions .bed:\n%s" %(mrna_regions_bed))
     print("Motif hits .bed:\n%s" %(motif_hits_bed_out))
+    print("Matched sequence stats .tsv:\n%s" %(matched_seqs_out))
     # print("RBP region occupancies .tsv:\n%s" %(rbp_reg_occ_table_out))
     print("RBP hit stats .tsv:\n%s" %(rbp_stats_out))
     print("Motif hit stats .tsv:\n%s" %(motif_stats_out))

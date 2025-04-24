@@ -211,7 +211,8 @@ which based on the hover box information could be further checked in a genome vi
 
 **Fig. 2**: Example entry for RBP RBFOX2 from `motif_plots.rbpbench_search.html`. 
 The `--plot-motifs` HTML report (add `--plot-motifs` to the above call to create it) visualizes the selected motifs, 
-provides literature references, as well as motif hit counts and genomic region annotations for the motif hit regions themselves.
+provides literature references, as well as motif hit counts (including hit statistics for matched sequences) 
+and genomic region annotations for the motif hit regions themselves.
 
 
 #### Search with all RBPs
