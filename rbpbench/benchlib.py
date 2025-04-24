@@ -16068,9 +16068,7 @@ and length quartiles (q1: 25th percentile, q3: 75th percentile).
 
 """
 
-        plot_k = args.kmer_plot_k
-
-        seqs_kmer_dic = seqs_dic_count_kmer_freqs(reg2seq_dic, 5, 
+        seqs_kmer_dic = seqs_dic_count_kmer_freqs(reg2seq_dic, args.kmer_plot_k, 
                                                   rna=False,
                                                   return_ratios=True,
                                                   perc=True,
@@ -16094,7 +16092,7 @@ and length quartiles (q1: 25th percentile, q3: 75th percentile).
 
         ax.bar(top_kmers_list, top_kmer_perc_list, color='#e5ecf6', zorder=2)  # #e5ecf6 lightgray
 
-        ax.set_ylabel(str(plot_k) + "-mer %")
+        ax.set_ylabel(str(args.kmer_plot_k) + "-mer %")
 
         # Expected k-mer percentage.
         exp_kmer_perc = calc_exp_kmer_perc(args.kmer_plot_k)
@@ -16131,10 +16129,11 @@ and length quartiles (q1: 25th percentile, q3: 75th percentile).
         mdtext += """
 **Figure:** Top %i %i-mers encountered in input sequences. 
 In case of a uniform distribution with all %i-mers present, each %i-mer would have a percentage of %s%% (marked by red line).
+Change k via --kmer-plot-k.
 
 &nbsp;
 
-""" %(n_top_kmers, plot_k, plot_k, plot_k, exp_kmer_perc)
+""" %(n_top_kmers, args.kmer_plot_k, args.kmer_plot_k, args.kmer_plot_k, exp_kmer_perc)
 
 
     """
