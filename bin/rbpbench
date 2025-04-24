@@ -17,7 +17,7 @@ from scipy.stats import mannwhitneyu
 from scipy.stats import false_discovery_control  # Benjamini-Hochberg correction.
 
 
-__version__ = "1.0.3"
+__version__ = "1.0.4"
 
 ################################################################################
 
@@ -2952,7 +2952,6 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3],
                    help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to output folder. 3: include .js code in HTML (default: 1)")
-
 
     """
     Run STREME on input sites for motif discovery.
@@ -6384,7 +6383,6 @@ def main_search(args):
                                          reg_seq_str="regions",
                                          id2pids_dic=id2pids_dic,
                                          id2exp_dic=id2exp_dic,
-                                         version=__version__,
                                          plots_subfolder=plots_subfolder)
 
     """
@@ -8561,7 +8559,6 @@ def main_batch(args):
                                         heatmap_cluster_olo=heatmap_cluster_olo,
                                         goa_results_df=goa_results_df,
                                         goa_stats_dic=goa_stats_dic,
-                                        version=__version__,
                                         plots_subfolder=plots_subfolder)
 
     """
@@ -10059,7 +10056,6 @@ def main_searchseq(args):
                                          reg_seq_str="sequences",
                                          id2pids_dic=id2pids_dic,
                                          id2exp_dic=id2exp_dic,
-                                         version=__version__,
                                          plots_subfolder=plots_subfolder)
 
 
@@ -11592,7 +11588,6 @@ def main_searchlong(args):
                                         reg_seq_str="regions",
                                         id2pids_dic=id2pids_dic,
                                         id2exp_dic=id2exp_dic,
-                                        version=__version__,
                                         plots_subfolder=plots_subfolder)
 
 
@@ -13662,7 +13657,6 @@ def main_searchrna(args):
                                     reg_seq_str="regions",
                                     reg2seq_dic=out_seqs_dic,
                                     disable_motif_enrich_table=True,
-                                    version=__version__,
                                     plots_subfolder=plots_subfolder)
 
 
@@ -13695,7 +13689,6 @@ def main_searchrna(args):
                                          reg_seq_str="regions",
                                          id2pids_dic=id2pids_dic,
                                          id2exp_dic=id2exp_dic,
-                                         version=__version__,
                                          plots_subfolder=plots_subfolder)
 
     """
@@ -15461,7 +15454,6 @@ def main_searchlongrna(args):
                                         goa_stats_dic=goa_stats_dic,
                                         id2pids_dic=id2pids_dic,
                                         id2exp_dic=id2exp_dic,
-                                        version=__version__,
                                         plots_subfolder=plots_subfolder)
 
     """
@@ -17833,7 +17825,6 @@ class EnmoStats:
                                        annot2color_dic=annot2color_dic,
                                        rbpbench_mode="enmo",
                                        html_report_out=html_report_out,
-                                       version=__version__,
                                        plots_subfolder=plots_subfolder)
 
 
@@ -20354,7 +20345,6 @@ def main_nemo(args):
                                        annot2color_dic=annot2color_dic,
                                        rbpbench_mode="nemo",
                                        html_report_out=html_report_out,
-                                       version=__version__,
                                        plots_subfolder=plots_subfolder)
 
 
@@ -20409,7 +20399,6 @@ def main_con(args):
 
     if not os.path.exists(args.out_folder):
         os.makedirs(args.out_folder)
-
 
     """
     Library path.
@@ -20477,7 +20466,6 @@ def main_con(args):
                                 pc_plot_name="phastCons_scores.png",
                                 pp_plot_name="phyloP_scores.png")
 
-
     """
     Output parameter settings.
 
@@ -20503,7 +20491,6 @@ def main_con(args):
     print("Control sites scores .tsv:\n%s" %(ctrl_con_sc_path))
     print("Conservation scores comparison report .html:\n%s" %(html_report_path))
     print("")
-
 
 
 ################################################################################
@@ -21240,7 +21227,6 @@ def main_goa(args):
     
     benchlib.goa_generate_html_report(args, goa_results_df, 
                                       goa_stats_dic, benchlib_path,
-                                      version=__version__,
                                       html_report_out=html_goa_results_out)
 
     """
@@ -22306,7 +22292,6 @@ def main_compare(args):
                                           rbp_stats_dic, motif_stats_dic,
                                           benchlib_path,
                                           html_report_out=html_report_out,
-                                          version=__version__,
                                           plots_subfolder=plots_subfolder)
 
     """
