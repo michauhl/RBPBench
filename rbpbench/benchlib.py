@@ -415,7 +415,7 @@ score for each site (i.e., averaged over all site positions).
             pval_info = "Small test p-values (< 0.05) indicate that input sites have significantly lower conservation scores than control sites."
 
         mdtext += '<img src="' + pc_plot_path + '" alt="phastCons scores comparison plot"' + "\n"
-        mdtext += 'title="phastCons scores comparison plot" width="1000" />' + "\n"
+        mdtext += 'title="phastCons scores comparison plot" width="900" />' + "\n"
         mdtext += """
 **Figure:** Distribution of phastCons conservation scores in input and control sites.
 For each site, the average phastCons score is used (i.e., average over all genomic site positions).
@@ -468,7 +468,7 @@ score for each site (i.e., averaged over all site positions).
             pval_info = "Small test p-values (< 0.05) indicate that input sites have significantly lower conservation scores than control sites."
 
         mdtext += '<img src="' + pp_plot_path + '" alt="phyloP scores comparison plot"' + "\n"
-        mdtext += 'title="phyloP scores comparison plot" width="1000" />' + "\n"
+        mdtext += 'title="phyloP scores comparison plot" width="900" />' + "\n"
         mdtext += """
 **Figure:** Distribution of phyloP conservation scores in input and control sites.
 For each site, the average phyloP score is used (i.e., average over all genomic site positions).
@@ -11469,7 +11469,7 @@ def batch_generate_html_report(args,
     mdtext = """
 
 List of available statistics and plots generated
-by RBPBench (%s, rbpbench batch --report):
+by RBPBench (%s, rbpbench batch):
 
 - [Input datasets sequence length statistics](#seq-len-stats)""" %(version_str)
     
@@ -12750,9 +12750,6 @@ is assigned to each input region. "intergenic" feature means none of the used GT
 """ %(combined_id, dataset_id_format, rbp_id, rbp_id)
 
 
-
-
-
     """
     GOA results.
 
@@ -13542,7 +13539,7 @@ def enmo_generate_html_report(args,
                               annot2color_dic=False,
                               plotly_full_html=False,
                               plotly_embed_style=1,
-                              rbpbench_mode="search --report",
+                              rbpbench_mode="enmo",
                               html_report_out="report.rbpbench_enmo.html",
                               plots_subfolder="html_report_plots"):
 
@@ -15582,7 +15579,7 @@ def search_generate_html_report(args,
                                 goa_stats_dic=False,
                                 plotly_embed_style=1,
                                 plotly_full_html=False,
-                                rbpbench_mode="search --report",
+                                rbpbench_mode="search",
                                 disable_motif_enrich_table=False,
                                 disable_top_kmers_plot=False,
                                 reg_seq_str="regions",
@@ -18349,6 +18346,8 @@ def create_seqs_kmer_plot_plotly(reg2seq_dic, reg2kmer_rat_dic, plot_out,
             else:
                 motif_hover_info = '<br>Mono-nucleotide percentages:<br>%{customdata[3]}'
 
+        dot_col = "#2b7bba"
+
         fig = px.scatter(
             df,
             x='PC1',
@@ -18357,7 +18356,8 @@ def create_seqs_kmer_plot_plotly(reg2seq_dic, reg2kmer_rat_dic, plot_out,
                 'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
                 'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)'
             },
-            hover_data=hover_data
+            hover_data=hover_data,
+            color_discrete_sequence=[dot_col]
         )
 
         fig.update_traces(
@@ -19359,6 +19359,8 @@ def search_generate_html_motif_plots(args, search_rbps_dic,
                                      goa_results_tsv="goa_results.tsv",
                                      id2pids_dic=False,
                                      id2exp_dic=False,
+                                     match_c_dic=False,
+                                     match_c_total_dic=False,
                                      plots_subfolder="html_motif_plots"):
     """
     Create motif plots for selected RBPs.
@@ -19398,6 +19400,7 @@ def search_generate_html_motif_plots(args, search_rbps_dic,
     if rbpbench_mode in seq_modes:
         site_type_uc = "Sequence"
         site_type = "sequence"
+
 
     """
     Setup sorttable.js to make tables in HTML sortable.
@@ -19476,7 +19479,7 @@ by RBPBench (%s, rbpbench %s):
 - [Motif hit statistics](#motif-hit-stats)
 """ %(version_str, rbpbench_mode)
 
-    if args.run_goa:
+    if args.run_goa_tr:
         mdtext += "- [Motif hit GO enrichment analysis results](#goa-results)\n"
 
     motif_plot_ids_dic = {}
@@ -19507,13 +19510,19 @@ by RBPBench (%s, rbpbench %s):
     Motif hit statistics table.
 
     """
+
+    gh_info = ""
+    if args.greatest_hits:
+        gh_info = "--greatest-hits enabled, i.e., only highest scoring hits are reported for each input region."
+
     mdtext += """
 ## Motif hit statistics ### {#motif-hit-stats}
 
 **Table:** RBP motif hit statistics with RBP ID, motif ID, motif database ID (set to "user" if user-supplied motif, otherwise internal database ID), 
 and respective number of motif hits found in supplied %s regions.
+%s
 
-""" %(site_type)
+""" %(site_type, gh_info)
 
     # mdtext += '| &nbsp; RBP ID &nbsp; | &nbsp; Motif ID &nbsp; | Motif database | # motif hits |' + " \n"
     # mdtext += "| :-: | :-: | :-: | :-: |\n"
@@ -19568,7 +19577,7 @@ and respective number of motif hits found in supplied %s regions.
 
     """
 
-    if args.run_goa:
+    if args.run_goa_tr:
 
         mdtext += """
 ## Motif hit GO enrichment analysis results ### {#goa-results}
@@ -19593,7 +19602,7 @@ and respective number of motif hits found in supplied %s regions.
         if filter_further_info:
             filter_further_info += " Note that additional filters (children + depth) can result in an empty table. For all significant GO terms (i.e., unfiltered results) check *%s* output table." %(goa_results_tsv)
 
-        goa_rna_region_info = "transcripts"
+        goa_rna_region_info = "genes"
         if args.goa_rna_region == 1:
             goa_rna_region_info = "transcripts"
         elif args.goa_rna_region == 2:
@@ -19759,7 +19768,7 @@ Motif ID / Regex: "%s". Number of unique motif hits in supplied %s regions: %i.
 
 """ %(rbp_id, tab_id, motif_id, site_type, c_motif_hits)
 
-        else:
+        else:  # structure motifs.
             mdtext += """
 ## %s motifs ### {#%s}
 
@@ -19855,11 +19864,24 @@ more often in intron, 3'UTR etc.). Unique input regions size (nt): %i (i.e., ove
 
 """ %(rbp_id, args.eff_in_reg_size)
 
-
+        # Regular expression section.
         if rbp_id == args.regex_id:
+            if match_c_dic and match_c_total_dic:
+                motif_id = rbp.seq_motif_ids[0]
+                mdtext += get_match_seqs_html_table(rbp_id, motif_id, 
+                                                    match_c_dic, match_c_total_dic,
+                                                    add_motif_id_header=False,
+                                                    top_n=args.top_n_matched)
             continue
 
         for idx, motif_id in enumerate(rbp.seq_motif_ids):
+
+            if match_c_dic and match_c_total_dic:
+                mdtext += get_match_seqs_html_table(rbp_id, motif_id, 
+                                                    match_c_dic, match_c_total_dic,
+                                                    add_motif_id_header=False,
+                                                    top_n=args.top_n_matched)
+
             c_motif_hits = rbp.seq_motif_hits[idx]
             motif_db = motif2db_dic[motif_id]
             motif_plot = "%s.%s.png" %(rbp_id, motif_id)
@@ -19923,6 +19945,13 @@ Motif references (PubMed, DOI): %s. Motif source database / experiments: %s.
 
 
         for idx, motif_id in enumerate(rbp.str_motif_ids):
+
+            if match_c_dic and match_c_total_dic:
+                mdtext += get_match_seqs_html_table(rbp_id, motif_id, 
+                                                    match_c_dic, match_c_total_dic,
+                                                    add_motif_id_header=False,
+                                                    top_n=args.top_n_matched)
+
             c_motif_hits = rbp.str_motif_hits[idx]
             # NO STRUCTURE MOTIF PLOTTING IMPLEMENTED YET.
             # TO DO ...
@@ -20002,6 +20031,117 @@ def create_motif_plot(motif_id,
         pdf_out = motif_plot_out[:-4] + '.pdf'
         plt.savefig(pdf_out, dpi=100)
     plt.close()
+
+
+################################################################################
+
+def get_match_c_total_dic(match_c_dic):
+    """
+    Get total counts for motif_id in match_c_dic.
+    Formats: 
+    match_c_total_dic[rbp_id][motif_id] = count
+    match_c_dic[rbp_id][motif_id][matched_seq] = count
+
+    >>> match_c_dic = {'RBP1': {'motif1': {'seq1': 2, 'seq2': 3}, 'motif2': {'seq3': 1}}}
+    >>> get_match_c_total_dic(match_c_dic)
+    {'RBP1': {'motif1': 5, 'motif2': 1}}
+    
+    """
+    assert match_c_dic, "match_c_dic is empty"
+
+    match_c_total_dic = {}
+    for rbp_id in match_c_dic:
+        match_c_total_dic[rbp_id] = {}
+        for motif_id in match_c_dic[rbp_id]:
+            if motif_id not in match_c_total_dic[rbp_id]:
+                match_c_total_dic[rbp_id][motif_id] = 0
+            for matched_seq in match_c_dic[rbp_id][motif_id]:
+                match_c_total_dic[rbp_id][motif_id] += match_c_dic[rbp_id][motif_id][matched_seq]
+
+    return match_c_total_dic
+    
+
+################################################################################
+
+def get_match_seqs_html_table(rbp_id, motif_id, match_c_dic, match_c_total_dic,
+                              add_motif_id_header=False,
+                              top_n=10):
+    """
+    Create matched sequences count statistics HTML table.
+    
+    Formats: 
+    match_c_total_dic[rbp_id][motif_id] = count
+    match_c_dic[rbp_id][motif_id][matched_seq] = count
+    """
+
+    assert match_c_dic, "match_c_dic is empty"
+    assert match_c_total_dic, "match_c_total_dic is empty"
+    assert rbp_id in match_c_dic, "RBP ID %s not found in match_c_dic" %(rbp_id)
+    assert motif_id in match_c_dic[rbp_id], "motif ID %s not found in match_c_dic" %(motif_id)
+    assert rbp_id in match_c_total_dic, "RBP ID %s not found in match_c_total_dic" %(rbp_id)
+    assert motif_id in match_c_total_dic[rbp_id], "motif ID %s not found in match_c_total_dic" %(motif_id)
+
+    # If no hits, do not create table.
+    if not match_c_dic[rbp_id][motif_id]:
+        return ""
+
+    header_text = ""
+    if add_motif_id_header:
+        # header_text = "### Motif ID \"%s\"" % (motif_id)
+        header_text = "### %s" % (motif_id)
+    mdtext = """
+%s
+
+**Table:** Matched sequence statistics for RBP ID "%s" + motif ID "%s" combination. 
+Match count: number of times matched sequence appears in input regions.
+Match percentage: match count divided by total number of motif ID "%s" motif hits.
+Only top %i matched sequences are shown.
+
+""" %(header_text, rbp_id, motif_id, motif_id, top_n)
+
+
+    mdtext += '<table style="max-width: 750px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+    mdtext += "<thead>\n"
+    mdtext += "<tr>\n"
+    mdtext += "<th>RBP ID</th>\n"
+    mdtext += "<th>Motif ID</th>\n"
+    mdtext += "<th>Matched sequence</th>\n"
+    mdtext += "<th>Match count</th>\n"
+    mdtext += "<th>Match %</th>\n"
+    mdtext += "</tr>\n"
+    mdtext += "</thead>\n"
+    mdtext += "<tbody>\n"
+
+    total_c = match_c_total_dic[rbp_id][motif_id]
+
+    count = 0
+    for matched_seq, match_c in sorted(match_c_dic[rbp_id][motif_id].items(), key=lambda x: x[1], reverse=True):
+        count += 1
+        if count > top_n:
+            break
+        match_perc = 0.0
+        if match_c > 0:
+            match_perc = (float(match_c)/float(total_c)) * 100.0
+            mdtext += "<tr>\n"
+            mdtext += "<td>%s</td>\n" %(rbp_id)
+            mdtext += "<td>%s</td>\n" %(motif_id)
+            mdtext += "<td>%s</td>\n" %(matched_seq)
+            mdtext += "<td>%i</td>\n" %(match_c)
+            mdtext += "<td>%.2f</td>\n" %(match_perc)
+            mdtext += "</tr>\n"
+
+    mdtext += "</tbody>\n"
+    mdtext += "</table>\n"
+
+    # mdtext += "\n&nbsp;\n&nbsp;\n"
+    # mdtext += "\nColumn IDs have the following meanings: "
+    # mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
+    # mdtext += "**Motif ID** -> Motif ID from database or user-defined, "
+    # mdtext += "**Motif database** -> Motif database used for search run, "
+    # mdtext += '**# motif hits** -> number of unique individual motif hits (i.e., unique hits for motif with motif ID).' + "\n"
+    mdtext += "\n&nbsp;\n"
+
+    return mdtext
 
 
 ################################################################################
@@ -20092,7 +20232,7 @@ def compare_generate_html_report(args,
 
 <div class="title-container">
     <img src="%s" alt="Logo" width="175">
-    <h1>Search Report</h1>
+    <h1>Search Comparison Report</h1>
 </div>
 
 <body>
