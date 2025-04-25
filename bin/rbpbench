@@ -275,6 +275,12 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Visualize selected sequence motifs, by outputting sequence logos and motif hit statistics into a separate .html file (default: False)")
+    p_s.add_argument("--top-n-matched",
+                   dest="top_n_matched",
+                   type=int,
+                   metavar='int',
+                   default=10,
+                   help="Set top n matched sequences to be displayed in motif hit statistics HTML report (create via --plot-motifs) (default: 10)")
     # p_s.add_argument("--add-motif-annot",
     #                dest="add_motif_annot",
     #                default = False,
@@ -1183,6 +1189,12 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Visualize selected sequence motifs, by outputting sequence logos and motif hit statistics into .html file (default: False)")
+    p_ss.add_argument("--top-n-matched",
+                   dest="top_n_matched",
+                   type=int,
+                   metavar='int',
+                   default=10,
+                   help="Set top n matched sequences to be displayed in motif hit statistics HTML report (create via --plot-motifs) (default: 10)")
     p_ss.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
@@ -1461,6 +1473,12 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.1,
                    help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\"). If there is overlap with several features, assign the one with highest overlap (default: 0.1)")
+    p_sl.add_argument("--top-n-matched",
+                   dest="top_n_matched",
+                   type=int,
+                   metavar='int',
+                   default=10,
+                   help="Set top n matched sequences to be displayed in motif hit statistics HTML report (create via --plot-motifs) (default: 10)")
     p_sl.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
@@ -1914,6 +1932,12 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Visualize selected sequence motifs, by outputting sequence logos and motif hit statistics into a separate .html file (default: False)")
+    p_scr.add_argument("--top-n-matched",
+                   dest="top_n_matched",
+                   type=int,
+                   metavar='int',
+                   default=10,
+                   help="Set top n matched sequences to be displayed in motif hit statistics HTML report (create via --plot-motifs) (default: 10)")
     p_scr.add_argument("--plotly-js-mode",
                    dest="plotly_js_mode",
                    type=int,
@@ -2120,7 +2144,7 @@ def setup_argument_parser():
                    default=0.1,
                    help="Minimum amount of overlap required for a motif hit to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\") (default: 0.1)")
     p_smr.add_argument("--goa",
-                   dest="run_goa",
+                   dest="run_goa_tr",
                    default = False,
                    action = "store_true",
                    help = "Run gene ontology (GO) enrichment analysis on transcripts (i.e., their corresponding genes) with motif hits. Requires --gtf (default: False)")
@@ -2176,6 +2200,12 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3, 4],
                    help = "Define which (m)RNA region to use for motif hit GO enrichment analysis. 1: whole transcript, 2: only 3'UTR regions, 3: only CDS regions, 4: only 5'UTR regions (default: 1)")
+    p_smr.add_argument("--top-n-matched",
+                   dest="top_n_matched",
+                   type=int,
+                   metavar='int',
+                   default=10,
+                   help="Set top n matched sequences to be displayed in motif hit statistics HTML report (create via --plot-motifs) (default: 10)")
     p_smr.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
@@ -6461,6 +6491,9 @@ def main_search(args):
         plots_subfolder = "html_motif_plots"
         benchlib_path = os.path.dirname(benchlib.__file__)
 
+        # Only valid for searchlongrna.
+        args.run_goa_tr = False
+
         benchlib.search_generate_html_motif_plots(args,
                                          search_rbps_dic, seq_motif_blocks_dic, 
                                          str_motif_blocks_dic, 
@@ -10181,12 +10214,14 @@ def main_searchseq(args):
         plots_subfolder = "html_motif_plots"
         benchlib_path = os.path.dirname(benchlib.__file__)
 
-        args.run_goa = False
+        # args.run_goa = False
         args.bed_sc_thr = None
         args.c_regions = c_regions
         args.ext_up = None
         args.ext_down = None
         args.regex_id = False
+        # Only valid for searchlongrna.
+        args.run_goa_tr = False
 
         benchlib.search_generate_html_motif_plots(args,
                                          search_rbps_dic, seq_motif_blocks_dic, 
@@ -11764,11 +11799,13 @@ def main_searchlong(args):
     plots_subfolder = "html_motif_plots"
     benchlib_path = os.path.dirname(benchlib.__file__)
 
-    args.run_goa = False
+    # args.run_goa = False
     args.bed_sc_thr = None
     args.c_regions = c_regions
     args.ext_up = None
     args.ext_down = None
+    # Only valid for searchlongrna.
+    args.run_goa_tr = False
 
     benchlib.search_generate_html_motif_plots(args,
                                         search_rbps_dic, seq_motif_blocks_dic, 
@@ -11785,7 +11822,6 @@ def main_searchlong(args):
                                         match_c_dic=match_c_dic,
                                         match_c_total_dic=match_c_total_dic,
                                         plots_subfolder=plots_subfolder)
-
 
     """
     Output parameter settings.
@@ -13927,6 +13963,9 @@ def main_searchrna(args):
         plots_subfolder = "html_motif_plots"
         benchlib_path = os.path.dirname(benchlib.__file__)
 
+        # Only valid for searchlongrna.
+        args.run_goa_tr = False
+
         benchlib.search_generate_html_motif_plots(args,
                                          search_rbps_dic, seq_motif_blocks_dic, 
                                          str_motif_blocks_dic,
@@ -14009,7 +14048,7 @@ def main_searchlongrna(args):
 
     assert benchlib.boundary_check(args.gtf_feat_min_overlap, 1E-9, 1.0), "set --gtf-feat-min-overlap expected to be >= 1E-9 and <= 1.0"
 
-    if args.run_goa:
+    if args.run_goa_tr:
         assert args.in_gtf, "set --goa requires --gtf GTF file"
         if args.goa_obo_mode == 3:
             assert args.goa_obo_file, "set --goa-obo-mode 3 requires --goa-obo-file"
@@ -15587,7 +15626,7 @@ def main_searchlongrna(args):
     goa_stats_dic = {}
     propagate_counts = True
 
-    if args.run_goa:
+    if args.run_goa_tr:
 
         # Write empty file.
         open(goa_results_tsv, "w").close()
@@ -15804,7 +15843,7 @@ def main_searchlongrna(args):
     # print("RBP region occupancies .tsv:\n%s" %(rbp_reg_occ_table_out))
     print("RBP hit stats .tsv:\n%s" %(rbp_stats_out))
     print("Motif hit stats .tsv:\n%s" %(motif_stats_out))
-    if args.run_goa:
+    if args.run_goa_tr:
         print("Motif hit GO enrichment analysis results .tsv:\n%s" %(goa_results_tsv))
     # if reg_annot_table_file is not None:
     #     print("Region annotations .tsv:\n%s" %(reg_annot_table_file))

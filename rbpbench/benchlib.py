@@ -415,7 +415,7 @@ score for each site (i.e., averaged over all site positions).
             pval_info = "Small test p-values (< 0.05) indicate that input sites have significantly lower conservation scores than control sites."
 
         mdtext += '<img src="' + pc_plot_path + '" alt="phastCons scores comparison plot"' + "\n"
-        mdtext += 'title="phastCons scores comparison plot" width="1000" />' + "\n"
+        mdtext += 'title="phastCons scores comparison plot" width="900" />' + "\n"
         mdtext += """
 **Figure:** Distribution of phastCons conservation scores in input and control sites.
 For each site, the average phastCons score is used (i.e., average over all genomic site positions).
@@ -468,7 +468,7 @@ score for each site (i.e., averaged over all site positions).
             pval_info = "Small test p-values (< 0.05) indicate that input sites have significantly lower conservation scores than control sites."
 
         mdtext += '<img src="' + pp_plot_path + '" alt="phyloP scores comparison plot"' + "\n"
-        mdtext += 'title="phyloP scores comparison plot" width="1000" />' + "\n"
+        mdtext += 'title="phyloP scores comparison plot" width="900" />' + "\n"
         mdtext += """
 **Figure:** Distribution of phyloP conservation scores in input and control sites.
 For each site, the average phyloP score is used (i.e., average over all genomic site positions).
@@ -12750,9 +12750,6 @@ is assigned to each input region. "intergenic" feature means none of the used GT
 """ %(combined_id, dataset_id_format, rbp_id, rbp_id)
 
 
-
-
-
     """
     GOA results.
 
@@ -19364,7 +19361,6 @@ def search_generate_html_motif_plots(args, search_rbps_dic,
                                      id2exp_dic=False,
                                      match_c_dic=False,
                                      match_c_total_dic=False,
-                                     top_n_matched_seqs=10,
                                      plots_subfolder="html_motif_plots"):
     """
     Create motif plots for selected RBPs.
@@ -19483,7 +19479,7 @@ by RBPBench (%s, rbpbench %s):
 - [Motif hit statistics](#motif-hit-stats)
 """ %(version_str, rbpbench_mode)
 
-    if args.run_goa:
+    if args.run_goa_tr:
         mdtext += "- [Motif hit GO enrichment analysis results](#goa-results)\n"
 
     motif_plot_ids_dic = {}
@@ -19514,13 +19510,19 @@ by RBPBench (%s, rbpbench %s):
     Motif hit statistics table.
 
     """
+
+    gh_info = ""
+    if args.greatest_hits:
+        gh_info = "--greatest-hits enabled, i.e., only highest scoring hits are reported for each input region."
+
     mdtext += """
 ## Motif hit statistics ### {#motif-hit-stats}
 
 **Table:** RBP motif hit statistics with RBP ID, motif ID, motif database ID (set to "user" if user-supplied motif, otherwise internal database ID), 
 and respective number of motif hits found in supplied %s regions.
+%s
 
-""" %(site_type)
+""" %(site_type, gh_info)
 
     # mdtext += '| &nbsp; RBP ID &nbsp; | &nbsp; Motif ID &nbsp; | Motif database | # motif hits |' + " \n"
     # mdtext += "| :-: | :-: | :-: | :-: |\n"
@@ -19575,7 +19577,7 @@ and respective number of motif hits found in supplied %s regions.
 
     """
 
-    if args.run_goa:
+    if args.run_goa_tr:
 
         mdtext += """
 ## Motif hit GO enrichment analysis results ### {#goa-results}
@@ -19600,7 +19602,7 @@ and respective number of motif hits found in supplied %s regions.
         if filter_further_info:
             filter_further_info += " Note that additional filters (children + depth) can result in an empty table. For all significant GO terms (i.e., unfiltered results) check *%s* output table." %(goa_results_tsv)
 
-        goa_rna_region_info = "transcripts"
+        goa_rna_region_info = "genes"
         if args.goa_rna_region == 1:
             goa_rna_region_info = "transcripts"
         elif args.goa_rna_region == 2:
@@ -19869,7 +19871,7 @@ more often in intron, 3'UTR etc.). Unique input regions size (nt): %i (i.e., ove
                 mdtext += get_match_seqs_html_table(rbp_id, motif_id, 
                                                     match_c_dic, match_c_total_dic,
                                                     add_motif_id_header=False,
-                                                    top_n=top_n_matched_seqs)
+                                                    top_n=args.top_n_matched)
             continue
 
         for idx, motif_id in enumerate(rbp.seq_motif_ids):
@@ -19878,7 +19880,7 @@ more often in intron, 3'UTR etc.). Unique input regions size (nt): %i (i.e., ove
                 mdtext += get_match_seqs_html_table(rbp_id, motif_id, 
                                                     match_c_dic, match_c_total_dic,
                                                     add_motif_id_header=False,
-                                                    top_n=top_n_matched_seqs)
+                                                    top_n=args.top_n_matched)
 
             c_motif_hits = rbp.seq_motif_hits[idx]
             motif_db = motif2db_dic[motif_id]
@@ -19948,7 +19950,7 @@ Motif references (PubMed, DOI): %s. Motif source database / experiments: %s.
                 mdtext += get_match_seqs_html_table(rbp_id, motif_id, 
                                                     match_c_dic, match_c_total_dic,
                                                     add_motif_id_header=False,
-                                                    top_n=top_n_matched_seqs)
+                                                    top_n=args.top_n_matched)
 
             c_motif_hits = rbp.str_motif_hits[idx]
             # NO STRUCTURE MOTIF PLOTTING IMPLEMENTED YET.
@@ -20230,7 +20232,7 @@ def compare_generate_html_report(args,
 
 <div class="title-container">
     <img src="%s" alt="Logo" width="175">
-    <h1>Search Report</h1>
+    <h1>Search Comparison Report</h1>
 </div>
 
 <body>
