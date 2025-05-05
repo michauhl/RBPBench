@@ -27,7 +27,8 @@ setup(
              'bin/create_custom_meme_motif_db.py',
              'bin/gtf_extract_tr_feat_bed.py',
              'bin/bed_merge_ol_reg.py',
-             'bin/get_genomic_conservation_scores.py'
+             'bin/get_genomic_conservation_scores.py',
+             'bin/batch_get_common_dataset_gene_ids.py'
              ],
     packages=['rbpbench'],
     package_data={'rbpbench': ['content/*', 'content/motif_plots/*']},
