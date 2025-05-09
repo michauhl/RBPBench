@@ -1383,7 +1383,7 @@ Some useful options are: `--goa-max-child` (e.g. `--goa-max-child 200` to filter
 or `--goa-pval` (set GOA p-value threshold).
 
 
-#### Most-prominent transcript selection
+#### Most prominent transcript selection
 
 In order to obtain genomic region annotations on the transcript level, 
 by default one representative transript (i.e., the most prominent transcript (MPT))
@@ -1424,11 +1424,13 @@ with the bottom 1000 scoring (`--kmer-plot-bottom-n 1000`) sites.
 Various helper scripts are included as well on the command line:
 
 ```
+batch_get_common_dataset_gene_ids.py
 bed_merge_ol_reg.py
 bed_print_first_n_pos.py
 bed_print_last_n_pos.py
 bed_shift_regions.py
 create_custom_meme_motif_db.py
+get_genomic_conservation_scores.py
 gtf_extract_exon_intron_border_bed.py
 gtf_extract_exon_intron_region_bed.py
 gtf_extract_gene_region_bed.py
@@ -1438,12 +1440,14 @@ gtf_get_gene_region_nt_freqs.py
 gtf_get_mpt_nt_freqs.py
 gtf_get_mpt_with_introns_nt_freqs.py
 ```
-To can call their help pages to get more infos on what they do and how to use them (e.g., `bed_merge_ol_reg.py -h`).
+You can call their help pages to get more infos on what they do and how to use them (e.g., `bed_merge_ol_reg.py -h`).
 To get a quick overview: 
+`batch_get_common_dataset_gene_ids.py` extracts gene IDs which occur in all datasets, given the `gene_region_occupancies.tsv` file from RBPBench batch output folder.
 `bed_merge_ol_reg.py` takes a BED file and merges bookend or overlapping regions outputs the merged regions to a new BED file.
 `bed_print_first_n_pos.py` prints the first n positions of each region from the provided BED file.
 `bed_print_last_n_pos.py` prints the last n positions of each region from the provided BED file.
 `bed_shift_regions.py` shifts all regions from the provided BED file a given number of nucleotides up- or downstream.
+`get_genomic_conservation_scores.py` extracts conservation scores for a set of genomic regions of interest (given via `--in BED`).
 `create_custom_meme_motif_db.py` as described above generates a custom sequence motifs database which can be used in all search modes via `--custom-db`.
 `gtf_extract_exon_intron_border_bed.py` extracts exon-intron border positions from a GTF file and stores them in a BED file, 
 which can be used as input e.g. in `rbpbench nemo`.

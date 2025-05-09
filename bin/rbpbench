@@ -579,6 +579,41 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Store plot files with absolute paths in HTML files. Default is relative paths (default: False)")
+    # Additional annoations. AALAMO
+    p_s.add_argument("--prom-min-tr-len",
+                   dest="prom_min_tr_len",
+                   type=int,
+                   metavar='int',
+                   default=False,
+                   help="Minimum transcript length for promoter region extraction. By default consider all transcript regions")
+    p_s.add_argument("--prom-mrna-only",
+                   dest="prom_mrna_only",
+                   default = False,
+                   action = "store_true",
+                   help="Consider only mRNA transcript regions for promoter region extraction")
+    p_s.add_argument("--prom-ext",
+                   dest="prom_ext_up_down",
+                   type=str,
+                   metavar='str',
+                   default="1000,100",
+                   help="Up- and downstream extension of transcript start site (TSS) to define putative promoter regions, e.g. --prom-ext 500,0 for 500 upstream and 0 downstream extension (default: 1000,100)")
+    p_s.add_argument("--add-annot-bed",
+                   dest="add_annot_bed",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help="Specify additional genomic regions in BED format for which to calculate the percentage of input regions that overlap with them")
+    p_s.add_argument("--add-annot-comp",
+                   dest="add_annot_comp",
+                   default = False,
+                   action = "store_true",
+                   help="Get the complement percentage, i.e., the percentage of input regions NOT overlapping with --add-annot-bed regions")
+    p_s.add_argument("--add-annot-id",
+                   dest="add_annot_id",
+                   type=str,
+                   metavar='str',
+                   default = "custom",
+                   help = "Label to use for additional regions in HTML report (default: \"custom\")")
     p_s.add_argument("--plot-pdf",
                    dest="plot_pdf",
                    default = False,
@@ -3626,6 +3661,15 @@ def main_search(args):
     if args.regex:
         assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
 
+    # Additional BED regions for annotation.
+    if args.add_annot_bed:
+        assert os.path.exists(args.add_annot_bed), "--add-annot-bed file \"%s\" not found" % (args.add_annot_bed)
+        # Check if BED format.
+        benchlib.bed_check_format(args.add_annot_bed, param_str="--add-annot-bed")
+        # Check annotation ID.
+        args.add_annot_id = benchlib.remove_special_chars_from_str(args.add_annot_id)
+        assert args.add_annot_id, "empty string after removing special chars from --add-annot-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
+
     """
     Library path.
     """
@@ -3658,9 +3702,13 @@ def main_search(args):
         assert not args.custom_db_cm, "--custom-db folder set incompatible with --custom-db-cm. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_info, "--custom-db folder set incompatible with --custom-db-info. Provide custom motif database either via folder (--custom-db) or as single files"
         seq_motifs_db_file, str_motifs_db_file, rbp2ids_file = specify_custom_motif_db(args.custom_db)
+        args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
+        assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
     # Custom motif database: single files given.
     if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
+        args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
+        assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
         assert not args.custom_db, "single custom motif database files provided not compatible with --custom-db. Provide custom motif database either via folder (--custom-db) or as single files"
         assert args.custom_db_info, "--custom-db-info needed to define custom motif database"
@@ -3772,6 +3820,10 @@ def main_search(args):
 
     # GOA results.
     goa_results_tsv = args.out_folder + "/goa_results.tsv"
+
+    # Addition annotation regions output BED files.
+    gene_regions_bed = args.out_folder + "/gene_regions.bed"
+    promoter_regions_bed = args.out_folder + "/promoter_regions.bed"
 
     # Temp files.
     # random_id = uuid.uuid1()
@@ -4282,6 +4334,21 @@ def main_search(args):
         assert c_in_reg_post_flt, "no --in regions remain after filtering by --exp-gene-list gene regions. Please provide compatible files or change --exp-gene-filter settings"
 
         in_reg_bed = tmp_in_filtered_bed
+
+    """
+    Promoter region definition.
+    
+    """
+
+    prom_ext_parts = args.prom_ext_up_down.split(",")
+    c_prom_ext_parts = len(prom_ext_parts)
+    assert c_prom_ext_parts == 2, "invalid --prom-ext argument provided (correct format: --prom-ext 1000,100, i.e., please provide two integers separated by a comma)"
+
+    prom_ext_up = int(prom_ext_parts[0])
+    prom_ext_down = int(prom_ext_parts[1])
+
+    assert benchlib.boundary_check(prom_ext_up, 1, 100000), "set promoter upstream extension expected to be >= 1 and <= 100000"
+    assert benchlib.boundary_check(prom_ext_down, 0, 100000), "set promoter downstream extension expected to be >= 0 and <= 100000"
 
 
     """
@@ -5699,6 +5766,7 @@ def main_search(args):
     gid2tid_dic = {}
     tid2tio_dic = None
     ei_ol_stats_dic = {}
+    add_annot_stats_dic = {}
 
     if args.in_gtf:  # and c_regions_with_hits:
 
@@ -5857,7 +5925,74 @@ def main_search(args):
                 tids_with_sites_dic[tr_id] += 1
             
         OUTRAN.close()
-        
+    
+        """
+        Output additional annotations to BED files.
+
+        AALAMO
+        """
+
+        print("Output gene regions to BED ... ")
+
+        benchlib.output_gene_regions_to_bed(gid2gio_dic, gene_regions_bed,
+                                            add_annot_stats_dic=add_annot_stats_dic)
+
+        print("Output putative promoter regions to BED ... ")
+
+        benchlib.output_promoter_regions_to_bed(tid2tio_dic, promoter_regions_bed,
+                                        prom_min_tr_len=args.prom_min_tr_len,
+                                        prom_mrna_only=args.prom_mrna_only,
+                                        mrna_biotype_label="protein_coding",
+                                        prom_ext_up=prom_ext_up,
+                                        prom_ext_down=prom_ext_down,
+                                        add_annot_stats_dic=add_annot_stats_dic)
+
+
+        """
+        Overlap additional annotation regions with input regions.
+
+        """
+
+        print("Overlap input regions with gene regions ... ")
+
+        c_outside_genes = benchlib.bed_intersect_files_count_lines(
+                                        filtered_sites_bed, gene_regions_bed,
+                                        params="-s -v")
+
+        print("# input regions NOT overlapping with gene regions: %i" %(c_outside_genes))
+
+        print("Overlap input regions with promoter regions ... ")
+
+        c_inside_prom = benchlib.bed_intersect_files_count_lines(
+                                        filtered_sites_bed, promoter_regions_bed,
+                                        params="-s -u")
+
+        print("# input regions overlapping with promoter regions: %i" %(c_inside_prom))
+
+        c_add_annot = 0
+
+        if args.add_annot_bed:
+
+            print("Overlap input regions with --add-annot-bed regions ... ")
+
+            params = "-s -u"  # count overlaps with --add-annot-bed regions.
+            if args.add_annot_comp:
+                params = "-s -v"  # count non-overlaps with --add-annot-bed regions.
+
+            c_add_annot = benchlib.bed_intersect_files_count_lines(
+                                                filtered_sites_bed, args.add_annot_bed,
+                                                params=params)
+
+            if args.add_annot_comp:
+                print("# input regions NOT overlapping with --add-annot-bed regions: %i" %(c_add_annot))
+            else:
+                print("# input regions overlapping with --add-annot-bed regions: %i" %(c_add_annot))
+
+        add_annot_stats_dic["c_outside_genes"] = c_outside_genes
+        add_annot_stats_dic["c_inside_prom"] = c_inside_prom
+        add_annot_stats_dic["c_add_annot"] = c_add_annot
+        add_annot_stats_dic["prom_ext_up"] = prom_ext_up
+        add_annot_stats_dic["prom_ext_down"] = prom_ext_down
 
         """
         Get exon+intron+eib overlap counts.
@@ -6470,6 +6605,7 @@ def main_search(args):
                                         reg_seq_str="regions",
                                         reg2seq_dic=out_seqs_dic,
                                         reg2sc_dic=reg2sc_dic,
+                                        add_annot_stats_dic=add_annot_stats_dic,
                                         plots_subfolder=plots_subfolder)
 
 
@@ -6767,9 +6903,13 @@ def main_batch(args):
         assert not args.custom_db_cm, "--custom-db folder set incompatible with --custom-db-cm. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_info, "--custom-db folder set incompatible with --custom-db-info. Provide custom motif database either via folder (--custom-db) or as single files"
         seq_motifs_db_file, str_motifs_db_file, rbp2ids_file = specify_custom_motif_db(args.custom_db)
+        args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
+        assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
     # Custom motif database: single files given.
     if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
+        args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
+        assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
         assert not args.custom_db, "single custom motif database files provided not compatible with --custom-db. Provide custom motif database either via folder (--custom-db) or as single files"
         assert args.custom_db_info, "--custom-db-info needed to define custom motif database"
@@ -9102,9 +9242,13 @@ def main_searchseq(args):
         assert not args.custom_db_cm, "--custom-db folder set incompatible with --custom-db-cm. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_info, "--custom-db folder set incompatible with --custom-db-info. Provide custom motif database either via folder (--custom-db) or as single files"
         seq_motifs_db_file, str_motifs_db_file, rbp2ids_file = specify_custom_motif_db(args.custom_db)
+        args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
+        assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
     # Custom motif database: single files given.
     if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
+        args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
+        assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
         assert not args.custom_db, "single custom motif database files provided not compatible with --custom-db. Provide custom motif database either via folder (--custom-db) or as single files"
         assert args.custom_db_info, "--custom-db-info needed to define custom motif database"
@@ -10357,9 +10501,13 @@ def main_searchlong(args):
         assert not args.custom_db_cm, "--custom-db folder set incompatible with --custom-db-cm. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_info, "--custom-db folder set incompatible with --custom-db-info. Provide custom motif database either via folder (--custom-db) or as single files"
         seq_motifs_db_file, str_motifs_db_file, rbp2ids_file = specify_custom_motif_db(args.custom_db)
+        args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
+        assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
     # Custom motif database: single files given.
     if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
+        args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
+        assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
         assert not args.custom_db, "single custom motif database files provided not compatible with --custom-db. Provide custom motif database either via folder (--custom-db) or as single files"
         assert args.custom_db_info, "--custom-db-info needed to define custom motif database"
@@ -11950,9 +12098,13 @@ def main_searchrna(args):
         assert not args.custom_db_cm, "--custom-db folder set incompatible with --custom-db-cm. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_info, "--custom-db folder set incompatible with --custom-db-info. Provide custom motif database either via folder (--custom-db) or as single files"
         seq_motifs_db_file, str_motifs_db_file, rbp2ids_file = specify_custom_motif_db(args.custom_db)
+        args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
+        assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
     # Custom motif database: single files given.
     if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
+        args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
+        assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
         assert not args.custom_db, "single custom motif database files provided not compatible with --custom-db. Provide custom motif database either via folder (--custom-db) or as single files"
         assert args.custom_db_info, "--custom-db-info needed to define custom motif database"
@@ -14111,9 +14263,13 @@ def main_searchlongrna(args):
         assert not args.custom_db_cm, "--custom-db folder set incompatible with --custom-db-cm. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_info, "--custom-db folder set incompatible with --custom-db-info. Provide custom motif database either via folder (--custom-db) or as single files"
         seq_motifs_db_file, str_motifs_db_file, rbp2ids_file = specify_custom_motif_db(args.custom_db)
+        args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
+        assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
     # Custom motif database: single files given.
     if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
+        args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
+        assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
         assert not args.custom_db, "single custom motif database files provided not compatible with --custom-db. Provide custom motif database either via folder (--custom-db) or as single files"
         assert args.custom_db_info, "--custom-db-info needed to define custom motif database"
@@ -15961,9 +16117,13 @@ def main_enmo(args):
             print("Calculate motif similarities for supplied custom motif database ... ")
             motif_pair2sim_dic = benchlib.calc_tomtom_sim(seq_motifs_db_file, args.out_folder,
                                                           motif_sim_cap=args.motif_sim_cap)
+        args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
+        assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
     # Custom motif database: single files given.
     if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
+        args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
+        assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
         assert not args.custom_db, "single custom motif database files provided not compatible with --custom-db. Provide custom motif database either via folder (--custom-db) or as single files"
         assert args.custom_db_info, "--custom-db-info needed to define custom motif database"
@@ -18318,9 +18478,13 @@ def main_nemo(args):
             print("Calculate motif similarities for supplied custom motif database ... ")
             motif_pair2sim_dic = benchlib.calc_tomtom_sim(seq_motifs_db_file, args.out_folder,
                                                           motif_sim_cap=args.motif_sim_cap)
+        args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
+        assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
     # Custom motif database: single files given.
     if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
+        args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
+        assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
         assert not args.custom_db, "single custom motif database files provided not compatible with --custom-db. Provide custom motif database either via folder (--custom-db) or as single files"
         assert args.custom_db_info, "--custom-db-info needed to define custom motif database"
@@ -21003,7 +21167,7 @@ def main_tomtom(args):
 
     if args.custom_db_meme_xml:
         seq_motifs_db_file = args.custom_db_meme_xml
-        motif_db_str = args.custom_db_id
+        motif_db_str = "custom"
         rbp2ids_file = False
 
     args.motif_db_str = motif_db_str

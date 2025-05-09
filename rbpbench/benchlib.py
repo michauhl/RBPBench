@@ -4359,6 +4359,30 @@ def bed_intersect_files(a_bed, b_bed, out_bed,
     assert error == False, "intersectBed has problems with your input:\n%s\n%s" %(check_cmd, output)
 
 
+################################################################################
+
+def bed_intersect_files_count_lines(a_bed, b_bed,
+                                    params="-s -u"):
+    """
+    Intersect two files using bedtools intersect.
+    Count number of lines in output.
+
+    """
+    assert os.path.exists(a_bed), "a_bed does not exist"
+    assert os.path.exists(b_bed), "b_bed does not exist"
+
+    check_cmd = "intersectBed -a " + a_bed + " -b " + b_bed + " " + params + " | wc -l"
+    output = subprocess.getoutput(check_cmd)
+
+    count = 0
+    for line in output.split('\n'):
+        count = int(line.strip())
+        break
+
+    assert count >= 0, "intersectBed + line count has problems with your input:\n%s\n%s" %(check_cmd, output)
+
+    return count
+
 
 ################################################################################
 
@@ -5395,6 +5419,102 @@ def bed_get_effective_reg_bed(in_bed, out_bed, reg2pol_dic,
 
 ################################################################################
 
+def output_promoter_regions_to_bed(tid2tio_dic, out_bed,
+                                   prom_min_tr_len=False,
+                                   prom_mrna_only=False,
+                                   mrna_biotype_label="protein_coding",
+                                   prom_ext_up=1000,
+                                   prom_ext_down=100,
+                                   add_annot_stats_dic=None):
+    """
+    Output promoter regions to BED file, based on transcript start sites.
+
+    """
+    assert tid2tio_dic, "tid2tio_dic empty"
+
+    OUTBED = open(out_bed, "w")
+
+    c_filt_min_tr_len = 0
+    c_filt_mrna_only = 0
+    c_out = 0
+
+    for tid in tid2tio_dic:
+        tio = tid2tio_dic[tid]
+        chr_id = tio.chr_id
+        tr_pol = tio.tr_pol
+
+        # Optionally filter by minimum transcript length and biotype.
+        tr_length = tio.tr_length
+        if prom_min_tr_len:
+            if tr_length < prom_min_tr_len:
+                c_filt_min_tr_len += 1
+                continue
+
+        tr_biotype = tio.tr_biotype
+        if prom_mrna_only:
+            if tr_biotype != mrna_biotype_label:
+                c_filt_mrna_only += 1
+                continue
+
+        # Define putative promoter region.
+        tts_s = tio.tr_s - 1  # make 0-based.
+        tts_e = tts_s + 1
+        prom_s = tts_s - prom_ext_up
+        prom_e = tts_e + prom_ext_down
+        if tr_pol == "-":  # minus strand case.
+            tts_s = tio.tr_e - 1
+            tts_e = tts_s + 1
+            prom_s = tts_s - prom_ext_down
+            prom_e = tts_e + prom_ext_up
+
+        if prom_s < 0:
+            prom_s = 0
+
+        c_out += 1
+
+        OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, prom_s, prom_e, tid, tr_pol))
+
+
+    OUTBED.close()
+    assert c_out, "no promoter regions written to out_bed %s" %(out_bed)
+
+    if add_annot_stats_dic is not None:
+        add_annot_stats_dic["c_promoters"] = c_out
+        add_annot_stats_dic["c_filt_min_tr_len"] = c_filt_min_tr_len
+        add_annot_stats_dic["c_filt_mrna_only"] = c_filt_mrna_only
+
+
+################################################################################
+
+def output_gene_regions_to_bed(gid2gio_dic, out_bed,
+                               add_annot_stats_dic=None):
+    """
+    Output gene regions stored in gid2gio_dic to BED file.
+
+    """
+    assert gid2gio_dic, "gid2gio_dic empty"
+
+    OUTBED = open(out_bed, "w")
+    c_out = 0
+
+    for gene_id in gid2gio_dic:
+        gene_info = gid2gio_dic[gene_id]
+        chr_id = gene_info.chr_id
+        gene_s = gene_info.gene_s - 1  # make 0-based.
+        gene_e = gene_info.gene_e
+        gene_pol = gene_info.gene_pol
+
+        c_out += 1
+
+        OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, gene_s, gene_e, gene_id, gene_pol))
+
+    OUTBED.close()
+    assert c_out, "no gene regions written to out_bed %s" %(out_bed)
+    if add_annot_stats_dic is not None:
+        add_annot_stats_dic["c_genes"] = c_out
+
+
+################################################################################
 
 def bed_sort_file(in_bed, out_bed, 
                   params="-k1,1 -k2,2n"):
@@ -11880,8 +12000,9 @@ RBPbench checks whether regions with RBP motif hits have significantly different
 %s
 In other words, a low test p-value for a given dataset indicates 
 that %s-scoring regions are more likely to contain RBP motif hits.
-**NOTE** that if scores associated to input genomic regions are all the same, p-values become meaningless 
+**NOTE** that if scores associated with input genomic regions are all the same, p-values become meaningless 
 (i.e., they result in p-values of 1.0).
+Likewise, the p-value becomes non-informative if most or all input regions have RBP motif hits (i.e., very high hit region percentages).
 By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
 
 """ %(wrs_mode_info1, wrs_mode_info2)
@@ -12556,12 +12677,11 @@ C: dataset1 AND NOT dataset2,
 D: NOT dataset1 AND NOT dataset2.
 Gene regions are labelled 1 or 0 (1 if a genomic region from the dataset overlaps with the gene region, otherwise 0), 
 resulting in a vector of 1s and 0s for each RBP, which is then used to construct the contigency table.
+Note that only gene regions covered by regions in any of the input datasets are considered (# of gene regions: %i).
 
 &nbsp;
 
-""" 
-
-
+""" %(c_total_number_genes)
 
 
 
@@ -15585,6 +15705,7 @@ def search_generate_html_report(args,
                                 reg_seq_str="regions",
                                 reg2seq_dic=False,
                                 reg2sc_dic=False,
+                                add_annot_stats_dic=False,
                                 plots_subfolder="html_report_plots"):
     """
     Create additional hit statistics for selected RBPs, 
@@ -15781,6 +15902,9 @@ by RBPBench (%s, rbpbench %s):
     # Additional plot if GTF annotations given.
     if reg2annot_dic:
         mdtext += "- [Region annotations per RBP](#annot-rbp-plot)\n"
+    # Additional region annotations statistics.
+    if add_annot_stats_dic:
+        mdtext += "- [Additional region annotations](#add-annot-stats)\n"
 
     if mrna_prof_dic:
         mdtext += "- [mRNA region coverage profile](#mrna-prof-plot)\n"
@@ -15843,8 +15967,9 @@ RBPbench checks whether motif-containing regions have significantly different sc
 %s
 In other words, a low test p-value for a given RBP indicates 
 that %s-scoring regions are more likely to contain motif hits of the respective RBP.
-**NOTE** that if scores associated to input genomic regions are all the same, p-values become meaningless 
+**NOTE** that if scores associated with input genomic regions are all the same, p-values become meaningless 
 (i.e., they result in p-values of 1.0).
+Likewise, the p-value becomes non-informative if most or all input regions have RBP motif hits (i.e., very high hit region percentages).
 By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
 %s
 
@@ -16486,13 +16611,103 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
 
 """ %(more_infos)
 
+    # AALAMO TEST
+
+    """
+    Additional region annotations.
+
+    add_annot_stats_dic["c_genes"]
+    add_annot_stats_dic["c_promoters"]
+    add_annot_stats_dic["c_filt_min_tr_len"]
+    add_annot_stats_dic["c_filt_mrna_only"]
+    add_annot_stats_dic["c_outside_genes"]
+    add_annot_stats_dic["c_inside_prom"]
+    add_annot_stats_dic["c_add_annot"]
+    add_annot_stats_dic["prom_ext_up"]
+    add_annot_stats_dic["prom_ext_down"]
+    c_in_regions == all considered input regions.
+
+    """
+
+    if add_annot_stats_dic:
+        
+        add_annot_bed_info = ""
+        if args.add_annot_bed:
+            add_annot_not_ol = " "
+            if args.add_annot_comp:
+                add_annot_not_ol = " NOT "
+            add_annot_bed_info = 'In addition, percentage of input regions' + add_annot_not_ol + 'overlapping with provided BED file (--add-annot-bed, ID: ' + '"' + args.add_annot_id + '").'
+
+        only_mrna_info = ""
+        if args.prom_mrna_only:
+            only_mrna_info = "Only mRNA transcripts considered for promoter region extraction."
+        min_tr_len_info = ""
+        if args.prom_min_tr_len:
+            min_tr_len_info = "Minimum transcript length for promoter region extraction: %i nt." %(args.prom_min_tr_len)
+
+        mdtext += """
+## Additional region annotations ### {#add-annot-stats}
+
+**Table:** Percentages of input regions located outside of gene bodies (i.e., outside of annotated GTF gene regions) and 
+input regions overlapping with putative promoter regions (taking the regions %i nt upstream to %i nt downstream 
+of the transcript start sites).
+%s 
+%s 
+%s 
+High percentages of input regions outside gene bodies or inside promoter regions can point at dataset issues 
+(assuming RBPs bind primarily to gene/transcript regions) or distinct protein functions (e.g., RBPs moonlighting 
+as transcription factors). Note that depending on the methods used for dataset generation, regions outside of gene bodies 
+might also have already been removed. Number of considered input regions = %i.
+
+""" %(add_annot_stats_dic["prom_ext_up"], add_annot_stats_dic["prom_ext_down"], only_mrna_info, min_tr_len_info, add_annot_bed_info, c_in_regions)
+
+        perc_outside_genes = 0.0
+        if add_annot_stats_dic["c_outside_genes"] > 0:
+            perc_outside_genes = round( (add_annot_stats_dic["c_outside_genes"] / c_in_regions) * 100, 1)
+        perc_inside_prom = 0.0
+        if add_annot_stats_dic["c_inside_prom"] > 0:
+            perc_inside_prom = round( (add_annot_stats_dic["c_inside_prom"] / c_in_regions) * 100, 1)
+
+        mdtext += '<table style="max-width: 800px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>Region annotation</th>\n"
+        mdtext += "<th>% input regions</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
+
+        mdtext += '<tr>' + "\n"
+        mdtext += "<td>Outside genes</td>\n"
+        mdtext += "<td>" + str(perc_outside_genes) + "</td>\n"
+        mdtext += '</tr>' + "\n"
+
+        mdtext += '<tr>' + "\n"
+        mdtext += "<td>Inside promoters</td>\n"
+        mdtext += "<td>" + str(perc_inside_prom) + "</td>\n"
+        mdtext += '</tr>' + "\n"
+
+        if args.add_annot_bed:
+            perc_add_annot = 0.0
+            if add_annot_stats_dic["c_add_annot"] > 0:
+                perc_add_annot = round( (add_annot_stats_dic["c_add_annot"] / c_in_regions) * 100, 1)
+            mdtext += '<tr>' + "\n"
+            mdtext += "<td>" + args.add_annot_id + "</td>\n"
+            mdtext += "<td>" + str(perc_add_annot) + "</td>\n"
+            mdtext += '</tr>' + "\n"
+
+        mdtext += '</tbody>' + "\n"
+        mdtext += '</table>' + "\n"
+
+        mdtext += "\n&nbsp;\n&nbsp;\n"
+        mdtext += "\nColumn IDs have the following meanings: "
+        mdtext += "**Region annotation** -> Type of genomic region overlapping or not overlapping (depending on specified setting) with input regions, "
+        mdtext += '**% input regions** -> percentage of input regions overlapping or not overlapping with region annotations.'  + "\n"
+        mdtext += "\n&nbsp;\n"
 
     """
     mRNA region coverage plot.
 
-    if mrna_prof_dic:
-        mdtext += "- [mRNA region coverage profile](#mrna-prof-plot)\n"
-    
     """
 
     if mrna_prof_dic:
