@@ -1037,12 +1037,25 @@ Here is an example of a valid `info.txt` (minimum 3 columns required: RBP_motif_
 ```
 $ cat db_folder_path/info.txt
 RBP_motif_ID	RBP_name	Motif_type
-A1CF_1	A1CF	meme_xml	human
-A1CF_2	A1CF	meme_xml	human
-ACIN1_1	ACIN1	meme_xml	human
-ACIN1_2	ACIN1	meme_xml	human
-ACO1_1	ACO1	meme_xml	human
-RF00032	SLBP	cm	human
+A1CF_1	A1CF	meme_xml
+A1CF_2	A1CF	meme_xml
+ACIN1_1	ACIN1	meme_xml
+ACIN1_2	ACIN1	meme_xml
+ACO1_1	ACO1	meme_xml
+RF00032	SLBP	cm
+```
+
+You can also specify additional columns, which are used for the internal default databases, and are taken into account, 
+e.g., when filtering by [RBP functions](#rbp-functions), or when providing literature references in the HTML report files:
+
+```
+RBP_motif_ID	RBP_name	Motif_type	Organism	Gene_ID	Function_IDs	Reference	Experiment	Comments
+A1CF_1	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	31724725;10669759	RBNS_ENCODE;RBPDB	-
+A1CF_2	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	31724725	RBNS_ENCODE	-
+ACIN1_1	ACIN1	meme_xml	human	ENSG00000100813	-	27365209	iCLIP	-
+ACIN1_2	ACIN1	meme_xml	human	ENSG00000100813	-	27365209	iCLIP	-
+ACO1_1	ACO1	meme_xml	human	ENSG00000122729	RSD;TR	8021254	cisBP-RNA	-
+RF00032	SLBP	cm	human	ENSG00000163950	TEP;VRR	34086933	catRAPID_omics_v2.1	-
 ```
 
 `Motif_type` defines whether a motif is a sequence motif (expected to be found in `seq_motifs.meme`), 
@@ -1280,7 +1293,8 @@ Additional region annotation statistics are output in the HTML reports of `rbpbe
 the percentages of input regions that overlap with: regions outside of gene regions, putative promoter regions, as well as user-defined
 regions (via `--add-annot-bed`, with the option `--add-annot-comp` to use the complement of the provided regions). Promoter regions 
 can be further defined via `--prom-ext` (by default using regions 1000 nt upstream to 100 nt downstream of the transcript start positions),
-`--prom-min-tr-len` (minimum transcript length for promoter region extraction, by default all), and `--prom-mrna-only` (using only mRNA transcript regions). These statistics are useful to check whether the input regions are located in the expected genomic regions.
+`--prom-min-tr-len` (minimum transcript length for promoter region extraction, by default all lengths), and `--prom-mrna-only` (using only mRNA transcript regions, by default all selected transcripts, details [here](#most-prominent-transcript-selection)). 
+These statistics are useful to check whether the input regions are located in the expected genomic regions.
 For example, high percentages of input regions located outside gene regions or inside promoter regions can point at dataset issues (assuming RBPs bind primarily to gene/transcript regions) or distinct protein functions (e.g., RBPs moonlighting as transcription factors).
 
 
