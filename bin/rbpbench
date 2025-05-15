@@ -5964,7 +5964,6 @@ def main_search(args):
         """
         Output additional annotations to BED files.
 
-        AALAMO
         """
 
         print("Output gene regions to BED ... ")
@@ -7443,8 +7442,6 @@ def main_batch(args):
                                             "prom_ext_up": prom_ext_up,
                                             "prom_ext_down": prom_ext_down}
 
-    # AALAMO
-
     for idx, bed_file in enumerate(bed_list):
 
         rbp_id = rbp_ids_list[idx]
@@ -8252,8 +8249,6 @@ def main_batch(args):
             """
             Overlap additional annotation regions with input regions.
 
-            AALAMO
-            
             """
 
             # print("Overlap input regions with gene regions ... ")

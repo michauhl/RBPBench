@@ -12873,15 +12873,9 @@ By default, RBPBench for each gene in the GTF file selects the region features o
 """ %(combined_id, dataset_id_format, rbp_id, rbp_id)
 
 
-
-
-
-
-
     """
     Additional region annotations statistics.
     
-    AALAMO
 
     dsid2add_annot_stats_dic["general"] = {"c_genes": add_annot_stats_dic["c_genes"], 
                                            "c_promoters": add_annot_stats_dic["c_promoters"], 
@@ -16725,7 +16719,6 @@ By default, RBPBench for each gene in the GTF file selects the most prominent tr
 
 """ %(more_infos)
 
-    # AALAMO
 
     """
     Additional region annotations.
@@ -16780,8 +16773,6 @@ been removed already. Number of considered input regions = %i.
         if add_annot_stats_dic["c_inside_prom"] > 0:
             perc_inside_prom = round( (add_annot_stats_dic["c_inside_prom"] / c_in_regions) * 100, 1)
 
-        # AALAMO
-
         mdtext += '<table style="max-width: 600px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
         mdtext += "<thead>\n"
         mdtext += "<tr>\n"
@@ -16810,6 +16801,7 @@ been removed already. Number of considered input regions = %i.
                 perc_add_annot = round( (add_annot_stats_dic["c_add_annot"] / c_in_regions) * 100, 1)
             mdtext += '<tr>' + "\n"
             mdtext += "<td>" + args.add_annot_id + "</td>\n"
+            mdtext += "<td>" + str(add_annot_stats_dic["c_add_annot"]) + "</td>\n"
             mdtext += "<td>" + str(perc_add_annot) + "</td>\n"
             mdtext += '</tr>' + "\n"
 
