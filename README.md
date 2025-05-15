@@ -360,8 +360,6 @@ The output results folder again contains several table files (e.g., the hit stat
 as well the HTML report file `report.rbpbench_batch.html`, containing various comparative plots and statistics. 
 For the example call above, the following statistics and plots are included in the HTML report file:
 
-
-
 1. Input datasets sequence length statistics
 2. Input datasets exon-intron overlap statistics
 3. Input datasets exon-intron overlap comparative plot
@@ -375,6 +373,7 @@ For the example call above, the following statistics and plots are included in t
 11. Input datasets occupied gene regions similarity heat map
 12. Input datasets genomic region annotations comparative plot
 13. Plus a genomic regions annotation plot for each input dataset
+14. Additional region annotation statistics
 
 Detailed explanations can be found in the corresponding table and plot legends in the HTML file. 
 **Fig. 6** shows the 2 plots related to k-mer sequence produced by the above call:
@@ -1038,12 +1037,25 @@ Here is an example of a valid `info.txt` (minimum 3 columns required: RBP_motif_
 ```
 $ cat db_folder_path/info.txt
 RBP_motif_ID	RBP_name	Motif_type
-A1CF_1	A1CF	meme_xml	human
-A1CF_2	A1CF	meme_xml	human
-ACIN1_1	ACIN1	meme_xml	human
-ACIN1_2	ACIN1	meme_xml	human
-ACO1_1	ACO1	meme_xml	human
-RF00032	SLBP	cm	human
+A1CF_1	A1CF	meme_xml
+A1CF_2	A1CF	meme_xml
+ACIN1_1	ACIN1	meme_xml
+ACIN1_2	ACIN1	meme_xml
+ACO1_1	ACO1	meme_xml
+RF00032	SLBP	cm
+```
+
+You can also specify additional columns, which are used for the internal default databases, and are taken into account, 
+e.g., when filtering by [RBP functions](#rbp-functions), or when providing literature references in the HTML report files:
+
+```
+RBP_motif_ID	RBP_name	Motif_type	Organism	Gene_ID	Function_IDs	Reference	Experiment	Comments
+A1CF_1	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	31724725;10669759	RBNS_ENCODE;RBPDB	-
+A1CF_2	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	31724725	RBNS_ENCODE	-
+ACIN1_1	ACIN1	meme_xml	human	ENSG00000100813	-	27365209	iCLIP	-
+ACIN1_2	ACIN1	meme_xml	human	ENSG00000100813	-	27365209	iCLIP	-
+ACO1_1	ACO1	meme_xml	human	ENSG00000122729	RSD;TR	8021254	cisBP-RNA	-
+RF00032	SLBP	cm	human	ENSG00000163950	TEP;VRR	34086933	catRAPID_omics_v2.1	-
 ```
 
 `Motif_type` defines whether a motif is a sequence motif (expected to be found in `seq_motifs.meme`), 
@@ -1275,6 +1287,17 @@ can be adapted (`--enmo-pval-thr`, `--enmo-pval-mode`, `--nemo-pval-thr`, `--nem
 and `--fisher-mode` is also available.
 
 
+#### Additional region annotations
+
+Additional region annotation statistics are output in the HTML reports of `rbpbench search` and `rbpbench batch`. These include 
+the percentages of input regions that overlap with: regions outside of gene regions, putative promoter regions, as well as user-defined
+regions (via `--add-annot-bed`, with the option `--add-annot-comp` to use the complement of the provided regions). Promoter regions 
+can be further defined via `--prom-ext` (by default using regions 1000 nt upstream to 100 nt downstream of the transcript start positions),
+`--prom-min-tr-len` (minimum transcript length for promoter region extraction, by default all lengths), and `--prom-mrna-only` (using only mRNA transcript regions, by default all selected transcripts, details [here](#most-prominent-transcript-selection)). 
+These statistics are useful to check whether the input regions are located in the expected genomic regions.
+For example, high percentages of input regions located outside gene regions or inside promoter regions can point at dataset issues (assuming RBPs bind primarily to gene/transcript regions) or distinct protein functions (e.g., RBPs moonlighting as transcription factors).
+
+
 ### Additional information
 
 #### Handling genomic overlaps
@@ -1383,7 +1406,7 @@ Some useful options are: `--goa-max-child` (e.g. `--goa-max-child 200` to filter
 or `--goa-pval` (set GOA p-value threshold).
 
 
-#### Most-prominent transcript selection
+#### Most prominent transcript selection
 
 In order to obtain genomic region annotations on the transcript level, 
 by default one representative transript (i.e., the most prominent transcript (MPT))
@@ -1424,11 +1447,13 @@ with the bottom 1000 scoring (`--kmer-plot-bottom-n 1000`) sites.
 Various helper scripts are included as well on the command line:
 
 ```
+batch_get_common_dataset_gene_ids.py
 bed_merge_ol_reg.py
 bed_print_first_n_pos.py
 bed_print_last_n_pos.py
 bed_shift_regions.py
 create_custom_meme_motif_db.py
+get_genomic_conservation_scores.py
 gtf_extract_exon_intron_border_bed.py
 gtf_extract_exon_intron_region_bed.py
 gtf_extract_gene_region_bed.py
@@ -1438,12 +1463,14 @@ gtf_get_gene_region_nt_freqs.py
 gtf_get_mpt_nt_freqs.py
 gtf_get_mpt_with_introns_nt_freqs.py
 ```
-To can call their help pages to get more infos on what they do and how to use them (e.g., `bed_merge_ol_reg.py -h`).
+You can call their help pages to get more infos on what they do and how to use them (e.g., `bed_merge_ol_reg.py -h`).
 To get a quick overview: 
+`batch_get_common_dataset_gene_ids.py` extracts gene IDs which occur in all datasets, given the `gene_region_occupancies.tsv` file from RBPBench batch output folder.
 `bed_merge_ol_reg.py` takes a BED file and merges bookend or overlapping regions outputs the merged regions to a new BED file.
 `bed_print_first_n_pos.py` prints the first n positions of each region from the provided BED file.
 `bed_print_last_n_pos.py` prints the last n positions of each region from the provided BED file.
 `bed_shift_regions.py` shifts all regions from the provided BED file a given number of nucleotides up- or downstream.
+`get_genomic_conservation_scores.py` extracts conservation scores for a set of genomic regions of interest (given via `--in BED`).
 `create_custom_meme_motif_db.py` as described above generates a custom sequence motifs database which can be used in all search modes via `--custom-db`.
 `gtf_extract_exon_intron_border_bed.py` extracts exon-intron border positions from a GTF file and stores them in a BED file, 
 which can be used as input e.g. in `rbpbench nemo`.
