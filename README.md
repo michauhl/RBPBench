@@ -360,8 +360,6 @@ The output results folder again contains several table files (e.g., the hit stat
 as well the HTML report file `report.rbpbench_batch.html`, containing various comparative plots and statistics. 
 For the example call above, the following statistics and plots are included in the HTML report file:
 
-
-
 1. Input datasets sequence length statistics
 2. Input datasets exon-intron overlap statistics
 3. Input datasets exon-intron overlap comparative plot
@@ -375,6 +373,7 @@ For the example call above, the following statistics and plots are included in t
 11. Input datasets occupied gene regions similarity heat map
 12. Input datasets genomic region annotations comparative plot
 13. Plus a genomic regions annotation plot for each input dataset
+14. Additional region annotation statistics
 
 Detailed explanations can be found in the corresponding table and plot legends in the HTML file. 
 **Fig. 6** shows the 2 plots related to k-mer sequence produced by the above call:
@@ -1273,6 +1272,16 @@ check `rbpbench enmo -h` for details).
 Similar to the co-occurrence statistics, p-value threshold and multiple testing correction method 
 can be adapted (`--enmo-pval-thr`, `--enmo-pval-mode`, `--nemo-pval-thr`, `--nemo-pval-mode`), 
 and `--fisher-mode` is also available.
+
+
+#### Additional region annotations
+
+Additional region annotation statistics are output in the HTML reports of `rbpbench search` and `rbpbench batch`. These include 
+the percentages of input regions that overlap with: regions outside of gene regions, putative promoter regions, as well as user-defined
+regions (via `--add-annot-bed`, with the option `--add-annot-comp` to use the complement of the provided regions). Promoter regions 
+can be further defined via `--prom-ext` (by default using regions 1000 nt upstream to 100 nt downstream of the transcript start positions),
+`--prom-min-tr-len` (minimum transcript length for promoter region extraction, by default all), and `--prom-mrna-only` (using only mRNA transcript regions). These statistics are useful to check whether the input regions are located in the expected genomic regions.
+For example, high percentages of input regions located outside gene regions or inside promoter regions can point at dataset issues (assuming RBPs bind primarily to gene/transcript regions) or distinct protein functions (e.g., RBPs moonlighting as transcription factors).
 
 
 ### Additional information
