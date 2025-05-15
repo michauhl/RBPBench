@@ -579,7 +579,7 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Store plot files with absolute paths in HTML files. Default is relative paths (default: False)")
-    # Additional annoations. AALAMO
+    # Additional annoations.
     p_s.add_argument("--prom-min-tr-len",
                    dest="prom_min_tr_len",
                    type=int,
@@ -981,6 +981,41 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Filter out GOA results labeled as purified (i.e., GO terms with significantly lower concentration) in HTML table (default: False)")
+    # Additional annoations.
+    p_b.add_argument("--prom-min-tr-len",
+                   dest="prom_min_tr_len",
+                   type=int,
+                   metavar='int',
+                   default=False,
+                   help="Minimum transcript length for promoter region extraction. By default consider all transcript regions")
+    p_b.add_argument("--prom-mrna-only",
+                   dest="prom_mrna_only",
+                   default = False,
+                   action = "store_true",
+                   help="Consider only mRNA transcript regions for promoter region extraction")
+    p_b.add_argument("--prom-ext",
+                   dest="prom_ext_up_down",
+                   type=str,
+                   metavar='str',
+                   default="1000,100",
+                   help="Up- and downstream extension of transcript start site (TSS) to define putative promoter regions, e.g. --prom-ext 500,0 for 500 upstream and 0 downstream extension (default: 1000,100)")
+    p_b.add_argument("--add-annot-bed",
+                   dest="add_annot_bed",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help="Specify additional genomic regions in BED format for which to calculate the percentages of input regions that overlap with them")
+    p_b.add_argument("--add-annot-comp",
+                   dest="add_annot_comp",
+                   default = False,
+                   action = "store_true",
+                   help="Get the complement percentages, i.e., the percentages of input regions NOT overlapping with --add-annot-bed regions")
+    p_b.add_argument("--add-annot-id",
+                   dest="add_annot_id",
+                   type=str,
+                   metavar='str',
+                   default = "custom",
+                   help = "Label to use for additional regions in HTML report (default: \"custom\")")
     p_b.add_argument("--plot-abs-paths",
                    dest="plot_abs_paths",
                    default = False,
@@ -6781,6 +6816,15 @@ def main_batch(args):
     assert benchlib.boundary_check(args.kmer_size, 1, 6), "set --kmer-size expected to be >= 1 and <= 6"
     assert benchlib.boundary_check(args.seq_var_kmer_size, 1, 5), "set --seq-var-kmer-size expected to be >= 1 and <= 5"
 
+    # Additional BED regions for annotation.
+    if args.add_annot_bed:
+        assert os.path.exists(args.add_annot_bed), "--add-annot-bed file \"%s\" not found" % (args.add_annot_bed)
+        # Check if BED format.
+        benchlib.bed_check_format(args.add_annot_bed, param_str="--add-annot-bed")
+        # Check annotation ID.
+        args.add_annot_id = benchlib.remove_special_chars_from_str(args.add_annot_id)
+        assert args.add_annot_id, "empty string after removing special chars from --add-annot-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
+
     # Regex check.
     regex = False
 
@@ -7031,6 +7075,10 @@ def main_batch(args):
     # GOA results.
     goa_results_tsv = args.out_folder + "/goa_results.tsv"
 
+    # Addition annotation regions output BED files.
+    gene_regions_bed = args.out_folder + "/gene_regions.bed"
+    promoter_regions_bed = args.out_folder + "/promoter_regions.bed"
+
     # Temp files.
     # random_id = uuid.uuid1()
     # tmp_out_bed = args.out_folder + "/" + str(random_id) + ".filtered_in.bed"
@@ -7082,6 +7130,23 @@ def main_batch(args):
     args.ext_up = ext_up
     args.ext_down = ext_down
 
+
+    """
+    Promoter region definition.
+    
+    """
+
+    prom_ext_parts = args.prom_ext_up_down.split(",")
+    c_prom_ext_parts = len(prom_ext_parts)
+    assert c_prom_ext_parts == 2, "invalid --prom-ext argument provided (correct format: --prom-ext 1000,100, i.e., please provide two integers separated by a comma)"
+
+    prom_ext_up = int(prom_ext_parts[0])
+    prom_ext_down = int(prom_ext_parts[1])
+
+    assert benchlib.boundary_check(prom_ext_up, 1, 100000), "set promoter upstream extension expected to be >= 1 and <= 100000"
+    assert benchlib.boundary_check(prom_ext_down, 0, 100000), "set promoter downstream extension expected to be >= 0 and <= 100000"
+
+
     """
     If --gtf file, read in GTF info.
 
@@ -7101,7 +7166,9 @@ def main_batch(args):
     background_genes_dic = {}  # Store all gene IDs in GTF file to use as background genes.
     id2hk_gene_stats_dic = {}  # internal ID -> housekeeping gene stats dictionary.
     hk_tr_ids_dic = {}  # Store loaded transcript IDs that stem from housekeeping genes.
+    gid2gio_dic = None
     tid2tio_dic = None
+    add_annot_stats_dic = {}
 
     if args.in_gtf:
     
@@ -7231,6 +7298,27 @@ def main_batch(args):
                                             intron_border_len=args.gtf_intron_border_len,
                                             ei_border_len=50)
 
+        """
+        Output additional annotations to BED files.
+
+        """
+
+        print("Output gene regions to BED ... ")
+
+        benchlib.output_gene_regions_to_bed(gid2gio_dic, gene_regions_bed,
+                                            add_annot_stats_dic=add_annot_stats_dic)
+
+        print("Output putative promoter regions to BED ... ")
+
+        benchlib.output_promoter_regions_to_bed(tid2tio_dic, promoter_regions_bed,
+                                        prom_min_tr_len=args.prom_min_tr_len,
+                                        prom_mrna_only=args.prom_mrna_only,
+                                        mrna_biotype_label="protein_coding",
+                                        prom_ext_up=prom_ext_up,
+                                        prom_ext_down=prom_ext_down,
+                                        add_annot_stats_dic=add_annot_stats_dic)
+
+
         if args.goa_bg_gene_list:
 
             print("Read in background genes from --goa-gb-gene-list ... ")
@@ -7344,6 +7432,18 @@ def main_batch(args):
     seq_var_ll = []  # For sequence variation stats in report.
     seq_var_kmer_l = []  # For sequence variation stats in report.
     ei_ol_stats_dic = {}
+    # Dataset IDs to additional annotation stats dictionary.
+    dsid2add_annot_stats_dic = {}
+    # Settings for all datasets.
+    if add_annot_stats_dic:
+        dsid2add_annot_stats_dic["general"] = {"c_genes": add_annot_stats_dic["c_genes"], 
+                                            "c_promoters": add_annot_stats_dic["c_promoters"], 
+                                            "c_filt_min_tr_len": add_annot_stats_dic["c_filt_min_tr_len"], 
+                                            "c_filt_mrna_only": add_annot_stats_dic["c_filt_mrna_only"],
+                                            "prom_ext_up": prom_ext_up,
+                                            "prom_ext_down": prom_ext_down}
+
+    # AALAMO
 
     for idx, bed_file in enumerate(bed_list):
 
@@ -8149,6 +8249,53 @@ def main_batch(args):
                                                             tid2tio_dic,
                                                             reg_ids_dic=reg_ids_dic)
 
+            """
+            Overlap additional annotation regions with input regions.
+
+            AALAMO
+            
+            """
+
+            # print("Overlap input regions with gene regions ... ")
+
+            c_outside_genes = benchlib.bed_intersect_files_count_lines(
+                                            filtered_sites_bed, gene_regions_bed,
+                                            params="-s -v")
+
+            # print("# input regions NOT overlapping with gene regions: %i" %(c_outside_genes))
+
+            # print("Overlap input regions with promoter regions ... ")
+
+            c_inside_prom = benchlib.bed_intersect_files_count_lines(
+                                            filtered_sites_bed, promoter_regions_bed,
+                                            params="-s -u")
+
+            # print("# input regions overlapping with promoter regions: %i" %(c_inside_prom))
+
+            c_add_annot = 0
+
+            if args.add_annot_bed:
+
+                # print("Overlap input regions with --add-annot-bed regions ... ")
+
+                params = "-s -u"  # count overlaps with --add-annot-bed regions.
+                if args.add_annot_comp:
+                    params = "-s -v"  # count non-overlaps with --add-annot-bed regions.
+
+                c_add_annot = benchlib.bed_intersect_files_count_lines(
+                                                    filtered_sites_bed, args.add_annot_bed,
+                                                    params=params)
+
+                # if args.add_annot_comp:
+                #     print("# input regions NOT overlapping with --add-annot-bed regions: %i" %(c_add_annot))
+                # else:
+                #     print("# input regions overlapping with --add-annot-bed regions: %i" %(c_add_annot))
+
+            dsid2add_annot_stats_dic[internal_id] = {"c_outside_genes": c_outside_genes,
+                                                     "c_inside_prom": c_inside_prom,
+                                                     "c_add_annot": c_add_annot,
+                                                     "c_regions": c_regions}
+
             # reg2annot_dic format right now: 
             # reg_id -> [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr]
 
@@ -8823,6 +8970,7 @@ def main_batch(args):
                                         heatmap_cluster_olo=heatmap_cluster_olo,
                                         goa_results_df=goa_results_df,
                                         goa_stats_dic=goa_stats_dic,
+                                        dsid2add_annot_stats_dic=dsid2add_annot_stats_dic,
                                         plots_subfolder=plots_subfolder)
 
     """

@@ -296,10 +296,8 @@ def con_generate_html_report(args, stats_dic, benchlib_path,
     <h1>Conservation Scores Comparison Report</h1>
 </div>
 
-
 <body>
 """
-
 
     # HTML tail section.
     html_tail = """
@@ -11197,7 +11195,7 @@ def goa_generate_html_report(args, goa_results_df,
 </div>
 
 <body>
-"""
+""" %(logo_path_html)
 
     # HTML tail section.
     html_tail = """
@@ -11422,6 +11420,7 @@ def batch_generate_html_report(args,
                                heatmap_cluster_olo=False,
                                goa_results_df=False,
                                goa_stats_dic=False,
+                               dsid2add_annot_stats_dic=False,
                                plots_subfolder="html_report_plots"):
     """
     Create plots for RBPBench batch run results.
@@ -11636,6 +11635,9 @@ by RBPBench (%s, rbpbench batch):
             mdtext += "- [%s region annotations](#annot-plot-%i)\n" %(combined_id, data_idx)
             data_idx += 1
         # mdtext += "\n&nbsp;\n"
+
+    if dsid2add_annot_stats_dic:
+        mdtext += "- [Additional region annotation statistics](#add-annot-stats)\n"
 
     if args.run_goa:
         mdtext += "- [GO enrichment analysis results](#goa-results)\n"
@@ -12546,6 +12548,7 @@ No plot generated since < 4 datasets were provided.
     Input datasets gene / transcript region occupancies comparative plot.
 
     """
+    c_total_number_genes = 0  # total number of gene regions considered for PCA plots.
 
     if id2reg_annot_dic:  # if --gtf provided.
 
@@ -12560,7 +12563,6 @@ No plot generated since < 4 datasets were provided.
             occ_comp_plot_plotly_out = plots_out_folder + "/" + occ_comp_plot_plotly
 
             # Get number of gene regions considered.
-            c_total_number_genes = 0
             for internal_id in id2occ_list_dic:
                 c_total_number_genes = len(id2occ_list_dic[internal_id])
                 break
@@ -12861,13 +12863,123 @@ No plot generated since no regions for plotting.
 **Figure:** Genomic region annotations for input dataset **%s** (dataset ID format: %s). 
 Input regions are overlapped with genomic regions from GTF file and genomic region feature with highest overlap 
 is assigned to each input region. "intergenic" feature means none of the used GTF region features overlap with the input region 
-(minimum overlap amount controlled by --gtf-feat-min-overlap).
+(minimum overlap amount controlled by --gtf-feat-min-overlap). 
+By default, RBPBench for each gene in the GTF file selects the region features of the most prominent transcript (see manual for details).
 **%s**: annotations for input regions containing %s motif hits. 
 **All**: annotations for all input regions (with and without motif hits).
 
 &nbsp;
 
 """ %(combined_id, dataset_id_format, rbp_id, rbp_id)
+
+
+
+
+
+
+
+    """
+    Additional region annotations statistics.
+    
+    AALAMO
+
+    dsid2add_annot_stats_dic["general"] = {"c_genes": add_annot_stats_dic["c_genes"], 
+                                           "c_promoters": add_annot_stats_dic["c_promoters"], 
+                                           "c_filt_min_tr_len": add_annot_stats_dic["c_filt_min_tr_len"], 
+                                           "c_filt_mrna_only": add_annot_stats_dic["c_filt_mrna_only"]}
+
+    """
+
+    if dsid2add_annot_stats_dic:
+        
+        add_annot_bed_info = ""
+        add_annot_not_ol = " "
+        if args.add_annot_bed:
+            if args.add_annot_comp:
+                add_annot_not_ol = " NOT "
+            add_annot_bed_info = 'Also included are the percentages of input regions' + add_annot_not_ol + 'overlapping with additionally provided regions (via --add-annot-bed, ID: ' + '"' + args.add_annot_id + '").'
+
+        only_mrna_info = ""
+        if args.prom_mrna_only:
+            only_mrna_info = "Only mRNA transcripts were used for promoter region extraction (# transcripts removed = %i)." %(dsid2add_annot_stats_dic["general"]["c_filt_mrna_only"])
+        min_tr_len_info = ""
+        if args.prom_min_tr_len:
+            min_tr_len_info = "Minimum transcript length for promoter region extraction = %i nt (# transcripts removed = %i)." %(args.prom_min_tr_len, dsid2add_annot_stats_dic["general"]["c_filt_min_tr_len"])
+
+        mdtext += """
+## Additional region annotation statistics ### {#add-annot-stats}
+
+**Table:** Percentages of input regions that overlap with additional region annotations are shown for each input dataset.
+This includes percentages of input regions located outside of gene regions (annotated in provided GTF, # of considered
+gene regions = %i) and input regions overlapping with putative promoter regions (taking the regions %i nt upstream 
+to %i nt downstream of the transcript start sites). %s %s # of considered promoter regions = %i. %s High percentages 
+of input regions located outside gene regions or 
+inside promoter regions can point at dataset issues (assuming RBPs bind primarily to gene/transcript regions) 
+or distinct protein functions (e.g., RBPs moonlighting as transcription factors). Note that depending 
+on the methods used for dataset generation, input regions outside of gene regions might also have
+been removed already.
+
+""" %(dsid2add_annot_stats_dic["general"]["c_genes"], dsid2add_annot_stats_dic["general"]["prom_ext_up"], dsid2add_annot_stats_dic["general"]["prom_ext_down"], only_mrna_info, min_tr_len_info, dsid2add_annot_stats_dic["general"]["c_promoters"], add_annot_bed_info)
+
+        mdtext += '<table style="max-width: 1000px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += "<thead>\n"
+        mdtext += "<tr>\n"
+        mdtext += "<th>Dataset ID</th>\n"
+        mdtext += "<th># input regions</th>\n"
+        mdtext += "<th>% outside genes</th>\n"
+        mdtext += "<th>% inside promoters</th>\n"
+        if args.add_annot_bed:
+            mdtext += "<th>% " + args.add_annot_id + "</th>\n"
+        mdtext += "</tr>\n"
+        mdtext += "</thead>\n"
+        mdtext += "<tbody>\n"
+
+        for internal_id in sorted(dsid2add_annot_stats_dic):
+            if internal_id == "general":
+                continue
+            rbp_id = id2infos_dic[internal_id][0]
+            data_id = id2infos_dic[internal_id][1]
+            method_id = id2infos_dic[internal_id][2]
+            database_id = id2infos_dic[internal_id][3]
+            combined_id = rbp_id + "," + method_id + "," + data_id  # Dataset ID
+
+            c_outside_genes = dsid2add_annot_stats_dic[internal_id]["c_outside_genes"]
+            c_inside_prom = dsid2add_annot_stats_dic[internal_id]["c_inside_prom"]
+            c_add_annot = dsid2add_annot_stats_dic[internal_id]["c_add_annot"]
+            c_in_regions = dsid2add_annot_stats_dic[internal_id]["c_regions"]
+
+            perc_outside_genes = 0.0
+            if c_outside_genes > 0:
+                perc_outside_genes = round( (c_outside_genes / c_in_regions) * 100, 1)
+            perc_inside_prom = 0.0
+            if c_inside_prom > 0:
+                perc_inside_prom = round( (c_inside_prom / c_in_regions) * 100, 1)
+
+            mdtext += '<tr>' + "\n"
+            mdtext += "<td>" + str(combined_id) + "</td>\n"
+            mdtext += "<td>" + str(c_in_regions) + "</td>\n"
+            mdtext += "<td>" + str(perc_outside_genes) + "</td>\n"
+            mdtext += "<td>" + str(perc_inside_prom) + "</td>\n"
+            if args.add_annot_bed:
+                perc_add_annot = 0.0
+                if c_add_annot > 0:
+                    perc_add_annot = round( (c_add_annot / c_in_regions) * 100, 1)
+                mdtext += "<td>" + str(perc_add_annot) + "</td>\n"
+            mdtext += '</tr>' + "\n"
+
+        mdtext += '</tbody>' + "\n"
+        mdtext += '</table>' + "\n"
+
+        mdtext += "\n&nbsp;\n&nbsp;\n"
+        mdtext += "\nColumn IDs have the following meanings: "
+        mdtext += "**Dataset ID** -> Dataset ID for input dataset with following format: %s, " %(dataset_id_format)
+        mdtext += '**# input regions** -> number of considered input regions from input dataset, '
+        mdtext += "**% outside genes** -> percentage of input regions located outside of gene regions, "
+        mdtext += '**% inside promoters** -> percentage of input regions overlapping with promoter regions, '
+        if args.add_annot_bed:
+            mdtext += "**% " + args.add_annot_id + "** -> percentage of input regions" + add_annot_not_ol + 'overlapping with additionally provided regions (via --add-annot-bed, ID: "' + args.add_annot_id + '"), '
+        mdtext += '**% input regions** -> percentage of input regions overlapping or not overlapping with region annotations.'  + "\n"
+        mdtext += "\n&nbsp;\n"
 
 
     """
@@ -16606,12 +16718,14 @@ No plot generated since no motif hits found in input regions.
 with motif hits for the respective RBP. 
 Total bar height equals to the number of genomic regions with >= 1 motif hit for the RBP.
 %s
+Note that regions termed "intergenic" include all input regions not overlapping with selected transcript region features. 
+By default, RBPBench for each gene in the GTF file selects the most prominent transcript (see manual for details).
 
 &nbsp;
 
 """ %(more_infos)
 
-    # AALAMO TEST
+    # AALAMO
 
     """
     Additional region annotations.
@@ -16636,30 +16750,28 @@ Total bar height equals to the number of genomic regions with >= 1 motif hit for
             add_annot_not_ol = " "
             if args.add_annot_comp:
                 add_annot_not_ol = " NOT "
-            add_annot_bed_info = 'In addition, percentage of input regions' + add_annot_not_ol + 'overlapping with provided BED file (--add-annot-bed, ID: ' + '"' + args.add_annot_id + '").'
+            add_annot_bed_info = 'Also included is the percentage of input regions' + add_annot_not_ol + 'overlapping with additionally provided regions (via --add-annot-bed, ID: ' + '"' + args.add_annot_id + '").'
 
         only_mrna_info = ""
         if args.prom_mrna_only:
-            only_mrna_info = "Only mRNA transcripts considered for promoter region extraction."
+            only_mrna_info = "Only mRNA transcripts were used for promoter region extraction (# transcripts removed = %i)." %(add_annot_stats_dic["c_filt_mrna_only"])
         min_tr_len_info = ""
         if args.prom_min_tr_len:
-            min_tr_len_info = "Minimum transcript length for promoter region extraction: %i nt." %(args.prom_min_tr_len)
+            min_tr_len_info = "Minimum transcript length for promoter region extraction = %i nt (# transcripts removed = %i)." %(args.prom_min_tr_len, add_annot_stats_dic["c_filt_min_tr_len"])
 
         mdtext += """
 ## Additional region annotations ### {#add-annot-stats}
 
-**Table:** Percentages of input regions located outside of gene bodies (i.e., outside of annotated GTF gene regions) and 
-input regions overlapping with putative promoter regions (taking the regions %i nt upstream to %i nt downstream 
-of the transcript start sites).
-%s 
-%s 
-%s 
-High percentages of input regions outside gene bodies or inside promoter regions can point at dataset issues 
-(assuming RBPs bind primarily to gene/transcript regions) or distinct protein functions (e.g., RBPs moonlighting 
-as transcription factors). Note that depending on the methods used for dataset generation, regions outside of gene bodies 
-might also have already been removed. Number of considered input regions = %i.
+**Table:** Percentages of input regions located outside of gene regions (annotated in provided GTF, # of considered
+gene regions = %i) and input regions overlapping with putative promoter regions (taking the regions %i nt upstream 
+to %i nt downstream of the transcript start sites). %s %s # of considered promoter regions = %i. %s High percentages 
+of input regions located outside gene regions or 
+inside promoter regions can point at dataset issues (assuming RBPs bind primarily to gene/transcript regions) 
+or distinct protein functions (e.g., RBPs moonlighting as transcription factors). Note that depending 
+on the methods used for dataset generation, input regions outside of gene regions might also have
+been removed already. Number of considered input regions = %i.
 
-""" %(add_annot_stats_dic["prom_ext_up"], add_annot_stats_dic["prom_ext_down"], only_mrna_info, min_tr_len_info, add_annot_bed_info, c_in_regions)
+""" %(add_annot_stats_dic["c_genes"], add_annot_stats_dic["prom_ext_up"], add_annot_stats_dic["prom_ext_down"], only_mrna_info, min_tr_len_info, add_annot_stats_dic["c_promoters"], add_annot_bed_info, c_in_regions)
 
         perc_outside_genes = 0.0
         if add_annot_stats_dic["c_outside_genes"] > 0:
@@ -16668,10 +16780,13 @@ might also have already been removed. Number of considered input regions = %i.
         if add_annot_stats_dic["c_inside_prom"] > 0:
             perc_inside_prom = round( (add_annot_stats_dic["c_inside_prom"] / c_in_regions) * 100, 1)
 
-        mdtext += '<table style="max-width: 800px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        # AALAMO
+
+        mdtext += '<table style="max-width: 600px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
         mdtext += "<thead>\n"
         mdtext += "<tr>\n"
         mdtext += "<th>Region annotation</th>\n"
+        mdtext += "<th># input regions</th>\n"
         mdtext += "<th>% input regions</th>\n"
         mdtext += "</tr>\n"
         mdtext += "</thead>\n"
@@ -16679,11 +16794,13 @@ might also have already been removed. Number of considered input regions = %i.
 
         mdtext += '<tr>' + "\n"
         mdtext += "<td>Outside genes</td>\n"
+        mdtext += "<td>" + str(add_annot_stats_dic["c_outside_genes"]) + "</td>\n"
         mdtext += "<td>" + str(perc_outside_genes) + "</td>\n"
         mdtext += '</tr>' + "\n"
 
         mdtext += '<tr>' + "\n"
         mdtext += "<td>Inside promoters</td>\n"
+        mdtext += "<td>" + str(add_annot_stats_dic["c_inside_prom"]) + "</td>\n"
         mdtext += "<td>" + str(perc_inside_prom) + "</td>\n"
         mdtext += '</tr>' + "\n"
 
@@ -16701,7 +16818,8 @@ might also have already been removed. Number of considered input regions = %i.
 
         mdtext += "\n&nbsp;\n&nbsp;\n"
         mdtext += "\nColumn IDs have the following meanings: "
-        mdtext += "**Region annotation** -> Type of genomic region overlapping or not overlapping (depending on specified setting) with input regions, "
+        mdtext += "**Region annotation** -> Type of genomic regions overlapping or not overlapping (depending on specified setting) with input regions, "
+        mdtext += "**# input regions** -> number of input regions overlapping or not overlapping with region annotations, "
         mdtext += '**% input regions** -> percentage of input regions overlapping or not overlapping with region annotations.'  + "\n"
         mdtext += "\n&nbsp;\n"
 
