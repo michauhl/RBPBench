@@ -17,7 +17,7 @@ from scipy.stats import mannwhitneyu
 from scipy.stats import false_discovery_control  # Benjamini-Hochberg correction.
 
 
-__version__ = "1.0.5"
+__version__ = "1.0.6"
 
 ################################################################################
 
