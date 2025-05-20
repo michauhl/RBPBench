@@ -2786,12 +2786,39 @@ def read_fasta_into_dic(fasta_file,
 
 ################################################################################
 
+def output_tr_lengths(tr_len_dic, len_out,
+                      tr2gid_dic=False,
+                      tr2gn_dic=False):
+    """
+    Output transcript lengths to file.
+    
+    """
+
+    assert tr_len_dic, "given tr_len_dic empty"
+
+    OUTLEN = open(len_out, "w")
+    for tr_id in tr_len_dic:
+        tr_len = tr_len_dic[tr_id]
+        out_id = tr_id
+        if tr2gid_dic:
+            if tr_id in tr2gid_dic:
+                out_id = out_id + ";" + str(tr2gid_dic[tr_id])
+        if tr2gn_dic:
+            if tr_id in tr2gn_dic:
+                out_id = out_id + ";" + str(tr2gn_dic[tr_id])
+        OUTLEN.write("%s\t%s\n" %(out_id, tr_len))
+    OUTLEN.close()
+
+
+################################################################################
+
 def fasta_output_dic(fasta_dic, fasta_out,
                      split=False,
                      out_ids_dic=False,
                      header_add_sc_dic=False,
                      to_upper=False,
                      tr2gid_dic=False,
+                     tr2gn_dic=False,
                      split_size=60):
     """
     Output FASTA sequences dictionary (sequence_id -> sequence) to fasta_out.
@@ -2829,6 +2856,9 @@ def fasta_output_dic(fasta_dic, fasta_out,
         if tr2gid_dic:
             if seq_id in tr2gid_dic:
                 out_id = out_id + "," + str(tr2gid_dic[seq_id])
+        if tr2gn_dic:
+            if seq_id in tr2gn_dic:
+                out_id = out_id + "," + str(tr2gn_dic[seq_id])
         if split:
             OUTFA.write(">%s\n" %(out_id))
             for i in range(0, len(seq), split_size):
@@ -4878,6 +4908,8 @@ def get_transcript_sequences_from_gtf(tid2tio_dic, in_genome_fasta,
 ################################################################################
 
 def output_mrna_regions_to_bed(tid2regl_dic, mrna_regions_bed,
+                               tr2gid_dic=False,
+                               tr2gn_dic=False,
                                empty_check=True):
     """
     Given dictionary with transcript ID -> list of 5'UTR, CDS, 3'UTR lengths,
@@ -4903,12 +4935,24 @@ def output_mrna_regions_to_bed(tid2regl_dic, mrna_regions_bed,
         cds_l = cds_e - cds_s
         utr3_l = utr3_e - utr3_s
 
+        gtid = tid
+        # Add gene ID.
+        if tr2gid_dic:
+            if tid in tr2gid_dic:
+                gid = tr2gid_dic[tid]
+                gtid = gtid + ";" + gid
+        # Add gene name.
+        if tr2gn_dic:
+            if tid in tr2gn_dic:
+                gn = tr2gn_dic[tid]
+                gtid = gtid + ";" + gn
+
         if utr5l > 0:
-            OUTREGBED.write("%s\t%i\t%i\t%s;5'UTR\t0\t+\n" % (tid, utr5_s, utr5_e, tid))
+            OUTREGBED.write("%s\t%i\t%i\t%s;5'UTR\t0\t+\n" % (tid, utr5_s, utr5_e, gtid))
         if cds_l > 0:
-            OUTREGBED.write("%s\t%i\t%i\t%s;CDS\t0\t+\n" % (tid, cds_s, cds_e, tid))
+            OUTREGBED.write("%s\t%i\t%i\t%s;CDS\t0\t+\n" % (tid, cds_s, cds_e, gtid))
         if utr3_l > 0:
-            OUTREGBED.write("%s\t%i\t%i\t%s;3'UTR\t0\t+\n" % (tid, utr3_s, utr3_e, tid))
+            OUTREGBED.write("%s\t%i\t%i\t%s;3'UTR\t0\t+\n" % (tid, utr3_s, utr3_e, gtid))
 
     OUTREGBED.close()
 
