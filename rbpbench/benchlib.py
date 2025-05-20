@@ -2791,6 +2791,7 @@ def fasta_output_dic(fasta_dic, fasta_out,
                      out_ids_dic=False,
                      header_add_sc_dic=False,
                      to_upper=False,
+                     tr2gid_dic=False,
                      split_size=60):
     """
     Output FASTA sequences dictionary (sequence_id -> sequence) to fasta_out.
@@ -2807,6 +2808,8 @@ def fasta_output_dic(fasta_dic, fasta_out,
         ID to scoring mapping.
         Add a score to the header, so header format changes from "id1"
         to "id1,10"
+    tr2gid_dic:
+        If set add gene ID to header.
 
     """
     # Check.
@@ -2823,6 +2826,9 @@ def fasta_output_dic(fasta_dic, fasta_out,
         out_id = seq_id
         if header_add_sc_dic:
             out_id = out_id + "," + str(header_add_sc_dic[seq_id])
+        if tr2gid_dic:
+            if seq_id in tr2gid_dic:
+                out_id = out_id + "," + str(tr2gid_dic[seq_id])
         if split:
             OUTFA.write(">%s\n" %(out_id))
             for i in range(0, len(seq), split_size):
@@ -3239,6 +3245,7 @@ def gtf_read_in_gene_infos(in_gtf,
                            check_chr_ids_dic=None,
                            chr_style=0,
                            skip_gene_biotype_dic=None,
+                           gene_ids_dic=False,
                            empty_check=False):
     """
     Read in gene infos into GeneInfo objects, including information on 
@@ -3251,6 +3258,9 @@ def gtf_read_in_gene_infos(in_gtf,
         Store transcript biotype IDs and number of appearances.
         transcript biotype ID -> # appearances
     
+    gene_ids_dic:
+        If gene IDs dictionary given, only extract these genes.
+        
     chr_style:
         0: do not change
         1: change to chr1, chr2 ...
@@ -3311,6 +3321,10 @@ def gtf_read_in_gene_infos(in_gtf,
                 gene_biotype = m.group(1)
             # assert m, "gene_biotype / gene_type entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             # gene_biotype = m.group(1)
+
+            if gene_ids_dic:
+                if gene_id not in gene_ids_dic:
+                    continue
 
             if gene_biotype in skip_gene_biotype_dic:
                 continue
@@ -4863,14 +4877,16 @@ def get_transcript_sequences_from_gtf(tid2tio_dic, in_genome_fasta,
 
 ################################################################################
 
-def output_mrna_regions_to_bed(tid2regl_dic, mrna_regions_bed):
+def output_mrna_regions_to_bed(tid2regl_dic, mrna_regions_bed,
+                               empty_check=True):
     """
     Given dictionary with transcript ID -> list of 5'UTR, CDS, 3'UTR lengths,
     output the UTR and CDS regions to BED file.
     
     """
 
-    assert tid2regl_dic, "given tid2regl_dic empty"
+    if empty_check:
+        assert tid2regl_dic, "given tid2regl_dic empty"
 
     OUTREGBED = open(mrna_regions_bed, "w")
 

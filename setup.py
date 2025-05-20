@@ -7,7 +7,7 @@ from setuptools import setup
 
 setup(
     name='rbpbench',
-    version='1.0.6',
+    version='1.0.7',
     description='Evaluate CLIP-seq and other genomic region data using a comprehensive collection of known RBP binding motifs',
     long_description=open('README.md').read(),
     url='https://github.com/michauhl/RBPBench',
