@@ -3121,7 +3121,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide STREME nucleotide frequencies (STREME option: --bfile) file (default: use internal frequencies file, define which with --tomtom-ntf-mode)")
+                   help = "Provide STREME nucleotide frequencies (STREME option: --bfile) file (default: use internal frequencies file, define which with --streme-ntf-mode)")
     p_st.add_argument("--streme-ntf-mode",
                    dest="streme_ntf_mode",
                    type=int,
