@@ -10,7 +10,8 @@ def setup_argument_parser():
     """Setup argparse parser."""
     help_description = """
     Given a BED file, extend all regions via --ext, e.g. --ext 20 (different up- 
-    and downstream extension is possible too (--ext 30,10).
+    and downstream extension is possible too (--ext 30,10). Optionally filter
+    region scores (BED column 5) by --bed-sc-thr.
 
     """
     # Define argument parser.
@@ -35,6 +36,17 @@ def setup_argument_parser():
                    metavar='str',
                    default="0",
                    help="Up- and downstream extension of --in sites in nucleotides (nt). Set e.g. --ext 30 for 30 nt on both sides, or --ext 20,10 for different up- and downstream extension (default: 0)")
+    p.add_argument("--bed-sc-thr",
+                   dest="bed_sc_thr",
+                   type = float,
+                   metavar='float',
+                   default = None,
+                   help = "Minimum site score (by default: --in BED column 5, or set via --bed-score-col) for filtering (assuming higher score == better site) (default: None)")
+    p.add_argument("--bed-sc-thr-rev",
+                   dest="bed_sc_thr_rev_filter",
+                   default = False,
+                   action = "store_true",
+                   help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. for p-values) (default: False)")
     return p
 
 
@@ -95,8 +107,17 @@ if __name__ == '__main__':
             reg_s = int(cols[1])
             reg_e = int(cols[2])
             reg_id = cols[3]
-            sc = cols[4]
+            reg_sc = float(cols[4])
             strand = cols[5]
+
+            # Optionally filter by site score.
+            if args.bed_sc_thr is not None:
+                if args.bed_sc_thr_rev_filter:
+                    if reg_sc > args.bed_sc_thr:
+                        continue
+                else:
+                    if reg_sc < args.bed_sc_thr:
+                        continue
 
             # Extend.
             new_reg_s = reg_s - ext_up
@@ -109,7 +130,7 @@ if __name__ == '__main__':
             if new_reg_s < 0:
                 new_reg_s = 0
 
-            print("%s\t%i\t%i\t%s\t%s\t%s" % (chr_id, new_reg_s, new_reg_e, reg_id, sc, strand))
+            print("%s\t%i\t%i\t%s\t%s\t%s" % (chr_id, new_reg_s, new_reg_e, reg_id, str(reg_sc), strand))
 
     f.closed
 
