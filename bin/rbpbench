@@ -22712,7 +22712,7 @@ def main_dist(args):
     args.c_regions = c_regions
 
     """
-    Construct positional probabilty matrix.
+    Construct positional probability matrix.
         
     """
 

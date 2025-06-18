@@ -6,6 +6,12 @@ import re
 import gzip
 from rbpbench import benchlib
 
+"""
+Example call:
+python gtf_extract_transcript_data.py --gtf /path/to/Homo_sapiens.GRCh38.112.gtf.gz --genome /path/to/hg38.fa --out wanted_genes_out --gene-list wanted_genes.txt
+
+"""
+
 
 ###############################################################################
 

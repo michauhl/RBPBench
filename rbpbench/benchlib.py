@@ -15700,10 +15700,19 @@ def split_regions_by_sc(reg2sc_dic, top_n=False, bottom_n=False,
     If any of top_n, bottom_n or top_n + bottom_n > len(reg2sc_dic),
     split regions at midpoint.
 
-    rev_sort: 
+    rev_sort:
         If True, the regions are sorted in descending order of scores, 
         so higher scores means better regions.
 
+    >>> reg2sc_dic = {}
+    >>> reg2sc_dic["reg1"] = 0.1
+    >>> split_regions_by_sc(reg2sc_dic)
+    (['reg1'], ['reg1'])
+    >>> reg2sc_dic = {}
+    >>> reg2sc_dic["reg1"] = 0.1
+    >>> reg2sc_dic["reg2"] = 0.2
+    >>> split_regions_by_sc(reg2sc_dic)
+    (['reg2'], ['reg1'])
     >>> reg2sc_dic = {}
     >>> reg2sc_dic["reg1"] = 0.1
     >>> reg2sc_dic["reg2"] = 0.2
@@ -15757,8 +15766,14 @@ def split_regions_by_sc(reg2sc_dic, top_n=False, bottom_n=False,
     (['reg1', 'reg2', 'reg3', 'reg4', 'reg5'], ['reg6', 'reg7'])
     
     """
+    assert reg2sc_dic, "given reg2sc_dic empty"
 
     sorted_reg2sc = sorted(reg2sc_dic.items(), key=lambda item: item[1], reverse=rev_sort)
+    # if len(sorted_reg2sc) == 0:
+    #     return [], []
+    if len(sorted_reg2sc) == 1:
+        # print("WARNING: only got one input region, so top and bottom scoring region will be same ... ")
+        return [sorted_reg2sc[0][0]], [sorted_reg2sc[0][0]]
 
     midpoint = len(sorted_reg2sc) // 2
     top = []
@@ -16654,7 +16669,7 @@ evenly distributed over the dataset sequences, and thus should be more important
                 i += 1
         
         # Ratios ready?
-        if reg2kmer_rat_dic:
+        if reg2kmer_rat_dic and len(reg2seq_dic) > 1:  # PCA plot only if > 1 sequence.
 
             seqs_kmer_plot_plotly =  "seqs_kmer_plot.plotly.html"
             seqs_kmer_plot_plotly_out = plots_out_folder + "/" + seqs_kmer_plot_plotly

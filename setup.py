@@ -29,7 +29,8 @@ setup(
              'bin/bed_merge_ol_reg.py',
              'bin/get_genomic_conservation_scores.py',
              'bin/batch_get_common_dataset_gene_ids.py',
-             'bin/bed_extend_regions.py'
+             'bin/bed_extend_regions.py',
+             'bin/gtf_extract_transcript_data.py'
              ],
     packages=['rbpbench'],
     package_data={'rbpbench': ['content/*', 'content/motif_plots/*']},
