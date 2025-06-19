@@ -781,9 +781,9 @@ Inspecting the conservation score distribution plots in `test_con_smrna_region_e
 **Fig. 17:** Comparison of phastCons and phyloP conservation score distributions between input sites (mRNA region end positions) and control sites (mRNA region end positions shifted downstream by 50 nt).
 
 
-#### Searching for sponge transcript sequences
+#### Searching for sponge transcripts
 
-To search for sponge transcript sequences (i.e., transcripts that serve a sponges for RBPs or miRNAs), we can use `rbpbench sponge`. Sequences can be provided either as FASTA file, or else we can use the representative transcripts from each gene (GTF + genome FASTA file needed). For example, to look for annotated transcripts (>= 1000 nt) with high counts of the PUM2 consensus motif (Pumilio Response Element (PRE) of PUM2: UGUANAUA), we can run:
+To search for sponge transcripts (i.e., transcripts that serve a sponges for RBPs or miRNAs), we can use `rbpbench sponge`. Transcript sequences can be provided either as FASTA file, or else we can use the representative transcripts from each gene (GTF + genome FASTA file needed). For example, to look for annotated transcripts (>= 1000 nt) with high counts of the PUM2 consensus motif (Pumilio Response Element (PRE) of PUM2: UGUANAUA), we can run:
 
 ```
 rbpbench sponge --regex 'TGTA[ACGT]ATA' --out test_sponge_search_gtf_out --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz  --min-seq-len 1000
@@ -841,7 +841,7 @@ positional arguments:
     enmo                Check for enriched motifs in input sites
     nemo                Check for neighboring motifs in input sites
     con                 Compare conservation in genomic sites
-    sponge              Check for sponge sequences
+    sponge              Check for sponge transcripts
     streme              Discover motifs in input sites using STREME
     tomtom              Compare motif(s) with database using TOMOTM
     goa                 Run GO enrichment analysis on gene list

@@ -3088,11 +3088,11 @@ def setup_argument_parser():
                    help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to output folder. 3: include .js code in HTML (default: 1)")
 
     """
-    Check for sponge sequences. AALAMO
+    Check for sponge transcript sequences.
 
     """
     p_spn = subparsers.add_parser('sponge',
-                                help='Check for sponge sequences')
+                                help='Check for sponge transcripts')
     p_spn.set_defaults(which='sponge')
     # Add required arguments group.
     p_spnm = p_spn.add_argument_group("required arguments")
@@ -3102,7 +3102,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    required=True,
-                   help="Specify regular expression (regex) DNA motif for which to look for sponge transcript sequences, e.g. --regex AAACCC, --regex 'C[ACGT]AC[AC]', ..")
+                   help="Specify regular expression (regex) DNA motif for which to look for sponge transcripts, e.g. --regex AAACCC, --regex 'C[ACGT]AC[AC]', ..")
     p_spnm.add_argument("--out",
                    dest="out_folder",
                    type=str,
@@ -3115,7 +3115,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Input FASTA file with transcript sequences to check for --regex matches, to identifiy sponge sequences (i.e. sequences with high amounts of regex hits per kilo base (kb) length). Note that sequence IDs have to be unique. Also note that either --fasta or --gtf + --genome need to be supplied, in order to get transcript sequences for sponge testing")
+                   help = "Input FASTA file with transcript sequences to check for --regex matches, to identifiy sponge transcripts (i.e. sequences with high amounts of regex hits per kilo base (kb) length). Note that sequence IDs have to be unique. Also note that either --fasta or --gtf + --genome need to be supplied, in order to get transcript sequences for sponge testing")
     p_spn.add_argument("--gtf",
                    dest="in_gtf",
                    type=str,
