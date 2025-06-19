@@ -804,7 +804,7 @@ The top 10 transcripts ranked by hits per kilo base (kb) nt we get are the follo
 | ENST00000369489 | CD58 | 1086 | 3 | 2.7624 | protein_coding |
 | ENST00000565493 | NORAD | 5401 | 15 | 2.7773 | lncRNA |
 
-It is known that NORAD, a highly conserved cytoplasmic lncRNA, can sequester PUMILIO proteins (PUM1 and PUM2) and modulate the expression of their target genes ([Lee et al. 2016](https://doi.org/10.1016/j.cell.2015.12.017)). This shows that a simple and fast search approach like this can be used to identify potential sponge transcripts for any given (RBP) motif of interest, which can then be further investigated. Additional options are available, such as defining a minimum spacer length between regex hits (`--min-spacer-len`). Also note that regular expressions can describe complex binding patterns, including variable spacers, such as the IGF2BP3 binding motif 'GGC.{15,25}CA.{7,20}CA.{15,25}GGC.{2,8}[CA]{4}' described in [Schneider et al. 2019](https://doi.org/10.1038/s41467-019-09769-8).
+It is known that NORAD, a highly conserved cytoplasmic lncRNA, can sequester PUMILIO proteins (PUM1 and PUM2) and modulate the expression of their target genes ([Lee et al. 2016](https://doi.org/10.1016/j.cell.2015.12.017)). This shows that a simple and fast search approach like this can be used to identify potential sponge transcripts for any given (RBP) motif of interest, which can then be further investigated. Additional options are available, such as defining a minimum spacer length between regex hits (`--min-spacer-len`). Also note that regular expressions can describe complex binding patterns, including variable spacers, such as the IGF2BP3 binding motif `GGC.{15,25}CA.{7,20}CA.{15,25}GGC.{2,8}[CA]{4}` described in [Schneider et al. 2019](https://doi.org/10.1038/s41467-019-09769-8).
 
 
 ## Documentation
@@ -819,18 +819,16 @@ To get an overview of the currently available modes:
 ```
 $ rbpbench -h
 usage: rbpbench [-h] [-v]
-                {search,batch,compare,searchseq,searchregex,searchlong,searchrna,searchlongrna,enmo,nemo,streme,tomtom,goa,optex,dist,info}
+                {search,batch,compare,searchseq,searchregex,searchlong,searchrna,searchlongrna,enmo,nemo,con,sponge,streme,tomtom,goa,optex,dist,info}
                 ...
 
-Evaluate CLIP-seq and other genomic region data using a comprehensive
-collection of known RBP binding motifs (RNA sequence + structure). RBPBench
-can be used for a variety of purposes, from RBP motif search in genomic
-regions, over motif enrichment and co-occurrence analysis, to benchmarking
-CLIP-seq peak callers, as well as comparisons across cell types and CLIP-seq
-protocols.
+Evaluate CLIP-seq and other genomic region data using a comprehensive collection of known RBP binding motifs (RNA sequence + structure).
+RBPBench can be used for a variety of purposes, from RBP motif search in genomic regions, over motif enrichment and co-occurrence analysis,
+in-depth comparisons over multiple datasets via sequence and genomic annotation statistics, to benchmarking CLIP-seq peak callers, as well
+as comparisons across cell types and CLIP-seq protocols.
 
 positional arguments:
-  {search,batch,compare,searchseq,searchregex,searchlong,searchrna,searchlongrna,enmo,nemo,streme,tomtom,goa,optex,dist,info}
+  {search,batch,compare,searchseq,searchregex,searchlong,searchrna,searchlongrna,enmo,nemo,con,sponge,streme,tomtom,goa,optex,dist,info}
                         Program modes
     search              Search motifs in genomic sites
     batch               Search motifs on > 1 dataset
@@ -843,6 +841,7 @@ positional arguments:
     enmo                Check for enriched motifs in input sites
     nemo                Check for neighboring motifs in input sites
     con                 Compare conservation in genomic sites
+    sponge              Check for sponge sequences
     streme              Discover motifs in input sites using STREME
     tomtom              Compare motif(s) with database using TOMOTM
     goa                 Run GO enrichment analysis on gene list
@@ -914,6 +913,7 @@ translation regulation, and RNA stability & decay).
 
 ```rbpbench con``` be used to compare conservation scores in two sets of genomic sites. For example, 
 we can compare different sets of motif hit regions, or sets from different peak callers.
+```rbpbench sponge``` allows to search for sponge transcripts, i.e., transcripts that serve as sponges for RBPs or miRNAs.
 ```rbpbench streme``` allows to discover new motifs using STREME from MEME suite. 
 ```rbpbench goa``` enables us to run GO term enrichment analysis (GOA) on a set of genes, e.g. obtained 
 from the output tables of other modes (like genes covered by input regions from ```rbpbench search```
