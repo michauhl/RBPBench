@@ -2903,6 +2903,7 @@ def fasta_output_mrna_regions(tid2regl_dic, mrna_reg_id, fasta_dic, fasta_out,
 def sponge_search_regex_hits(seqs_dic, regex,
                              min_seq_len=False,
                              min_spacing=0,
+                             min_hit_count=0,
                              step_size_one=True,
                              tr2gid_dic=False,
                              tr2gn_dic=False,
@@ -2935,6 +2936,8 @@ def sponge_search_regex_hits(seqs_dic, regex,
         hits = hit_dic.get(seq_id, [])
         count = len(hits)
         length = len(seq)
+        if count < min_hit_count:
+            continue  # Skip sequences with hit count below minimum.
         norm_hits = (count / length) * 1000 if length > 0 else 0  # hits per 1000 nt.  AALAMO
         # norm_hits = round_to_n_significant_digits_v2(norm_hits, digits_round,
         #                                              min_val=0)

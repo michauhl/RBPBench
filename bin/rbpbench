@@ -3088,7 +3088,7 @@ def setup_argument_parser():
                    help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to output folder. 3: include .js code in HTML (default: 1)")
 
     """
-    Check for sponge transcript sequences.
+    Check for sponge transcript sequences. AALAMO
 
     """
     p_spn = subparsers.add_parser('sponge',
@@ -3145,6 +3145,12 @@ def setup_argument_parser():
                    metavar='int',
                    default=False,
                    help="Minimum sequence length required for input transcript sequences to be included in search (default: False)")
+    p_spn.add_argument("--min-hit-count",
+                   dest="min_hit_count",
+                   type=int,
+                   metavar='int',
+                   default=0,
+                   help="Minimum regex hit count for a transcript to be included in percentile calculation and output table (default: 0)")
     p_spn.add_argument("--chr-id-style",
                    dest="chr_id_style",
                    type=int,
@@ -21398,6 +21404,7 @@ def main_sponge(args):
         result_df = benchlib.sponge_search_regex_hits(tr_seqs_dic, args.regex,
                                                     min_seq_len=args.min_seq_len,
                                                     min_spacing=args.min_spacer_len,
+                                                    min_hit_count=args.min_hit_count,
                                                     step_size_one=args.allow_overlaps,
                                                     tr2gid_dic=tr2gid_dic,
                                                     tr2gn_dic=tr2gn_dic,
