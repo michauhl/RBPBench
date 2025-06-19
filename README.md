@@ -783,7 +783,7 @@ Inspecting the conservation score distribution plots in `test_con_smrna_region_e
 
 #### Searching for sponge transcripts
 
-To search for sponge transcripts (i.e., transcripts that serve a sponges for RBPs or miRNAs), we can use `rbpbench sponge`. Transcript sequences can be provided either as FASTA file, or else we can use the representative transcripts from each gene (GTF + genome FASTA file needed). For example, to look for annotated transcripts (>= 1000 nt) with high counts of the PUM2 consensus motif (Pumilio Response Element (PRE) of PUM2: UGUANAUA), we can run:
+To search for sponge transcripts (i.e., transcripts that serve a sponges for RBPs or miRNAs), we can use `rbpbench sponge`. Transcript sequences can be provided either as FASTA file, or else we can use the representative transcripts from all annotated genes (GTF + genome FASTA file needed). For example, to look for annotated transcripts (>= 1000 nt) with high counts of the PUM2 consensus motif (Pumilio Response Element (PRE) of PUM2: UGUANAUA), we can run:
 
 ```
 rbpbench sponge --regex 'TGTA[ACGT]ATA' --out test_sponge_search_gtf_out --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz  --min-seq-len 1000
