@@ -101,6 +101,9 @@ if __name__ == '__main__':
     out_exon_intron_bed = os.path.join(args.out_folder, "exon_intron_regions.bed")  # Exon regions of transcripts on genome.
     tr_seqs_fa = os.path.join(args.out_folder, "transcript_seqs.fa")  # Transcript sequences (spliced) in FASTA format.
     tr_seqs_len_out = os.path.join(args.out_folder, "transcript_seqs_len.txt")  # Transcript lengths.
+    utr5_seqs_fa = os.path.join(args.out_folder, "transcript_seqs.utr5.fa")  # 5'UTR sequences.
+    utr3_seqs_fa = os.path.join(args.out_folder, "transcript_seqs.utr3.fa")  # 3'UTR sequences.
+    cds_seqs_fa = os.path.join(args.out_folder, "transcript_seqs.cds.fa")  # CDS sequences.
 
     gene_ids_dic = False
     if args.gene_list:
@@ -210,7 +213,10 @@ if __name__ == '__main__':
                                             tr2gid_dic=tr2gid_dic,
                                             tr2gn_dic=tr2gn_dic,
                                             empty_check=False)
-    
+        
+        c_mrna_tids = len(tid2regl_dic)
+        print("# mRNA transcripts:", c_mrna_tids)
+
 
     """
     Output transcript sequences to FASTA file.
@@ -228,6 +234,8 @@ if __name__ == '__main__':
     benchlib.fasta_output_dic(tr_seqs_dic, tr_seqs_fa,
                               tr2gid_dic=tr2gid_dic,  # add gene ID to header.
                               tr2gn_dic=tr2gn_dic,  # add gene name to header.
+                              to_upper=True,  # convert sequences to upper case.
+                              split_size=60,  # split sequences into lines of 60 characters.
                               split=True)
 
     # Transcript sequence lengths.
@@ -240,6 +248,30 @@ if __name__ == '__main__':
     benchlib.output_tr_lengths(tr_seq_len_dic, tr_seqs_len_out,
                                tr2gid_dic=tr2gid_dic,  # add gene ID.
                                tr2gn_dic=tr2gn_dic)  # add gene name.
+
+    # Output mRNA regions.
+    print("Output 5'UTR, CDS and 3'UTR sequences to FASTA ... ")
+
+    benchlib.fasta_output_mrna_regions(tid2regl_dic, "utr5", tr_seqs_dic, utr5_seqs_fa,
+                                       split=True,
+                                       split_size=60,
+                                       to_upper=True,
+                                       tr2gid_dic=tr2gid_dic,
+                                       tr2gn_dic=tr2gn_dic)
+
+    benchlib.fasta_output_mrna_regions(tid2regl_dic, "cds", tr_seqs_dic, cds_seqs_fa,
+                                       split=True,
+                                       split_size=60,
+                                       to_upper=True,
+                                       tr2gid_dic=tr2gid_dic,
+                                       tr2gn_dic=tr2gn_dic)
+
+    benchlib.fasta_output_mrna_regions(tid2regl_dic, "utr3", tr_seqs_dic, utr3_seqs_fa,
+                                       split=True,
+                                       split_size=60,
+                                       to_upper=True,
+                                       tr2gid_dic=tr2gid_dic,
+                                       tr2gn_dic=tr2gn_dic)
 
 
     """
@@ -303,13 +335,12 @@ if __name__ == '__main__':
     OUTBED.close()
 
     print("Output FASTA file with transcript sequences:\n%s" %(tr_seqs_fa))
-
+    print("Output FASTA file with 5'UTR sequences:\n%s" %(utr5_seqs_fa))
+    print("Output FASTA file with CDS sequences:\n%s" %(cds_seqs_fa))
+    print("Output FASTA file with 3'UTR sequences:\n%s" %(utr3_seqs_fa))
     print("Output BED file with exon and intron regions:\n%s" %(out_exon_intron_bed))
-
     print("# transcript regions output to BED file:", c_out)
-
     print("Output BED file with transcript regions:\n%s" %(out_tr_bed))
-
     print("Output BED file with mRNA regions:\n%s" %(mrna_regions_bed))
 
     print("Done.")

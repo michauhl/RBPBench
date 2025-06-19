@@ -5093,7 +5093,7 @@ def main_search(args):
 
     """
     rbp2regidx_dic = {}
-    OUTOCC = open(rbp_reg_occ_table_out,"w")
+    OUTOCC = open(rbp_reg_occ_table_out, "w")
 
     occ_header = r"#region_id \ rbp_id"
     for rbp_id, hit_list in sorted(reg_hits_dic.items()):
@@ -5164,7 +5164,7 @@ def main_search(args):
 
     """
 
-    OUTSTATS = open(motif_stats_out,"w")
+    OUTSTATS = open(motif_stats_out, "w")
 
     motif_stats_header = "data_id\tmethod_id\trun_id\tmotif_db\tregion_id\trbp_id\tmotif_id\tchr_id\tgen_s\tgen_e\tstrand\tregion_s\tregion_e\tregion_len\t"
     motif_stats_header += "uniq_count\tfimo_score\tfimo_pval\tcms_score\tcms_eval\tmatched_seq\tinternal_id\n"

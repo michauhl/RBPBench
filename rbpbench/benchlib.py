@@ -1679,7 +1679,8 @@ def calc_tomtom_sim(seq_motifs_db_file, out_folder):
 
 def search_regex_in_seqs_dic(regex, seqs_dic,
                              step_size_one=False,
-                             case_sensitive=True):
+                             case_sensitive=True,
+                             min_spacing=0):
     """
     Get regex matches in sequences stored in seqs_dic.
     match.start : 0-based index of the start of the match
@@ -1706,7 +1707,13 @@ def search_regex_in_seqs_dic(regex, seqs_dic,
     >>> seqs_dic = {'seq1': 'AAAA', 'seq2': 'TTTT'}
     >>> search_regex_in_seqs_dic(regex, seqs_dic, step_size_one=True)
     {'seq1': [[0, 2, 'AA'], [1, 3, 'AA'], [2, 4, 'AA']]}
-
+    >>> regex = "ACGT"
+    >>> seqs_dic = {'seq1': 'ACGTACGTACGT'}
+    >>> search_regex_in_seqs_dic(regex, seqs_dic, step_size_one=True, min_spacing=4)
+    {'seq1': [[0, 4, 'ACGT'], [8, 12, 'ACGT']]}
+    >>> search_regex_in_seqs_dic(regex, seqs_dic, step_size_one=True, min_spacing=5)
+    {'seq1': [[0, 4, 'ACGT']]}
+    
     """
 
     if not is_valid_regex(regex):
@@ -1731,14 +1738,30 @@ def search_regex_in_seqs_dic(regex, seqs_dic,
                 print(f"{seq_c} sequences scanned ... ")
             
             seq_length = len(seq)
+            last_hit_end = -np.inf
+
             for i in range(seq_length):
                 for match in compiled_regex.finditer(seq[i:]):
+
                     if match.start() != 0:
                         break
+
+                    # Absolute positions in the sequence.
+                    start_abs = i + match.start()
+                    end_abs = i + match.end()
+
+                    # If min_spacing is set, check if the match meets the minimum spacing requirement.
+                    if min_spacing > 0:
+                        if start_abs >= last_hit_end + min_spacing:
+                            last_hit_end = end_abs  # Update minimum spacing boundary if valid hit found.
+                        else:
+                            # Skip this match if it does not meet the minimum spacing requirement between hits.
+                            continue
+
                     if seq_name not in hits_dic:
-                        hits_dic[seq_name] = [[i + match.start(), i + match.end(), match.group()]]
+                        hits_dic[seq_name] = [[start_abs, end_abs, match.group()]]
                     else:
-                        hits_dic[seq_name].append([i + match.start(), i + match.end(), match.group()])
+                        hits_dic[seq_name].append([start_abs, end_abs, match.group()])
 
     else:
 
@@ -2808,6 +2831,71 @@ def output_tr_lengths(tr_len_dic, len_out,
                 out_id = out_id + ";" + str(tr2gn_dic[tr_id])
         OUTLEN.write("%s\t%s\n" %(out_id, tr_len))
     OUTLEN.close()
+
+
+################################################################################
+
+def fasta_output_mrna_regions(tid2regl_dic, mrna_reg_id, fasta_dic, fasta_out,
+                              split=False,
+                              to_upper=False,
+                              tr2gid_dic=False,
+                              tr2gn_dic=False,
+                              split_size=60):
+    """
+    Output FASTA sequences of mRNA regions (utr5, cds, utr3) to fasta_out.
+    tid2regl_dic:
+        transcript ID to mRNA region lengths dictionary.
+        E.g. {'tr1': [100, 200, 300], 'tr2': [150, 250, 350]}
+    mrna_reg_id:
+        mRNA region ID to output. Valid labels: utr5, cds, utr3.
+
+    """
+
+    # Checks.
+    assert fasta_dic, "given dictionary fasta_dic empty"
+    valid_labels = ["utr5", "cds", "utr3"]
+    assert mrna_reg_id in valid_labels, "mrna_reg_id %s not in valid labels %s" %(mrna_reg_id, str(valid_labels))
+
+    # Write sequences to FASTA file.
+    OUTFA = open(fasta_out,"w")
+
+    for tid in tid2regl_dic:
+        if tid not in fasta_dic:
+            continue
+        seq = fasta_dic[tid]
+        if to_upper:
+            seq = seq.upper()
+        # Get mRNA region sequence.
+        if mrna_reg_id == "utr5":
+            seq = seq[:tid2regl_dic[tid][0]]
+        elif mrna_reg_id == "cds":
+            utr5_len = tid2regl_dic[tid][0]
+            cds_len = tid2regl_dic[tid][1]
+            seq = seq[utr5_len:utr5_len + cds_len]
+        elif mrna_reg_id == "utr3":
+            utr5_len = tid2regl_dic[tid][0]
+            cds_len = tid2regl_dic[tid][1]
+            utr3_len = tid2regl_dic[tid][2]
+            seq = seq[utr5_len + cds_len:utr5_len + cds_len + utr3_len]
+
+        out_id = tid
+
+        if tr2gid_dic:
+            if tid in tr2gid_dic:
+                out_id = out_id + "," + str(tr2gid_dic[tid])
+        if tr2gn_dic:
+            if tid in tr2gn_dic:
+                out_id = out_id + "," + str(tr2gn_dic[tid])
+        
+        out_id += "," + mrna_reg_id
+
+        if split:
+            OUTFA.write(">%s\n" %(out_id))
+            for i in range(0, len(seq), split_size):
+                OUTFA.write("%s\n" %((seq[i:i+split_size])))
+        else:
+            OUTFA.write(">%s\n%s\n" %(out_id, seq))
+    OUTFA.close()
 
 
 ################################################################################
