@@ -3088,6 +3088,72 @@ def setup_argument_parser():
                    help = "Define how to provide sorttable.js file. 1: link to packaged .js file. 2: copy .js file to output folder. 3: include .js code in HTML (default: 1)")
 
     """
+    Check for sponge sequences. AALAMO
+
+    """
+    p_spn = subparsers.add_parser('sponge',
+                                help='Check for sponge sequences')
+    p_spn.set_defaults(which='sponge')
+    # Add required arguments group.
+    p_spnm = p_spn.add_argument_group("required arguments")
+    # Required arguments for sponge.
+    p_spnm.add_argument("--regex",
+                   dest="regex",
+                   type=str,
+                   metavar='str',
+                   required=True,
+                   help="Specify regular expression (regex) DNA motif for which to look for sponge transcript sequences, e.g. --regex AAACCC, --regex 'C[ACGT]AC[AC]', ..")
+    p_spnm.add_argument("--out",
+                   dest="out_folder",
+                   type=str,
+                   metavar='str',
+                   required=True,
+                   help="Results output folder")
+    # Optional arguments for sponge.
+    p_spn.add_argument("--fasta",
+                   dest="in_fasta",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Input FASTA file with transcript sequences to check for --regex matches, to identifiy sponge sequences (i.e. sequences with high amounts of regex hits per kilo base (kb) length). Note that sequence IDs have to be unique. Also note that either --fasta or --gtf + --genome need to be supplied, in order to get transcript sequences for sponge testing")
+    p_spn.add_argument("--gtf",
+                   dest="in_gtf",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Input GTF file with genomic region annotations. Used to extract transcript sequences to check for sponge effects. Note that only features on standard chromosomes (1,2,..,X,Y,MT) are currently used for annotation")
+    p_spn.add_argument("--genome",
+                   dest="in_genome",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Genomic sequences file (currently supported formats: FASTA)")
+    p_spn.add_argument("--allow-overlaps",
+                   dest="allow_overlaps",
+                   default = False,
+                   action = "store_true",
+                   help = "Allow overlapping regex hits. By default, search continues +1 after regex hit end position (i.e., not overlapping) (default: False)")
+    p_spn.add_argument("--min-spacer-len",
+                   dest="min_spacer_len",
+                   type=int,
+                   metavar='int',
+                   default=0,
+                   help="Minimum spacer length between regex hits. By default 0, i.e., hits can also be adjacent. Note that setting --min-spacer to > 0 also sets --allow-overlaps (default: 0)")
+    p_spn.add_argument("--min-seq-len",
+                   dest="min_seq_len",
+                   type=int,
+                   metavar='int',
+                   default=False,
+                   help="Minimum sequence length required for input transcript sequences to be included in search (default: False)")
+    p_spn.add_argument("--chr-id-style",
+                   dest="chr_id_style",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Define to which chromosome ID style to convert chromosome IDs to. 1: do not change chromosome IDs. 2: convert to chr1,chr2,...,chrM style. 3: convert to 1,2,...,MT style (default: 1)")
+
+
+    """
     Run STREME on input sites for motif discovery.
     
     """
@@ -21149,6 +21215,241 @@ def main_con(args):
 
 ################################################################################
 
+def main_sponge(args):
+    """
+    Check for sponge transcript sequences given a regex.
+    AALAMO
+
+    """
+
+    print("Running SPONGE for you ... ")
+
+    parser = setup_argument_parser()
+    args = parser.parse_args()
+
+    # assert os.path.exists(args.in_fa), "--in \"%s\" not found" % (args.in_fa)
+    # assert benchlib.fasta_check_format(args.in_fa), "--in \"%s\" not in FASTA format" % (args.in_fa)
+
+    assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
+    assert args.in_genome or args.in_gtf or args.in_fasta, "Please provide either --genome, --gtf or --fasta file to extract transcript sequences for sponge testing"
+
+    if args.in_genome:
+        assert os.path.exists(args.in_genome), "--genome file \"%s\" not found" % (args.in_genome)
+        assert args.in_gtf, "set --genome requires --gtf file to extract transcript sequences"
+        assert not args.in_fasta, "set --genome collides with set --fasta file, since transcript sequences are extracted from --gtf and --genome if set. Please provide either --fasta or --gtf + --genome to supply transcript sequences for sponge testing"
+    if args.in_gtf:
+        assert os.path.exists(args.in_gtf), "--gtf file \"%s\" not found" % (args.in_gtf)
+        assert args.in_genome, "set --genome requires --gtf file to extract transcript sequences"
+        assert not args.in_fasta, "set --gtf collides with set --fasta file, since transcript sequences are extracted from --gtf and --genome if set. Please provide either --fasta or --gtf + --genome to supply transcript sequences for sponge testing"
+    if args.in_fasta:
+        assert os.path.exists(args.in_fasta), "--fasta file \"%s\" not found" % (args.in_fasta)
+        assert not args.in_gtf and not args.in_genome, "set --fasta collides with set --gtf / --genome, since transcript sequences are extracted from --fasta and not from --gtf / --genome. Please provide either --fasta or --gtf + --genome to define transcript sequences for sponge testing"
+
+    # Output files.
+    if not os.path.exists(args.out_folder):
+        os.makedirs(args.out_folder)
+    pecentile_ranks_out = os.path.join(args.out_folder, "sponge_transcripts_ranked.tsv")
+    hit_dist_plot_out = os.path.join(args.out_folder, "hit_distribution.png")
+    tr_seqs_fa = os.path.join(args.out_folder, "transcript_seqs.fa")  # Transcript sequences (spliced) in FASTA format.
+    settings_file = args.out_folder + "/settings.rbpbench_sponge.out"
+    # mrna_regions_bed = os.path.join(args.out_folder, "mrna_regions.bed")  # UTR CDS regions on mRNAs (transcript context).
+    # tr_seqs_len_out = os.path.join(args.out_folder, "transcript_seqs_len.txt")  # Transcript lengths.
+
+    tr2gid_dic = {}
+    tr2type_dic = {}  # transcript ID -> transcript biotype.
+    gn2type_dic = {}  # gene ID -> gene biotype.
+    tr2gn_dic = {}
+    tr_seqs_dic = {}
+    
+    if args.in_gtf and args.in_genome:
+
+        print("Extract transcript sequences from --gtf and --genome ... ")
+
+        print("Read in gene features from --gtf ... ")
+
+        gid2gio_dic = benchlib.gtf_read_in_gene_infos(args.in_gtf,
+                                                    tr2gid_dic=tr2gid_dic,
+                                                    chr_style=args.chr_id_style,
+                                                    empty_check=False)
+
+        assert gid2gio_dic, "no gene infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
+        c_gene_infos = len(gid2gio_dic)
+        print("# gene features read in from --gtf:", c_gene_infos)
+
+        # Get transcript ID -> gene name mapping.
+        for tr_id in tr2gid_dic:
+            gene_id = tr2gid_dic[tr_id]
+            gene_name = gid2gio_dic[gene_id].gene_name
+            gene_biotype = gid2gio_dic[gene_id].gene_biotype
+            tr2gn_dic[tr_id] = gene_name
+            gn2type_dic[gene_id] = gene_biotype
+
+        # Get most prominent transcripts from gene infos.
+        print("Select most prominent transcript (MPT) for each gene ... ")
+        tr_ids_dic = benchlib.select_mpts_from_gene_infos(gid2gio_dic,
+                                basic_tag=False,  # do not be strict (only_tsl=False too).
+                                ensembl_canonical_tag=False,
+                                prior_basic_tag=True,  # Prioritize basic tag transcript.
+                                only_tsl=False)
+        assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
+        print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
+
+        # Check exon order (return True if minus strand exon 1 is most downstream, not most upstream, which is the correct way).
+        print("Check minus-strand exon order in --gtf ... ")
+        correct_min_ex_order = benchlib.gtf_check_exon_order(args.in_gtf)
+        if correct_min_ex_order:
+            print("Correct order encountered ... ")
+        else:
+            print("Reverse order encountered ... ")
+
+        # Get transcript infos.
+        print("Read in transcript infos from --gtf ... ")
+        tid2tio_dic = benchlib.gtf_read_in_transcript_infos(args.in_gtf, 
+                                                            tr_ids_dic=tr_ids_dic,
+                                                            correct_min_ex_order=correct_min_ex_order,
+                                                            chr_style=args.chr_id_style,
+                                                            empty_check=False)
+
+        assert tid2tio_dic, "no transcript infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
+
+        # (in)sanity checks.
+        for tr_id in tr_ids_dic:
+            assert tr_id in tid2tio_dic, "transcript ID %s not in tid2tio_dic"
+        for tr_id in tid2tio_dic:
+            assert tr_id in tr_ids_dic, "transcript ID %s not in tr_ids_dic"
+            tr_biotype = tid2tio_dic[tr_id].tr_biotype
+            tr2type_dic[tr_id] = tr_biotype
+
+        c_tr_infos = len(tid2tio_dic)
+        print("# transcript features read in from --gtf:", c_tr_infos)
+
+        # # If --only-mrna, only select mRNAs, which also triggers mRNA region occupancy plots generation.
+        # tid2regl_dic = {}
+
+        # # Also extract mRNA regions to BED file, but do not restrict transcript IDs to mRNAs.
+        # print("Get mRNA region lengths ... ")
+        # tid2regl_dic = benchlib.get_mrna_region_lengths(tid2tio_dic)
+        # print("Output mRNA regions to BED ... ")
+        # benchlib.output_mrna_regions_to_bed(tid2regl_dic, mrna_regions_bed,
+        #                                     tr2gid_dic=tr2gid_dic,
+        #                                     tr2gn_dic=tr2gn_dic,
+        #                                     empty_check=False)
+        
+        # c_mrna_tids = len(tid2regl_dic)
+        # print("# mRNA transcripts:", c_mrna_tids)
+
+        """
+        Output transcript sequences to FASTA file.
+
+        """
+
+        # Get transcript sequences.
+        print("Extract transcript sequences ... ")
+        tr_seqs_dic = benchlib.get_transcript_sequences_from_gtf(tid2tio_dic, args.in_genome,
+                                                                 tr_ids_dic=tr_ids_dic,
+                                                                 tmp_out_folder=args.out_folder)
+
+        # Output sequences to FASTA.
+        print("Output transcript sequences to FASTA ... ")
+        benchlib.fasta_output_dic(tr_seqs_dic, tr_seqs_fa,
+                                tr2gid_dic=tr2gid_dic,  # add gene ID to header.
+                                tr2gn_dic=tr2gn_dic,  # add gene name to header.
+                                to_upper=True,  # convert sequences to upper case.
+                                split_size=60,  # split sequences into lines of 60 characters.
+                                split=True)
+
+        # # Transcript sequence lengths.
+        # tr_seq_len_dic = {}
+        # for tr_id in tr_seqs_dic:
+        #     tr_seq_len_dic[tr_id] = len(tr_seqs_dic[tr_id])
+
+        # # Output transcript lengths to tr_seqs_len_out.
+        # print("Output transcript lengths to file ... ")
+        # benchlib.output_tr_lengths(tr_seq_len_dic, tr_seqs_len_out,
+        #                         tr2gid_dic=tr2gid_dic,  # add gene ID.
+        #                         tr2gn_dic=tr2gn_dic)  # add gene name.
+
+    else:
+
+        """
+        if --fasta supplied:
+        Get transcript sequences for sponge search from FASTA file.
+
+        """
+        
+        tr_seqs_dic = benchlib.read_fasta_into_dic(args.in_fasta,
+                                            dna=True,
+                                            all_uc=True,
+                                            id_check=True,
+                                            empty_check=False,
+                                            skip_n_seqs=False)
+
+
+    """
+    Search for regex hits in transcript sequences.
+
+    """
+
+    if tr_seqs_dic:
+
+        if args.min_spacer_len > 0:
+            args.allow_overlaps = True
+
+        result_df = benchlib.sponge_search_regex_hits(tr_seqs_dic, args.regex,
+                                                    min_seq_len=args.min_seq_len,
+                                                    min_spacing=args.min_spacer_len,
+                                                    step_size_one=args.allow_overlaps,
+                                                    tr2gid_dic=tr2gid_dic,
+                                                    tr2gn_dic=tr2gn_dic,
+                                                    tr2type_dic=tr2type_dic,
+                                                    gn2type_dic=gn2type_dic)
+
+        total_entries = len(result_df)
+
+        # Print top hits.
+        if total_entries > 0:
+            print("")
+            print("Top 10 sequences with highest # motif hits per kb:")
+            print(result_df[["transcript_id", "gene_name", "hit_count", "transcript_length", "hits_per_kb", "percentile_rank"]].head(10))
+            print("")
+
+        zero_hits = (result_df["hits_per_kb"] == 0).sum()
+        hit_entries = total_entries - zero_hits
+        perc_hits = (hit_entries / total_entries) * 100.0 if total_entries > 0 else 0.0
+        perc_zero_hits = (zero_hits / total_entries) * 100.0 if total_entries > 0 else 0.0
+        print("# sequences for regex search: %i" % (total_entries))
+        print("# sequences with hits:        %i (%.2f%%)" % (hit_entries, perc_hits))
+        print("# sequences with zero hits:   %i (%.2f%%)" % (zero_hits, perc_zero_hits))
+
+        result_df.to_csv(pecentile_ranks_out, sep='\t', index=False)
+        benchlib.plot_hit_distribution(result_df, save_path=hit_dist_plot_out)
+
+    else:
+        print("WARNING: No transcript sequences available for regex search! Please provide valid --fasta or --gtf + --genome files")
+
+    """
+    Output parameter settings.
+
+    """
+
+    # Output mode settings.
+    print("Output parameter settings ... ")
+    SETOUT = open(settings_file, "w")
+    for arg in vars(args):
+        SETOUT.write("%s\t%s\n" %(arg, str(getattr(args, arg))))
+    SETOUT.close()
+
+    print("")
+    print("OUTPUT FILES")
+    print("============")
+    print("")
+    print("Hit distribution .png:\n%s" %(hit_dist_plot_out))
+    print("Transcript sequences ranked by hits per kb .tsv:\n%s" %(pecentile_ranks_out))
+    print("")
+
+
+################################################################################
+
 def main_streme(args):
     """
     Run MEME suite STREME to identify motifs in input sites.
@@ -23161,6 +23462,8 @@ if __name__ == '__main__':
         main_nemo(args)
     elif args.which == 'con':
         main_con(args)
+    elif args.which == 'sponge':
+        main_sponge(args)
     elif args.which == 'streme':
         main_streme(args)
     elif args.which == 'tomtom':

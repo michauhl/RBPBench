@@ -2900,6 +2900,99 @@ def fasta_output_mrna_regions(tid2regl_dic, mrna_reg_id, fasta_dic, fasta_out,
 
 ################################################################################
 
+def sponge_search_regex_hits(seqs_dic, regex,
+                             min_seq_len=False,
+                             min_spacing=0,
+                             step_size_one=True,
+                             tr2gid_dic=False,
+                             tr2gn_dic=False,
+                             gn2type_dic=False,
+                             tr2type_dic=False,
+                             digits_round=4):
+    """
+    Search for regex hits in sequences dictionary seqs_dic.
+    
+    """
+
+    assert seqs_dic, "given dictionary seqs_dic empty"
+
+    # Optionally filter sequences by minimum length.
+    if min_seq_len:
+        # Filter sequences by minimum length.
+        seqs_dic = {seq_id: seq for seq_id, seq in seqs_dic.items() if len(seq) >= min_seq_len}
+        if not seqs_dic:
+            raise ValueError(f"No sequences found with length >= {min_seq_len} in seqs_dic")
+
+    # Regex search in sequences.
+    hit_dic = search_regex_in_seqs_dic(regex, seqs_dic,
+                                       step_size_one=step_size_one,
+                                       min_spacing=min_spacing,
+                                       case_sensitive=True)  # {seq_id: [[start, end, match], ...]}
+
+    # Compute hit stats.
+    data = []
+    for seq_id, seq in seqs_dic.items():
+        hits = hit_dic.get(seq_id, [])
+        count = len(hits)
+        length = len(seq)
+        norm_hits = (count / length) * 1000 if length > 0 else 0  # hits per 1000 nt.  AALAMO
+        # norm_hits = round_to_n_significant_digits_v2(norm_hits, digits_round,
+        #                                              min_val=0)
+        norm_hits = round(norm_hits, digits_round)
+        # gene_id = "-"
+        # gene_name = "-"
+        # gene_biotype = "-"
+        # transcript_biotype = "-"
+        data.append((seq_id, count, length, norm_hits))
+
+    df = pd.DataFrame(data, columns=["transcript_id", "hit_count", "transcript_length", "hits_per_kb"])
+
+    # Compute percentile rank (non-parametric).
+    df["percentile_rank"] = df["hits_per_kb"].rank(pct=True).round(digits_round)
+
+    df["gene_id"] = df["transcript_id"].map(tr2gid_dic).fillna("-")
+    df["gene_name"] = df["transcript_id"].map(tr2gn_dic).fillna("-")
+    df["transcript_biotype"] = df["transcript_id"].map(tr2type_dic).fillna("-")
+    df["gene_biotype"] = df["gene_id"].map(gn2type_dic).fillna("-")
+
+    # Sort descending by percentile
+    df_sorted = df.sort_values(by="percentile_rank", ascending=False).reset_index(drop=True)
+
+    return df_sorted
+
+
+################################################################################
+
+def plot_hit_distribution(df, save_path="hit_distribution.png"):
+    """
+    Make a histogram plot of regex hits per kb across transcripts.
+    
+    """
+    values = df["hits_per_kb"].dropna().values
+
+    plt.figure(figsize=(10, 6))
+
+    # Plot histogram (absolute counts)
+    plt.hist(
+        values,
+        bins=50,
+        color='skyblue',
+        edgecolor='black',
+        alpha=0.7
+    )
+
+    # Labels and styling
+    plt.title("Histogram Plot of Regex Hits per kb Across Transcripts")
+    plt.xlabel("Regex Hits per 1000 nt")
+    plt.ylabel("Number of Transcripts")
+    plt.grid(True, linestyle="--", alpha=0.5)
+    plt.tight_layout()
+    plt.savefig(save_path)
+    # plt.show()
+
+
+################################################################################
+
 def fasta_output_dic(fasta_dic, fasta_out,
                      split=False,
                      out_ids_dic=False,

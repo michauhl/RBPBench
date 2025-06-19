@@ -781,6 +781,30 @@ Inspecting the conservation score distribution plots in `test_con_smrna_region_e
 **Fig. 17:** Comparison of phastCons and phyloP conservation score distributions between input sites (mRNA region end positions) and control sites (mRNA region end positions shifted downstream by 50 nt).
 
 
+#### Searching for sponge transcript sequences
+
+To search for sponge transcript sequences (i.e., transcripts that serve a sponges for RBPs or miRNAs), we can use `rbpbench sponge`. Sequences can be provided either as FASTA file, or else we can use the representative transcripts from each gene (GTF + genome FASTA file needed). For example, to look for annotated transcripts (>= 1000 nt) with high counts of the PUM2 consensus motif (Pumilio Response Element (PRE) of PUM2: UGUANAUA), we can run:
+
+```
+rbpbench sponge --regex 'TGTA[ACGT]ATA' --out test_sponge_search_gtf_out --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz  --min-seq-len 1000
+```
+
+The top 10 transcripts ranked by hits per kilo base (kb) nt we get are the following:
+
+| Transcript ID | Gene Name | Transcript Length | Hit Count | Hits per kb | Transcript Biotype |
+|:--------------:|:--------------:|:--------------:|:--------------:|:--------------:|:--------------:|
+| ENST00000572876 | - | 1514 | 6 | 3.9630 | lncRNA |
+| ENST00000661959 | - | 4683 | 24 | 5.1249 | lncRNA |
+| ENST00000586020 | - | 1803 | 7 | 3.8824 | nonsense_mediated_decay |
+| ENST00000651116 | - | 1287 | 4 | 3.1080 | lncRNA |
+| ENST00000669865 | - | 2811 | 9 | 3.2017 | lncRNA |
+| ENST00000374865 | MRPL50 | 3336 | 10 | 2.9976 | protein_coding |
+| ENST00000690469 | - | 1390 | 4 | 2.8777 | lncRNA |
+| ENST00000641352 | - | 4068 | 12 | 2.9499 | lncRNA |
+| ENST00000369489 | CD58 | 1086 | 3 | 2.7624 | protein_coding |
+| ENST00000565493 | NORAD | 5401 | 15 | 2.7773 | lncRNA |
+
+It is known that NORAD, a highly conserved cytoplasmic lncRNA, can sequester PUMILIO proteins (PUM1 and PUM2) and modulate the expression of their target genes ([Lee et al. 2016](https://doi.org/10.1016/j.cell.2015.12.017)). This shows that a simple and fast search approach like this can be used to identify potential sponge transcripts for any given (RBP) motif of interest, which can then be further investigated. Additional options are available, such as defining a minimum spacer length between regex hits (`--min-spacer-len`). Also note that regular expressions can describe complex binding patterns, including variable spacers, such as the IGF2BP3 binding motif 'GGC.{15,25}CA.{7,20}CA.{15,25}GGC.{2,8}[CA]{4}' described in [Schneider et al. 2019](https://doi.org/10.1038/s41467-019-09769-8).
 
 
 ## Documentation
