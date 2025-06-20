@@ -783,7 +783,7 @@ Inspecting the conservation score distribution plots in `test_con_smrna_region_e
 
 #### Searching for sponge transcripts
 
-To search for sponge transcripts (i.e., transcripts that serve a sponges for RBPs or miRNAs), we can use `rbpbench sponge`. Transcript sequences can be provided either as FASTA file, or else we can use the representative transcripts from all annotated genes (GTF + genome FASTA file needed). For example, to look for annotated transcripts (>= 1000 nt) with high counts of the PUM2 consensus motif (Pumilio Response Element (PRE) of PUM2: UGUANAUA), we can run:
+To search for sponge transcripts (i.e., transcripts that serve a sponges for RBPs or miRNAs by harboring larger numbers of potential binding sites), we can use `rbpbench sponge`. Transcript sequences can be provided either as FASTA file, or else we can use the representative transcripts from all annotated genes (GTF + genome FASTA file needed). For example, to look for annotated transcripts (>= 1000 nt) with high match counts of the PUM2 consensus motif (Pumilio Response Element (PRE) of PUM2: UGUANAUA), we can run:
 
 ```
 rbpbench sponge --regex 'TGTA[ACGT]ATA' --out test_sponge_search_gtf_out --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz  --min-seq-len 1000
@@ -804,7 +804,7 @@ The top 10 transcripts ranked by hits per kilo base (kb) nt we get are the follo
 | ENST00000369489 | CD58 | 1086 | 3 | 2.7624 | protein_coding |
 | ENST00000565493 | NORAD | 5401 | 15 | 2.7773 | lncRNA |
 
-It is known that NORAD, a highly conserved cytoplasmic lncRNA, can sequester PUMILIO proteins (PUM1 and PUM2) and modulate the expression of their target genes ([Lee et al. 2016](https://doi.org/10.1016/j.cell.2015.12.017)). This shows that a simple and fast search approach like this can be used to identify potential sponge transcripts for any given (RBP) motif of interest, which can then be further investigated. Additional options are available, such as defining a minimum spacer length between regex hits (`--min-spacer-len`), or a minimum regex hit count per transcript (`--min-hit-count`) for transcripts to be included in the output table. Also note that regular expressions can describe complex binding patterns, including variable length spacers, such as the IGF2BP3 binding motif `GGC.{15,25}CA.{7,20}CA.{15,25}GGC.{2,8}[CA]{4}` described in [Schneider et al. 2019](https://doi.org/10.1038/s41467-019-09769-8).
+It is known that NORAD, a highly conserved cytoplasmic lncRNA, can sequester PUMILIO proteins (PUM1 and PUM2) and modulate the expression of their target genes ([Lee et al. 2016](https://doi.org/10.1016/j.cell.2015.12.017)). This shows that a simple and fast search approach like this can be used to identify potential sponge transcripts for any given (RBP) motif of interest, which can then be further investigated. Additional options are available, such as defining a minimum spacer length between regex hits (`--min-spacer-len`), or a minimum regex hit count per transcript (`--min-hit-count`) for transcripts to be included in the output table. Moreover, if GTF annotated transcripts are used, specific subsets can be selected for search via `--select-mode` (all, only mRNAs, only 3'UTRs). Also note that regular expressions can describe complex binding patterns, including variable length spacers, such as the IGF2BP3 binding motif `GGC.{15,25}CA.{7,20}CA.{15,25}GGC.{2,8}[CA]{4}` described in [Schneider et al. 2019](https://doi.org/10.1038/s41467-019-09769-8).
 
 
 ## Documentation

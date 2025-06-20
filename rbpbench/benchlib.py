@@ -2840,6 +2840,9 @@ def fasta_output_mrna_regions(tid2regl_dic, mrna_reg_id, fasta_dic, fasta_out,
                               to_upper=False,
                               tr2gid_dic=False,
                               tr2gn_dic=False,
+                              utr5_label="5'UTR",
+                              cds_label="CDS",
+                              utr3_label="3'UTR",
                               split_size=60):
     """
     Output FASTA sequences of mRNA regions (utr5, cds, utr3) to fasta_out.
@@ -2862,32 +2865,34 @@ def fasta_output_mrna_regions(tid2regl_dic, mrna_reg_id, fasta_dic, fasta_out,
     for tid in tid2regl_dic:
         if tid not in fasta_dic:
             continue
-        seq = fasta_dic[tid]
-        if to_upper:
-            seq = seq.upper()
-        # Get mRNA region sequence.
-        if mrna_reg_id == "utr5":
-            seq = seq[:tid2regl_dic[tid][0]]
-        elif mrna_reg_id == "cds":
-            utr5_len = tid2regl_dic[tid][0]
-            cds_len = tid2regl_dic[tid][1]
-            seq = seq[utr5_len:utr5_len + cds_len]
-        elif mrna_reg_id == "utr3":
-            utr5_len = tid2regl_dic[tid][0]
-            cds_len = tid2regl_dic[tid][1]
-            utr3_len = tid2regl_dic[tid][2]
-            seq = seq[utr5_len + cds_len:utr5_len + cds_len + utr3_len]
 
+        # Add additional infos (gene_id, gene_name) to header.
         out_id = tid
-
         if tr2gid_dic:
             if tid in tr2gid_dic:
                 out_id = out_id + "," + str(tr2gid_dic[tid])
         if tr2gn_dic:
             if tid in tr2gn_dic:
                 out_id = out_id + "," + str(tr2gn_dic[tid])
-        
-        out_id += "," + mrna_reg_id
+
+        seq = fasta_dic[tid]
+        if to_upper:
+            seq = seq.upper()
+        # Get mRNA region sequence.
+        if mrna_reg_id == "utr5":
+            seq = seq[:tid2regl_dic[tid][0]]
+            out_id += "," + utr5_label
+        elif mrna_reg_id == "cds":
+            utr5_len = tid2regl_dic[tid][0]
+            cds_len = tid2regl_dic[tid][1]
+            seq = seq[utr5_len:utr5_len + cds_len]
+            out_id += "," + cds_label
+        elif mrna_reg_id == "utr3":
+            utr5_len = tid2regl_dic[tid][0]
+            cds_len = tid2regl_dic[tid][1]
+            utr3_len = tid2regl_dic[tid][2]
+            seq = seq[utr5_len + cds_len:utr5_len + cds_len + utr3_len]
+            out_id += "," + utr3_label
 
         if split:
             OUTFA.write(">%s\n" %(out_id))
@@ -2900,15 +2905,159 @@ def fasta_output_mrna_regions(tid2regl_dic, mrna_reg_id, fasta_dic, fasta_out,
 
 ################################################################################
 
+def get_mrna_region_seqs_from_dic(tr_seqs_dic, tid2regl_dic,
+                                  mrna_reg_id="utr3"):
+    """
+    Get mRNA region sequences from sequences dictionary tr_seqs_dic, i.e., overwrite
+    tr_seqs_dic with only utr5, cds or utr3 sequences, depending on mrna_reg_id.
+
+    tr_seqs_dic:
+        Dictionary with transcript IDs as keys and sequences as values.
+    tid2regl_dic:
+        Dictionary with transcript IDs as keys and mRNA region lengths as values.
+        E.g. {'tr1': [100, 200, 300].
+
+    >>> tr_seqs_dic = {'tr1': 'AAAACCCCGGGGTTTT', 'tr2': 'GGGGAATTTTCCCC'}
+    >>> tid2regl_dic = {'tr1': [4, 8, 4]}
+    >>> get_mrna_region_seqs_from_dic(tr_seqs_dic, tid2regl_dic, mrna_reg_id="utr3")
+    {'tr1': 'TTTT'}
+    >>> get_mrna_region_seqs_from_dic(tr_seqs_dic, tid2regl_dic, mrna_reg_id="cds")
+    {'tr1': 'CCCCGGGG'}
+    >>> get_mrna_region_seqs_from_dic(tr_seqs_dic, tid2regl_dic, mrna_reg_id="utr5")
+    {'tr1': 'AAAA'}
+
+    """
+
+    assert tr_seqs_dic, "given dictionary tr_seqs_dic empty"
+    assert tid2regl_dic, "given dictionary tid2regl_dic empty"
+    valid_labels = ["utr5", "cds", "utr3"]
+    assert mrna_reg_id in valid_labels, "mrna_reg_id %s not in valid labels %s" %(mrna_reg_id, str(valid_labels))
+
+    reg_seqs_dic = {}
+
+    for tid in tr_seqs_dic:
+
+        if tid not in tid2regl_dic:
+            continue
+
+        seq = tr_seqs_dic[tid]
+
+        # Get mRNA region sequence.
+        seq = get_mrna_region_seq(seq, tid2regl_dic[tid][0], tid2regl_dic[tid][1], tid2regl_dic[tid][2],
+                                  mrna_reg_id=mrna_reg_id)
+
+        # Store mRNA region sequence in new dictionary.
+        reg_seqs_dic[tid] = seq
+
+    return reg_seqs_dic
+
+
+################################################################################
+
+def get_mrna_region_seq(seq, utr5_len, cds_len, utr3_len,
+                        mrna_reg_id="utr3"):
+    """
+    Get mRNA region sequence from transcript sequence seq, depending on
+    mrna_reg_id.
+
+    >>> seq = "AAAACCCCGGGGTTTT"
+    >>> utr5_len = 4
+    >>> cds_len = 8
+    >>> utr3_len = 4
+    >>> get_mrna_region_seq(seq, utr5_len, cds_len, utr3_len, mrna_reg_id="utr3")
+    'TTTT'
+    >>> get_mrna_region_seq(seq, utr5_len, cds_len, utr3_len, mrna_reg_id="cds")
+    'CCCCGGGG'
+    >>> get_mrna_region_seq(seq, utr5_len, cds_len, utr3_len, mrna_reg_id="utr5")
+    'AAAA'
+
+    """
+    valid_labels = ["utr5", "cds", "utr3"]
+    assert mrna_reg_id in valid_labels, "mrna_reg_id %s not in valid labels %s" %(mrna_reg_id, str(valid_labels))
+
+    if mrna_reg_id == "utr5":
+        seq = seq[:utr5_len]
+    elif mrna_reg_id == "cds":
+        seq = seq[utr5_len:utr5_len + cds_len]
+    elif mrna_reg_id == "utr3":
+        seq = seq[utr5_len + cds_len:utr5_len + cds_len + utr3_len]
+
+    return seq
+
+
+################################################################################
+
+def classify_mrna_site_region(site_start, site_end, utr5_len, cds_len, utr3_len,
+                              utr5_label="5'UTR", 
+                              cds_label="CDS", 
+                              utr3_label="3'UTR"):
+    """
+    Returns the mRNA region (5'UTR, CDS, or 3'UTR) with which a given site on the mRNA 
+    overlaps the most.
+
+    site_start:
+        Start coordinate of the site (0-based, BED style).
+    site_end:
+        End coordinate of the site (1-based, BED style).
+    utr5_len:
+        Length of the 5'UTR region.
+    cds_len:
+        Length of the CDS region.
+    utr3_len:
+        Length of the 3'UTR region.
+
+    >>> site_start = 80
+    >>> site_end = 110
+    >>> utr5_len = 100
+    >>> cds_len = 200
+    >>> utr3_len = 100
+    >>> classify_mrna_site_region(site_start, site_end, utr5_len, cds_len, utr3_len)
+    "5'UTR"
+    >>> site_start = 280
+    >>> site_end = 310
+    >>> classify_mrna_site_region(site_start, site_end, utr5_len, cds_len, utr3_len)
+    'CDS'
+    >>> site_start = 350
+    >>> site_end = 450
+    >>> classify_mrna_site_region(site_start, site_end, utr5_len, cds_len, utr3_len)
+    "3'UTR"
+
+    """
+
+    # Define region boundaries.
+    cds_start = utr5_len
+    cds_end = utr5_len + cds_len
+    utr3_start = cds_end
+    utr3_end = cds_end + utr3_len
+
+    def overlap(a_start, a_end, b_start, b_end):
+        """Compute the overlap between two intervals [a_start, a_end) and [b_start, b_end)."""
+        return max(0, min(a_end, b_end) - max(a_start, b_start))
+
+    overlaps = {
+        utr5_label : overlap(site_start, site_end, 0, utr5_len),
+        cds_label : overlap(site_start, site_end, cds_start, cds_end),
+        utr3_label : overlap(site_start, site_end, utr3_start, utr3_end)
+    }
+
+    # Return the region with maximum overlap.
+    return max(overlaps, key=overlaps.get)
+
+
+################################################################################
+
 def sponge_search_regex_hits(seqs_dic, regex,
                              min_seq_len=False,
                              min_spacing=0,
                              min_hit_count=0,
                              step_size_one=True,
-                             tr2gid_dic=False,
-                             tr2gn_dic=False,
-                             gn2type_dic=False,
-                             tr2type_dic=False,
+                             tr2gid_dic=None,
+                             tr2gn_dic=None,
+                             tr2reg_dic=None,
+                             gn2type_dic=None,
+                             tr2type_dic=None,
+                             tid2regl_dic=None,
+                             hits_bed_out=False,
                              digits_round=4):
     """
     Search for regex hits in sequences dictionary seqs_dic.
@@ -2930,6 +3079,33 @@ def sponge_search_regex_hits(seqs_dic, regex,
                                        min_spacing=min_spacing,
                                        case_sensitive=True)  # {seq_id: [[start, end, match], ...]}
 
+    # Output regex hits to BED file if specified.
+    if hits_bed_out:
+
+        print("Output regex hits to BED ... ")
+
+        HITOUT = open(hits_bed_out, "w")
+        for seq_id in hit_dic:
+            for hit in hit_dic[seq_id]:
+                start, end, match = hit  # 0-based start, 1-based end, match string.
+                hit_id = "%s:%i-%i(+)" % (seq_id, start, end)
+                mrna_region = "-"
+                tr_id = seq_id
+                if tr2reg_dic:  # If sequence already is an mRNA region (3'UTR, CDS, 5'UTR).
+                    if seq_id in tr2reg_dic:  # If on mRNA sequence.
+                        tr_id = seq_id + "," + tr2reg_dic[seq_id]
+                        mrna_region = tr2reg_dic[seq_id]
+                else:
+                    if tid2regl_dic is not None:
+                        if seq_id in tid2regl_dic:  # If on mRNA sequence.
+                            utr5_len = tid2regl_dic[seq_id][0]
+                            cds_len = tid2regl_dic[seq_id][1]
+                            utr3_len = tid2regl_dic[seq_id][2]
+                            mrna_region = classify_mrna_site_region(start, end, utr5_len, cds_len, utr3_len)
+
+                HITOUT.write("%s\t%i\t%i\t%s\t0\t+\t-1.0\t-1.0\t-1.0\t-1.0\t%s\t%s\n" % (tr_id, start, end, hit_id, mrna_region, match))
+        HITOUT.close()
+
     # Compute hit stats.
     data = []
     for seq_id, seq in seqs_dic.items():
@@ -2946,17 +3122,27 @@ def sponge_search_regex_hits(seqs_dic, regex,
         # gene_name = "-"
         # gene_biotype = "-"
         # transcript_biotype = "-"
-        data.append((seq_id, count, length, norm_hits))
+        data.append((seq_id, length, count, norm_hits))
 
-    df = pd.DataFrame(data, columns=["transcript_id", "hit_count", "transcript_length", "hits_per_kb"])
+    df = pd.DataFrame(data, columns=["transcript_id", "transcript_length", "hit_count", "hits_per_kb"])
+
+    if tr2gn_dic is not None:
+        df["gene_name"] = df["transcript_id"].map(tr2gn_dic).fillna("-")
+        new_order = ["transcript_id", "gene_name", "transcript_length", "hit_count", "hits_per_kb"]
+        df = df[new_order]
 
     # Compute percentile rank (non-parametric).
     df["percentile_rank"] = df["hits_per_kb"].rank(pct=True).round(digits_round)
 
-    df["gene_id"] = df["transcript_id"].map(tr2gid_dic).fillna("-")
-    df["gene_name"] = df["transcript_id"].map(tr2gn_dic).fillna("-")
-    df["transcript_biotype"] = df["transcript_id"].map(tr2type_dic).fillna("-")
-    df["gene_biotype"] = df["gene_id"].map(gn2type_dic).fillna("-")
+    # Only add if mRNA region labels are provided.
+    if tr2reg_dic:
+        df["mRNA_region"] = df["transcript_id"].map(tr2reg_dic).fillna("-")
+    if tr2type_dic is not None:
+        df["transcript_biotype"] = df["transcript_id"].map(tr2type_dic).fillna("-")
+    if tr2gid_dic is not None:
+        df["gene_id"] = df["transcript_id"].map(tr2gid_dic).fillna("-")
+    if gn2type_dic is not None:
+        df["gene_biotype"] = df["gene_id"].map(gn2type_dic).fillna("-")
 
     # Sort descending by percentile
     df_sorted = df.sort_values(by="percentile_rank", ascending=False).reset_index(drop=True)
@@ -3003,6 +3189,7 @@ def fasta_output_dic(fasta_dic, fasta_out,
                      to_upper=False,
                      tr2gid_dic=False,
                      tr2gn_dic=False,
+                     tr2reg_dic=False,
                      split_size=60):
     """
     Output FASTA sequences dictionary (sequence_id -> sequence) to fasta_out.
@@ -3043,6 +3230,11 @@ def fasta_output_dic(fasta_dic, fasta_out,
         if tr2gn_dic:
             if seq_id in tr2gn_dic:
                 out_id = out_id + "," + str(tr2gn_dic[seq_id])
+        if tr2reg_dic:
+            if seq_id in tr2reg_dic:
+                region_id = tr2reg_dic[seq_id]
+                if region_id != "Full":  # Only add label if mRNA parts are used.
+                    out_id = out_id + "," + region_id
         if split:
             OUTFA.write(">%s\n" %(out_id))
             for i in range(0, len(seq), split_size):
@@ -4858,10 +5050,61 @@ chr1	HAVANA	exon	11869	12227	.	+	.	gene_id "ENSG00000290825.1"; transcript_id "E
             self.tr_tsls = tr_tsls
 
 
+
+################################################################################
+
+class GeneIsoComp:
+    """
+    Stores gene infos for isoform comparison.
+
+    """
+
+    def __init__(self,
+                 gene_id: str,
+                 gene_name: str,
+                 gene_biotype: str,
+                 tr_ids=None,
+                 tr_biotypes=None,
+                 tr_lengths=None,
+                 tr_regions=None,  # for each transcript can be: "5'UTR", "CDS", "3'UTR", "Full" (Full can be both ncRNA and mRNA).
+                 tr_hit_counts=None,
+                 tr_hit_counts_kb=None) -> None:
+        self.gene_id = gene_id
+        self.gene_name = gene_name
+        self.gene_biotype = gene_biotype
+        if tr_ids is None:
+            self.tr_ids = []
+        else:
+            self.tr_ids = tr_ids
+        if tr_biotypes is None:
+            self.tr_biotypes = []
+        else:
+            self.tr_biotypes = tr_biotypes
+        if tr_lengths is None:
+            self.tr_lengths = []
+        else:
+            self.tr_lengths = tr_lengths
+        if tr_regions is None:
+            self.tr_regions = []
+        else:
+            self.tr_regions = tr_regions
+        if tr_hit_counts is None:
+            self.tr_hit_counts = []
+        else:
+            self.tr_hit_counts = tr_hit_counts
+        if tr_hit_counts_kb is None:
+            self.tr_hit_counts_kb = []
+        else:
+            self.tr_hit_counts_kb = tr_hit_counts_kb
+
+
 ################################################################################
 
 def get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e, 
-                         strand="+"):
+                         strand="+",
+                         utr5_label="5'UTR",
+                         cds_label="CDS",
+                         utr3_label="3'UTR"):
     """
     Based on CDS and exon coordinates, get CDS, 5'UTR, and 3'UTR parts of 
     the exon (coordinates).
@@ -4941,25 +5184,25 @@ def get_cds_exon_overlap(cds_s, cds_e, exon_s, exon_e,
             non_overlap2 = no1
 
         if non_overlap1 and non_overlap2:
-            return (overlap_start, overlap_stop), non_overlap1, non_overlap2, "CDS", "5'UTR", "3'UTR"
+            return (overlap_start, overlap_stop), non_overlap1, non_overlap2, cds_label, utr5_label, utr3_label
         elif non_overlap1 and not non_overlap2:
-            return (overlap_start, overlap_stop), non_overlap1, non_overlap2, "CDS", "5'UTR", False
+            return (overlap_start, overlap_stop), non_overlap1, non_overlap2, cds_label, utr5_label, False
         elif not non_overlap1 and non_overlap2:
-            return (overlap_start, overlap_stop), non_overlap1, non_overlap2, "CDS", False, "3'UTR"
+            return (overlap_start, overlap_stop), non_overlap1, non_overlap2, cds_label, False, utr3_label
         else:
-            return (overlap_start, overlap_stop), non_overlap1, non_overlap2, "CDS", False, False
+            return (overlap_start, overlap_stop), non_overlap1, non_overlap2, cds_label, False, False
 
     else:  # If no CDS-exon overlap.
         if cds_e <= exon_s:
             if strand == "+":
-                return False, False, (exon_s, exon_e), False, False, "3'UTR"
+                return False, False, (exon_s, exon_e), False, False, utr3_label
             else:
-                return False, (exon_s, exon_e), False, False, "5'UTR", False
+                return False, (exon_s, exon_e), False, False, utr5_label, False
         else:
             if strand == "+":
-                return False, (exon_s, exon_e), False, False, "5'UTR", False
+                return False, (exon_s, exon_e), False, False, utr5_label, False
             else:
-                return False, False, (exon_s, exon_e), False, False, "3'UTR"
+                return False, False, (exon_s, exon_e), False, False, utr3_label
 
 
 ################################################################################
@@ -7282,6 +7525,36 @@ def fasta_check_format(fasta_file):
         return False
     
     return True
+
+
+################################################################################
+
+def fasta_check_header_format(fasta_path):
+    """
+    Check if headers (first header) in the FASTA file starts with '>' 
+    and has at least two comma-separated parts.
+
+    >>> fasta_path = "test_data/test.fa"
+    >>> fasta_check_header_format(fasta_path)
+    False
+    >>> fasta_path = "test_data/test3.fa"
+    >>> fasta_check_header_format(fasta_path)
+    True
+
+    """
+    correct_format = True
+    
+    with open(fasta_path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith(">"):
+                # Remove '>' and split by comma.
+                parts = line[1:].split(",")
+                if len(parts) < 2:
+                    correct_format = False
+                break  # Only check the first header line.
+    
+    return correct_format
 
 
 ################################################################################
