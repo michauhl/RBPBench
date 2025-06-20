@@ -3046,11 +3046,133 @@ def classify_mrna_site_region(site_start, site_end, utr5_len, cds_len, utr3_len,
 
 ################################################################################
 
+def isocomp_search_regex_hits(seqs_dic, regex, gid2iso_dic,
+                              min_spacing=0,
+                              step_size_one=False,
+                              tr2reg_dic=None,
+                              tid2regl_dic=None,
+                              hits_bed_out=False,
+                              digits_round=4):
+    """
+    Compare regex hit counts between transcript isoforms of each gene.
+
+    """
+    assert seqs_dic, "given dictionary seqs_dic empty"
+    assert gid2iso_dic, "given dictionary gid2iso_dic empty"
+
+    # Regex search in sequences.
+    hit_dic = search_regex_in_seqs_dic(regex, seqs_dic,
+                                       step_size_one=step_size_one,
+                                       min_spacing=min_spacing,
+                                       case_sensitive=True)  # {seq_id: [[start, end, match], ...]}
+
+    # Output regex hits to BED file if specified.
+    if hits_bed_out:
+
+        print("Output regex hits to BED ... ")
+
+        HITOUT = open(hits_bed_out, "w")
+        for seq_id in hit_dic:
+            for hit in hit_dic[seq_id]:
+                start, end, match = hit  # 0-based start, 1-based end, match string.
+                hit_id = "%s:%i-%i(+)" % (seq_id, start, end)
+                mrna_region = "-"
+                tr_id = seq_id
+                if tr2reg_dic:  # Should always be populated.
+                    if seq_id in tr2reg_dic and tr2reg_dic[seq_id] != "Full":  # If on mRNA region (3'UTR, CDS, 5'UTR).
+                        tr_id = seq_id + "," + tr2reg_dic[seq_id]
+                        mrna_region = tr2reg_dic[seq_id]
+                    else:
+                        if tid2regl_dic is not None:
+                            if seq_id in tid2regl_dic:  # If on mRNA sequence.
+                                utr5_len = tid2regl_dic[seq_id][0]
+                                cds_len = tid2regl_dic[seq_id][1]
+                                utr3_len = tid2regl_dic[seq_id][2]
+                                mrna_region = classify_mrna_site_region(start, end, utr5_len, cds_len, utr3_len)
+
+                HITOUT.write("%s\t%i\t%i\t%s\t0\t+\t-1.0\t-1.0\t-1.0\t-1.0\t%s\t%s\n" % (tr_id, start, end, hit_id, mrna_region, match))
+        HITOUT.close()
+
+    # Compute isoform comparison stats.
+    data = []
+    for gid in gid2iso_dic:
+        tr_ids = gid2iso_dic[gid].tr_ids
+        if len(tr_ids) < 2:
+            continue  # Skip genes with less than 2 isoforms, since no comparison possible.
+        gene_name = gid2iso_dic[gid].gene_name
+        gene_biotype = gid2iso_dic[gid].gene_biotype
+        tr_biotypes = gid2iso_dic[gid].tr_biotypes
+        tr_lengths = gid2iso_dic[gid].tr_lengths
+        tr_regions = gid2iso_dic[gid].tr_regions
+        # Get hit counts for each transcript.
+        for idx, tr_id in enumerate(tr_ids):
+            hits = hit_dic.get(tr_id, [])
+            hit_count = len(hits)
+            tr_length = tr_lengths[idx]
+            hit_count_kb = (hit_count / tr_length) * 1000 if tr_length > 0 else 0  # hits per 1000 nt.
+            gid2iso_dic[gid].tr_hit_counts[idx] = hit_count
+            gid2iso_dic[gid].tr_hit_counts_kb[idx] = round(hit_count_kb, digits_round)
+        # Pairwise comparison of isoforms.
+        seen_pairs = set()  # To avoid duplicate comparisons.
+        for i in range(len(tr_ids)):
+            for j in range(len(tr_ids)):
+                if i == j:
+                    continue  # Skip self-comparison.
+                if (i, j) in seen_pairs or (j, i) in seen_pairs:
+                    continue  # Skip already seen pairs.
+                # Mark pairs as seen.
+                seen_pairs.add((i, j))  
+                seen_pairs.add((j, i))
+                hit_count_i = gid2iso_dic[gid].tr_hit_counts[i]
+                hit_count_j = gid2iso_dic[gid].tr_hit_counts[j]
+                if hit_count_i == 0 and hit_count_j == 0:
+                    continue  # Skip pairs with zero hits.
+                hit_count_i_kb = gid2iso_dic[gid].tr_hit_counts_kb[i]
+                hit_count_j_kb = gid2iso_dic[gid].tr_hit_counts_kb[j]
+                tr_length_i = tr_lengths[i]
+                tr_length_j = tr_lengths[j]
+                if hit_count_i_kb == hit_count_j_kb and tr_length_i == tr_length_j:
+                    continue  # Also skip pairs with equal hits per kb and lengths.
+                if hit_count_i_kb > hit_count_j_kb:
+                    i, j = j, i  # Ensure tr_id1 always has fewer hits per kb than tr_id2 (as we rank by hits per kb difference).
+                tr_id1 = tr_ids[i]
+                tr_id2 = tr_ids[j]
+                hit_count1 = gid2iso_dic[gid].tr_hit_counts[i]
+                hit_count2 = gid2iso_dic[gid].tr_hit_counts[j]
+                if hit_count1 == 0 and hit_count2 == 0:
+                    continue  # Skip pairs with zero hits.
+                hit_count1_kb = gid2iso_dic[gid].tr_hit_counts_kb[i]
+                hit_count2_kb = gid2iso_dic[gid].tr_hit_counts_kb[j]
+                tr_length1 = tr_lengths[i]
+                tr_length2 = tr_lengths[j]
+                tr_biotype1 = tr_biotypes[i]
+                tr_biotype2 = tr_biotypes[j]
+                tr_region1 = tr_regions[i]
+                tr_region2 = tr_regions[j]
+                count_diff = hit_count2 - hit_count1
+                norm_count_diff =  hit_count2_kb - hit_count1_kb
+                data.append((gid, gene_name, tr_id1, tr_id2, count_diff, norm_count_diff, tr_region1, tr_region2, 
+                             tr_biotype1, tr_biotype2, tr_length1, tr_length2, hit_count1, hit_count2,
+                             hit_count1_kb, hit_count2_kb, gene_biotype))
+
+    df = pd.DataFrame(data, columns=["gene_id", "gene_name", "tr_id1", "tr_id2", "count_diff", "count_kb_diff", 
+                                     "tr_region1", "tr_region2", "tr_biotype1", "tr_biotype2",
+                                     "tr_length1", "tr_length2", "hit_count1", "hit_count2",
+                                     "hits_per_kb1", "hits_per_kb2", "gene_biotype"])
+
+    # Sort descending by hits per kb difference.
+    df_sorted = df.sort_values(by="count_kb_diff", ascending=False).reset_index(drop=True)
+
+    return df_sorted
+
+
+################################################################################
+
 def sponge_search_regex_hits(seqs_dic, regex,
                              min_seq_len=False,
                              min_spacing=0,
                              min_hit_count=0,
-                             step_size_one=True,
+                             step_size_one=False,
                              tr2gid_dic=None,
                              tr2gn_dic=None,
                              tr2reg_dic=None,
@@ -3114,7 +3236,7 @@ def sponge_search_regex_hits(seqs_dic, regex,
         length = len(seq)
         if count < min_hit_count:
             continue  # Skip sequences with hit count below minimum.
-        norm_hits = (count / length) * 1000 if length > 0 else 0  # hits per 1000 nt.  AALAMO
+        norm_hits = (count / length) * 1000 if length > 0 else 0  # hits per 1000 nt.
         # norm_hits = round_to_n_significant_digits_v2(norm_hits, digits_round,
         #                                              min_val=0)
         norm_hits = round(norm_hits, digits_round)

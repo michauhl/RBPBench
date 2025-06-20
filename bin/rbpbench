@@ -3134,6 +3134,12 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3],
                    help="Define what to extract from GTF file, i.e., for which transcripts or parts of transcripts to extract sequences to use for sponge search. 1: use full transcripts from all genes (selecting one representative for each gene). 2: use only mRNA transcripts. 3: use only 3'UTR parts of mRNA transcripts (default: 1)")
+    p_spn.add_argument("--tr-list",
+                   dest="tr_list",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Supply file with transcript IDs (one ID per row) to define which transcripts to extract from --gtf (overrides representative transcript selection, might not be compatible with --select-mode 2 or 3)")
     p_spn.add_argument("--allow-overlaps",
                    dest="allow_overlaps",
                    default = False,
@@ -3164,13 +3170,8 @@ def setup_argument_parser():
                    choices=[1, 2, 3],
                    help="Define to which chromosome ID style to convert chromosome IDs to. 1: do not change chromosome IDs. 2: convert to chr1,chr2,...,chrM style. 3: convert to 1,2,...,MT style (default: 1)")
 
-
-
-
-
-
     """
-    Compare regex hit occurrences between transcript isoforms. AALAMO
+    Compare regex hit occurrences between transcript isoforms.
 
     """
     p_iso = subparsers.add_parser('isocomp',
@@ -3214,8 +3215,8 @@ def setup_argument_parser():
                    dest="select_mode",
                    type=int,
                    default=1,
-                   choices=[1, 2, 3, 4],
-                   help="Define what to extract from GTF file, i.e., for which transcripts or parts of transcripts to extract sequences to use for motif search and isoform comparison. 1: use only 3'UTR parts of mRNA transcripts. 2: use only 5'UTR parts of mRNA transcripts. 3: use full mRNA transcripts (i.e., all mRNA transcripts from GTF) 4: use full transcripts, coding AND non-coding (i.e., all transcripts from GTF!) (default: 1)")
+                   choices=[1, 2, 3, 4, 5],
+                   help="Define what to extract from GTF file, i.e., for which transcripts or parts of transcripts to extract sequences to use for motif search and isoform comparison. 1: use only 3'UTR parts of mRNA transcripts. 2: use only 5'UTR parts of mRNA transcripts. 3: use full mRNA transcripts (i.e., all mRNA transcripts from GTF). 4: use full non-coding transcripts (i.e., no transcripts from protein-coding genes). 5: use full transcripts, coding AND non-coding (i.e., all transcripts from GTF!) (default: 1)")
     p_iso.add_argument("--allow-overlaps",
                    dest="allow_overlaps",
                    default = False,
@@ -3239,15 +3240,6 @@ def setup_argument_parser():
                    default=1,
                    choices=[1, 2, 3],
                    help="Define to which chromosome ID style to convert chromosome IDs to. 1: do not change chromosome IDs. 2: convert to chr1,chr2,...,chrM style. 3: convert to 1,2,...,MT style (default: 1)")
-
-
-
-
-
-
-
-
-
 
     """
     Run STREME on input sites for motif discovery.
@@ -21388,15 +21380,30 @@ def main_sponge(args):
             tr2gn_dic[tr_id] = gene_name
             gn2type_dic[gene_id] = gene_biotype
 
-        # Get most prominent transcripts from gene infos.
-        print("Select most prominent transcript (MPT) for each gene ... ")
-        tr_ids_dic = benchlib.select_mpts_from_gene_infos(gid2gio_dic,
-                                basic_tag=False,  # do not be strict (only_tsl=False too).
-                                ensembl_canonical_tag=False,
-                                prior_basic_tag=True,  # Prioritize basic tag transcript.
-                                only_tsl=False)
-        assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
-        print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
+        tr_ids_dic = {}
+
+        if args.tr_list:  # if custom transcript list is provided, skip MPT selection.
+
+            tr_ids_dic = benchlib.read_ids_into_dic(args.tr_list,
+                                                    check_dic=False)
+            assert tr_ids_dic, "no IDs read in from provided --tr-list file. Please provide a valid IDs file (one ID per row)"
+            for tr_id in tr_ids_dic:
+                assert tr_id in tr2gid_dic, "transcript ID \"%s\" from provided --tr-list file does not appear in --gtf file (or if --gene-ids-list supplied not in resulting subset). Please provide compatible settings" %(tr_id)
+                tr_ids_dic[tr_id] = tr2gid_dic[tr_id]
+            print("# of transcript IDs (read in from --tr-list): ", len(tr_ids_dic))
+
+        else:  # MPT selection.
+
+            # Get most prominent transcripts from gene infos.
+            print("Select most prominent transcript (MPT) for each gene ... ")
+            tr_ids_dic = benchlib.select_mpts_from_gene_infos(gid2gio_dic,
+                                    basic_tag=False,  # do not be strict (only_tsl=False too).
+                                    ensembl_canonical_tag=False,
+                                    prior_basic_tag=True,  # Prioritize basic tag transcript.
+                                    only_tsl=False)
+            
+            assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
+            print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
 
         # Check exon order (return True if minus strand exon 1 is most downstream, not most upstream, which is the correct way).
         print("Check minus-strand exon order in --gtf ... ")
@@ -21437,6 +21444,9 @@ def main_sponge(args):
             tr_ids_dic = {}
             for tr_id in tid2regl_dic:
                 tr_ids_dic[tr_id] = 1  # Use all mRNA transcripts.
+
+            assert tr_ids_dic, "no mRNA transcripts found in --gtf. Please provide a valid/compatible GTF file, and if --tr-list is set, make sure it contains mRNA transcripts"
+
 
         # print("Output mRNA regions to BED ... ")
         # benchlib.output_mrna_regions_to_bed(tid2regl_dic, mrna_regions_bed,
@@ -21568,28 +21578,11 @@ def main_sponge(args):
     print("")
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ################################################################################
 
 def main_isocomp(args):
     """
     Compare regex hit occurrences between transcript isoforms.
-    AALAMO
 
     """
 
@@ -21622,9 +21615,6 @@ def main_isocomp(args):
     tr_seqs_fa = os.path.join(args.out_folder, "transcript_seqs.fa")  # Transcript sequences (spliced) in FASTA format.
     settings_file = args.out_folder + "/settings.rbpbench_isocomp.out"
     hits_bed_out = os.path.join(args.out_folder, "motif_hits.rbpbench_isocomp.bed")  # regex hits on isoforms in BED format.
-
-
-    # AALAMO
 
     tr2gid_dic = {}
     tr2type_dic = {}  # transcript ID -> transcript biotype.
@@ -21700,7 +21690,7 @@ def main_isocomp(args):
         print("Get mRNA region lengths ... ")
         tid2regl_dic = benchlib.get_mrna_region_lengths(tid2tio_dic)
 
-        if args.select_mode != 4:  # Only mRNA transcripts (i.e., mRNA transcripts or parts of it).
+        if args.select_mode not in (4, 5):  # Only mRNA transcripts (i.e., mRNA transcripts or parts of it).
 
             print("Process mRNA transcript infos ... ")
 
@@ -21708,27 +21698,33 @@ def main_isocomp(args):
                 utr5_len = tid2regl_dic[tid][0]
                 cds_len = tid2regl_dic[tid][1]
                 utr3_len = tid2regl_dic[tid][2]
+                tr_length = utr5_len + cds_len + utr3_len
+                assert tr_length == tid2tio_dic[tid].tr_length, "Transcript length mismatch for %s: %i != %i" % (tid, tr_length, tid2tio_dic[tid].tr_length)
 
                 region_id = "Full"  # full mRNA, select_mode = 3.
+
+                if args.select_mode == 1:  # 3'UTR.
+                    if utr3_len > 0:
+                        region_id = "3'UTR"
+                    else:
+                        continue
+                    tr_length = utr3_len
 
                 if args.select_mode == 2:  # 5'UTR.
                     if utr5_len > 0:
                         region_id = "5'UTR"
                     else:
                         continue
-                if args.select_mode == 1:  # 3'UTR.
-                    if utr3_len > 0:
-                        region_id = "3'UTR"
-                    else:
+                    tr_length = utr5_len
+
+                if args.min_seq_len:
+                    if tr_length < args.min_seq_len:
                         continue
 
                 gene_id = tr2gid_dic[tid]
                 tr_biotype = tid2tio_dic[tid].tr_biotype
                 tr_ids_dic[tid] = 1  # Use this transcript for isoform comparison.
                 tr2reg_dic[tid] = region_id
-
-                tr_length = utr5_len + cds_len + utr3_len
-                assert tr_length == tid2tio_dic[tid].tr_length, "Transcript length mismatch for %s: %i != %i" % (tid, tr_length, tid2tio_dic[tid].tr_length)
 
                 if gene_id not in gid2iso_dic:
 
@@ -21744,34 +21740,47 @@ def main_isocomp(args):
                 gid2iso_dic[gene_id].tr_hit_counts.append(0)  # Initialize hit counts.
                 gid2iso_dic[gene_id].tr_hit_counts_kb.append(0.0)  # Initialize hit counts per kb.
 
-        else:  # If all transcripts should be used (i.e., ncRNA and mRNA transcripts).
+        else:  # If all non-coding transcripts or all transcripts should be used.
 
-            print("Process all transcript infos ... ")
+            if args.select_mode == 4:
+                print("Process all non-coding transcript infos ... ")
+            elif args.select_mode == 5:
+                print("Process all transcript infos ... ")
+            else:
+                assert False, "Invalid --select-mode for isoform comparison: %i" % (args.select_mode)
 
             for tid in tid2tio_dic:
 
                 gene_id = tr2gid_dic[tid]
+                gene_biotype = gid2gio_dic[gene_id].gene_biotype
+                tr_biotype = tid2tio_dic[tid].tr_biotype
+                if args.select_mode == 4:
+                    if gene_biotype == "protein_coding":
+                        continue  # Skip protein-coding genes / all their transcripts.
+                tr_length = tid2tio_dic[tid].tr_length
+                if args.min_seq_len:
+                    if tr_length < args.min_seq_len:
+                        continue  # Skip transcripts that are shorter than the minimum sequence length.
+
                 tr_ids_dic[tid] = 1  # Use this transcript for isoform comparison.
                 tr2reg_dic[tid] = "Full"
-
+                
                 if gene_id not in gid2iso_dic:
 
-                    gene_name = tid2tio_dic[tid].gene_name
-                    gene_biotype = tid2tio_dic[tid].gene_biotype
+                    gene_name = gid2gio_dic[gene_id].gene_name
+                    
                     gene_isocomp_infos = benchlib.GeneIsoComp(gene_id, gene_name, gene_biotype)
                     gid2iso_dic[gene_id] = gene_isocomp_infos
 
                 gid2iso_dic[gene_id].tr_ids.append(tid)
-                gid2iso_dic[gene_id].tr_biotypes.append(tid2tio_dic[tid].tr_biotype)
-                gid2iso_dic[gene_id].tr_lengths.append(tid2tio_dic[tid].tr_length)
+                gid2iso_dic[gene_id].tr_biotypes.append(tr_biotype)
+                gid2iso_dic[gene_id].tr_lengths.append(tr_length)
                 gid2iso_dic[gene_id].tr_regions.append("Full")  # region ID can be: "5'UTR", "CDS", "3'UTR", "Full" (Full can be both ncRNA and mRNA).
                 gid2iso_dic[gene_id].tr_hit_counts.append(0)  # Initialize hit counts.
                 gid2iso_dic[gene_id].tr_hit_counts_kb.append(0.0)  # Initialize hit counts per kb.
 
 
         assert tr_ids_dic, "no transcript IDs selected for isoform comparison. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE) and select a valid --select-mode"
-
-        # AALAMO
 
         """
         Output transcript sequences to FASTA file.
@@ -21783,7 +21792,6 @@ def main_isocomp(args):
         tr_seqs_dic = benchlib.get_transcript_sequences_from_gtf(tid2tio_dic, args.in_genome,
                                                                  tr_ids_dic=tr_ids_dic,
                                                                  tmp_out_folder=args.out_folder)
-
 
         if args.select_mode == 1:
 
@@ -21812,7 +21820,6 @@ def main_isocomp(args):
         elif args.select_mode == 4:
             print("Output all transcript sequences to FASTA ... ")
 
-
         # Output sequences to FASTA.
         benchlib.fasta_output_dic(tr_seqs_dic, tr_seqs_fa,
                                 tr2gid_dic=tr2gid_dic,  # add gene ID to header.
@@ -21830,14 +21837,16 @@ def main_isocomp(args):
 
         """
         
-        tr_seqs_dic = benchlib.read_fasta_into_dic(args.in_fasta,
+        in_seqs_dic = benchlib.read_fasta_into_dic(args.in_fasta,
                                             dna=True,
                                             all_uc=True,
                                             id_check=True,
                                             empty_check=False,
                                             skip_n_seqs=False)
 
-        for seq_id in tr_seqs_dic:
+        tr_seqs_dic = {}
+
+        for seq_id in in_seqs_dic:
             parts = seq_id.split(",")
             assert len(parts) >= 2, "--fasta sequence ID \"%s\" has invalid format. Please provide header IDs in format: >transcript_id,gene_id (additional commas are fine too)" % (seq_id)
             tid = parts[0]
@@ -21846,7 +21855,8 @@ def main_isocomp(args):
             tr_ids_dic[tid] = 1
             tr2gid_dic[tid] = gid  # transcript ID -> gene ID.
             tr2reg_dic[tid] = "Full"
-            tr_seq = tr_seqs_dic[seq_id]
+            tr_seq = in_seqs_dic[seq_id]
+            tr_seqs_dic[tid] = tr_seq  # Transcript ID -> transcript sequence (removing gene ID or other parts).
             tr_length = len(tr_seq)
 
             if gid not in gid2iso_dic:
@@ -21869,49 +21879,27 @@ def main_isocomp(args):
 
 
     """
-    Search for regex hits in transcript sequences.
+    Compare regex hits between isoforms.
 
     """
-
-    # AALAMO
 
     if tr_seqs_dic:
 
         if args.min_spacer_len > 0:
             args.allow_overlaps = True
 
-        result_df = benchlib.sponge_search_regex_hits(tr_seqs_dic, args.regex,
-                                                      min_seq_len=args.min_seq_len,
-                                                      min_spacing=args.min_spacer_len,
-                                                      min_hit_count=args.min_hit_count,
-                                                      step_size_one=args.allow_overlaps,
-                                                      tr2gid_dic=tr2gid_dic,
-                                                      tr2gn_dic=tr2gn_dic,
-                                                      tr2reg_dic=tr2reg_dic,
-                                                      tr2type_dic=tr2type_dic,
-                                                      gn2type_dic=gn2type_dic,
-                                                      tid2regl_dic=tid2regl_dic,
-                                                      hits_bed_out=hits_bed_out)
+        result_df = benchlib.isocomp_search_regex_hits(tr_seqs_dic, args.regex, gid2iso_dic,
+                                                       min_spacing=args.min_spacer_len,
+                                                       step_size_one=args.allow_overlaps,
+                                                       tr2reg_dic=tr2reg_dic,
+                                                       tid2regl_dic=tid2regl_dic,
+                                                       hits_bed_out=hits_bed_out,
+                                                       digits_round=4)
 
         total_entries = len(result_df)
+        print("# isoform comparisons: %i" % (total_entries))
 
-        # Print top hits.
-        if total_entries > 0:
-            print("")
-            print("Top 10 sequences with highest # motif hits per kb:")
-            print(result_df[["transcript_id", "gene_name", "transcript_length", "hit_count", "hits_per_kb", "percentile_rank"]].head(10))
-            print("")
-
-        zero_hits = (result_df["hits_per_kb"] == 0).sum()
-        hit_entries = total_entries - zero_hits
-        perc_hits = (hit_entries / total_entries) * 100.0 if total_entries > 0 else 0.0
-        perc_zero_hits = (zero_hits / total_entries) * 100.0 if total_entries > 0 else 0.0
-        print("# sequences for regex search: %i" % (total_entries))
-        print("# sequences with hits:        %i (%.2f%%)" % (hit_entries, perc_hits))
-        print("# sequences with zero hits:   %i (%.2f%%)" % (zero_hits, perc_zero_hits))
-
-        result_df.to_csv(pecentile_ranks_out, sep='\t', index=False)
-        benchlib.plot_hit_distribution(result_df, save_path=hit_dist_plot_out)
+        result_df.to_csv(compared_isoforms_out, sep='\t', index=False)
 
     else:
         print("WARNING: No transcript sequences available for regex search! Please provide valid --fasta or --gtf + --genome files")
@@ -21935,7 +21923,6 @@ def main_isocomp(args):
     print("Regex hits in transcript sequences .bed:\n%s" %(hits_bed_out))
     print("Compared isoforms .tsv:\n%s" %(compared_isoforms_out))
     print("")
-
 
 
 
