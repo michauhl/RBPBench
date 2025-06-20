@@ -806,6 +806,16 @@ The top 10 transcripts ranked by hits per kilo base (kb) nt we get are the follo
 
 It is known that NORAD, a highly conserved cytoplasmic lncRNA, can sequester PUMILIO proteins (PUM1 and PUM2) and modulate the expression of their target genes ([Lee et al. 2016](https://doi.org/10.1016/j.cell.2015.12.017)). This shows that a simple and fast search approach like this can be used to identify potential sponge transcripts for any given (RBP) motif of interest, which can then be further investigated. Additional options are available, such as defining a minimum spacer length between regex hits (`--min-spacer-len`), or a minimum regex hit count per transcript (`--min-hit-count`) for transcripts to be included in the output table. Moreover, if GTF annotated transcripts are used, specific subsets can be selected for search via `--select-mode` (all, only mRNAs, only 3'UTRs). Also note that regular expressions can describe complex binding patterns, including variable length spacers, such as the IGF2BP3 binding motif `GGC.{15,25}CA.{7,20}CA.{15,25}GGC.{2,8}[CA]{4}` described in [Schneider et al. 2019](https://doi.org/10.1038/s41467-019-09769-8).
 
+#### Comparing motif hits between transcript isoforms
+
+To check whether there are diferences in motif hits between transcript isoforms, we can use `rbpbench isocomp`. This will calculate differences in motif hit counts (both absolute and and normalized by transcript lengths) between all annotated transcript isoforms of a gene, and report these in a table. Again it is possible to provide transcript sequences via a FASTA file (`--fasta`), or to use annotated transcripts from a GTF file (given GTF and genome FASTA file). Moreover, the type of extracted sequences from the GTF file can be further defined: We can use either 3'UTR, 5'UTR, full mRNA, full non-coding, or all full transcripts from the GTF file (choose via `--select-mode`). For example, choosing all annotated 3'UTR sequences and again using the PUM2 consensus motif `TGTA[ACGT]ATA`):
+
+```
+rbpbench isocomp --regex "TGTA[ACGT]ATA" --out test_isocomp_gtf_out --gtf Homo_sapiens.GRCh38.112.gtf.gz --genome hg38.fa --select-mode 1
+```
+
+This allows us to quickly check for genes where there are certain isoforms with changes in motif hit occurrences (sorted by magnitude of change, i.e., difference between hits per kb), which can help in the further functional characterization of the isoform and its underlying gene. Note that in case of user-supplied transcript sequences (via `--fasta`), the FASTA header needs to have the format `>transcript_id,gene_id` for successful isoform assignment.
+
 
 ## Documentation
 
