@@ -30,7 +30,8 @@ setup(
              'bin/get_genomic_conservation_scores.py',
              'bin/batch_get_common_dataset_gene_ids.py',
              'bin/bed_extend_regions.py',
-             'bin/gtf_extract_transcript_data.py'
+             'bin/gtf_extract_transcript_data.py',
+             'bin/gtf_get_gene_transcripts.py'
              ],
     packages=['rbpbench'],
     package_data={'rbpbench': ['content/*', 'content/motif_plots/*']},

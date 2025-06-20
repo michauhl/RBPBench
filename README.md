@@ -829,16 +829,16 @@ To get an overview of the currently available modes:
 ```
 $ rbpbench -h
 usage: rbpbench [-h] [-v]
-                {search,batch,compare,searchseq,searchregex,searchlong,searchrna,searchlongrna,enmo,nemo,con,sponge,streme,tomtom,goa,optex,dist,info}
+                {search,batch,compare,searchseq,searchregex,searchlong,searchrna,searchlongrna,enmo,nemo,con,sponge,isocomp,streme,tomtom,goa,optex,dist,info}
                 ...
 
-Evaluate CLIP-seq and other genomic region data using a comprehensive collection of known RBP binding motifs (RNA sequence + structure).
-RBPBench can be used for a variety of purposes, from RBP motif search in genomic regions, over motif enrichment and co-occurrence analysis,
-in-depth comparisons over multiple datasets via sequence and genomic annotation statistics, to benchmarking CLIP-seq peak callers, as well
-as comparisons across cell types and CLIP-seq protocols.
+Evaluate CLIP-seq and other genomic region data using a comprehensive collection of known RBP binding motifs (RNA sequence +
+structure). RBPBench can be used for a variety of purposes, from RBP motif search in genomic regions, over motif enrichment and co-
+occurrence analysis, in-depth comparisons over multiple datasets via sequence and genomic annotation statistics, to benchmarking
+CLIP-seq peak callers, as well as comparisons across cell types and CLIP-seq protocols.
 
 positional arguments:
-  {search,batch,compare,searchseq,searchregex,searchlong,searchrna,searchlongrna,enmo,nemo,con,sponge,streme,tomtom,goa,optex,dist,info}
+  {search,batch,compare,searchseq,searchregex,searchlong,searchrna,searchlongrna,enmo,nemo,con,sponge,isocomp,streme,tomtom,goa,optex,dist,info}
                         Program modes
     search              Search motifs in genomic sites
     batch               Search motifs on > 1 dataset
@@ -852,6 +852,7 @@ positional arguments:
     nemo                Check for neighboring motifs in input sites
     con                 Compare conservation in genomic sites
     sponge              Check for sponge transcripts
+    isocomp             Compare motif hits on transcript isoforms
     streme              Discover motifs in input sites using STREME
     tomtom              Compare motif(s) with database using TOMOTM
     goa                 Run GO enrichment analysis on gene list
@@ -924,6 +925,8 @@ translation regulation, and RNA stability & decay).
 ```rbpbench con``` be used to compare conservation scores in two sets of genomic sites. For example, 
 we can compare different sets of motif hit regions, or sets from different peak callers.
 ```rbpbench sponge``` allows to search for sponge transcripts, i.e., transcripts that serve as sponges for RBPs or miRNAs.
+```rbpbench isocomp``` can be used to check whether there are differences in motif hits between transcript isoforms of a gene.
+```rbpbench optex``` allows us to investigate the optimal extension of input regions for motif search, i.e., to find the best up- and downstream extension for motif search in genomic regions.
 ```rbpbench streme``` allows to discover new motifs using STREME from MEME suite. 
 ```rbpbench goa``` enables us to run GO term enrichment analysis (GOA) on a set of genes, e.g. obtained 
 from the output tables of other modes (like genes covered by input regions from ```rbpbench search```
@@ -1482,6 +1485,7 @@ Various helper scripts are included as well on the command line:
 
 ```
 batch_get_common_dataset_gene_ids.py
+bed_extend_regions.py
 bed_merge_ol_reg.py
 bed_print_first_n_pos.py
 bed_print_last_n_pos.py
@@ -1493,13 +1497,16 @@ gtf_extract_exon_intron_region_bed.py
 gtf_extract_gene_region_bed.py
 gtf_extract_mpt_region_bed.py
 gtf_extract_tr_feat_bed.py
+gtf_extract_transcript_data.py
 gtf_get_gene_region_nt_freqs.py
+gtf_get_gene_transcripts.py
 gtf_get_mpt_nt_freqs.py
 gtf_get_mpt_with_introns_nt_freqs.py
 ```
 You can call their help pages to get more infos on what they do and how to use them (e.g., `bed_merge_ol_reg.py -h`).
 To get a quick overview: 
 `batch_get_common_dataset_gene_ids.py` extracts gene IDs which occur in all datasets, given the `gene_region_occupancies.tsv` file from RBPBench batch output folder.
+`bed_extend_regions.py` extends genomic regions in a BED file by a given number of nucleotides up- and downstream.
 `bed_merge_ol_reg.py` takes a BED file and merges bookend or overlapping regions outputs the merged regions to a new BED file.
 `bed_print_first_n_pos.py` prints the first n positions of each region from the provided BED file.
 `bed_print_last_n_pos.py` prints the last n positions of each region from the provided BED file.
@@ -1513,7 +1520,9 @@ which can be used as input e.g. in `rbpbench nemo`.
 `gtf_extract_mpt_region_bed.py` extracts most prominent transcript regions from a GTF file and stores them in a BED file. 
 Additionally, mRNA regions (5'UTR, CDS, 3'UTR) can be output to a separate BED file.
 `gtf_extract_tr_feat_bed.py` extracts transcript feature regions from a GTF file and stores them in a BED file (e.g. stop_codon).
+`gtf_extract_transcript_data.py` extracts transcript data from a GTF file, such exon + intron regions, mRNA regions and transcript sequences.
 `gtf_get_gene_region_nt_freqs.py` calculates nucleotide frequencies from all gene regions extracted from a GTF and the corresponding genome FASTA.
+`gtf_get_gene_transcripts.py` extracts for a given gene list all transcripts from a GTF file and stores the transcript information in a TSV file.
 FIMO can be given this information as a nucleotide frequencies file (see options `--fimo-ntf-file`, `--fimo-ntf-mode`).
 `gtf_get_mpt_nt_freqs.py` calculates nucleotide frequencies of from all most prominent transcript (MPT) sequences (introns excluded) 
 extracted from a GTF and the corresponding genome FASTA.
