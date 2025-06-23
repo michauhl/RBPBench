@@ -151,7 +151,9 @@ if __name__ == '__main__':
                                 basic_tag=False,  # do not be strict (only_tsl=False too).
                                 ensembl_canonical_tag=False,
                                 prior_basic_tag=True,  # Prioritize basic tag transcript.
+                                prior_mane_select=True,  # mane select if set trumps all.
                                 only_tsl=False)
+
         assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
         print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
 

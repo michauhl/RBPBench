@@ -70,6 +70,7 @@ if __name__ == '__main__':
     print("Read in gene IDs from --in file ...")
     gene_ids_dic = benchlib.read_ids_into_dic(args.gene_list,
                                               check_dic=False)
+    
     assert gene_ids_dic, "no IDs read in from provided --gene-list file. Please provide a valid IDs file (one ID per row)"
 
     tr2gid_dic = {}
@@ -86,8 +87,47 @@ if __name__ == '__main__':
         if gid not in gid2gio_dic:
             print("WARNING: gene ID \"%s\" not found in GTF file!" % (gid))
 
+    # Collect transcript IDs.
+    tr_ids_dic = {}
+    for gid in gid2gio_dic:
+        tr_ids = gid2gio_dic[gid].tr_ids
+        for idx, tid in enumerate(tr_ids):
+            tr_ids_dic[tid] = 1
+    
+    print("Found %d transcript IDs in GTF file belonging to %d genes" % (len(tr_ids_dic), len(gid2gio_dic)))
+
+    # Get most prominent transcripts from gene infos.
+    print("Select most prominent transcript (MPT) for each gene ... ")
+    mpt_ids_dic = benchlib.select_mpts_from_gene_infos(gid2gio_dic,
+                            basic_tag=False,  # do not be strict (only_tsl=False too).
+                            ensembl_canonical_tag=False,
+                            prior_basic_tag=True,  # Prioritize basic tag transcript.
+                            prior_mane_select=True,  # mane select if set trumps all.
+                            only_tsl=False,
+                            gene_ids_dic=gene_ids_dic)
+
+    assert mpt_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
+    print("# of transcript IDs (most prominent transcripts): ", len(mpt_ids_dic))
+
+
+    # Check exon order (return True if minus strand exon 1 is most downstream, not most upstream, which is the correct way).
+    print("Check minus-strand exon order in --gtf ... ")
+    correct_min_ex_order = benchlib.gtf_check_exon_order(args.in_gtf)
+    if correct_min_ex_order:
+        print("Correct order encountered ... ")
+    else:
+        print("Reverse order encountered ... ")
+
+    # Get transcript infos.
+    print("Read in transcript infos from --gtf to get spliced lengths ... ")
+    tid2tio_dic = benchlib.gtf_read_in_transcript_infos(args.in_gtf, 
+                                                        tr_ids_dic=tr_ids_dic,
+                                                        correct_min_ex_order=correct_min_ex_order,
+                                                        chr_style=args.chr_id_style,
+                                                        empty_check=False)
+
     OUT = open(args.out_tr_list, "w")
-    OUT.write("transcript_id\ttranscript_biotype\tgene_name\tgene_id\tgene_biotype\n")
+    OUT.write("transcript_id\ttranscript_biotype\ttranscript_length\texon_count\trepresentative_transcript\tgene_name\tgene_id\tgene_biotype\n")
 
     for gid in gid2gio_dic:
         gene_name = gid2gio_dic[gid].gene_name
@@ -96,8 +136,15 @@ if __name__ == '__main__':
         tr_biotypes = gid2gio_dic[gid].tr_biotypes
         for idx, tid in enumerate(tr_ids):
             tr_biotype = tr_biotypes[idx]
-            OUT.write("%s\t%s\t%s\t%s\t%s\n" % (tid, tr_biotype, gene_name, gid, gene_biotype))
+            tr_length = tid2tio_dic[tid].tr_length
+            c_exons = tid2tio_dic[tid].exon_c
+            is_mpt = "No"
+            if tid in mpt_ids_dic:
+                is_mpt = "Yes"
+
+            OUT.write("%s\t%s\t%i\t%i\t%s\t%s\t%s\t%s\n" % (tid, tr_biotype, tr_length, c_exons, is_mpt, gene_name, gid, gene_biotype))
     OUT.close()
 
     print("Output transcript IDs written to:\n%s" % (args.out_tr_list))
     print("")
+

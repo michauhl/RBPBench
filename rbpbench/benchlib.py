@@ -7202,7 +7202,8 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                                 only_tsl=False,
                                 prior_basic_tag=True,
                                 prior_mane_select=False,
-                                tr_min_len=False
+                                tr_min_len=False,
+                                gene_ids_dic=False
                                 ):
     """
     Select most prominent transcripts from GeneInfo objects. 
@@ -7227,6 +7228,8 @@ def select_mpts_from_gene_infos(gid2gio_dic,
         If True, MANE_Select tag trumps all other tags. According to manual,
         the MANE select is a default transcript per human gene, present in RefSeq
         and Ensembl databases.
+    gene_ids_dic:
+        If set, only report only MPT transcripts for genes in gene_ids_dic.
         
     >>> test_gtf = "test_data/test_mpt_selection.gtf"
     >>> gid2gio_dic = gtf_read_in_gene_infos(test_gtf)
@@ -7264,6 +7267,10 @@ def select_mpts_from_gene_infos(gid2gio_dic,
         mpt_bt = 0
         mpt_ec = 0
         mpt_ms = 0
+
+        if gene_ids_dic:
+            if gene_id not in gene_ids_dic:
+                continue
 
         for idx, tr_id in enumerate(gene_info.tr_ids):
             # print("mpt_id:", mpt_id, "tr_id:", tr_id)
