@@ -174,9 +174,3 @@ if __name__ == '__main__':
     f.closed
     BEDOUT.close()
 
-
-
-
-
-
-

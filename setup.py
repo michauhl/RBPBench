@@ -33,7 +33,8 @@ setup(
              'bin/gtf_extract_transcript_data.py',
              'bin/gtf_get_gene_transcripts.py',
              'bin/bed_tr_context_add_avg_con_scores.py',
-             'bin/bed_gen_context_add_avg_con_scores.py'
+             'bin/bed_gen_context_add_avg_con_scores.py',
+             'bin/bed_tr_context_add_gene_infos.py'
              ],
     packages=['rbpbench'],
     package_data={'rbpbench': ['content/*', 'content/motif_plots/*']},
