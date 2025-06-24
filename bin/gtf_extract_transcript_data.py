@@ -68,6 +68,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Set if only mRNAs should be extracted from --gtf file. Removes all non-mRNA transcripts (default: False)")
+    p.add_argument("--tr-ids-only",
+                   dest="tr_ids_only",
+                   default = False,
+                   action = "store_true",
+                   help = "Only store transcript IDs in FASTA header. By default, also add gene IDs and gene names (default: False)")
     # p.add_argument("--bed-col4-infos",
     #                dest="bed_col4_infos",
     #                type=int,
@@ -236,6 +241,7 @@ if __name__ == '__main__':
     benchlib.fasta_output_dic(tr_seqs_dic, tr_seqs_fa,
                               tr2gid_dic=tr2gid_dic,  # add gene ID to header.
                               tr2gn_dic=tr2gn_dic,  # add gene name to header.
+                              seq_ids_only=args.tr_ids_only,  # only store transcript IDs in FASTA header.
                               to_upper=True,  # convert sequences to upper case.
                               split_size=60,  # split sequences into lines of 60 characters.
                               split=True)

@@ -31,7 +31,9 @@ setup(
              'bin/batch_get_common_dataset_gene_ids.py',
              'bin/bed_extend_regions.py',
              'bin/gtf_extract_transcript_data.py',
-             'bin/gtf_get_gene_transcripts.py'
+             'bin/gtf_get_gene_transcripts.py',
+             'bin/bed_tr_context_add_avg_con_scores.py',
+             'bin/bed_gen_context_add_avg_con_scores.py'
              ],
     packages=['rbpbench'],
     package_data={'rbpbench': ['content/*', 'content/motif_plots/*']},

@@ -498,6 +498,115 @@ Wilcoxon rank-sum test is applied to check for significant differences between i
 
 ################################################################################
 
+def map_transcript_to_genomic(tr_s, tr_e, tr_pol, exon_coords, tx_start, tx_end,
+                              correct_min_ex_order=True):
+    """
+    Map transcript coordinates to genomic coordinates (all 1-based here!)
+
+    Args:
+        tr_s (int): transcript start on genome (1-based).
+        tr_e (int): transcript end on genome (1-based).
+        tr_pol (str): '+' or '-'.
+        exon_coords (list): list of [start, end] tuples for exons, 1-based inclusive.
+        tx_start (int): start on transcript (1-based).
+        tx_end (int): end on transcript (1-based).
+
+    Returns:
+        List of [genomic_start, genomic_end] for each mapped segment.
+
+    correct_min_ex_order:
+        If True, assumes exons are ordered from first to last exon, also for minus strand.
+        So for minus strand, the first exon is the most downstream exon (with highest coordinates!).
+
+    >>> tr_s = 1001
+    >>> tr_e = 2000
+    >>> tr_pol = '+'
+    >>> exon_coords = [[1001, 1200], [1501, 1600], [1801, 2000]]
+    >>> query = ['tx1', 50, 120]
+    >>> map_transcript_to_genomic(tr_s, tr_e, tr_pol, exon_coords, query[1], query[2])
+    [[1050, 1120]]
+    >>> query = ['tx1', 180, 230]
+    >>> map_transcript_to_genomic(tr_s, tr_e, tr_pol, exon_coords, query[1], query[2])
+    [[1180, 1200], [1501, 1530]]
+    >>> query = ['tx1', 180, 330]
+    >>> map_transcript_to_genomic(tr_s, tr_e, tr_pol, exon_coords, query[1], query[2])
+    [[1180, 1200], [1501, 1600], [1801, 1830]]
+    >>> query = ['tx1', 200, 201]
+    >>> map_transcript_to_genomic(tr_s, tr_e, tr_pol, exon_coords, query[1], query[2])
+    [[1200, 1200], [1501, 1501]]
+    >>> tr_pol = '-'
+    >>> exon_coords = [[1901, 2000], [1501, 1600], [1001, 1200]]
+    >>> query = ['tx1', 1, 2]
+    >>> map_transcript_to_genomic(tr_s, tr_e, tr_pol, exon_coords, query[1], query[2])
+    [[1999, 2000]]
+    >>> query = ['tx1', 99, 103]
+    >>> map_transcript_to_genomic(tr_s, tr_e, tr_pol, exon_coords, query[1], query[2])
+    [[1901, 1902], [1598, 1600]]
+    >>> query = ['tx1', 399, 400]
+    >>> map_transcript_to_genomic(tr_s, tr_e, tr_pol, exon_coords, query[1], query[2])
+    [[1001, 1002]]
+    >>> query = ['tx1', 98, 203]
+    >>> map_transcript_to_genomic(tr_s, tr_e, tr_pol, exon_coords, query[1], query[2])
+    [[1901, 1903], [1501, 1600], [1198, 1200]]
+    >>> exon_coords = [[1001, 1200], [1501, 1600], [1901, 2000]]
+    >>> query = ['tx1', 98, 203]
+    >>> map_transcript_to_genomic(tr_s, tr_e, tr_pol, exon_coords, query[1], query[2], correct_min_ex_order=False)
+    [[1901, 1903], [1501, 1600], [1198, 1200]]
+
+    """
+
+    # Validate transcript coordinates.
+    if tx_start < 1 or tx_end < tx_start:
+        raise ValueError("Invalid transcript coordinates")
+
+    tx_pos = 1
+    genomic_ranges = []
+
+    """
+    We want the first exon to appear first in the list.
+    For minus strand, this means the first exon is the most downstream exon (highest coordinates).
+    correct_min_ex_order == True means that the exons are ordered correctly for both strands already.
+    If correct_min_ex_order == False, we reverse the order of exons for minus strand case.
+
+    """
+    exons = exon_coords
+    if not correct_min_ex_order:
+        exons = exon_coords if tr_pol == '+' else exon_coords[::-1]
+
+    for exon_start, exon_end in exons:
+        exon_len = exon_end - exon_start + 1
+        exon_tx_start = tx_pos
+        exon_tx_end = tx_pos + exon_len - 1
+
+        # Check if exon overlaps with [tx_start, tx_end].
+        if exon_tx_end < tx_start:
+            tx_pos += exon_len
+            continue
+        if exon_tx_start > tx_end:
+            break
+
+        # Find overlap between exon and query range in transcript context.
+        overlap_start_tx = max(tx_start, exon_tx_start)
+        overlap_end_tx = min(tx_end, exon_tx_end)
+        offset_start = overlap_start_tx - exon_tx_start
+        offset_end = overlap_end_tx - exon_tx_start
+
+        if tr_pol == '+':
+            g_start = exon_start + offset_start
+            g_end = exon_start + offset_end
+        else:
+            g_end = exon_end - offset_start
+            g_start = exon_end - offset_end
+
+        genomic_ranges.append([g_start, g_end])
+
+        tx_pos += exon_len
+
+    return genomic_ranges
+
+
+################################################################################
+
 def compare_conservation_scores(args,
                                 in_regions_dic, control_regions_dic, 
                                 benchlib_path,
@@ -3312,6 +3421,7 @@ def fasta_output_dic(fasta_dic, fasta_out,
                      tr2gid_dic=False,
                      tr2gn_dic=False,
                      tr2reg_dic=False,
+                     seq_ids_only=False,
                      split_size=60):
     """
     Output FASTA sequences dictionary (sequence_id -> sequence) to fasta_out.
@@ -3344,19 +3454,20 @@ def fasta_output_dic(fasta_dic, fasta_out,
         if to_upper:
             seq = seq.upper()
         out_id = seq_id
-        if header_add_sc_dic:
-            out_id = out_id + "," + str(header_add_sc_dic[seq_id])
-        if tr2gid_dic:
-            if seq_id in tr2gid_dic:
-                out_id = out_id + "," + str(tr2gid_dic[seq_id])
-        if tr2gn_dic:
-            if seq_id in tr2gn_dic:
-                out_id = out_id + "," + str(tr2gn_dic[seq_id])
-        if tr2reg_dic:
-            if seq_id in tr2reg_dic:
-                region_id = tr2reg_dic[seq_id]
-                if region_id != "Full":  # Only add label if mRNA parts are used.
-                    out_id = out_id + "," + region_id
+        if not seq_ids_only:
+            if header_add_sc_dic:
+                out_id = out_id + "," + str(header_add_sc_dic[seq_id])
+            if tr2gid_dic:
+                if seq_id in tr2gid_dic:
+                    out_id = out_id + "," + str(tr2gid_dic[seq_id])
+            if tr2gn_dic:
+                if seq_id in tr2gn_dic:
+                    out_id = out_id + "," + str(tr2gn_dic[seq_id])
+            if tr2reg_dic:
+                if seq_id in tr2reg_dic:
+                    region_id = tr2reg_dic[seq_id]
+                    if region_id != "Full":  # Only add label if mRNA parts are used.
+                        out_id = out_id + "," + region_id
         if split:
             OUTFA.write(">%s\n" %(out_id))
             for i in range(0, len(seq), split_size):
@@ -4097,10 +4208,10 @@ def gtf_read_in_transcript_infos(in_gtf,
 
             assert exon_nr == tid2tio_dic[tr_id].exon_c, "ascending exon numbers expected in GTF file \"%s\" but instead found: %i (exon number) %i (expected number) in line:\n%s" %(in_gtf, exon_nr, tid2tio_dic[tr_id].exon_c, line)
 
-            if correct_min_ex_order:
-                # If correct minus trand exon order, add exon coordinates to end of list.
+            if correct_min_ex_order:  # True if first reported exon in minus case is most downstream exon (i.e., largest coordinates).
+                # If correct minus strand exon order, add exon coordinates to end of list.
                 tid2tio_dic[tr_id].exon_coords.append([feat_s, feat_e])
-            else:
+            else:  # If upstream to downstream order exon numbering is used for both plus and minus strand transcripts.
                 # If reverse minus strand exon order, insert exon coordinates at beginning.
                 tid2tio_dic[tr_id].exon_coords.insert(0, [feat_s, feat_e])
 
