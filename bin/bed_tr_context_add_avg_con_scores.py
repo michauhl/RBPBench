@@ -59,6 +59,11 @@ def setup_argument_parser():
                    metavar='str',
                    required = True,
                    help = "Output BED file with added transcript region conservation scores column")
+    p.add_argument("--add-gen-coords",
+                   dest="add_gen_coords",
+                   default = False,
+                   action = "store_true",
+                   help="Add additional column with genomic coordinates of the transcript region (default: False)")
     p.add_argument("--chr-id-style",
                    dest="chr_id_style",
                    type=int,
@@ -147,6 +152,7 @@ if __name__ == '__main__':
             assert gen_coords, "no genomic coordinates found for transcript ID \"%s\" in --bed file. Please provide compatible --bed and --gtf files" %(tr_id)
 
             all_chunk_scores = []
+            gen_regs = []
 
             for gen_chunk in gen_coords:
                 gen_chunk_s = gen_chunk[0] - 1  # make 0-based for conservation score extraction.
@@ -155,19 +161,27 @@ if __name__ == '__main__':
                 try:
                     # Get conservation scores for the region.
                     scores = con_sc_data.values(chr_id, gen_chunk_s, gen_chunk_e, numpy=False)
-                    c_scores = len(scores)
-                    assert c_scores == reg_len, "# of extracted scores != region length (%i != %i) for line:\n%s" %(c_scores, reg_len, line)
+                    # c_scores = len(scores)
+                    # assert c_scores == reg_len, f"# of extracted scores != region length ({c_scores} != {reg_len}) for genomic coordinates {chr_id}:{gen_chunk_s}-gen_chunk_e, line:\n{line}Extracted scores:{scores}" 
                     # Convert NaN values to 0.0.
                     scores = [0.0 if np.isnan(s) else s for s in scores]
                     all_chunk_scores.extend(scores)
+                    gen_regs.append((f"{chr_id}:{gen_chunk_s}-{gen_chunk_e},{gen_pol}"))
 
                 except RuntimeError:
                     print(f"Skipping chunk region {chr_id}:{gen_chunk_s}-{gen_chunk_e} (coordinates not in bigWig)")
+
+            c_all_chunk_scores = len(all_chunk_scores)
+            assert c_all_chunk_scores == reg_len, f"# of extracted scores != region length ({c_all_chunk_scores} != {reg_len}) for transcript ID {tr_id}, line:\n{line}Extracted scores:{all_chunk_scores}"
+
+            gen_regs_str = ";".join(gen_regs) if gen_regs else "-"
 
             # Average score over all positions.
             avg_score = statistics.mean(all_chunk_scores) if all_chunk_scores else 0.0
 
             cols.append(str(avg_score))
+            if args.add_gen_coords:
+                cols.append(gen_regs_str)
 
             BEDOUT.write("\t".join(cols) + "\n")
 
