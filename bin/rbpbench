@@ -5996,6 +5996,7 @@ def main_search(args):
                                     ensembl_canonical_tag=False,
                                     prior_basic_tag=True,  # Prioritize basic tag transcript.
                                     prior_mane_select=True,  # mane select if set trumps all.
+                                    prior_lncrna_primary_tag=True,  # for lncRNA genes prioritize gencode primary tagged transcripts (mane select still better but should not occur together for lncRNAs).
                                     only_tsl=False)
             assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
             print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
@@ -7360,6 +7361,7 @@ def main_batch(args):
                                     ensembl_canonical_tag=False,
                                     prior_basic_tag=True,  # Prioritize basic tag transcript.
                                     prior_mane_select=True,  # mane select if set trumps all.
+                                    prior_lncrna_primary_tag=True,
                                     only_tsl=False)
             assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
             print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
@@ -11357,6 +11359,7 @@ def main_searchlong(args):
                                         ensembl_canonical_tag=False,
                                         prior_basic_tag=True,  # Prioritize basic tag transcript.
                                         prior_mane_select=True,  # mane select if set trumps all.
+                                        prior_lncrna_primary_tag=True,
                                         only_tsl=False)
                 assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
                 print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
@@ -15092,6 +15095,7 @@ def main_searchlongrna(args):
                                 ensembl_canonical_tag=False,
                                 prior_basic_tag=True,  # Prioritize basic tag transcript.
                                 prior_mane_select=True,  # mane select if set trumps all.
+                                prior_lncrna_primary_tag=True,
                                 only_tsl=False)
         assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
         print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
@@ -16988,6 +16992,7 @@ def main_enmo(args):
                                 ensembl_canonical_tag=False,
                                 prior_basic_tag=True,  # Prioritize basic tag transcript.
                                 prior_mane_select=True,  # mane select if set trumps all.
+                                prior_lncrna_primary_tag=True,
                                 only_tsl=False)
         assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
         print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
@@ -19345,6 +19350,7 @@ def main_nemo(args):
                                 ensembl_canonical_tag=False,
                                 prior_basic_tag=True,  # Prioritize basic tag transcript.
                                 prior_mane_select=True,  # mane select if set trumps all.
+                                prior_lncrna_primary_tag=True,
                                 only_tsl=False)
         assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
         print("# of transcript IDs (most prominent transcripts): ", len(tr_ids_dic))
@@ -21400,6 +21406,8 @@ def main_sponge(args):
                                     basic_tag=False,  # do not be strict (only_tsl=False too).
                                     ensembl_canonical_tag=False,
                                     prior_basic_tag=True,  # Prioritize basic tag transcript.
+                                    prior_mane_select=True,  # mane select if set trumps all.
+                                    prior_lncrna_primary_tag=True,
                                     only_tsl=False)
             
             assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
@@ -22326,6 +22334,7 @@ def main_tomtom(args):
                     query2targets_dic[query_id].append(target_id)
                 else:
                     query2targets_dic[query_id] = [target_id]
+        f.closed
 
         print("# of TOMTOM database hits:          %i" %(c_db_hits))
         print("# of query IDs with hits:           %i" %(len(query2targets_dic)))

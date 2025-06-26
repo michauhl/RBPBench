@@ -80,6 +80,97 @@ def calc_edit_dist_query_list(query_str, lst):
 
 ################################################################################
 
+def transcript_to_bed12(chr_id, tr_s, tr_e, strand, exon_coords,
+    cds_start=None, cds_end=None,
+    transcript_id="tx1", score=0, color="0,0,0"):
+    """
+    Convert transcript information to BED12 format.
+
+    tr_s, tr_e:
+        1-based genomic coordinates of the transcript start and end.
+    exon_coords:
+        List of lists with 1-based genomic coordinates of exons, 
+        e.g. [[start1, end1], [start2, end2], ...].
+    strand:
+    cds_start, cds_end:
+        1-based genomic coordinates of the coding region start and end.
+
+    BED12 Format Fields (required):
+    chrom: chromosome name
+    chromStart: 0-based start of the feature
+    chromEnd: 1-based end of the feature
+    name: transcript ID or any identifier
+    score: can be 0 if not used
+    strand: + or -
+    thickStart: start of coding region (often = chromStart if non-coding)
+        The starting position at which the feature is drawn thickly.
+    thickEnd: end of coding region (often = chromEnd if non-coding)
+        The ending position at which the feature is drawn thickly.
+    itemRgb: RGB color (can be 0 or 0,0,0)
+    blockCount: number of exons
+    blockSizes: comma-separated exon lengths
+        A comma-separated list of the block sizes.
+    blockStarts: comma-separated exon starts relative to chromStart
+        A comma-separated list of block starts.
+    
+    >>> chr_id = "chr1"
+    >>> tr_s = 1001
+    >>> tr_e = 1700
+    >>> cds_s = 1020
+    >>> cds_e = 1680
+    >>> strand = "+"
+    >>> exon_coords = [[1001, 1100], [1601, 1700]]
+    >>> bed_line = transcript_to_bed12(chr_id, tr_s, tr_e, strand, exon_coords, cds_start=cds_s, cds_end=cds_e, transcript_id="tx1")
+    >>> print(repr(bed_line))
+    'chr1\\t1000\\t1700\\ttx1\\t0\\t+\\t1019\\t1680\\t0,0,0\\t2\\t100,100,\\t0,600,'
+
+    """
+
+    # Convert transcript and CDS coordinates from 1-based to 0-based BED format.
+    bed_chrom_start = tr_s - 1
+    bed_chrom_end = tr_e
+
+    # Convert genomic CDS coordinates if provided.
+    if cds_start is not None and cds_end is not None:
+        thick_start = cds_start - 1
+        thick_end = cds_end
+    else:
+        thick_start = bed_chrom_start
+        thick_end = bed_chrom_end
+
+    # Reverse exon order for minus strand transcripts (5' -> 3'), such that display in e.g. IGV is correct.
+    if strand == "-":
+        exon_coords = exon_coords[::-1]
+
+    block_sizes = []
+    block_starts = []
+
+    for start, end in exon_coords:
+        block_size = end - start + 1
+        block_start = (start - 1) - bed_chrom_start
+        block_sizes.append(str(block_size))
+        block_starts.append(str(block_start))
+
+    bed12_fields = [
+        chr_id,
+        str(bed_chrom_start),
+        str(bed_chrom_end),
+        transcript_id,
+        str(score),
+        strand,
+        str(thick_start),
+        str(thick_end),
+        color,
+        str(len(exon_coords)),
+        ",".join(block_sizes) + ",",
+        ",".join(block_starts) + ","
+    ]
+
+    return "\t".join(bed12_fields)
+
+
+################################################################################
+
 def bed_read_in_regions(in_bed,
                         no_id_check=False,
                         use_regions_as_ids=False):
@@ -3885,6 +3976,7 @@ def gtf_read_in_gene_infos(in_gtf,
                            chr_style=0,
                            skip_gene_biotype_dic=None,
                            gene_ids_dic=False,
+                           remove_version_numbers=False,
                            empty_check=False):
     """
     Read in gene infos into GeneInfo objects, including information on 
@@ -3948,6 +4040,9 @@ def gtf_read_in_gene_infos(in_gtf,
             m = re.search('gene_id "(.+?)"', infos)
             assert m, "gene_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             gene_id = m.group(1)
+            if remove_version_numbers:
+                gene_id = re.sub(r"\.\d+$", "", gene_id)
+
             m = re.search('gene_name "(.+?)"', infos)
             gene_name = "-"  # optional.
             if m:
@@ -3978,9 +4073,14 @@ def gtf_read_in_gene_infos(in_gtf,
             m = re.search('gene_id "(.+?)"', infos)
             assert m, "gene_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             gene_id = m.group(1)
+            if remove_version_numbers:
+                gene_id = re.sub(r"\.\d+$", "", gene_id)
+
             m = re.search('transcript_id "(.+?)"', infos)
             assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             tr_id = m.group(1)
+            if remove_version_numbers:
+                tr_id = re.sub(r"\.\d+$", "", tr_id)
 
             # assert gene_id in gid2gio_dic, "gene_id %s belonging to transcript ID %s not (yet) encountered. Gene feature expected to come before transcript and exon features in GTF file \"%s\"" %(gene_id, tr_id, in_gtf)
             if gene_id not in gid2gio_dic:
@@ -4008,6 +4108,20 @@ def gtf_read_in_gene_infos(in_gtf,
             m = re.search('tag "basic"', infos)
             if m:
                 basic_tag = 1
+            # New basic tag (in newer Ensembl GTFs).
+            m = re.search('tag "gencode_basic"', infos)
+            if m:
+                basic_tag = 1
+
+            # GENCODE primary tag (again newer).
+            primary_tag = 0
+            m = re.search('tag "GENCODE_Primary"', infos)
+            if m:
+                primary_tag = 1
+            m = re.search('tag "gencode_primary"', infos)
+            if m:
+                primary_tag = 1
+
             # Ensembl canonical.
             ensembl_canonical = 0
             m = re.search('tag "Ensembl_canonical"', infos)
@@ -4018,6 +4132,7 @@ def gtf_read_in_gene_infos(in_gtf,
             m = re.search('tag "MANE_Select"', infos)
             if m:
                 mane_select = 1
+            
             # Transcript support level (TSL).
             # transcript_support_level "NA (assigned to previous version 1)"
             m = re.search('transcript_support_level "(.+?)"', infos)
@@ -4038,17 +4153,24 @@ def gtf_read_in_gene_infos(in_gtf,
             gid2gio_dic[gene_id].tr_mane_select_tags.append(mane_select)
             gid2gio_dic[gene_id].tr_tsls.append(tsl_id)
             gid2gio_dic[gene_id].tr_lengths.append(tr_length)
+            gid2gio_dic[gene_id].tr_primary_tags.append(primary_tag)
 
         elif feature == "exon":
             m = re.search('gene_id "(.+?)"', infos)
             assert m, "gene_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             gene_id = m.group(1)
+            if remove_version_numbers:
+                gene_id = re.sub(r"\.\d+$", "", gene_id)
+            
             if gene_id not in gid2gio_dic:
                 continue
             # Extract transcript ID.
             m = re.search('transcript_id "(.+?)"', infos)
             assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)    
             tr_id = m.group(1)
+            if remove_version_numbers:
+                tr_id = re.sub(r"\.\d+$", "", tr_id)
+            
             # Sum up length.
             ex_len = feat_e - feat_s + 1
             if not tr_id in tr2len_dic:
@@ -4076,6 +4198,7 @@ def gtf_read_in_transcript_infos(in_gtf,
                                  tr_types_dic=None,
                                  correct_min_ex_order=True,
                                  chr_style=0,
+                                 remove_version_numbers=False,
                                  empty_check=True):
     """
     Read in transcript infos into TransriptInfo objects. Note that only 
@@ -4129,9 +4252,14 @@ def gtf_read_in_transcript_infos(in_gtf,
             m = re.search('gene_id "(.+?)"', infos)
             assert m, "gene_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             gene_id = m.group(1)
+            if remove_version_numbers:
+                gene_id = re.sub(r"\.\d+$", "", gene_id)
+
             m = re.search('transcript_id "(.+?)"', infos)
             assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             tr_id = m.group(1)
+            if remove_version_numbers:
+                tr_id = re.sub(r"\.\d+$", "", tr_id)
 
             tr_ids_seen_dic[tr_id] = 1
 
@@ -4192,6 +4320,9 @@ def gtf_read_in_transcript_infos(in_gtf,
             m = re.search('transcript_id "(.+?)"', infos)
             assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)    
             tr_id = m.group(1)
+            if remove_version_numbers:
+                tr_id = re.sub(r"\.\d+$", "", tr_id)
+
             assert tr_id in tr_ids_seen_dic, "transcript ID %s in exon feature not (yet) encountered. Transcript feature expected to come before exon features in GTF file \"%s\"" %(tr_id, in_gtf)
     
             if tr_ids_dic is not None:
@@ -4224,6 +4355,9 @@ def gtf_read_in_transcript_infos(in_gtf,
             m = re.search('transcript_id "(.+?)"', infos)
             assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)    
             tr_id = m.group(1)
+            if remove_version_numbers:
+                tr_id = re.sub(r"\.\d+$", "", tr_id)
+
             assert tr_id in tr_ids_seen_dic, "transcript ID %s in exon feature not (yet) encountered. Transcript feature expected to come before CDS features in GTF file \"%s\"" %(tr_id, in_gtf)
         
             if tr_ids_dic is not None:
@@ -5181,8 +5315,8 @@ class TranscriptInfo:
                  ensembl_canonical: Optional[int] = None,
                  mane_select: Optional[int] = None,
                  tsl_id: Optional[str] = None,
-                 cds_s: Optional[int] = None,
-                 cds_e: Optional[int] = None,
+                 cds_s: Optional[int] = None,  # Genomic CDS start position (1-based).
+                 cds_e: Optional[int] = None,  # Genomic CDS end position (1-based).
                  intron_coords=None,  # intron_coords + exon_coords with 1-based starts and ends.
                  exon_coords=None) -> None:
 
@@ -5244,6 +5378,7 @@ chr1	HAVANA	exon	11869	12227	.	+	.	gene_id "ENSG00000290825.1"; transcript_id "E
                  tr_basic_tags=None,
                  tr_ensembl_canonical_tags=None,
                  tr_mane_select_tags=None,
+                 tr_primary_tags=None,
                  tr_lengths=None,
                  tr_tsls=None) -> None:
         self.gene_id = gene_id
@@ -5273,6 +5408,10 @@ chr1	HAVANA	exon	11869	12227	.	+	.	gene_id "ENSG00000290825.1"; transcript_id "E
             self.tr_mane_select_tags = []
         else:
             self.tr_mane_select_tags = tr_mane_select_tags
+        if tr_primary_tags is None:
+            self.tr_primary_tags = []
+        else:
+            self.tr_primary_tags = tr_primary_tags
         if tr_lengths is None:
             self.tr_lengths = []
         else:
@@ -7313,6 +7452,7 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                                 only_tsl=False,
                                 prior_basic_tag=True,
                                 prior_mane_select=False,
+                                prior_lncrna_primary_tag=False,
                                 tr_min_len=False,
                                 gene_ids_dic=False
                                 ):
@@ -7341,6 +7481,8 @@ def select_mpts_from_gene_infos(gid2gio_dic,
         and Ensembl databases.
     gene_ids_dic:
         If set, only report only MPT transcripts for genes in gene_ids_dic.
+    prior_lncrna_primary_tag:
+        If gene_biotype == lncRNA, prioritize gencode primary tag transcripts.
         
     >>> test_gtf = "test_data/test_mpt_selection.gtf"
     >>> gid2gio_dic = gtf_read_in_gene_infos(test_gtf)
@@ -7372,12 +7514,14 @@ def select_mpts_from_gene_infos(gid2gio_dic,
 
     for gene_id in gid2gio_dic:
         gene_info = gid2gio_dic[gene_id]
+        gene_biotype = gene_info.gene_biotype
         mpt_id = "-"
         mpt_tsl = "NA"
         mpt_len = 0
         mpt_bt = 0
         mpt_ec = 0
         mpt_ms = 0
+        mpt_prim = 0
 
         if gene_ids_dic:
             if gene_id not in gene_ids_dic:
@@ -7389,6 +7533,7 @@ def select_mpts_from_gene_infos(gid2gio_dic,
             tr_bt = gene_info.tr_basic_tags[idx]  # 0 or 1
             tr_ec = gene_info.tr_ensembl_canonical_tags[idx]  # 0 or 1
             tr_ms = gene_info.tr_mane_select_tags[idx]  # 0 or 1
+            tr_prim = gene_info.tr_primary_tags[idx]  # 0 or 1
             tr_length = gene_info.tr_lengths[idx]
 
             # print(tr_id, "BT:", tr_bt, "TSL:", tr_tsl)
@@ -7408,15 +7553,30 @@ def select_mpts_from_gene_infos(gid2gio_dic,
             if tr_min_len:
                 if tr_length < tr_min_len:
                     continue
+            
             if prior_mane_select:
-                if tr_ms > mpt_ms:
+                if tr_ms > mpt_ms:  # Found a MANE select tag transcript.
                     mpt_id = tr_id
                     mpt_tsl = tr_tsl
                     mpt_len = tr_length
                     mpt_bt = tr_bt
                     mpt_ec = tr_ec
                     mpt_ms = tr_ms
-                    continue
+                    mpt_prim = tr_prim
+                    # MANE_Select tag should (if it appears) only appear once for a gene, so "now it's time to break it".
+                    # Check with: gtf_check_mane_primary_tags.py gtf_file
+                    break
+            
+            if prior_lncrna_primary_tag and gene_biotype == "lncRNA":  # new!
+                if tr_prim > mpt_prim:  # Found a GENCODE primary tag transcript.
+                    mpt_id = tr_id
+                    mpt_tsl = tr_tsl
+                    mpt_len = tr_length
+                    mpt_bt = tr_bt
+                    mpt_ec = tr_ec
+                    mpt_ms = tr_ms
+                    mpt_prim = tr_prim
+                    break  # GENCODE primary tag should (if it appears) only appear once for lncRNA genes.
 
             if id2sc[tr_tsl] < id2sc[mpt_tsl]:
                 if prior_basic_tag:
@@ -7427,6 +7587,7 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                         mpt_bt = tr_bt
                         mpt_ec = tr_ec
                         mpt_ms = tr_ms
+                        mpt_prim = tr_prim
                 else:
                     mpt_id = tr_id
                     mpt_tsl = tr_tsl
@@ -7434,6 +7595,7 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                     mpt_bt = tr_bt
                     mpt_ec = tr_ec
                     mpt_ms = tr_ms
+                    mpt_prim = tr_prim
 
             elif id2sc[tr_tsl] == id2sc[mpt_tsl]:
                 # print("Now equal, comparing tr_id %s with mpt_id %s" %(tr_id, mpt_id))
@@ -7445,6 +7607,7 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                     mpt_bt = tr_bt
                     mpt_ec = tr_ec
                     mpt_ms = tr_ms
+                    mpt_prim = tr_prim
                     continue
                 # If transcript has Ensembl canonical tag, use this.
                 if tr_ec > mpt_ec:
@@ -7454,6 +7617,7 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                     mpt_bt = tr_bt
                     mpt_ec = tr_ec
                     mpt_ms = tr_ms
+                    mpt_prim = tr_prim
                     continue
                 # If same basic/Ensembl canonical tag combination.
                 if tr_ec == mpt_ec and tr_bt == mpt_bt:
@@ -7464,6 +7628,7 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                         mpt_bt = tr_bt
                         mpt_ec = tr_ec
                         mpt_ms = tr_ms
+                        mpt_prim = tr_prim
             else:
                 # If transcript has worse TSL but basic tag and current MPT has not.
                 if prior_basic_tag and tr_bt > mpt_bt:
@@ -7473,6 +7638,7 @@ def select_mpts_from_gene_infos(gid2gio_dic,
                     mpt_bt = tr_bt
                     mpt_ec = tr_ec
                     mpt_ms = tr_ms
+                    mpt_prim = tr_prim
 
         if not mpt_len:
             continue

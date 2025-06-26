@@ -73,6 +73,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Only store transcript IDs in FASTA header. By default, also add gene IDs and gene names (default: False)")
+    p.add_argument("--ignore-version-numbers",
+                   dest="ignore_version_numbers",
+                   default = False,
+                   action = "store_true",
+                   help = "Set to ignore ID version numbers in --gtf file, i.e., read in gene and transcript IDs without version numbers. This has to be set if input IDs have no version number but GTF file has (default: False)")
     # p.add_argument("--bed-col4-infos",
     #                dest="bed_col4_infos",
     #                type=int,
@@ -126,6 +131,7 @@ if __name__ == '__main__':
                                                 tr_types_dic=tr_types_dic,
                                                 chr_style=args.chr_id_style,
                                                 gene_ids_dic=gene_ids_dic,
+                                                remove_version_numbers=args.ignore_version_numbers,
                                                 empty_check=False)
 
     assert gid2gio_dic, "no gene infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
@@ -157,6 +163,7 @@ if __name__ == '__main__':
                                 ensembl_canonical_tag=False,
                                 prior_basic_tag=True,  # Prioritize basic tag transcript.
                                 prior_mane_select=True,  # mane select if set trumps all.
+                                prior_lncrna_primary_tag=True,  # for lncRNA genes prioritize gencode primary tagged transcripts (mane select still better but should not occur together for lncRNAs).
                                 only_tsl=False)
 
         assert tr_ids_dic, "most prominent transcript selection from gene infos failed. Please contact developers"
@@ -176,6 +183,7 @@ if __name__ == '__main__':
                                                         tr_ids_dic=tr_ids_dic,
                                                         correct_min_ex_order=correct_min_ex_order,
                                                         chr_style=args.chr_id_style,
+                                                        remove_version_numbers=args.ignore_version_numbers,
                                                         empty_check=False)
 
     assert tid2tio_dic, "no transcript infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
@@ -317,7 +325,7 @@ if __name__ == '__main__':
 
     """
 
-    print("Output transcript regions to BED ... ")
+    print("Output transcript regions to BED (BED12) ... ")
 
     c_out = 0
     OUTBED = open(out_tr_bed, "w")
@@ -325,11 +333,12 @@ if __name__ == '__main__':
     for tid in tid2tio_dic:
         tio = tid2tio_dic[tid]
         chr_id = tio.chr_id
-        tr_s = tio.tr_s - 1
+        tr_s = tio.tr_s  # 1-based genomic start.
         tr_e = tio.tr_e
         tr_pol = tio.tr_pol
         gene_id = tio.gene_id
         gene_name = tr2gn_dic[tid]
+        exon_coords = tio.exon_coords
 
         if tid not in tr_ids_dic:
             continue
@@ -338,7 +347,14 @@ if __name__ == '__main__':
 
         c_out += 1
 
-        OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" %(chr_id, tr_s, tr_e, reg_id, tr_pol))
+        # BED12 format.
+        bed12_line = benchlib.transcript_to_bed12(chr_id, tr_s, tr_e, tr_pol, exon_coords, 
+                                                  cds_start=tio.cds_s, 
+                                                  cds_end=tio.cds_e, 
+                                                  transcript_id=reg_id)
+
+        OUTBED.write(bed12_line + "\n")
+        # OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" %(chr_id, tr_s, tr_e, reg_id, tr_pol))
 
     OUTBED.close()
 

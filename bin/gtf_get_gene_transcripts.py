@@ -48,6 +48,11 @@ def setup_argument_parser():
                    metavar='str',
                    required=True,
                    help="Output transcript IDs table file (including gene IDs, gene names and gene biotypes)")
+    p.add_argument("--ignore-version-numbers",
+                   dest="ignore_version_numbers",
+                   default = False,
+                   action = "store_true",
+                   help = "Set to ignore ID version numbers in --gtf file, i.e., read in gene and transcript IDs without version numbers. This has to be set if input IDs have no version number but GTF file has (default: False)")
     p.add_argument("--chr-id-style",
                    dest="chr_id_style",
                    type=int,
@@ -79,6 +84,7 @@ if __name__ == '__main__':
                                                   tr2gid_dic=tr2gid_dic,
                                                   chr_style=args.chr_id_style,
                                                   gene_ids_dic=gene_ids_dic,
+                                                  remove_version_numbers=args.ignore_version_numbers,
                                                   empty_check=False)
 
     assert gid2gio_dic, "no gene infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
@@ -103,6 +109,7 @@ if __name__ == '__main__':
                             ensembl_canonical_tag=False,
                             prior_basic_tag=True,  # Prioritize basic tag transcript.
                             prior_mane_select=True,  # mane select if set trumps all.
+                            prior_lncrna_primary_tag=True,  # for lncRNA genes prioritize gencode primary tagged transcripts (mane select still better but should not occur together for lncRNAs).
                             only_tsl=False,
                             gene_ids_dic=gene_ids_dic)
 
@@ -124,6 +131,7 @@ if __name__ == '__main__':
                                                         tr_ids_dic=tr_ids_dic,
                                                         correct_min_ex_order=correct_min_ex_order,
                                                         chr_style=args.chr_id_style,
+                                                        remove_version_numbers=args.ignore_version_numbers,
                                                         empty_check=False)
 
     OUT = open(args.out_tr_list, "w")
