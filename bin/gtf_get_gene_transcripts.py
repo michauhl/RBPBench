@@ -43,11 +43,11 @@ def setup_argument_parser():
                    required = True,
                    help = "Input GTF file with genomic annotations to extract transcript data from. Note that only genes on standard chromosomes (1,2,..,X,Y,MT) are currently used")
     p.add_argument("--out",
-                   dest="out_tr_list",
+                   dest="out_folder",
                    type=str,
                    metavar='str',
                    required=True,
-                   help="Output transcript IDs table file (including gene IDs, gene names and gene biotypes)")
+                   help="Output folder to store transcript BED12 and transcript infos table file (including gene IDs, gene names and gene biotypes)")
     p.add_argument("--ignore-version-numbers",
                    dest="ignore_version_numbers",
                    default = False,
@@ -71,6 +71,12 @@ if __name__ == '__main__':
 
     assert os.path.exists(args.in_gtf), "--gtf file \"%s\" not found" % (args.in_gtf)
     assert os.path.exists(args.gene_list), "--gene-list file \"%s\" not found" % (args.gene_list)
+
+    if not os.path.exists(args.out_folder):
+        os.makedirs(args.out_folder)
+
+    out_tr_list = os.path.join(args.out_folder, "transcript_infos.tsv")
+    out_bed12 = os.path.join(args.out_folder, "transcript_regions.bed12.bed")
 
     print("Read in gene IDs from --in file ...")
     gene_ids_dic = benchlib.read_ids_into_dic(args.gene_list,
@@ -134,7 +140,9 @@ if __name__ == '__main__':
                                                         remove_version_numbers=args.ignore_version_numbers,
                                                         empty_check=False)
 
-    OUT = open(args.out_tr_list, "w")
+    print("Output transcript infos to TSV file ... ")
+
+    OUT = open(out_tr_list, "w")
     OUT.write("transcript_id\ttranscript_biotype\ttranscript_length\texon_count\trepresentative_transcript\tgene_name\tgene_id\tgene_biotype\n")
 
     for gid in gid2gio_dic:
@@ -153,6 +161,33 @@ if __name__ == '__main__':
             OUT.write("%s\t%s\t%i\t%i\t%s\t%s\t%s\t%s\n" % (tid, tr_biotype, tr_length, c_exons, is_mpt, gene_name, gid, gene_biotype))
     OUT.close()
 
-    print("Output transcript IDs written to:\n%s" % (args.out_tr_list))
+
+    print("Output transcript regions to BED (BED12) ... ")
+
+    OUTBED = open(out_bed12, "w")
+
+    for gid in gid2gio_dic:
+        gene_name = gid2gio_dic[gid].gene_name
+        tr_ids = gid2gio_dic[gid].tr_ids
+        for idx, tid in enumerate(tr_ids):
+            tio = tid2tio_dic[tid]
+            chr_id = tio.chr_id
+            tr_s = tio.tr_s  # 1-based genomic start.
+            tr_e = tio.tr_e
+            tr_pol = tio.tr_pol
+            exon_coords = tio.exon_coords
+
+            reg_id = tid + ";" + gid + ";" + gene_name
+
+            # BED12 format.
+            bed12_line = benchlib.transcript_to_bed12(chr_id, tr_s, tr_e, tr_pol, exon_coords, 
+                                                      cds_start=tio.cds_s, 
+                                                      cds_end=tio.cds_e, 
+                                                      transcript_id=reg_id)
+
+            OUTBED.write(bed12_line + "\n")
+
+    OUTBED.close()
+
     print("")
 
