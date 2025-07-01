@@ -4279,16 +4279,32 @@ def gtf_read_in_transcript_infos(in_gtf,
             m = re.search('tag "basic"', infos)
             if m:
                 basic_tag = 1
+            # New basic tag (in newer Ensembl GTFs).
+            m = re.search('tag "gencode_basic"', infos)
+            if m:
+                basic_tag = 1
+
             # Ensembl canonical.
             ensembl_canonical = 0
             m = re.search('tag "Ensembl_canonical"', infos)
             if m:
                 ensembl_canonical = 1
+            
             # MANE select.
             mane_select = 0
             m = re.search('tag "MANE_Select"', infos)
             if m:
                 mane_select = 1
+
+            # GENCODE primary tag (again newer).
+            primary_tag = 0
+            m = re.search('tag "GENCODE_Primary"', infos)
+            if m:
+                primary_tag = 1
+            m = re.search('tag "gencode_primary"', infos)
+            if m:
+                primary_tag = 1
+
             # Transcript support level (TSL).
             # transcript_support_level "NA (assigned to previous version 1)"
             m = re.search('transcript_support_level "(.+?)"', infos)
@@ -4305,11 +4321,12 @@ def gtf_read_in_transcript_infos(in_gtf,
                 else:
                     tr_types_dic[tr_biotype] += 1
 
-            tr_infos = TranscriptInfo(tr_id, tr_biotype, chr_id, feat_s, feat_e, feat_pol, gene_id,
+            tr_infos = TranscriptInfo(tr_id, tr_biotype, chr_id, feat_s, feat_e, feat_pol, gene_id,  # aalamo
                                       tr_length=0,
                                       basic_tag=basic_tag,  # int
                                       ensembl_canonical=ensembl_canonical,  # int
                                       mane_select=mane_select,  # int
+                                      primary_tag=primary_tag,  # int
                                       tsl_id=tsl_id,  # int
                                       exon_c=0)
             assert tr_id not in tid2tio_dic, "transcript feature with transcript ID %s already encountered in GTF file \"%s\"" %(tr_id, in_gtf)
@@ -5314,6 +5331,7 @@ class TranscriptInfo:
                  basic_tag: Optional[int] = None,
                  ensembl_canonical: Optional[int] = None,
                  mane_select: Optional[int] = None,
+                 primary_tag: Optional[int] = None,
                  tsl_id: Optional[str] = None,
                  cds_s: Optional[int] = None,  # Genomic CDS start position (1-based).
                  cds_e: Optional[int] = None,  # Genomic CDS end position (1-based).
@@ -5335,6 +5353,7 @@ class TranscriptInfo:
         self.basic_tag = basic_tag
         self.ensembl_canonical = ensembl_canonical
         self.mane_select = mane_select
+        self.primary_tag = primary_tag
         self.tsl_id = tsl_id
 
         if intron_coords is None:

@@ -16,8 +16,8 @@ python gtf_extract_transcript_data.py --gtf /path/to/Homo_sapiens.GRCh38.112.gtf
 def setup_argument_parser():
     """Setup argparse parser."""
     help_description = """
-    Given a list of gene IDs (--in) and a --gtf file, output (--out) list of
-    transcript IDs belonging to input gene IDs from GTF file.
+    Given a gene ID or a list of gene IDs (--in) and a --gtf file, output 
+    corresponding transcript infos to --out folder.
 
     """
     # Define argument parser.
@@ -35,7 +35,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    required = True,
-                   help = "Supply file with gene IDs (one ID per row) to define for which genes to extract transcript IDs from --gtf")
+                   help = "Supply file with gene IDs (one ID per row) to define for which genes to extract transcript IDs from --gtf. Alternatively, provide single gene ID")
     p.add_argument("--gtf",
                    dest="in_gtf",
                    type=str,
@@ -70,19 +70,24 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     assert os.path.exists(args.in_gtf), "--gtf file \"%s\" not found" % (args.in_gtf)
-    assert os.path.exists(args.gene_list), "--gene-list file \"%s\" not found" % (args.gene_list)
+    # assert os.path.exists(args.gene_list), "--gene-list file \"%s\" not found" % (args.gene_list)
+
+    gene_ids_dic = {}
+    if os.path.isfile(args.gene_list):
+        print("--in is file. Read in gene IDs from --in file ...")
+        gene_ids_dic = benchlib.read_ids_into_dic(args.gene_list,
+                                                  check_dic=False)
+    else:
+        print("--in is not a file. Assuming single gene ID provided ...")
+        gene_ids_dic = {args.gene_list: 1}
+
+    assert gene_ids_dic, "no gene IDs read in from provided --in. Please provide a valid IDs file (one ID per row) or a single gene ID"
 
     if not os.path.exists(args.out_folder):
         os.makedirs(args.out_folder)
 
     out_tr_list = os.path.join(args.out_folder, "transcript_infos.tsv")
     out_bed12 = os.path.join(args.out_folder, "transcript_regions.bed12.bed")
-
-    print("Read in gene IDs from --in file ...")
-    gene_ids_dic = benchlib.read_ids_into_dic(args.gene_list,
-                                              check_dic=False)
-    
-    assert gene_ids_dic, "no IDs read in from provided --gene-list file. Please provide a valid IDs file (one ID per row)"
 
     tr2gid_dic = {}
     print("Read in gene infos from --gtf file ... ")
