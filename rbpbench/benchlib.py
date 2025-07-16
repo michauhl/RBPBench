@@ -7,7 +7,7 @@ import gzip
 import shutil
 import statistics
 from itertools import combinations, product
-from collections import defaultdict
+from collections import Counter, defaultdict
 import matplotlib.pyplot as plt
 from matplotlib_venn import venn2, venn3
 from venn import venn
@@ -1873,6 +1873,41 @@ def calc_tomtom_sim(seq_motifs_db_file, out_folder):
     motif_pair2sim_dic = read_in_tomtom_sim_results(tomtom_sim_out)
 
     return motif_pair2sim_dic
+
+
+################################################################################
+
+def get_regexes_from_file(regex_file):
+    """
+    Read in regexes from file, with format:
+    regex_id1<tab>regex1
+    regex_id2<tab>regex2
+    ...
+
+    """
+    assert os.path.exists(regex_file), "--regex file \"%s\" not found" % (regex_file)
+
+    regex_dic = {}
+
+    with open(regex_file, "r") as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            assert len(cols) == 2, "--regex file \"%s\" expected to have 2 columns (regex_id<tab>regex) but has line:\n%s" % (regex_file, line)
+
+            regex_id = cols[0]
+            regex = cols[1]
+
+            assert is_valid_regex(regex), "invalid regex \"%s\" found in --regex file. Please provide valid regex strings" % (regex)
+
+            assert regex_id not in regex_dic, "regex ID \"%s\" already exists in --regex file. Please provide unique regex IDs" % (regex_id)
+
+            regex_dic[regex_id] = regex
+
+    f.closed
+
+    assert regex_dic, "--regex file \"%s\" is empty" % (regex_file)
+
+    return regex_dic
 
 
 ################################################################################
@@ -4321,7 +4356,7 @@ def gtf_read_in_transcript_infos(in_gtf,
                 else:
                     tr_types_dic[tr_biotype] += 1
 
-            tr_infos = TranscriptInfo(tr_id, tr_biotype, chr_id, feat_s, feat_e, feat_pol, gene_id,  # aalamo
+            tr_infos = TranscriptInfo(tr_id, tr_biotype, chr_id, feat_s, feat_e, feat_pol, gene_id,
                                       tr_length=0,
                                       basic_tag=basic_tag,  # int
                                       ensembl_canonical=ensembl_canonical,  # int
@@ -5207,6 +5242,79 @@ class TranscriptInfoExonTest:
         else:
             self.exon_coords = exon_coords
 
+
+################################################################################
+
+class SeqFeat:
+    """
+    Store DNA sequence with together with some sequence features (k-mer frequencies,
+    motif hit profile ...).
+    AALAMO
+
+    """
+
+    def __init__(self,
+                 seq_id: str, 
+                 seq: str, 
+                 k: int = 5,
+                 c_hits: int = 0,
+                 hit_profile=None) -> None:
+        self.seq_id = seq_id
+        self.seq = seq.upper()
+        self.seq_len = len(self.seq)
+        self.k = k
+        self.c_hits = c_hits
+        if hit_profile is None:
+            self.hit_profile = []
+        else:
+            self.hit_profile = hit_profile
+        
+        self.mono_nt_perc = get_kmer_counts_dic(self.seq, 1, rna=False, count_norm_mode=2)  # get percentages.
+        self.kmer_perc = get_kmer_counts_dic(self.seq, self.k, rna=False, count_norm_mode=2)
+        self.seq_entropy = round(seq_calc_entropy(self.seq, rna=False, k=1), 6)
+        self.mono_nt_perc_str = get_kmer_perc_str(self.mono_nt_perc)
+        self.mono_nt_c = get_kmer_counts_dic(self.seq, 1, rna=False, count_norm_mode=1)  # get counts.
+        self.gc_perc = calc_seq_gc_cont(self.mono_nt_c, get_perc=True)
+
+
+################################################################################
+
+def get_kmer_perc_str(nt_perc_dic):
+    """
+    Given a dictionary of nucleotide percentages, return a string with
+    nucleotide percentages formatted as "A: 25.00%, C: 25.00%, G: 25.00%, T: 25.00%".
+
+    """
+    assert nt_perc_dic, "nt_perc_dic is empty"
+
+    nt_perc_list = []
+    for nt in nt_perc_dic:
+        ntp_str = "%s: %.2f%%" %(nt, nt_perc_dic[nt])
+        nt_perc_list.append(ntp_str)
+    all_ntp_str = ", ".join(nt_perc_list)
+    return all_ntp_str
+
+
+################################################################################
+
+class TranscriptInfoExonTest:
+    """
+    Transcript infos exon coordinates test class.
+
+    """
+    def __init__(self,
+                 tr_id: str,
+                 chr_id: str,
+                 tr_pol: str,
+                 exon_coords=None) -> None:
+
+        self.tr_id = tr_id
+        self.chr_id = chr_id
+        self.tr_pol = tr_pol
+        if exon_coords is None:
+            self.exon_coords = []
+        else:
+            self.exon_coords = exon_coords
 
 
 ################################################################################
@@ -16742,6 +16850,432 @@ def min_max_scale(values, new_min=0, new_max=1):
 
 ################################################################################
 
+def create_pca_hit_prof_plot_plotly(seqid2feat_dic, 
+                                    plot_out,
+                                    color_var="GC content",
+                                    highlight_id=False,
+                                    include_plotlyjs="cdn",
+                                    full_html=False):
+    """
+    Create motif hit profiles PCA plot in 3D (Nature trail to hell ..).
+    
+    """
+
+    assert seqid2feat_dic, "seqid2feat_dic is empty"
+
+    prof_ll = []
+    seq_ids_list = []
+    seq_len_list = []
+    hits_c_list = []
+    seq_entr_list = []
+    nt_perc_str_list = []
+    gc_perc_list = []
+    for seq_id in seqid2feat_dic:
+        seq_feat = seqid2feat_dic[seq_id]
+        if seq_feat.c_hits == 0:
+            continue
+        prof_ll.append(seq_feat.hit_profile)
+        seq_ids_list.append(seq_id)
+        seq_len_list.append(seq_feat.seq_len)
+        hits_c_list.append(seq_feat.c_hits)
+        seq_entr_list.append(seq_feat.seq_entropy)
+        nt_perc_str_list.append(seq_feat.mono_nt_perc_str)
+        gc_perc = seq_feat.gc_perc
+        if gc_perc > 0:
+            gc_perc = round(gc_perc, 2)
+        gc_perc_list.append(gc_perc)
+
+    if highlight_id:
+        assert highlight_id in seq_ids_list, "sequence ID \"%s\" to be highlighted is not in sequence IDs list (either from the beginning or because there were no motif hits on the sequence" %(highlight_id)
+
+    hover_data = ['Sequence length', 'Motif hit count', 'Sequence complexity', 'GC content', 'Mono-nucleotide percentages']
+    color = color_var
+    color_scale = ['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+
+    pca = PCA(n_components=3)  # Reduce data to 3 dimensions.
+    data_3d_pca = pca.fit_transform(prof_ll)
+
+    df = pd.DataFrame(data_3d_pca, columns=['PC1', 'PC2', 'PC3'])
+    df['Sequence ID'] = seq_ids_list
+    df['Sequence length'] = seq_len_list
+    df['Motif hit count'] = hits_c_list
+    df['Sequence complexity'] = seq_entr_list
+    df['GC content'] = gc_perc_list
+    df['Mono-nucleotide percentages'] = nt_perc_str_list
+
+    explained_variance = pca.explained_variance_ratio_ * 100
+
+    if highlight_id:
+        
+        df_highlight = df[df['Sequence ID'] == highlight_id]
+        df_rest = df[df['Sequence ID'] != highlight_id]
+
+        # Trace 1: All other points (excluding highlighted sequence ID) with color gradient.
+        fig = px.scatter_3d(
+            df_rest,
+            x='PC1', y='PC2', z='PC3',
+            color=color,
+            color_continuous_scale=color_scale,
+            title='3D PCA plot of motif hit profiles',
+            hover_name='Sequence ID',
+            hover_data=hover_data,
+            labels={
+                'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+                'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)',
+                'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
+            }
+        )
+
+        # Trace 2: Highlighted point (sequence ID).
+        fig.add_scatter3d(
+            x=df_highlight['PC1'],
+            y=df_highlight['PC2'],
+            z=df_highlight['PC3'],
+            mode='markers',
+            marker=dict(size=3  , color='#ff7f0e', line=dict(width=0.5, color='white')),
+            name='',
+            # hoverinfo='text'
+            customdata=df_highlight[['Sequence length', 'Motif hit count', 'Sequence complexity', 'GC content', 'Mono-nucleotide percentages']].values,
+            hovertext=df_highlight['Sequence ID']
+        )  # AALAMO
+
+
+    else:
+
+        fig = px.scatter_3d(
+            df,
+            x='PC1', y='PC2', z='PC3',
+            color=color,  # Remove to have one dot color only (set in update_traces).
+            title='3D PCA plot of motif hit profiles',
+            labels={
+                'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+                'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)',
+                'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
+            },
+            hover_name='Sequence ID',
+            color_continuous_scale=color_scale,  # Remove to have one dot color only (set in update_traces).
+            hover_data=hover_data
+        )
+
+
+    fig.update_scenes(aspectmode='cube')
+
+    fig.update_traces(
+        hovertemplate='<b>%{hovertext}</b><br>Sequence length:<br>%{customdata[0]}<br>Motif hit count:<br>%{customdata[1]}<br>Sequence complexity:<br>%{customdata[2]}<br>GC content (%):<br>%{customdata[3]}<br>Mono-nucleotide percentages:<br>%{customdata[4]}<extra></extra>',
+        marker=dict(size=3, line=dict(width=0.5, color='white'))
+    )
+    # fig.update_traces(marker=dict(size=3, color='#1f77b4', line=dict(width=0.5, color='white')))  # for monochrome points.
+
+    fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
+    fig.write_html(plot_out, full_html=False, include_plotlyjs="cdn")
+
+
+################################################################################
+
+def searchseq_generate_html_report(args, 
+                                   seqid2feat_dic,
+                                   benchlib_path,
+                                   html_report_out="report.rbpbench_search.html",
+                                   rbpbench_mode="searchseq",
+                                   plotly_full_html=False,
+                                   plotly_embed_style=1,
+                                   c_search_rbps=0,
+                                   c_search_motifs=0,
+                                   plots_subfolder="html_report_plots"):
+
+    """
+    Create HTML report for searchseq mode, including --profiles results.
+
+    """
+
+    assert seqid2feat_dic, "seqid2feat_dic empty"
+
+    # Use absolute paths?
+    out_folder = args.out_folder
+    if args.plot_abs_paths:
+        out_folder = os.path.abspath(out_folder)
+
+    # Version string.
+    version_str = "v" + args.version
+
+    plots_folder = plots_subfolder
+    plots_out_folder = out_folder + "/" + plots_folder
+    if args.plot_abs_paths:
+        plots_folder = plots_out_folder
+
+    # Delete folder if already present.
+    if os.path.exists(plots_out_folder):
+        shutil.rmtree(plots_out_folder)
+    os.makedirs(plots_out_folder)
+
+    html_out = out_folder + "/" + "report.rbpbench_search.html"
+    if html_report_out:
+        html_out = html_report_out
+
+    """
+    Setup plotly .js to support plotly plots.
+
+    https://plotly.com/javascript/getting-started/#download
+    plotly-latest.min.js
+    Packaged version: plotly-2.20.0.min.js
+    
+    """
+
+    include_plotlyjs = "cdn"
+    # plotly_full_html = False
+    plotly_js_html = ""
+    plotly_js_path = benchlib_path + "/content/plotly-2.20.0.min.js"
+    assert os.path.exists(plotly_js_path), "plotly .js %s not found" %(plotly_js_path)
+    if args.plotly_js_mode == 2:
+        include_plotlyjs = plotly_js_path
+    elif args.plotly_js_mode == 3:
+        shutil.copy(plotly_js_path, plots_out_folder)
+        include_plotlyjs = "plotly-2.20.0.min.js" # Or plots_folder + "/plotly-2.20.0.min.js" ?
+    elif args.plotly_js_mode == 4:
+        include_plotlyjs = True
+        # plotly_full_html = False # Don't really need full html (head body ..) in plotly html.
+    elif args.plotly_js_mode == 5:
+        plotly_js_web = "https://cdn.plot.ly/plotly-2.25.2.min.js"
+        plotly_js_html = '<script src="' + plotly_js_web + '"></script>' + "\n"
+        include_plotlyjs = False
+        # plotly_full_html = True
+    elif args.plotly_js_mode == 6:
+        shutil.copy(plotly_js_path, plots_out_folder)
+        plotly_js = plots_folder + "/plotly-2.20.0.min.js"
+        plotly_js_html = '<script src="' + plotly_js + '"></script>' + "\n"
+        include_plotlyjs = False
+    elif args.plotly_js_mode == 7:
+        js_code = read_file_content_into_str_var(plotly_js_path)
+        plotly_js_html = "<script>\n" + js_code + "\n</script>\n"
+        include_plotlyjs = False
+        # plotly_full_html = True
+
+    # Logo path.
+    logo_path_html = plots_folder + "/logo.png"
+    if not os.path.exists(logo_path_html):
+        logo_path = benchlib_path + "/content/logo.png"
+        assert os.path.exists(logo_path), "logo.png not found in %s" %(logo_path)
+        shutil.copy(logo_path, plots_out_folder)
+
+    # HTML head section.
+    html_head = """<!DOCTYPE html>
+<html>
+<head>
+<title>RBPBench - Search Report</title>
+%s
+
+<style>
+    th, td {
+        border: 1px solid black;
+        padding: 8px;
+        text-align: center;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+    .page {
+        page-break-after: always;
+    }
+
+    .title-container {
+        display: flex;
+        align-items: center;
+    }
+    .title-container img {
+        margin-right: 10px; /* Adjust the spacing as needed */
+    }
+
+</style>
+
+</head>
+
+<div class="title-container">
+    <img src="%s" alt="Logo" width="175">
+    <h1>Search Sequences Report</h1>
+</div>
+
+
+<body>
+""" %(plotly_js_html, logo_path_html)
+
+    # HTML tail section.
+    html_tail = """
+</body>
+
+</html>
+"""
+
+    # Markdown part.
+    mdtext = """
+
+List of available statistics and plots generated
+by RBPBench (%s, rbpbench %s):
+
+- [Input sequence length and hit statistics](#seq-stats)
+- [Input sequence motif hit profiles plot](#hit-profiles-plot)
+- [Input sequence k-mer profiles plot](#kmer-profiles-plot)""" %(version_str, rbpbench_mode)
+
+    mdtext += "\n"
+
+
+    # AALAMO
+
+    c_input_seqs = len(seqid2feat_dic)
+
+    mdtext += """
+## Input sequence length and hit statistics ### {#seq-stats}
+
+**Table:** Sequence length and motif hit statistics of input sequences (# sequences = %i). 
+Number of database RBPs (motifs) selected for search = %i (%i).
+Sequence length statistics in nt.
+
+""" %(c_input_seqs, c_search_rbps, c_search_motifs)
+    
+    seq_len_list = []
+    c_hits_list = []
+    for seq_id in seqid2feat_dic:
+        seq_len_list.append(seqid2feat_dic[seq_id].seq_len)
+        c_hits_list.append(seqid2feat_dic[seq_id].c_hits)
+
+    seq_len_mean = statistics.mean(seq_len_list)
+    seq_len_median = statistics.median(seq_len_list)
+    seq_len_min = min(seq_len_list)
+    seq_len_max = max(seq_len_list)
+
+    c_hits_mean = statistics.mean(c_hits_list)
+    c_hits_median = statistics.median(c_hits_list)
+    c_hits_min = min(c_hits_list)
+    c_hits_max = max(c_hits_list)
+
+    mdtext += '<table style="max-width: 1000px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+    mdtext += "<thead>\n"
+    mdtext += "<tr>\n"
+    mdtext += "<th>Modality</th>\n"
+    mdtext += "<th>Mean</th>\n"
+    mdtext += "<th>Median</th>\n"
+    mdtext += "<th>Min</th>\n"
+    mdtext += "<th>Max</th>\n"
+    mdtext += "</tr>\n"
+    mdtext += "</thead>\n"
+    mdtext += "<tbody>\n"
+
+    mdtext += "<tr>\n"
+    mdtext += "<td>Sequence length</td>\n"
+    mdtext += "<td>%.1f</td>\n" %(seq_len_mean)
+    mdtext += "<td>%.1f</td>\n" %(seq_len_median)
+    mdtext += "<td>%i</td>\n" %(seq_len_min)
+    mdtext += "<td>%i</td>\n" %(seq_len_max)
+    mdtext += "</tr>\n"
+
+    mdtext += "<tr>\n"
+    mdtext += "<td>Motif hit count</td>\n"
+    mdtext += "<td>%.1f</td>\n" %(c_hits_mean)
+    mdtext += "<td>%.1f</td>\n" %(c_hits_median)
+    mdtext += "<td>%i</td>\n" %(c_hits_min)
+    mdtext += "<td>%i</td>\n" %(c_hits_max)
+    mdtext += "</tr>\n"
+
+    mdtext += "</tbody>\n"
+    mdtext += "</table>\n"
+
+    mdtext += "\n&nbsp;\n"
+
+
+    """
+    Sequence motif hit profiles plot.
+
+    AALAMO:
+    Create a plotly plot from test2.py / test.py for each profiles plot.
+    Filter out zero hit sequences in hits profile
+    
+    """
+
+    mdtext += """
+## Sequence motif hit profiles plot ### {#hit-profiles-plot}
+
+"""
+    # Get number of input sequences with motif hits.
+    c_seqs_with_hits = 0
+    for seq_id in seqid2feat_dic:
+        if seqid2feat_dic[seq_id].c_hits > 0:
+            c_seqs_with_hits += 1
+    
+    if c_seqs_with_hits > 3:
+
+        hit_prof_plot_plotly =  "motif_hit_profiles.plotly.html"
+        hit_prof_plot_plotly_out = plots_out_folder + "/" + hit_prof_plot_plotly
+
+        create_pca_hit_prof_plot_plotly(seqid2feat_dic, 
+                                        hit_prof_plot_plotly_out,
+                                        highlight_id=args.profiles_seq_id,
+                                        include_plotlyjs=include_plotlyjs,
+                                        full_html=plotly_full_html)
+
+        # create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
+        #                                 occ_comp_plot_plotly_out,
+        #                                 sparse_pca=False,
+        #                                 id2hk_gene_stats_dic=id2hk_gene_stats_dic,
+        #                                 add_motif_db_info=add_motif_db_info,
+        #                                 include_plotlyjs=include_plotlyjs,
+        #                                 full_html=plotly_full_html)
+
+        plot_path = plots_folder + "/" + hit_prof_plot_plotly
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            # Read in plotly code.
+            # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+            js_code = read_file_content_into_str_var(hit_prof_plot_plotly_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1200px;")
+            mdtext += js_code + "\n"
+            # mdtext += '</div>'
+        else:
+            if plotly_embed_style == 1:
+                # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                mdtext += "<div>\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1200" height="1000"></iframe>' + "\n"
+                mdtext += '</div>'
+            elif plotly_embed_style == 2:
+                mdtext += '<object data="' + plot_path + '" width="1200" height="1000"> </object>' + "\n"
+
+        mdtext += """
+
+**Figure:** Comparison of input sequences, using their motif hit profiles (3-dimensional PCA) as features, 
+to show similarities of input sequences based on type and amount of occurring motif hits (points close to each other have similar hit profiles).
+Note that only sequences with motif hits are included in the plot (# of sequences with hits: %i).
+
+
+&nbsp;
+
+""" %(c_seqs_with_hits)
+
+    else:
+        mdtext += """
+
+No motif hit profiles plot generated since < 4 input sequences have motif hits.
+
+&nbsp;
+
+"""
+
+
+    # Convert mdtext to html.
+    md2html = markdown(mdtext, extensions=['attr_list', 'tables'])
+
+    # OUTMD = open(md_out,"w")
+    # OUTMD.write("%s\n" %(mdtext))
+    # OUTMD.close()
+
+    html_content = html_head + md2html + html_tail
+
+    OUTHTML = open(html_out,"w")
+    OUTHTML.write("%s\n" %(html_content))
+    OUTHTML.close()
+
+
+
+
+################################################################################
+
 def search_generate_html_report(args,
                                 df_pval, pval_cont_lll,
                                 search_rbps_dic,
@@ -19911,6 +20445,31 @@ def seqs_dic_calc_entropies(seqs_dic,
 
 ################################################################################
 
+def seq_calc_entropy(seq,
+                     rna=False,
+                     k=1):
+    """
+    Calculate sequence entropy for given sequence seq.
+    If k > 1, calculate k-mer entropy.
+
+    """
+    assert seq, "given sequence seq empty"
+    assert k > 0, "invalid k given"
+    seq_l = len(seq)
+    seq = seq.upper()
+
+    count_dic = get_kmer_counts_dic(seq, k, rna=rna,
+                                    count_norm_mode=1)  # return k-mer counts.
+
+    # Calculate sequence entropy.
+    seq_entr = calc_seq_entropy(seq_l, count_dic,
+                                k=k)
+
+    return seq_entr
+
+
+################################################################################
+
 def get_bint_perc_from_ntc_dic(ntc_dic):
     """
     Given a DNA nucleotide counts ntc_dic with format:
@@ -20084,6 +20643,39 @@ def calc_seq_at_skew(seq):
     else:
         return (a_c - t_c) / (a_c + t_c)
 
+
+################################################################################
+
+def calc_seq_gc_cont(ntc_dic,
+                     get_perc=True):
+    """
+    Calculate GC content of a given a nucleotides count dictionary.
+
+    >>> ntc_dic = {'A': 0, 'C': 0, 'G': 2, 'T': 2}
+    >>> calc_seq_gc_cont(ntc_dic)
+    100.0
+    >>> calc_seq_gc_cont(ntc_dic, get_perc=False)
+    1.0
+    >>> ntc_dic = {'A': 2, 'C': 2, 'G': 0, 'T': 0}
+    >>> calc_seq_gc_cont(ntc_dic)
+    50.0
+    >>> ntc_dic = {'A': 2, 'C': 0, 'G': 0, 'T': 2}
+    >>> calc_seq_gc_cont(ntc_dic)
+    0.0
+
+    """
+    assert ntc_dic, "given ntc_dic empty"
+
+    total_c = sum(ntc_dic.values())
+    gc_c = ntc_dic["G"] + ntc_dic["C"]
+    
+    if total_c == 0:
+        return 0.0
+    else:
+        if get_perc:
+            return (gc_c / total_c) * 100
+        else:
+            return (gc_c / total_c)
 
 
 ################################################################################
@@ -20344,9 +20936,15 @@ def get_ntc_dic(seq, rna=False):
 
 ################################################################################
 
-def get_kmer_counts_dic(seq, k, rna=False):
+def get_kmer_counts_dic(seq, k, rna=False,
+                        count_norm_mode=1):
     """
     Get k-mer counts dictionary for sequence.
+
+    count_norm_mode:
+        If 1, return k-mer counts.
+        If 2, return k-mer counts as percentages of total k-mers in sequence.
+        If 3, return k-mer counts as ratios of total k-mers in sequence,
 
     >>> seq = 'ACGT'
     >>> get_kmer_counts_dic(seq, 2)
@@ -20367,6 +20965,15 @@ def get_kmer_counts_dic(seq, k, rna=False):
             total_c += 1
     
     assert total_c, "no k-mers counted for given sequence \"%s\" (sequence lengths < set k ?)" %(seq)
+
+    if count_norm_mode != 1:
+        for kmer in count_dic:
+            norm_c = 0.0
+            if count_dic[kmer] > 0 and total_c > 0:
+                norm_c = (count_dic[kmer] / total_c)  # ratio.
+                if count_norm_mode == 2:  # percentage.
+                    norm_c = norm_c * 100
+            count_dic[kmer] = norm_c
 
     return count_dic
 

@@ -1254,6 +1254,36 @@ def setup_argument_parser():
                    metavar='str',
                    default = "seq",
                    help = "Constant header ID part used if --make-uniq-headers set (default: \"seq\")")
+    # Profiles options.
+    p_ss.add_argument("--profiles",
+                   dest="profiles",
+                   default = False,
+                   action = "store_true",
+                   help = "Generate motif hit + k-mer profiles for each input sequence, and compare profiles between sequences in PCA plot. Generates an HTML report (default: False)")
+    p_ss.add_argument("--profiles-level",
+                   dest="profiles_level",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Define on which hit level to generate motif hit profile. 1: on RBP hit level (merging all motif hits for one RBP). 2: on individual motif level (default: 1)")
+    p_ss.add_argument("--profiles-norm",
+                   dest="profiles_norm",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Define how to normalize RBP/motif hit counts included in hit profile. 1: use hits per 1000 nt. 2: set 1 if hits present and 0 if no hits on sequence (default: 1)")
+    p_ss.add_argument("--profiles-k",
+                   dest="profiles_k",
+                   type=int,
+                   metavar='int',
+                   default=5,
+                   help="Set k-mer size k for k-mer profiles, output in addition to hit profiles in HTML report (default: 5)")
+    p_ss.add_argument("--profiles-seq-id",
+                   dest="profiles_seq_id",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Specify sequence ID to highlight in profile PCA plots (default: False, i.e., no sequence ID is highlighted)")
     p_ss.add_argument("--plot-motifs",
                    dest="plot_motifs",
                    default = False,
@@ -1275,6 +1305,12 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Also output .png plots as .pdf in plotting subfolder (default: False)")
+    p_ss.add_argument("--plotly-js-mode",
+                   dest="plotly_js_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3, 4, 5, 6, 7],
+                   help = "Define how to provide plotly .js file. 1: use online version via \"cdn\" (requires internet connection). 2: link to packaged plotly .js file. 3: copy plotly .js file to plots output folder. 4: include plotly .js code in plotly HTML. 5: put web version link and plotly plot codes into main HTML. 6: put local version link and plotly plot codes in main HTML. 7: put plotly js and plotly plot codes into main HTML! (default: 1)")
     p_ss.add_argument("--sort-js-mode",
                    dest="sort_js_mode",
                    type=int,
@@ -1284,7 +1320,7 @@ def setup_argument_parser():
 
     """
     Regex motif search mode.
-    
+
     """
     p_sr = subparsers.add_parser('searchregex',
                                 help='Search regex in genomic sites or sequences')
@@ -1303,7 +1339,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    required=True,
-                   help="Define regular expression (regex) DNA motif used for search, e.g. --regex AAAAA, --regex 'C[ACGT]AC[AC]', ..")
+                   help="Define regular expression (regex) DNA motif used for search, e.g. --regex AAAAA, --regex 'C[ACGT]AC[AC]'. Alternatively, provide a file with regexes (first column regex ID, second column regex), e.g. --regex regexes.txt")
     p_srm.add_argument("--out",
                    dest="out_folder",
                    type=str,
@@ -9264,7 +9300,19 @@ def main_searchregex(args):
     print("Running for you in SEARCHREGEX mode ... ")
 
     assert os.path.exists(args.in_file), "--in file \"%s\" not found" % (args.in_file)
-    assert benchlib.is_valid_regex(args.regex), "invalid --regex \"%s\" given. Please provide a valid regex string" % (args.regex)
+
+    regex_dic = {}
+
+    if os.path.isfile(args.regex):
+
+        regex_dic = benchlib.get_regexes_from_file(args.regex)
+
+    else:
+
+        assert benchlib.is_valid_regex(args.regex), "invalid --regex \"%s\" given. Please provide a valid regex string" % (args.regex)
+        
+        regex_dic["regex"] = args.regex
+    
 
     # Output files.
     if not os.path.exists(args.out_folder):
@@ -9362,74 +9410,106 @@ def main_searchregex(args):
     else:
         assert False, "invalid --regex-search-mode %i set" %(args.regex_search_mode)
 
-    hits_dic = benchlib.search_regex_in_seqs_dic(args.regex, in_seqs_dic,
-                                                 step_size_one=step_size_one,
-                                                 case_sensitive=True)
+
+    """
+    Loop over provided regexes and search for hits in sequences.
+
+    """
 
     c_all_hits = 0
-    for hit in hits_dic:
-        c_all_hits += len(hits_dic[hit])
-
-    print("")
-    if is_bed:
-        print("# input regions:    ", len(in_seqs_dic))
-        print("# regex motif hits: ", c_all_hits)
-    else:
-        print("# input sequences:  ", len(in_seqs_dic))
-        print("# regex motif hits: ", c_all_hits)
-
-
-    """
-    Output files.
-    
-    BED sequence ID format:
-    chr20:62139082-62139128(-)
-
-    """
 
     MOTIFOUT = open(motif_hits_bed_out, "w")
+
+    seqids2hit_c_dic = {}
+
+    for regex_id in regex_dic:
+        regex = regex_dic[regex_id]
+        print("Search for regex \"%s\" hits (ID: %s) ..." %(regex, regex_id))
+
+
+        hits_dic = benchlib.search_regex_in_seqs_dic(regex, in_seqs_dic,
+                                                    step_size_one=step_size_one,
+                                                    case_sensitive=True)
+
+        for hit in hits_dic:
+            c_all_hits += len(hits_dic[hit])
+
+        # print("")
+        if is_bed:
+            print("# input regions:     ", len(in_seqs_dic))
+            print("# regex motif hits:  ", c_all_hits)
+        else:
+            print("# input sequences:   ", len(in_seqs_dic))
+            print("# regex motif hits:  ", c_all_hits)
+
+        """
+        Output files.
+        
+        BED sequence ID format:
+        chr20:62139082-62139128(-)
+
+        """
+
+        seen_motif_sites_dic = {}
+
+        for hit in hits_dic:
+            seq_id = hit
+            c_hits = len(hits_dic[hit])
+            if seq_id in seqids2hit_c_dic:
+                seqids2hit_c_dic[seq_id] += c_hits
+            else:
+                seqids2hit_c_dic[seq_id] = c_hits
+
+            for hit_info in hits_dic[hit]:
+                start = hit_info[0]
+                end = hit_info[1]
+                seq = hit_info[2]
+
+                if is_bed:
+
+                    gen_reg_coords = bed_reg_dic[seq_id]
+                    reg_id = gen_reg_coords[0] + ":" + gen_reg_coords[1] + "-" + gen_reg_coords[2] + "(" + gen_reg_coords[3] + ")"
+
+                    gen_motif_coords = benchlib.get_genomic_coords_from_seq_name(reg_id, start, end,
+                                                                                one_based_start=False)
+
+                    chr_id = gen_motif_coords[0]
+                    gen_motif_s = gen_motif_coords[1]
+                    gen_motif_e = gen_motif_coords[2]
+                    strand = gen_motif_coords[3]
+
+                    motif_site_str = "%s:%i-%i(%s)" %(chr_id, gen_motif_s, gen_motif_e, strand)
+                    if motif_site_str in seen_motif_sites_dic:
+                        continue
+                    else:
+                        seen_motif_sites_dic[motif_site_str] = 1
+                        MOTIFOUT.write("%s\t%i\t%i\t%s\t0\t%s\t%s\n" %(chr_id, gen_motif_s, gen_motif_e, regex_id, strand, seq))
+
+                else:
+
+                    motif_site_str = "%s:%i-%i" %(seq_id, start, end)
+                    if motif_site_str in seen_motif_sites_dic:
+                        continue
+                    else:
+                        seen_motif_sites_dic[motif_site_str] = 1
+                        MOTIFOUT.write("%s\t%s\t%s\t%s\t0\t+\t%s\n" %(seq_id, start, end, regex_id, seq))
+
+        print("# unique regex hits: ", len(seen_motif_sites_dic))
+
+    MOTIFOUT.close()
+
+    """
+    Output regions with hit counts.
+
+    """
+
     REGIONOUT = open(regions_with_hit_counts_bed_out, "w")
 
-    seen_motif_sites_dic = {}
+    for seq_id in seqids2hit_c_dic:
 
-    for hit in hits_dic:
-        seq_id = hit
-        c_hits = len(hits_dic[hit])
+        c_hits = seqids2hit_c_dic[seq_id]
         len_seq = len(in_seqs_dic[seq_id])
-        for hit_info in hits_dic[hit]:
-            start = hit_info[0]
-            end = hit_info[1]
-            seq = hit_info[2]
 
-            if is_bed:
-
-                gen_reg_coords = bed_reg_dic[seq_id]
-                reg_id = gen_reg_coords[0] + ":" + gen_reg_coords[1] + "-" + gen_reg_coords[2] + "(" + gen_reg_coords[3] + ")"
-
-                gen_motif_coords = benchlib.get_genomic_coords_from_seq_name(reg_id, start, end,
-                                                                             one_based_start=False)
-
-                chr_id = gen_motif_coords[0]
-                gen_motif_s = gen_motif_coords[1]
-                gen_motif_e = gen_motif_coords[2]
-                strand = gen_motif_coords[3]
-
-                motif_site_str = "%s:%i-%i(%s)" %(chr_id, gen_motif_s, gen_motif_e, strand)
-                if motif_site_str in seen_motif_sites_dic:
-                    continue
-                else:
-                    seen_motif_sites_dic[motif_site_str] = 1
-                    MOTIFOUT.write("%s\t%i\t%i\t%s\t0\t%s\n" %(chr_id, gen_motif_s, gen_motif_e, seq, strand))
-
-            else:
-
-                motif_site_str = "%s:%i-%i" %(seq_id, start, end)
-                if motif_site_str in seen_motif_sites_dic:
-                    continue
-                else:
-                    seen_motif_sites_dic[motif_site_str] = 1
-                    MOTIFOUT.write("%s\t%s\t%s\t%s\t0\t+\n" %(seq_id, start, end, seq))
-        
         if is_bed:
 
             gen_reg_coords = bed_reg_dic[seq_id]
@@ -9453,7 +9533,7 @@ def main_searchregex(args):
         print("Also add regions with zero hits ... ")
 
         for seq_id in in_seqs_dic:
-            if seq_id not in hits_dic:
+            if seq_id not in seqids2hit_c_dic:
                 if is_bed:
                     gen_reg_coords = bed_reg_dic[seq_id]
                     chr_id = gen_reg_coords[0]
@@ -9466,10 +9546,9 @@ def main_searchregex(args):
                     len_seq = len(in_seqs_dic[seq_id])
                     REGIONOUT.write("%s\t0\t%i\t%s\t0\t+\n" %(seq_id, len_seq, seq_id))
 
-    MOTIFOUT.close()
     REGIONOUT.close()
 
-    if not hits_dic:
+    if not seqids2hit_c_dic:
         print("No regex motif hits found in --in regions / sequences")
 
     print("")
@@ -9650,6 +9729,9 @@ def main_searchseq(args):
     motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_searchseq.bed"
     # Output matched sequences stats.
     matched_seqs_out = args.out_folder + "/matched_seq_stats.tsv"
+    # Profile output files.
+    hit_profiles_out = args.out_folder + "/hit_profiles.tsv"
+    kmer_profiles_out = args.out_folder + "/kmer_profiles.tsv"
 
     # Temp files.
     # random_id = uuid.uuid1()
@@ -9970,6 +10052,8 @@ def main_searchseq(args):
 
     assert in_seqs_dic, "no sequences read in from --in FASTA file. Make sure to provide a FASTA formatted file with DNA or RNA sequences"
 
+    if args.profiles_seq_id:
+        assert args.profiles_seq_id in in_seqs_dic, "specified --profiles-seq-id is not a sequence ID found in input sequences. Please provide sequence ID occurring in --in FASTA file"
 
     # Output sequences to FASTA.
     benchlib.fasta_output_dic(in_seqs_dic, filtered_seqs_fa,
@@ -10440,7 +10524,51 @@ def main_searchseq(args):
         region_rbp_binds_dic[reg_id] = [False]*len_rbp_list
         region_rbp_motif_pos_dic[reg_id] = []
 
+    """
+    Init hit profiles for each sequence ID.
+    I.e., for each sequence ID, store motif hit (or RBP hit) occurrences (0 if not hit).
 
+    AALAMO
+
+    """
+
+    profile_ids_list = []
+    profile_ids_dic = {}
+    profile_kmer_ids_list = []
+
+    idx = 0
+    for rbp_id in search_rbps_dic:
+        if args.profiles_level == 1:  # on RBP hit level.
+            profile_ids_list.append(rbp_id)
+            profile_ids_dic[rbp_id] = idx
+            idx += 1
+        elif args.profiles_level == 2:  # on individual motif hit level.
+            for motif_id in search_rbps_dic[rbp_id].seq_motif_ids:
+                rbp_motif_id = rbp_id + ";" + motif_id
+                profile_ids_list.append(rbp_motif_id)
+                profile_ids_dic[rbp_motif_id] = idx
+                idx += 1
+            for motif_id in search_rbps_dic[rbp_id].str_motif_ids:
+                rbp_motif_id = rbp_id + ";" + motif_id
+                profile_ids_list.append(rbp_motif_id)
+                profile_ids_dic[rbp_motif_id] = idx
+                idx += 1
+        else:
+            assert False, "invalid hit profile level %i set. Please set --profiles-level to 1 or 2" %(args.profiles_level)
+
+    seqid2feat_dic = {}
+
+    # AALAMO
+    for seq_id in in_seqs_dic:
+        seq_feat = benchlib.SeqFeat(seq_id, in_seqs_dic[seq_id], k=args.profiles_k)
+        for profile_id in profile_ids_list:
+            seq_feat.hit_profile.append(0)
+        seqid2feat_dic[seq_id] = seq_feat
+        if not profile_kmer_ids_list:
+            for kmer in seq_feat.kmer_perc:
+                profile_kmer_ids_list.append(kmer)
+
+    
     """
     Output motif region stats (1 row for each motif hit).
     Report ALL motif hits,
@@ -10497,6 +10625,8 @@ def main_searchseq(args):
         if not matched_seq:
             matched_seq = "-"
 
+        rbp_motif_id = "%s;%s" %(rbp_id, fh.motif_id)
+
         # Store motif hit as BED.
         hit_id = "%s:%s-%s(%s)%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
         if hit_id not in motif_reg_dic:
@@ -10509,6 +10639,12 @@ def main_searchseq(args):
             if matched_seq not in match_c_dic[rbp_id][fh.motif_id]:
                 match_c_dic[rbp_id][fh.motif_id][matched_seq] = 0
             match_c_dic[rbp_id][fh.motif_id][matched_seq] += 1
+            # AALAMO
+            if args.profiles_level == 1:
+                seqid2feat_dic[region_id].hit_profile[profile_ids_dic[rbp_id]] += 1
+            elif args.profiles_level == 2:
+                seqid2feat_dic[region_id].hit_profile[profile_ids_dic[rbp_motif_id]] += 1
+            seqid2feat_dic[region_id].c_hits += 1
 
         row_str = args.data_id + "\t"
         row_str += args.method_id + "\t"
@@ -10564,6 +10700,8 @@ def main_searchseq(args):
         if not matched_seq:
             matched_seq = "-"
 
+        rbp_motif_id = "%s;%s" %(rbp_id, fh.motif_id)
+
         # Store motif hit as BED.
         hit_id = "%s:%s-%s(%s)%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
         if hit_id not in motif_reg_dic:
@@ -10576,6 +10714,12 @@ def main_searchseq(args):
             if matched_seq not in match_c_dic[rbp_id][cmsh.motif_id]:
                 match_c_dic[rbp_id][cmsh.motif_id][matched_seq] = 0
             match_c_dic[rbp_id][cmsh.motif_id][matched_seq] += 1
+            # AALAMO
+            if args.profiles_level == 1:
+                seqid2feat_dic[region_id].hit_profile[profile_ids_dic[rbp_id]] += 1
+            elif args.profiles_level == 2:
+                seqid2feat_dic[region_id].hit_profile[profile_ids_dic[rbp_motif_id]] += 1
+            seqid2feat_dic[region_id].c_hits += 1
 
         row_str = args.data_id + "\t"
         row_str += args.method_id + "\t"
@@ -10616,6 +10760,77 @@ def main_searchseq(args):
     OUTBED.close()
 
     """
+    Normalize profile hit counts.
+    AALAMO
+
+    """
+    if args.profiles_norm == 1:  # Normalize to hit counts per 1000 nt.
+        for seq_id in seqid2feat_dic:
+            profile_list = seqid2feat_dic[seq_id].hit_profile
+            seq_len = seqid2feat_dic[seq_id].seq_len
+
+            for idx, hit_c in enumerate(profile_list):
+                hit_c_norm = 0.0
+                if hit_c > 0:
+                    hit_c_norm = (float(hit_c) / float(seq_len)) * 1000.0 if seq_len > 0 else 0.0
+                seqid2feat_dic[seq_id].hit_profile[idx] = hit_c_norm
+
+    elif args.profiles_norm == 2:  # Set count to 1 if hits, else 0.
+        for seq_id in seqid2feat_dic:
+            profile_list = seqid2feat_dic[seq_id].hit_profile
+            for idx, hit_c in enumerate(profile_list):
+                if hit_c > 0:
+                    seqid2feat_dic[seq_id].hit_profile[idx] = 1
+                else:
+                    seqid2feat_dic[seq_id].hit_profile[idx] = 0
+
+
+    """
+    Output motif hit and k-mer profile values.
+    """
+
+    OUTHITP = open(hit_profiles_out, "w")
+    motif_ids_str = ";".join(profile_ids_list)
+    OUTHITP.write("seq_id\tseq_len\tseq_entropy\tA_perc\tC_perc\tG_perc\tT_perc\tc_hits\t%s\n" %(motif_ids_str))
+    OUTKMERP = open(kmer_profiles_out, "w")
+    kmer_ids_str = ";".join(profile_kmer_ids_list)
+    OUTKMERP.write("seq_id\tseq_len\tseq_entropy\tA_perc\tC_perc\tG_perc\tT_perc\tk\t%s\n" %(kmer_ids_str))
+
+    for seq_id in seqid2feat_dic:
+        seq_feat = seqid2feat_dic[seq_id]
+        seq_len = seq_feat.seq_len
+        seq_entropy = seq_feat.seq_entropy
+        c_hits = seq_feat.c_hits
+        kmer_k = seq_feat.k  
+        hit_profile_list = seq_feat.hit_profile  # motif hit profile.
+        kmer_profile_dic = seq_feat.kmer_perc  # k-mer percentages profile.
+        hit_profile_str_list = []
+        for hv in hit_profile_list:
+            if hv > 0:
+                hv = "%.4f" %(hv)
+            hit_profile_str_list.append(str(hv))
+        hit_profile_str = ";".join(hit_profile_str_list)
+        # hit_profile_str = ";".join(str(hv) for hv in hit_profile_list)
+        kmer_profile_str_list = []
+        for kmer in profile_kmer_ids_list:
+            kmer_perc = kmer_profile_dic[kmer]
+            if kmer_perc > 0:
+                kmer_perc = "%.4f" %(kmer_perc)
+            kmer_profile_str_list.append(str(kmer_perc))
+        kmer_profile_str = ";".join(kmer_profile_str_list)
+        # kmer_profile_str = ";".join(str(kmer_profile_dic[kmer]) for kmer in profile_kmer_ids_list)
+        perc_A = seq_feat.mono_nt_perc["A"]
+        perc_C = seq_feat.mono_nt_perc["C"]
+        perc_G = seq_feat.mono_nt_perc["G"]
+        perc_T = seq_feat.mono_nt_perc["T"]
+        row_str = "%s\t%i\t%.4f\t%.2f\t%.2f\t%.2f\t%.2f\t%i\t%s\n" %(seq_id, seq_len, seq_entropy, perc_A, perc_C, perc_G, perc_T, c_hits, hit_profile_str)
+        OUTHITP.write(row_str)
+        row_str = "%s\t%i\t%.4f\t%.2f\t%.2f\t%.2f\t%.2f\t%i\t%s\n" %(seq_id, seq_len, seq_entropy, perc_A, perc_C, perc_G, perc_T, kmer_k, kmer_profile_str)
+        OUTKMERP.write(row_str)
+    OUTHITP.close()
+    OUTKMERP.close()
+
+    """
     Output matched sequence counts in table. 
 
     Formats: 
@@ -10642,6 +10857,41 @@ def main_searchseq(args):
     OUTTSV.close()
 
 
+
+    """
+    Generate HTML report (if --profiles set).
+    
+    AALAMO
+
+    """
+
+    benchlib_path = os.path.dirname(benchlib.__file__)
+
+    html_report_out = args.out_folder + "/" + "report.rbpbench_searchseq.html"
+    if args.plot_abs_paths:
+        html_report_out = os.path.abspath(args.out_folder) + "/" + "report.rbpbench_searchseq.html"
+
+    if args.profiles and seqid2feat_dic:
+
+        if os.path.exists(html_report_out):
+            os.remove(html_report_out)
+
+        plots_subfolder = "html_report_plots"
+
+        print("Create report containing profiles ... ")
+
+        benchlib.searchseq_generate_html_report(args,
+                                                seqid2feat_dic,
+                                                benchlib_path,
+                                                html_report_out=html_report_out,
+                                                c_search_rbps=len(loaded_rbps_dic),
+                                                c_search_motifs=len(loaded_motif_ids_dic),
+                                                plots_subfolder=plots_subfolder)
+
+
+
+
+
     """
     Motif plots and motif hit statistics HTML.
 
@@ -10655,8 +10905,7 @@ def main_searchseq(args):
         print("Generate motif plots HTML ... ")
         
         plots_subfolder = "html_motif_plots"
-        benchlib_path = os.path.dirname(benchlib.__file__)
-
+        
         # args.run_goa = False
         args.bed_sc_thr = None
         args.c_regions = c_regions

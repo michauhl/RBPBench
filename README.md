@@ -1306,7 +1306,7 @@ allows us to focus on co-occurrences with more dissimilar motifs.
 
 #### Input region motif enrichment statistics
 
-Not to be confused with the region score statistic [above](#input-region-score-motif_enrichment-statistics), 
+Not to be confused with the region score statistic [above](#input-region-score-motif-enrichment-statistics), 
 input region motif enrichment statistics are calculated in the modes `rbpbench enmo`, `rbpbench nemo`, 
 using the motif occurrences in the input region dataset and comparing it to their occurrences 
 in a background dataset (again via Fisher's exact test). The background set can be generated in 
@@ -1459,6 +1459,7 @@ the same gene, to decide which one is "more prominent":
 
 This is done for all possible pairs, which leaves one transcript as MPT in the end for each gene.
 Regions that do not overlap with the selected transcript regions are assigned to "intergenic".
+Note that for lncRNA genes, MPT selection favors transcripts with the `gencode_primary` tag if present.
 Alternatively, a list of transcript IDs can be supplied `--tr-list`, bypassing the MPT selection.
 Which region annotations are to be considered can be further defined via `--tr-types`, and the 
 minimum region annotation overlap can be set via `--gtf-feat-min-overlap`.
