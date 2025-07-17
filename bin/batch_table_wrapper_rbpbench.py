@@ -219,12 +219,14 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.1,
                    help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\"). If there is overlap with several features, assign the one with highest overlap (default: 0.1)")
+    """
     p.add_argument("--gtf-eib-min-overlap",
                    dest="gtf_eib_min_overlap",
                    type=float,
                    metavar='float',
                    default=0.9,
                    help="Minimum amount input region has to overlap with exon (e), intron (i), i + ei borders to be counted as overlapping with these (note that the amount is reciprocal, i.e., one of the overlapping parts meeting the minimum amount is enough) (default: 0.9)")
+    """
     p.add_argument("--gtf-intron-border-len",
                    dest="gtf_intron_border_len",
                    type=int,
@@ -479,7 +481,7 @@ if __name__ == '__main__':
             batch_call += " --tr-types %s" % (tr_types)
 
     batch_call += " --gtf-feat-min-overlap %s" % (str(args.gtf_feat_min_overlap))
-    batch_call += " --gtf-eib-min-overlap %s" % (str(args.gtf_eib_min_overlap))
+    #batch_call += " --gtf-eib-min-overlap %s" % (str(args.gtf_eib_min_overlap))
     batch_call += " --gtf-intron-border-len %i" % (args.gtf_intron_border_len)
 
     if args.report_header:
