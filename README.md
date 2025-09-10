@@ -1332,7 +1332,7 @@ regions (via `--add-annot-bed`, with the option `--add-annot-comp` to use the co
 can be further defined via `--prom-ext` (by default using regions 1000 nt upstream to 100 nt downstream of the transcript start positions),
 `--prom-min-tr-len` (minimum transcript length for promoter region extraction, by default all lengths), and `--prom-mrna-only` (using only mRNA transcript regions, by default all selected transcripts, details [here](#most-prominent-transcript-selection)). 
 These statistics are useful to check whether the input regions are located in the expected genomic regions.
-For example, high percentages of input regions located outside gene regions or inside promoter regions can point at dataset issues (assuming RBPs bind primarily to gene/transcript regions) or distinct protein functions (e.g., RBPs moonlighting as transcription factors).
+For example, high percentages of input regions located outside gene regions or inside promoter regions can point at dataset issues (assuming RBPs bind primarily to gene/transcript regions) or distinct protein functions (e.g., binding to nascent transcripts).
 
 
 ### Additional information

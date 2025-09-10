@@ -2599,7 +2599,7 @@ def get_fasta_headers(in_fa,
                 seq_id = m.group(1)
                 seq_ids_dic[seq_id] = 1
             else:
-                m = re.search(r"^>(\S+)", line)
+                m = re.search(r"^>([^|\s]+)", line)  # up to first white space (Ensembl style) or | (Encode style).
                 seq_id = m.group(1)
                 seq_ids_dic[seq_id] = 1
 
@@ -2958,7 +2958,7 @@ def read_fasta_into_dic(fasta_file,
     header_idx = 0
 
     # Compile regex patterns.
-    header_pattern = re.compile(r"^>(.+)" if full_header else r"^>(\S+)")  # \S any non-whitespaces match.
+    header_pattern = re.compile(r"^>(.+)" if full_header else r"^>([^|\s]+)")  # up to first white space (Ensembl style) or | (Encode style).
     bed_pattern = re.compile(r"^(.+)::")
     seq_pattern = re.compile(r"[ACGTUN]+", re.I)
     n_pattern = re.compile(r"N", re.I)
@@ -5269,12 +5269,16 @@ class SeqFeat:
         else:
             self.hit_profile = hit_profile
         
-        self.mono_nt_perc = get_kmer_counts_dic(self.seq, 1, rna=False, count_norm_mode=2)  # get percentages.
-        self.kmer_perc = get_kmer_counts_dic(self.seq, self.k, rna=False, count_norm_mode=2)
-        self.seq_entropy = round(seq_calc_entropy(self.seq, rna=False, k=1), 6)
+        self.mono_nt_perc = get_kmer_counts_dic(self.seq, 1, rna=False, count_norm_mode=2, empty_check=False)  # get percentages.
+        self.kmer_perc = get_kmer_counts_dic(self.seq, self.k, rna=False, count_norm_mode=2, empty_check=False)
+        if self.seq:
+            self.seq_entropy = round(seq_calc_entropy(self.seq, rna=False, k=1), 6)
+        else:
+            self.seq_entropy = 0
         self.mono_nt_perc_str = get_kmer_perc_str(self.mono_nt_perc)
-        self.mono_nt_c = get_kmer_counts_dic(self.seq, 1, rna=False, count_norm_mode=1)  # get counts.
+        self.mono_nt_c = get_kmer_counts_dic(self.seq, 1, rna=False, count_norm_mode=1, empty_check=False)  # get counts.
         self.gc_perc = calc_seq_gc_cont(self.mono_nt_c, get_perc=True)
+        self.c_non_zero_k = dic_count_non_zero_vals(self.kmer_perc)
 
 
 ################################################################################
@@ -5293,6 +5297,27 @@ def get_kmer_perc_str(nt_perc_dic):
         nt_perc_list.append(ntp_str)
     all_ntp_str = ", ".join(nt_perc_list)
     return all_ntp_str
+
+
+################################################################################
+
+def dic_count_non_zero_vals(count_dic):
+    """
+    Count non-zero values in dictionary.
+
+    >>> count_dic = {'s1': 0.0, 's2': 1.2, 's3': 0.0, 's4': -0.6}
+    >>> dic_count_non_zero_vals(count_dic)
+    2
+    >>> count_dic = {'s1': 0.0}
+    >>> dic_count_non_zero_vals(count_dic)
+    0
+
+    """
+    c_non_zero = 0
+    for k in count_dic:
+        if count_dic[k] != 0:
+            c_non_zero += 1
+    return c_non_zero
 
 
 ################################################################################
@@ -6239,8 +6264,8 @@ def get_regex_hit_region_annotations(overlap_annotations_bed,
 
 ################################################################################
 
-def get_normnalized_annot_counts(filtered_sites_bed, intron_exon_out_bed,
-                                 rbp2motif2annot2c_dic, reg2pol_dic, out_folder):
+def get_normalized_annot_counts(filtered_sites_bed, intron_exon_out_bed,
+                                rbp2motif2annot2c_dic, reg2pol_dic, out_folder):
 
     """
     Get normalized annotation counts, i.e., counts normalized by the 
@@ -6363,7 +6388,7 @@ def bed_get_effective_reg_bed(in_bed, out_bed, reg2pol_dic,
     >>> bed_get_effective_reg_bed(in_bed, out_bed, reg2pol_dic)
     >>> diff_two_files_identical(out_bed, exp_bed)
     True
-         
+
     """
 
     params_str = '-s -c 4 -o distinct -delim ";"'
@@ -6406,6 +6431,7 @@ def bed_get_effective_reg_bed(in_bed, out_bed, reg2pol_dic,
 def output_promoter_regions_to_bed(tid2tio_dic, out_bed,
                                    prom_min_tr_len=False,
                                    prom_mrna_only=False,
+                                   prom_both_str=False,
                                    mrna_biotype_label="protein_coding",
                                    prom_ext_up=1000,
                                    prom_ext_down=100,
@@ -6456,7 +6482,12 @@ def output_promoter_regions_to_bed(tid2tio_dic, out_bed,
 
         c_out += 1
 
-        OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, prom_s, prom_e, tid, tr_pol))
+        if prom_both_str:
+            OUTBED.write("%s\t%i\t%i\t%s\t0\t+\n" % (chr_id, prom_s, prom_e, tid))
+            OUTBED.write("%s\t%i\t%i\t%s\t0\t-\n" % (chr_id, prom_s, prom_e, tid))
+        else:
+            OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, prom_s, prom_e, tid, tr_pol))
+
 
 
     OUTBED.close()
@@ -6498,6 +6529,12 @@ def output_gene_regions_to_bed(gid2gio_dic, out_bed,
         add_annot_stats_dic["c_genes"] = c_out
 
 
+def bed_output_cp_bed(in_bed, out_bed):
+    """
+    Given BED
+    """
+
+
 ################################################################################
 
 def bed_sort_file(in_bed, out_bed, 
@@ -6508,6 +6545,7 @@ def bed_sort_file(in_bed, out_bed,
     """
 
     assert os.path.exists(in_bed), "in_bed does not exist"
+    assert in_bed != out_bed, "given in_bed == out_bed"
 
     check_cmd = "sort " + params + " " + in_bed + " > " + out_bed
     output = subprocess.getoutput(check_cmd)
@@ -6515,6 +6553,38 @@ def bed_sort_file(in_bed, out_bed,
     if output:
         error = True
     assert error == False, "sort has problems with your input:\n%s\n%s" %(check_cmd, output)
+
+
+################################################################################
+
+def bed_get_site_distances(in_bed):
+    """
+    Get minimum site distance (i.e. distance to next site) for each site.
+    Return site -> distance dictionary.
+    If e.g. site is only one on one chromosome + strand, return
+    site -> -1 as entry.
+
+    AALAMO
+    
+    """
+
+
+
+
+
+"""
+
+$ bedtools closest -a test.bed -b test.bed -D a -s -t "first" -N -sorted
+chr1	1000	1001	s1	0	+	chr1	1100	1101	s2	0	+	100
+chr1	1000	1001	sx	0	-	.	-1	-1	.	-1	.	-1
+chr1	1100	1101	s2	0	+	chr1	1150	1151	s3	0	+	50
+chr1	1150	1151	s3	0	+	chr1	1100	1101	s2	0	+	-50
+chr1	1250	1251	s4	0	+	chr1	1250	1251	s5	0	+	0
+chr1	1250	1251	s5	0	+	chr1	1250	1251	s4	0	+	0
+chr1	1250	1251	s6	0	+	chr1	1250	1251	s4	0	+	0
+
+
+"""
 
 
 # ################################################################################
@@ -8638,7 +8708,7 @@ def genome_fasta_get_chr_sizes_file(in_genome_fa, out_chr_sizes_file,
 
     OUTCHRLEN = open(out_chr_sizes_file, "w")
 
-    header_pattern = re.compile(r"^>(\S+)")
+    header_pattern = re.compile(r"^>([^|\s]+)")  # up to first white space (Ensembl style) or | (Encode style).
 
     with open(in_genome_fa) as f:
         for line in f:
@@ -8684,7 +8754,7 @@ def genome_fasta_get_chr_sizes(in_genome_fa,
     seq_id = "id"
     seq_len = 0
 
-    header_pattern = re.compile(r"^>(\S+)")
+    header_pattern = re.compile(r"^>([^|\s]+)")  # up to first white space (Ensembl style) or | (Encode style).
 
     with open(in_genome_fa) as f:
         for line in f:
@@ -11763,9 +11833,15 @@ def calculate_k_nucleotide_cv(reg2seq_dic, k=1,
                     kmer_c += 1
                     total_c += 1
             
-            # Store the ratio of each k-mer.
-            for kmer in kmers:
-                kmer_ratios[kmer].append(counts[kmer] / kmer_c)
+            # If there are valid k-mers in the sequence.
+            if kmer_c:
+                # Store the ratio of each k-mer.
+                for kmer in kmers:
+                    kmer_ratios[kmer].append(counts[kmer] / kmer_c)
+            else:
+                # Case if sequence has only invalid k-mers (e.g. NNNN.. sequence).
+                for kmer in kmers:
+                    kmer_ratios[kmer].append(0)
 
             # Count number of sequences containing each k-mer.
             for kmer in counts:
@@ -11791,14 +11867,18 @@ def calculate_k_nucleotide_cv(reg2seq_dic, k=1,
         for reg_id in reg_ids_list:
             assert reg_id in reg2sc_dic, "reg_id not in reg2sc_dic"
             scores_list.append(reg2sc_dic[reg_id])
-        # Calculate the correlation between k-mer ratios and scores.
-        scores = pd.Series(scores_list, index=reg_ids_list)
-        df = pd.DataFrame(kmer_ratios, index=reg_ids_list)
-        corrs = df.corrwith(scores, method='spearman')
-        # Make dictionary with k-mer -> correlation.
-        kmer2corr_dic = corrs.to_dict()
-        for kmer in kmer2corr_dic:
-            kmer2stats_dic[kmer][3] = round(kmer2corr_dic[kmer], 5)
+        same_val = False
+        if len(set(scores_list)) == 1:
+            same_val = True
+        if not same_val:
+            # Calculate the correlation between k-mer ratios and scores.
+            scores = pd.Series(scores_list, index=reg_ids_list)
+            df = pd.DataFrame(kmer_ratios, index=reg_ids_list)
+            corrs = df.corrwith(scores, method='spearman')
+            # Make dictionary with k-mer -> correlation.
+            kmer2corr_dic = corrs.to_dict()
+            for kmer in kmer2corr_dic:
+                kmer2stats_dic[kmer][3] = round(kmer2corr_dic[kmer], 5)
 
     # Calculate the coefficient of variation (CV) for each k-mer.
     kmer_cv = {}
@@ -13588,12 +13668,6 @@ No plot generated since < 4 datasets were provided.
 """
 
 
-
-
-
-
-
-
     """
     Input datasets gene / transcript region occupancies comparative plot.
 
@@ -13949,6 +14023,9 @@ By default, RBPBench for each gene in the GTF file selects the region features o
         min_tr_len_info = ""
         if args.prom_min_tr_len:
             min_tr_len_info = "Minimum transcript length for promoter region extraction = %i nt (# transcripts removed = %i)." %(args.prom_min_tr_len, dsid2add_annot_stats_dic["general"]["c_filt_min_tr_len"])
+        prom_both_str_info = "Only promoter regions on transcript strands were used for overlap calculation."
+        if args.prom_both_str:
+            prom_both_str_info = "Promoter regions on both strands were used for overlap calcullation."
 
         mdtext += """
 ## Additional region annotation statistics ### {#add-annot-stats}
@@ -13956,14 +14033,14 @@ By default, RBPBench for each gene in the GTF file selects the region features o
 **Table:** Percentages of input regions that overlap with additional region annotations are shown for each input dataset.
 This includes percentages of input regions located outside of gene regions (annotated in provided GTF, # of considered
 gene regions = %i) and input regions overlapping with putative promoter regions (taking the regions %i nt upstream 
-to %i nt downstream of the transcript start sites). %s %s # of considered promoter regions = %i. %s High percentages 
+to %i nt downstream of the transcript start sites). %s %s # of considered promoter regions = %i. %s %s High percentages 
 of input regions located outside gene regions or 
 inside promoter regions can point at dataset issues (assuming RBPs bind primarily to gene/transcript regions) 
-or distinct protein functions (e.g., RBPs moonlighting as transcription factors). Note that depending 
+or distinct protein functions (e.g., binding to nascent transcripts). Note that depending 
 on the methods used for dataset generation, input regions outside of gene regions might also have
 been removed already.
 
-""" %(dsid2add_annot_stats_dic["general"]["c_genes"], dsid2add_annot_stats_dic["general"]["prom_ext_up"], dsid2add_annot_stats_dic["general"]["prom_ext_down"], only_mrna_info, min_tr_len_info, dsid2add_annot_stats_dic["general"]["c_promoters"], add_annot_bed_info)
+""" %(dsid2add_annot_stats_dic["general"]["c_genes"], dsid2add_annot_stats_dic["general"]["prom_ext_up"], dsid2add_annot_stats_dic["general"]["prom_ext_down"], only_mrna_info, min_tr_len_info, dsid2add_annot_stats_dic["general"]["c_promoters"], prom_both_str_info, add_annot_bed_info)
 
         mdtext += '<table style="max-width: 1000px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
         mdtext += "<thead>\n"
@@ -16677,6 +16754,7 @@ def calc_r2_corr_measure(scores1, scores2,
 ################################################################################
 
 def split_regions_by_sc(reg2sc_dic, top_n=False, bottom_n=False,
+                        reg_ids_dic=False,
                         rev_sort=True):
     """
     Split region -> score dictionary by score. Return top_n and bottom_n
@@ -16848,6 +16926,7 @@ def min_max_scale(values, new_min=0, new_max=1):
     return scaled_values
 
 
+
 ################################################################################
 
 def create_pca_hit_prof_plot_plotly(seqid2feat_dic, 
@@ -16962,12 +17041,138 @@ def create_pca_hit_prof_plot_plotly(seqid2feat_dic,
 
     fig.update_traces(
         hovertemplate='<b>%{hovertext}</b><br>Sequence length:<br>%{customdata[0]}<br>Motif hit count:<br>%{customdata[1]}<br>Sequence complexity:<br>%{customdata[2]}<br>GC content (%):<br>%{customdata[3]}<br>Mono-nucleotide percentages:<br>%{customdata[4]}<extra></extra>',
-        marker=dict(size=3, line=dict(width=0.5, color='white'))
+        marker=dict(size=2, line=dict(width=0.4, color='white'))  # 3, 0.5 default.
     )
     # fig.update_traces(marker=dict(size=3, color='#1f77b4', line=dict(width=0.5, color='white')))  # for monochrome points.
 
     fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
-    fig.write_html(plot_out, full_html=False, include_plotlyjs="cdn")
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
+def create_pca_kmer_prof_plot_plotly(seqid2feat_dic, 
+                                     plot_out,
+                                     color_var="GC content",
+                                     highlight_id=False,
+                                     include_plotlyjs="cdn",
+                                     full_html=False):
+    """
+    Create k-mer hit profiles 3D PCA plot.
+    
+    AALAMO
+
+    """
+
+    assert seqid2feat_dic, "seqid2feat_dic is empty"
+
+    prof_ll = []
+    seq_ids_list = []
+    seq_len_list = []
+    c_non_zero_k_list = []
+    seq_entr_list = []
+    nt_perc_str_list = []
+    gc_perc_list = []
+    for seq_id in seqid2feat_dic:
+        seq_feat = seqid2feat_dic[seq_id]
+        if seq_feat.c_non_zero_k == 0:
+            continue
+        kmer_perc_l = []
+        for kmer in seq_feat.kmer_perc:
+            kmer_perc_l.append(seq_feat.kmer_perc[kmer])
+        prof_ll.append(kmer_perc_l)
+        seq_ids_list.append(seq_id)
+        seq_len_list.append(seq_feat.seq_len)
+        c_non_zero_k_list.append(seq_feat.c_non_zero_k)
+        seq_entr_list.append(seq_feat.seq_entropy)
+        nt_perc_str_list.append(seq_feat.mono_nt_perc_str)
+        gc_perc = seq_feat.gc_perc
+        if gc_perc > 0:
+            gc_perc = round(gc_perc, 2)
+        gc_perc_list.append(gc_perc)
+
+    if highlight_id:
+        assert highlight_id in seq_ids_list, "sequence ID \"%s\" to be highlighted is not in sequence IDs list (either from the beginning or because there were no motif hits on the sequence" %(highlight_id)
+
+    hover_data = ['Sequence length', 'Non-zero k-mer count', 'Sequence complexity', 'GC content', 'Mono-nucleotide percentages']
+    color = color_var
+    color_scale = ['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
+
+    pca = PCA(n_components=3)  # Reduce data to 3 dimensions.
+    data_3d_pca = pca.fit_transform(prof_ll)
+
+    df = pd.DataFrame(data_3d_pca, columns=['PC1', 'PC2', 'PC3'])
+    df['Sequence ID'] = seq_ids_list
+    df['Sequence length'] = seq_len_list
+    df['Non-zero k-mer count'] = c_non_zero_k_list
+    df['Sequence complexity'] = seq_entr_list
+    df['GC content'] = gc_perc_list
+    df['Mono-nucleotide percentages'] = nt_perc_str_list
+
+    explained_variance = pca.explained_variance_ratio_ * 100
+
+    if highlight_id:
+        
+        df_highlight = df[df['Sequence ID'] == highlight_id]
+        df_rest = df[df['Sequence ID'] != highlight_id]
+
+        # Trace 1: All other points (excluding highlighted sequence ID) with color gradient.
+        fig = px.scatter_3d(
+            df_rest,
+            x='PC1', y='PC2', z='PC3',
+            color=color,
+            color_continuous_scale=color_scale,
+            title='3D PCA plot of k-mer hit profiles',
+            hover_name='Sequence ID',
+            hover_data=hover_data,
+            labels={
+                'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+                'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)',
+                'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
+            }
+        )
+
+        # Trace 2: Highlighted point (sequence ID).
+        fig.add_scatter3d(
+            x=df_highlight['PC1'],
+            y=df_highlight['PC2'],
+            z=df_highlight['PC3'],
+            mode='markers',
+            marker=dict(size=3, color='#ff7f0e', line=dict(width=0.5, color='white')),
+            name='',
+            # hoverinfo='text'
+            customdata=df_highlight[['Sequence length', 'Non-zero k-mer count', 'Sequence complexity', 'GC content', 'Mono-nucleotide percentages']].values,
+            hovertext=df_highlight['Sequence ID']
+        )
+
+    else:
+
+        fig = px.scatter_3d(
+            df,
+            x='PC1', y='PC2', z='PC3',
+            color=color,  # Remove to have one dot color only (set in update_traces).
+            title='3D PCA plot of motif hit profiles',
+            labels={
+                'PC1': f'PC1 ({explained_variance[0]:.2f}% variance)',
+                'PC2': f'PC2 ({explained_variance[1]:.2f}% variance)',
+                'PC3': f'PC3 ({explained_variance[2]:.2f}% variance)'
+            },
+            hover_name='Sequence ID',
+            color_continuous_scale=color_scale,  # Remove to have one dot color only (set in update_traces).
+            hover_data=hover_data
+        )
+
+
+    fig.update_scenes(aspectmode='cube')
+
+    fig.update_traces(
+        hovertemplate='<b>%{hovertext}</b><br>Sequence length:<br>%{customdata[0]}<br>Non-zero k-mer count:<br>%{customdata[1]}<br>Sequence complexity:<br>%{customdata[2]}<br>GC content (%):<br>%{customdata[3]}<br>Mono-nucleotide percentages:<br>%{customdata[4]}<extra></extra>',
+        marker=dict(size=2, line=dict(width=0.4, color='white'))  # 3, 0.5 default.
+    )
+    # fig.update_traces(marker=dict(size=3, color='#1f77b4', line=dict(width=0.5, color='white')))  # for monochrome points.
+
+    fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
 
 
 ################################################################################
@@ -17196,10 +17401,25 @@ Sequence length statistics in nt.
 """
     # Get number of input sequences with motif hits.
     c_seqs_with_hits = 0
+    c_seqs_non_zero_k = 0
     for seq_id in seqid2feat_dic:
         if seqid2feat_dic[seq_id].c_hits > 0:
             c_seqs_with_hits += 1
-    
+        if seqid2feat_dic[seq_id].c_non_zero_k > 0:
+            c_seqs_non_zero_k += 1
+
+    profiles_norm_info = "The profile for each sequence is the vector of motif hit counts, normalized by sequence length."
+    if args.profiles_norm == 2:
+        profiles_norm_info = "The profile for each sequence is the vector of motif hit counts, normalized by setting motifs with hits to 1 and motifs with no hits to 0."
+
+    profiles_level_info = "Motif hits are counted on the RBP level, i.e., the profile includes one hit count value per RBP."
+    if args.profiles_level == 2:
+        profiles_level_info = "Motif hits are counted on the individual motif level, i.e., the profile includes one count value for every motif, i.e., an RBP is represented by the hit count values of its individual motifs."
+
+    profiles_seq_id_info = ""
+    if args.profiles_seq_id:
+        profiles_seq_id_info = "Selected sequence ID \"%s\" is highlighted in orange." %(args.profiles_seq_id)
+
     if c_seqs_with_hits > 3:
 
         hit_prof_plot_plotly =  "motif_hit_profiles.plotly.html"
@@ -17242,11 +17462,13 @@ Sequence length statistics in nt.
 **Figure:** Comparison of input sequences, using their motif hit profiles (3-dimensional PCA) as features, 
 to show similarities of input sequences based on type and amount of occurring motif hits (points close to each other have similar hit profiles).
 Note that only sequences with motif hits are included in the plot (# of sequences with hits: %i).
-
+%s
+%s
+%s
 
 &nbsp;
 
-""" %(c_seqs_with_hits)
+""" %(c_seqs_with_hits, profiles_norm_info, profiles_level_info, profiles_seq_id_info)
 
     else:
         mdtext += """
@@ -17256,6 +17478,66 @@ No motif hit profiles plot generated since < 4 input sequences have motif hits.
 &nbsp;
 
 """
+
+    if c_seqs_non_zero_k > 3:
+
+        """
+        k-mer profiles plot.
+
+        """ 
+
+        kmer_prof_plot_plotly =  "kmer_hit_profiles.plotly.html"
+        kmer_prof_plot_plotly_out = plots_out_folder + "/" + kmer_prof_plot_plotly
+
+        create_pca_kmer_prof_plot_plotly(seqid2feat_dic, 
+                                         kmer_prof_plot_plotly_out,
+                                         highlight_id=args.profiles_seq_id,
+                                         include_plotlyjs=include_plotlyjs,
+                                         full_html=plotly_full_html)
+
+        plot_path = plots_folder + "/" + kmer_prof_plot_plotly
+
+        if args.plotly_js_mode in [5, 6, 7]:
+            # Read in plotly code.
+            # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+            js_code = read_file_content_into_str_var(kmer_prof_plot_plotly_out)
+            js_code = js_code.replace("height:100%; width:100%;", "height:1000px; width:1200px;")
+            mdtext += js_code + "\n"
+            # mdtext += '</div>'
+        else:
+            if plotly_embed_style == 1:
+                # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                mdtext += "<div>\n"
+                mdtext += '<iframe src="' + plot_path + '" width="1200" height="1000"></iframe>' + "\n"
+                mdtext += '</div>'
+            elif plotly_embed_style == 2:
+                mdtext += '<object data="' + plot_path + '" width="1200" height="1000"> </object>' + "\n"
+
+        mdtext += """
+
+**Figure:** Comparison of input sequences, using their k-mer hit profiles (3-dimensional PCA, k = %i) as features, 
+to show similarities of input sequences based on type and amount of occurring k-mers (points close to each other have similar k-mer profiles).
+Note that only sequences with valid k-mers are included in the plot (# of sequences with profiles: %i).
+%s
+
+&nbsp;
+
+""" %(args.profiles_k, c_seqs_non_zero_k, profiles_seq_id_info)
+
+    else:
+        mdtext += """
+
+No k-mer hit profiles plot generated since < 4 input sequences have non-zero k-mer counts.
+
+&nbsp;
+
+"""
+
+
+    # AALAMO
+
+
+
 
 
     # Convert mdtext to html.
@@ -17272,6 +17554,41 @@ No motif hit profiles plot generated since < 4 input sequences have motif hits.
     OUTHTML.close()
 
 
+################################################################################
+
+def cosine_similarity(a, b):
+    """
+    Calculate cosine similarity for two lists with float values.
+
+
+    >>> cosine_similarity([1, 0, 0], [1, 0, 0])
+    1.0
+    >>> cosine_similarity([10, 0], [1, 0])
+    1.0
+    >>> cosine_similarity([1, 0], [0, 1])
+    0.0
+
+    """
+    a = np.array(a)
+    b = np.array(b)
+    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
+
+################################################################################
+
+def euclidean_distance(a, b):
+    """
+    Compute the Euclidean distance between two two lists with float values.
+
+    >>> euclidean_distance([1, 2, 3], [1, 2, 3])
+    0.0
+    >>> euclidean_distance([2, 0], [1, 0])
+    1.0
+    
+    """
+    a = np.array(a)
+    b = np.array(b)
+    return np.linalg.norm(a - b)
 
 
 ################################################################################
@@ -18159,6 +18476,10 @@ No sequence k-mers content plot generated since no k-mer contents extracted from
 
     """
 
+    add_all_reg_bar = True
+    if args.disable_all_reg_bar:
+        add_all_reg_bar = False
+
     if reg2annot_dic:
 
         annot_stacked_bars_plot =  "annotation_stacked_bars_plot.png"
@@ -18168,7 +18489,7 @@ No sequence k-mers content plot generated since no k-mer contents extracted from
 ## Region annotations per RBP ### {#annot-rbp-plot}
 
 """
-        if no_region_hits:
+        if no_region_hits and not add_all_reg_bar:
             mdtext += """
 
 No plot generated since no motif hits found in input regions.
@@ -18178,10 +18499,7 @@ No plot generated since no motif hits found in input regions.
 """
         else:
 
-            add_all_reg_bar = True
-            if args.disable_all_reg_bar:
-                add_all_reg_bar = False
-
+            
             create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
                                                        plot_out=annot_stacked_bars_plot_out,
                                                        annot2color_dic=annot2color_dic,
@@ -18242,20 +18560,23 @@ By default, RBPBench for each gene in the GTF file selects the most prominent tr
         min_tr_len_info = ""
         if args.prom_min_tr_len:
             min_tr_len_info = "Minimum transcript length for promoter region extraction = %i nt (# transcripts removed = %i)." %(args.prom_min_tr_len, add_annot_stats_dic["c_filt_min_tr_len"])
+        prom_both_str_info = "Only promoter regions on transcript strands were used for overlap calculation."
+        if args.prom_both_str:
+            prom_both_str_info = "Promoter regions on both strands were used for overlap calcullation."
 
         mdtext += """
 ## Additional region annotations ### {#add-annot-stats}
 
 **Table:** Percentages of input regions located outside of gene regions (annotated in provided GTF, # of considered
 gene regions = %i) and input regions overlapping with putative promoter regions (taking the regions %i nt upstream 
-to %i nt downstream of the transcript start sites). %s %s # of considered promoter regions = %i. %s High percentages 
+to %i nt downstream of the transcript start sites). %s %s # of considered promoter regions = %i. %s %s High percentages 
 of input regions located outside gene regions or 
 inside promoter regions can point at dataset issues (assuming RBPs bind primarily to gene/transcript regions) 
-or distinct protein functions (e.g., RBPs moonlighting as transcription factors). Note that depending 
+or distinct protein functions (e.g., binding to nascent transcripts). Note that depending 
 on the methods used for dataset generation, input regions outside of gene regions might also have
 been removed already. Number of considered input regions = %i.
 
-""" %(add_annot_stats_dic["c_genes"], add_annot_stats_dic["prom_ext_up"], add_annot_stats_dic["prom_ext_down"], only_mrna_info, min_tr_len_info, add_annot_stats_dic["c_promoters"], add_annot_bed_info, c_in_regions)
+""" %(add_annot_stats_dic["c_genes"], add_annot_stats_dic["prom_ext_up"], add_annot_stats_dic["prom_ext_down"], only_mrna_info, min_tr_len_info, add_annot_stats_dic["c_promoters"], prom_both_str_info, add_annot_bed_info, c_in_regions)
 
         perc_outside_genes = 0.0
         if add_annot_stats_dic["c_outside_genes"] > 0:
@@ -20651,7 +20972,7 @@ def calc_seq_gc_cont(ntc_dic,
     """
     Calculate GC content of a given a nucleotides count dictionary.
 
-    >>> ntc_dic = {'A': 0, 'C': 0, 'G': 2, 'T': 2}
+    >>> ntc_dic = {'A': 0, 'C': 2, 'G': 2, 'T': 0}
     >>> calc_seq_gc_cont(ntc_dic)
     100.0
     >>> calc_seq_gc_cont(ntc_dic, get_perc=False)
@@ -20937,7 +21258,8 @@ def get_ntc_dic(seq, rna=False):
 ################################################################################
 
 def get_kmer_counts_dic(seq, k, rna=False,
-                        count_norm_mode=1):
+                        count_norm_mode=1,
+                        empty_check=True):
     """
     Get k-mer counts dictionary for sequence.
 
@@ -20964,7 +21286,8 @@ def get_kmer_counts_dic(seq, k, rna=False,
             count_dic[kmer] += 1
             total_c += 1
     
-    assert total_c, "no k-mers counted for given sequence \"%s\" (sequence lengths < set k ?)" %(seq)
+    if empty_check:
+        assert total_c, "no k-mers counted for given sequence \"%s\" (sequence lengths < set k ?)" %(seq)
 
     if count_norm_mode != 1:
         for kmer in count_dic:

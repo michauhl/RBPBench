@@ -36,6 +36,12 @@ def setup_argument_parser():
                    metavar='str',
                    default="0",
                    help="Up- and downstream extension of --in sites in nucleotides (nt). Set e.g. --ext 30 for 30 nt on both sides, or --ext 20,10 for different up- and downstream extension (default: 0)")
+    p.add_argument("--max-len",
+                   dest="max_len",
+                   type=int,
+                   metavar='int',
+                   default=False,
+                   help="Maximum length of a region for it to still be extended. This can be used to only extend short regions in the file, while keeping the other lengths the same (default: False)")
     p.add_argument("--bed-sc-thr",
                    dest="bed_sc_thr",
                    type = float,
@@ -130,7 +136,14 @@ if __name__ == '__main__':
             if new_reg_s < 0:
                 new_reg_s = 0
 
-            print("%s\t%i\t%i\t%s\t%s\t%s" % (chr_id, new_reg_s, new_reg_e, reg_id, str(reg_sc), strand))
+            reg_len = reg_e - reg_s
+            if args.max_len:
+                if reg_len > args.max_len:
+                    print("%s\t%i\t%i\t%s\t%s\t%s" % (chr_id, reg_s, reg_e, reg_id, str(reg_sc), strand))
+                else:
+                    print("%s\t%i\t%i\t%s\t%s\t%s" % (chr_id, new_reg_s, new_reg_e, reg_id, str(reg_sc), strand))
+            else:
+                print("%s\t%i\t%i\t%s\t%s\t%s" % (chr_id, new_reg_s, new_reg_e, reg_id, str(reg_sc), strand))
 
     f.closed
 

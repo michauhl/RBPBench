@@ -591,6 +591,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help="Consider only mRNA transcript regions for promoter region extraction")
+    p_s.add_argument("--prom-both-str",
+                   dest="prom_both_str",
+                   default = False,
+                   action = "store_true",
+                   help="Use both strands for promoter region overlap calculation. By default, use transcript strand")
     p_s.add_argument("--prom-ext",
                    dest="prom_ext_up_down",
                    type=str,
@@ -993,6 +998,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help="Consider only mRNA transcript regions for promoter region extraction")
+    p_b.add_argument("--prom-both-str",
+                   dest="prom_both_str",
+                   default = False,
+                   action = "store_true",
+                   help="Use both strands for promoter region overlap calculation. By default, use transcript strand")
     p_b.add_argument("--prom-ext",
                    dest="prom_ext_up_down",
                    type=str,
@@ -1254,6 +1264,19 @@ def setup_argument_parser():
                    metavar='str',
                    default = "seq",
                    help = "Constant header ID part used if --make-uniq-headers set (default: \"seq\")")
+    # Sequence length filtering.
+    p_ss.add_argument("--min-seq-len",
+                   dest="min_seq_len",
+                   type=int,
+                   metavar='int',
+                   default=False,
+                   help="Minimum sequence length required for input sequences to be included in search (default: False)")
+    p_ss.add_argument("--max-seq-len",
+                   dest="max_seq_len",
+                   type=int,
+                   metavar='int',
+                   default=False,
+                   help="Maximum sequence length required for input sequences to be included in search (default: False)")
     # Profiles options.
     p_ss.add_argument("--profiles",
                    dest="profiles",
@@ -4668,6 +4691,13 @@ def main_search(args):
 
     assert out_seqs_dic, "no sequences extracted from FASTA file for --in BED sites. Make sure to use compatible FASTA/BED files!"
 
+    # Update reg2sc_dic if out_seqs_dic different (normally if sequence extraction failed for certain regions, should not happen == very rare case).
+    if len(reg2sc_dic) != len(out_seqs_dic):
+        new_reg2sc_dic = {}
+        for seq_id in out_seqs_dic:
+            new_reg2sc_dic[seq_id] = reg2sc_dic[seq_id]
+        reg2sc_dic = new_reg2sc_dic
+
     # Get region strands/polarities for motif distance calculations.
     reg2pol_dic = benchlib.extract_pol_from_seq_ids(out_seqs_dic)
 
@@ -6167,6 +6197,7 @@ def main_search(args):
         benchlib.output_promoter_regions_to_bed(tid2tio_dic, promoter_regions_bed,
                                         prom_min_tr_len=args.prom_min_tr_len,
                                         prom_mrna_only=args.prom_mrna_only,
+                                        prom_both_str=args.prom_both_str,
                                         mrna_biotype_label="protein_coding",
                                         prom_ext_up=prom_ext_up,
                                         prom_ext_down=prom_ext_down,
@@ -7504,6 +7535,7 @@ def main_batch(args):
         benchlib.output_promoter_regions_to_bed(tid2tio_dic, promoter_regions_bed,
                                         prom_min_tr_len=args.prom_min_tr_len,
                                         prom_mrna_only=args.prom_mrna_only,
+                                        prom_both_str=args.prom_both_str,
                                         mrna_biotype_label="protein_coding",
                                         prom_ext_up=prom_ext_up,
                                         prom_ext_down=prom_ext_down,
@@ -9572,6 +9604,7 @@ def main_searchseq(args):
 
 
     assert os.path.exists(args.in_seqs), "--in FASTA file \"%s\" not found" % (args.in_seqs)
+    assert benchlib.boundary_check(args.profiles_k, 1, 6), "set --profiles-k expected to be >= 1 and <= 6"
 
     # Is MEME >= v5 installed?
     if not args.meme_disable_check:
@@ -10052,8 +10085,24 @@ def main_searchseq(args):
 
     assert in_seqs_dic, "no sequences read in from --in FASTA file. Make sure to provide a FASTA formatted file with DNA or RNA sequences"
 
+    if args.min_seq_len or args.max_seq_len:
+        if args.min_seq_len and args.max_seq_len:
+            assert args.min_seq_len <= args.max_seq_len, "set --min-seq-length should be <= --max-seq-length"
+        
+        print("Filtering input sequences by set min/max lengths ... ")
+        filtered_seqs_dic = {}
+        for seq_id, seq in in_seqs_dic.items():
+            seq_len = len(seq)
+            if args.min_seq_len and args.min_seq_len <= seq_len:
+                filtered_seqs_dic[seq_id] = seq
+            if args.max_seq_len and args.max_seq_len >= seq_len:
+                filtered_seqs_dic[seq_id] = seq
+
+        assert filtered_seqs_dic, "no sequences remaining after filtering by set min/max lengths ... "
+        in_seqs_dic = filtered_seqs_dic
+
     if args.profiles_seq_id:
-        assert args.profiles_seq_id in in_seqs_dic, "specified --profiles-seq-id is not a sequence ID found in input sequences. Please provide sequence ID occurring in --in FASTA file"
+        assert args.profiles_seq_id in in_seqs_dic, "specified --profiles-seq-id is not a sequence ID found in input sequences (or filtered out by min/max length?). Please provide a compatible sequence ID"
 
     # Output sequences to FASTA.
     benchlib.fasta_output_dic(in_seqs_dic, filtered_seqs_fa,
@@ -10077,6 +10126,13 @@ def main_searchseq(args):
     reg_len_mean = round(reg_len_mean, 2)
     reg_len_min = min(len_list)
     reg_len_max = max(len_list)
+
+    print("# of input sequences:         ", len(in_seqs_dic))
+    print("Mean input sequence length:   ", reg_len_mean)
+    print("Median input sequence length: ", reg_len_median)
+    print("Minimum input sequence length:", reg_len_min)
+    print("Maximum input sequence length:", reg_len_max)
+
 
     """
     ====================================
@@ -10700,7 +10756,7 @@ def main_searchseq(args):
         if not matched_seq:
             matched_seq = "-"
 
-        rbp_motif_id = "%s;%s" %(rbp_id, fh.motif_id)
+        rbp_motif_id = "%s;%s" %(rbp_id, cmsh.motif_id)
 
         # Store motif hit as BED.
         hit_id = "%s:%s-%s(%s)%s" %(cmsh.chr_id, str(cmsh.start), str(cmsh.end), cmsh.strand, cmsh.motif_id)
@@ -12440,7 +12496,7 @@ def main_searchlong(args):
         """
 
         print("Get normalized annotation counts ... ")
-        rbp2motif2annot2normc_dic, eff_in_reg_size = benchlib.get_normnalized_annot_counts(
+        rbp2motif2annot2normc_dic, eff_in_reg_size = benchlib.get_normalized_annot_counts(
                                         filtered_sites_bed, intron_exon_out_bed,
                                         rbp2motif2annot2c_dic, reg2pol_dic, 
                                         args.out_folder)

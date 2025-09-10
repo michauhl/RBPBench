@@ -4,6 +4,7 @@ import argparse
 import os
 import re
 import gzip
+from rbpbench import benchlib
 
 
 ###############################################################################
@@ -24,7 +25,6 @@ def setup_argument_parser():
     p.add_argument("-h", "--help",
                    action="help",
                    help="Print help message")
-
     p.add_argument("--gtf",
                    dest="in_gtf",
                    type=str,
@@ -37,6 +37,12 @@ def setup_argument_parser():
                    metavar='str',
                    required=True,
                    help="Output BED file to store gene regions in")
+    p.add_argument("--gene-list",
+                   dest="gene_list",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Supply file with gene IDs (one ID per row) to define which genes to extract from --gtf")
     p.add_argument("--bed-col4-infos",
                    dest="bed_col4_infos",
                    type=int,
@@ -54,102 +60,9 @@ def setup_argument_parser():
 
 ################################################################################
 
-"""
-Define additional chromosome names to be supported.
-
-From Drosophila melanogaster:
-chr2L
-chr2R
-chr3L
-chr3R
-2L
-2R
-3L
-3R
-
-"""
-
-add_chr_names_dic = {
-    "chr2L" : 1,
-    "chr2R" : 1,
-    "chr3L" : 1,
-    "chr3R" : 1,
-    "2L" : 1,
-    "2R" : 1,
-    "3L" : 1,
-    "3R" : 1
-}
-
-################################################################################
-
-def check_convert_chr_id(chr_id,
-                         chr_id_style=1):
-    """
-    Check and convert chromosome IDs to format:
-    chr1, chr2, chrX, ...
-    If chromosome IDs like 1,2,X, .. given, convert to chr1, chr2, chrX ..
-    Return False if given chr_id not standard and not convertable.
-
-    Filter out scaffold IDs like:
-    GL000009.2, KI270442.1, chr14_GL000009v2_random
-    chrUn_KI270442v1 ...
-
-    chr_id_style:
-        Defines to which style chromosome IDs should be converted to.
-        1: Do not convert at all, just return chr_id.
-        2: to chr1,chr2,...,chrM style.
-        3: to 1,2,...,MT style.
-
-    """
-    assert chr_id, "given chr_id empty"
-
-    if chr_id_style == 1: # If id_style == 1.
-        return chr_id
-
-    elif chr_id_style == 2:
-        if re.search("^chr", chr_id):
-            if chr_id in add_chr_names_dic or re.search(r"^chr[\dMXY]+$", chr_id):
-                return chr_id
-            else:
-                return False
-        else:
-            # Convert to "chr" IDs.
-            if chr_id == "MT": # special case MT -> chrM.
-                return "chrM"
-            if chr_id in add_chr_names_dic or re.search(r"^[\dXY]+$", chr_id):
-                return "chr" + chr_id
-            else:
-                return False
-
-    elif chr_id_style == 3:
-
-        if re.search("^chr", chr_id):
-            if chr_id == "chrM": # special case chrM -> MT.
-                return "MT"
-            if chr_id in add_chr_names_dic or re.search(r"^chr[\dXY]+$", chr_id):
-                # Cut out chr suffix.
-                m = re.search("chr(.+)", chr_id)
-                assert m, "no match for regex search"
-                chr_suffix = m.group(1)
-                return chr_suffix
-            else:
-                return False
-
-        else:
-            if chr_id == "MT": # special case MT.
-                return chr_id
-            if chr_id in add_chr_names_dic or re.search(r"^[\dXY]+$", chr_id):
-                return chr_id
-            else:
-                return False
-    else:
-        assert False, "invalid chr_id_style set"
-
-
-################################################################################
-
 def gtf_output_gene_regions_to_bed(in_gtf, out_bed,
                                    bed_col6_infos=1,
+                                   gene_ids_dic=False,
                                    chr_id_style=1):
     """
     Read in gene infos into GeneInfo objects, including information on 
@@ -185,7 +98,7 @@ def gtf_output_gene_regions_to_bed(in_gtf, out_bed,
         feat_pol = cols[6]
         infos = cols[8]
 
-        chr_id = check_convert_chr_id(chr_id, chr_id_style=chr_id_style)
+        chr_id = benchlib.check_convert_chr_id(chr_id, id_style=chr_id_style)
         # If not one of standard chromosomes, continue.
         if not chr_id:
             continue
@@ -197,6 +110,11 @@ def gtf_output_gene_regions_to_bed(in_gtf, out_bed,
             m = re.search(r'gene_id "(.+?)"', infos)
             assert m, "gene_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
             gene_id = m.group(1)
+
+            if gene_ids_dic:
+                if gene_id not in gene_ids_dic:
+                    continue
+
             m = re.search(r'gene_name "(.+?)"', infos)
             gene_name = "-"  # optional.
             if m:
@@ -236,9 +154,21 @@ if __name__ == '__main__':
 
     assert os.path.exists(args.in_gtf), "--gtf file \"%s\" not found" % (args.in_gtf)
 
+    gene_ids_dic = False
+    if args.gene_list:
+        print("Using gene IDs list from --gene-list ... ")
+        gene_ids_dic = benchlib.read_ids_into_dic(args.gene_list,
+                                                  check_dic=False)
+        assert gene_ids_dic, "no IDs read in from provided --gene-list file. Please provide a valid IDs file (one ID per row)"
+        print("# of gene IDs (read in from --gene-list): ", len(gene_ids_dic))
+
+    print("Read in gene features from --gtf ... ")
+
+
     print("Read in GTF and output gene regions to BED file ... ")
     gtf_output_gene_regions_to_bed(args.in_gtf, args.out_bed,
                                    bed_col6_infos=args.bed_col4_infos,
+                                   gene_ids_dic=gene_ids_dic,
                                    chr_id_style=args.chr_id_style)
     print("Done.")
 

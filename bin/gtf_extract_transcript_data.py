@@ -78,6 +78,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Set to ignore ID version numbers in --gtf file, i.e., read in gene and transcript IDs without version numbers. This has to be set if input IDs have no version number but GTF file has (default: False)")
+    p.add_argument("--skip-tec",
+                   dest="skip_tec",
+                   default = False,
+                   action = "store_true",
+                   help = "Skip genes with TEC (To be Experimentally Confirmed) gene biotype (default: False)")
     # p.add_argument("--bed-col4-infos",
     #                dest="bed_col4_infos",
     #                type=int,
@@ -117,13 +122,18 @@ if __name__ == '__main__':
 
     gene_ids_dic = False
     if args.gene_list:
-        print("Using gene IDs list from --gene-ids-list ... ")
+        print("Using gene IDs list from --gene-list ... ")
         gene_ids_dic = benchlib.read_ids_into_dic(args.gene_list,
                                                   check_dic=False)
         assert gene_ids_dic, "no IDs read in from provided --gene-list file. Please provide a valid IDs file (one ID per row)"
         print("# of gene IDs (read in from --gene-list): ", len(gene_ids_dic))
 
     print("Read in gene features from --gtf ... ")
+
+    skip_gene_biotype_dic = {}
+    if args.skip_tec:
+        skip_gene_biotype_dic = {"TEC" : 1}
+
     tr2gid_dic = {}
     tr_types_dic = {}  # Store transcript biotypes in GTF file.
     gid2gio_dic = benchlib.gtf_read_in_gene_infos(args.in_gtf,
@@ -131,6 +141,7 @@ if __name__ == '__main__':
                                                 tr_types_dic=tr_types_dic,
                                                 chr_style=args.chr_id_style,
                                                 gene_ids_dic=gene_ids_dic,
+                                                skip_gene_biotype_dic=skip_gene_biotype_dic,
                                                 remove_version_numbers=args.ignore_version_numbers,
                                                 empty_check=False)
 
