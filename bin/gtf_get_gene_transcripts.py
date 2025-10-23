@@ -95,6 +95,7 @@ if __name__ == '__main__':
                                                   tr2gid_dic=tr2gid_dic,
                                                   chr_style=args.chr_id_style,
                                                   gene_ids_dic=gene_ids_dic,
+                                                  skip_gene_biotype_dic={},  # Do not skip any gene IDs based on biotype.
                                                   remove_version_numbers=args.ignore_version_numbers,
                                                   empty_check=False)
 
