@@ -1,5 +1,6 @@
+from dataclasses import dataclass
 from distutils.spawn import find_executable
-from typing import Optional
+from typing import List, Dict, Tuple, Iterable, Optional
 import os
 import re
 import subprocess
@@ -30,6 +31,8 @@ from scipy.stats import mannwhitneyu
 from goatools.obo_parser import GODag
 from goatools.goea.go_enrichment_ns import GOEnrichmentStudy
 from decimal import Decimal, getcontext
+from dataclasses import dataclass
+
 
 """
 
@@ -47,6 +50,750 @@ python3 -m doctest -v benchlib.py
 
 
 """
+
+################################################################################
+
+def looks_like_structure(pattern: str) -> bool:
+    """
+    Guess if a given regex string might be a structure pattern string,
+    which needs to be handled differently.
+
+    >>> looks_like_structure("C((..))A")
+    True
+    >>> looks_like_structure("AA[[AA]]AA")
+    True
+    >>> looks_like_structure("A..A")
+    False
+    >>> looks_like_structure("ACGTACGT")
+    False
+    >>> looks_like_structure("A[AG]AA)")
+    False
+    >>> looks_like_structure("A(AG)AA)")
+    False
+
+    """
+    # Look for repeated ( ) [ ]  brackets.
+    if re.search(r"(\(\(|\)\)|\[\[|\]\])", pattern):
+        return True
+
+    return False
+
+
+################################################################################
+
+"""
+Global constants for regex structure pattern search.
+
+"""
+
+VALID_BASES = {"A", "C", "G", "T"}
+
+# Extended IUPAC ambiguity codes (DNA-based).
+IUPAC: Dict[str, set[str]] = {
+    "A": {"A"},
+    "C": {"C"},
+    "G": {"G"},
+    "U": {"T"},
+    "T": {"T"},
+    "N": {"A", "C", "G", "T"},
+    "R": {"A", "G"},
+    "Y": {"C", "T"},
+    "W": {"A", "T"},
+    "S": {"G", "C"},
+    "M": {"A", "C"},
+    "K": {"G", "T"},
+    "B": {"C", "G", "T"},
+    "D": {"A", "G", "T"},
+    "H": {"A", "C", "T"},
+    "V": {"A", "C", "G"},
+}
+
+PAIR_SET_STRICT = {
+    ("G", "C"), ("C", "G"),
+    ("A", "T"), ("T", "A"),
+}
+WOBBLE_PAIRS = {("G", "T"), ("T", "G")}
+PAIR_SET_WOBBLE = PAIR_SET_STRICT | WOBBLE_PAIRS
+GC_PAIRS = {("G", "C"), ("C", "G")}
+
+PAIR_OPEN = {"(", "["}
+PAIR_CLOSE = {")", "]"}
+PAIR_MATCH = {")": "(", "]": "["}
+
+
+################################################################################
+
+def normalize_str_pattern(p: str) -> str:
+    """
+    Normalize structure pattern: strip, uppercase, convert U->T.
+
+    >>> normalize_str_pattern("  aCgu...(())  ")
+    'ACGT...(())'
+    >>> normalize_str_pattern("uTRyws")
+    'TTRYWS'
+
+    """
+    p = p.strip().upper()
+    return p.replace("U", "T")
+
+
+################################################################################
+
+def check_format_str_pattern(pattern: str) -> str:
+    """
+    Check and format given structure pattern string (via --regex).
+
+    >>> check_format_str_pattern("  aCgu...(())  ")
+    'ACGT...(())'
+
+    """
+
+    pat = normalize_str_pattern(pattern)
+
+    # Define allowed characters and compare to given pattern characters.
+    allowed_chars = set(IUPAC.keys()) | {"(", ")", "[", "]", "."}
+    for ch in pat:
+        if ch not in allowed_chars:
+            assert False, "invalid character found in provided stucture pattern (string: \"%s\", character: \"%s\"). Please provide a valid structure pattern string via --regex!" %(pat, ch)
+
+    # Check for spacers (single dot runs). Only one spacer allowed, but not at string ends.
+    assert check_single_internal_dot_run(pat), "given structure pattern string (\"%s\") contains multiple spacers (== consecutive dots), or a spacer at start/end. Please provide a valid structure pattern string via --regex!" %(pat)
+
+    return pat
+
+
+################################################################################
+
+def check_single_internal_dot_run(pattern: str) -> bool:
+    """
+    Check that the provided structure pattern string contains at most one 
+    contiguous run of dots (== variable length / nucleotide content spacer), 
+    contained within other symbols, and if present not at the beginning or end.
+
+    >>> check_single_internal_dot_run("ACGT")
+    True
+    >>> check_single_internal_dot_run("(((...)))")
+    True
+    >>> check_single_internal_dot_run("A...CGT")
+    True
+    >>> check_single_internal_dot_run("...A")
+    False
+    >>> check_single_internal_dot_run("A...")
+    False
+    >>> check_single_internal_dot_run("..A..")
+    False
+    >>> check_single_internal_dot_run(".")
+    False
+    """
+    runs = list(re.finditer(r"\.+", pattern))
+
+    if not runs:  # No dots / no spacer, fine.
+        return True
+
+    if len(runs) > 1:  # More than one dot run (== spacer), not allowed.
+        return False
+
+    run = runs[0]
+    if run.start() == 0 or run.end() == len(pattern):  # Dots at string ends, not allowed.
+        return False
+
+    return True
+
+
+################################################################################
+
+def search_str_pat_in_seqs_dic(regex, seqs_dic,
+                               step_size_one=True,
+                               regex_spacer_min=5,
+                               regex_spacer_max=200,
+                               regex_max_gu=1.0,
+                               regex_min_gc=0.0):
+    """
+    Run structure pattern (== regex) search on all sequences in seqs_dic.
+
+    """
+
+    hits_dic = {}
+    seq_c = 0
+
+    run = find_single_dot_run(regex)
+
+    if run is not None:  # If structure pattern contains a spacer.
+
+        dot_start, dot_end = run
+        prefix = regex[:dot_start]
+        suffix = regex[dot_end:]
+        dotless = prefix + suffix
+        dot_index = len(prefix)
+
+        compiled = compile_dotless(dotless)
+
+        for seq_name, seq in seqs_dic.items():
+
+            seq_c += 1
+            if seq_c % 1000 == 0:
+                print(f"{seq_c} sequences scanned ... ")
+
+            scan_one_spacer(
+                seq_name=seq_name,
+                seq=seq,
+                compiled=compiled,
+                dot_index=dot_index,
+                hits_dic=hits_dic,
+                spacer_min=regex_spacer_min,
+                spacer_max=regex_spacer_max,
+                max_gu=regex_max_gu,
+                min_gc=regex_min_gc,
+                step=1,
+            )
+
+    else:  # If structure pattern contains NO spacer.
+
+        compiled = compile_dotless(regex)
+
+        for seq_name, seq in seqs_dic.items():
+
+            seq_c += 1
+            if seq_c % 1000 == 0:
+                print(f"{seq_c} sequences scanned ... ")
+
+            scan_no_spacer(
+                seq_name=seq_name,
+                seq=seq,
+                compiled=compiled,
+                hits_dic=hits_dic,
+                max_gu=regex_max_gu,
+                min_gc=regex_min_gc,
+                step=1,
+            )
+
+
+    return hits_dic
+
+
+################################################################################
+
+def shift_index(idx: int, dot_index: int, spacer_len: int) -> int:
+    """
+    Map dotless index -> expanded index with spacer inserted at dot_index.
+
+    >>> shift_index(0, dot_index=2, spacer_len=5)
+    0
+    >>> shift_index(2, dot_index=2, spacer_len=5)
+    7
+    >>> shift_index(10, dot_index=2, spacer_len=5)
+    15
+    """
+    return idx if idx < dot_index else idx + spacer_len
+
+
+################################################################################
+
+@dataclass(frozen=True)
+class CompiledBasePattern:
+    """
+    Compiled representation of a dotless pattern (no '.', i.e. no spacer in structure 
+    pattern).
+    Indices are in the dotless coordinate system.
+    """
+    tokens: List[str]
+    pairs: List[Tuple[int, int]]
+    L0: int
+    allowed_at: List[Optional[set[str]]]     # None for bracket positions, else allowed bases.
+    must_positions: List[int]                # positions with token != N and not bracket.
+
+
+################################################################################
+
+def scan_no_spacer(seq_name: str,
+                   seq: str,
+                   compiled: CompiledBasePattern,
+                   hits_dic = None,
+                   max_gu: float = 1.0,
+                   min_gc: float = 0.0,
+                   step: int = 1) -> List[Dict[str, object]]:
+    """
+    Scan sequence for matches to a dotless compiled pattern (structure pattern 
+    with no variable length/nucleotide composition spacer).
+
+    >>> cp = compile_dotless("(NN)")
+    >>> hits_dic = {}
+    >>> scan_no_spacer("s1", "ATAT", cp, hits_dic=hits_dic)
+    >>> hits_dic["s1"][0]
+    [0, 4, 'ATAT', 1, 0, 0, 0.0, 0.0, 0]
+    >>> cp = compile_dotless("(N)")
+    >>> scan_no_spacer("s2", "CTGC", cp, hits_dic=hits_dic)
+    >>> hits_dic["s2"][0]
+    [0, 3, 'CTG', 1, 1, 0, 1.0, 0.0, 0]
+    >>> cp = compile_dotless("((AC))")
+    >>> scan_no_spacer("s3", "AACATACGT", cp, hits_dic=hits_dic)
+    >>> hits_dic["s3"][0]
+    [3, 9, 'ATACGT', 2, 0, 1, 0.0, 0.5, 0]
+
+    """
+    if not (0.0 <= max_gu <= 1.0):
+        raise ValueError("--regex-max-gu must be in [0,1].")
+    if not (0.0 <= min_gc <= 1.0):
+        raise ValueError("--regex-min-gc must be in [0,1].")
+    if step <= 0:
+        raise ValueError("set step size must be >= 1.")
+
+    n = len(seq)
+    L = compiled.L0
+    # out: List[Dict[str, object]] = []
+    if hits_dic is None:
+        hits_dic = {}
+
+    # if L == 0 or L > n:
+    #     return out  # continue
+
+    pair_set = PAIR_SET_STRICT if max_gu == 0.0 else PAIR_SET_WOBBLE
+    bracket_positions = [i for i, t in enumerate(compiled.tokens) if t in {"(", ")", "[", "]"}]
+
+    if L > 0 or L <= n:  # if L is valid or not too long.
+
+        for start in range(0, n - L + 1, step):
+            ok = True
+
+            # Must-match prefilter to speed things up.
+            for i in compiled.must_positions:
+                b = seq[start + i]
+                if b not in compiled.allowed_at[i]:  # type: ignore[arg-type]
+                    ok = False
+                    break
+            if not ok:
+                continue
+
+            # Bracket positions must be actual bases.
+            for i in bracket_positions:
+                if seq[start + i] not in VALID_BASES:
+                    ok = False
+                    break
+            if not ok:
+                continue
+
+            # Full per-position check (including N positions).
+            for i, t in enumerate(compiled.tokens):
+                if t in {"(", ")", "[", "]"}:
+                    continue
+                b = seq[start + i]
+                if b not in compiled.allowed_at[i]:  # type: ignore[arg-type]
+                    ok = False
+                    break
+            if not ok:
+                continue
+
+            # pairs + stats
+            n_pairs = len(compiled.pairs)
+            n_gu = 0
+            n_gc = 0
+            for i, j in compiled.pairs:
+                bp = (seq[start + i], seq[start + j])
+                if bp not in pair_set:
+                    ok = False
+                    break
+                if bp in WOBBLE_PAIRS:
+                    n_gu += 1
+                if bp in GC_PAIRS:
+                    n_gc += 1
+            if not ok:
+                continue
+
+            gu_frac = (n_gu / n_pairs) if n_pairs else 0.0
+            gc_frac = (n_gc / n_pairs) if n_pairs else 0.0
+
+            if n_pairs > 0:
+                if gu_frac > max_gu:
+                    continue
+                if gc_frac < min_gc:
+                    continue
+            else:
+                if min_gc > 0.0:
+                    continue
+
+            hits_dic.setdefault(seq_name, []).append([start, start + L, seq[start:start + L], n_pairs, n_gc, n_gu, gc_frac, gu_frac, 0])
+
+
+################################################################################
+
+def scan_one_spacer(seq_name: str,
+                    seq: str,
+                    compiled: CompiledBasePattern,
+                    dot_index: int,
+                    spacer_min: int,
+                    spacer_max: int,
+                    hits_dic = None,
+                    max_gu: float = 1.0,
+                    min_gc: float = 0.0,
+                    step: int = 1) -> List[Dict[str, object]]:
+    """
+    Scan sequence for a structure pattern containing a single spacer inserted at dot_index.
+
+    The dot_index is in dotless coordinates (prefix length).
+
+    Pattern: "(.)" means one pair with variable spacer between the paired positions.
+    Dotless is "()": open at 0, close at 1, dot_index=1 (between them).
+
+    >>> cp = compile_dotless("()")
+    >>> hits_dic = {}
+    >>> scan_one_spacer("s1", "A" + "N"*3 + "T", cp, hits_dic=hits_dic, dot_index=1, spacer_min=3, spacer_max=3)
+    >>> len(hits_dic["s1"])
+    1
+    >>> hits_dic["s1"][0][2]
+    'ANNNT'
+    >>> hits_dic["s1"][0][8]
+    3
+
+    """
+    
+    if not (0.0 <= max_gu <= 1.0):
+        raise ValueError("--regex-max-gu must be in [0,1].")
+    if not (0.0 <= min_gc <= 1.0):
+        raise ValueError("--regex-min-gc must be in [0,1].")
+    if spacer_min < 0 or spacer_max < spacer_min:
+        raise ValueError("--regex-spacer-min/max invalid.")
+    if step <= 0:
+        raise ValueError("set step size must be >= 1.")
+
+    n = len(seq)
+
+    if hits_dic is None:
+        hits_dic = {}
+
+    # out: List[Dict[str, object]] = []
+
+    pair_set = PAIR_SET_STRICT if max_gu == 0.0 else PAIR_SET_WOBBLE
+
+    must_prefix = [i for i in compiled.must_positions if i < dot_index]
+    must_suffix = [i for i in compiled.must_positions if i >= dot_index]
+
+    bracket_positions = [i for i, t in enumerate(compiled.tokens) if t in {"(", ")", "[", "]"}]
+    bracket_prefix = [i for i in bracket_positions if i < dot_index]
+    bracket_suffix = [i for i in bracket_positions if i >= dot_index]
+
+    pair_info: List[Tuple[int, int, bool, bool]] = []
+    for i, j in compiled.pairs:
+        pair_info.append((i, j, i >= dot_index, j >= dot_index))
+
+    for start in range(0, n, step):
+        min_total_len = compiled.L0 + spacer_min
+        if start + min_total_len > n:
+            break
+
+        ok = True
+        for i in must_prefix:
+            b = seq[start + i]
+            if b not in compiled.allowed_at[i]:  # type: ignore[arg-type]
+                ok = False
+                break
+        if not ok:
+            continue
+
+        for i in bracket_prefix:
+            if seq[start + i] not in VALID_BASES:
+                ok = False
+                break
+        if not ok:
+            continue
+
+        for spacer_len in range(spacer_min, spacer_max + 1):
+            L = compiled.L0 + spacer_len
+            if start + L > n:
+                break
+
+            ok2 = True
+            for i in must_suffix:
+                ii = shift_index(i, dot_index, spacer_len)
+                b = seq[start + ii]
+                if b not in compiled.allowed_at[i]:  # type: ignore[arg-type]
+                    ok2 = False
+                    break
+            if not ok2:
+                continue
+
+            for i in bracket_suffix:
+                ii = shift_index(i, dot_index, spacer_len)
+                if seq[start + ii] not in VALID_BASES:
+                    ok2 = False
+                    break
+            if not ok2:
+                continue
+
+            n_pairs = len(pair_info)
+            n_gu = 0
+            n_gc = 0
+            for i, j, ish, jsh in pair_info:
+                ii = shift_index(i, dot_index, spacer_len) if ish else i
+                jj = shift_index(j, dot_index, spacer_len) if jsh else j
+                bp = (seq[start + ii], seq[start + jj])
+                if bp not in pair_set:
+                    ok2 = False
+                    break
+                if bp in WOBBLE_PAIRS:
+                    n_gu += 1
+                if bp in GC_PAIRS:
+                    n_gc += 1
+            if not ok2:
+                continue
+
+            gu_frac = (n_gu / n_pairs) if n_pairs else 0.0
+            gc_frac = (n_gc / n_pairs) if n_pairs else 0.0
+
+            if n_pairs > 0:
+                if gu_frac > max_gu:
+                    continue
+                if gc_frac < min_gc:
+                    continue
+            else:
+                if min_gc > 0.0:
+                    continue
+
+            hits_dic.setdefault(seq_name, []).append([start, start + L, seq[start:start + L], n_pairs, n_gc, n_gu, gc_frac, gu_frac, spacer_len])
+            
+
+"""
+start = hit_info[0]  # 0-based.
+end = hit_info[1]  # 1-based.
+matched_seq = hit_info[2]  # matched sequence.
+n_pairs
+n_gc
+n_gu
+gc_frac
+gu_frac
+spacer_len
+
+            out.append({
+                "start0": start,
+                "end1": start + L,
+                "seq": seq[start:start + L],
+                "n_pairs": n_pairs,
+                "n_gu": n_gu,
+                "gu_frac": gu_frac,
+                "n_gc": n_gc,
+                "gc_frac": gc_frac,
+                "pat_len": L,
+                "spacer_len": spacer_len,
+            })
+
+"""
+
+
+################################################################################
+
+def compile_dotless(dotless: str) -> CompiledBasePattern:
+    """
+    Compile a dotless pattern: precompute allowed sets and must-match positions.
+
+    >>> cp = compile_dotless("AN(T)G")
+    >>> cp.L0
+    6
+    >>> cp.must_positions  # 'A' and 'G' and 'T' are must-match; 'N' is not.
+    [0, 3, 5]
+    >>> cp.pairs
+    [(2, 4)]
+
+    """
+    tokens, pairs = parse_dotless_pattern(dotless)
+
+    allowed_at: List[Optional[set[str]]] = []
+    must_positions: List[int] = []
+    for i, t in enumerate(tokens):
+        if t in {"(", ")", "[", "]"}:
+            allowed_at.append(None)
+        else:
+            aset = IUPAC[t]
+            allowed_at.append(aset)
+            if t != "N":
+                must_positions.append(i)
+
+    return CompiledBasePattern(
+        tokens=tokens,
+        pairs=pairs,
+        L0=len(tokens),
+        allowed_at=allowed_at,
+        must_positions=must_positions,
+    )
+
+
+################################################################################
+
+def parse_dotless_pattern(dotless: str) -> Tuple[List[str], List[Tuple[int, int]]]:
+    """
+    Parse dotless pattern containing only IUPAC codes and ()[] basepairing symbols.
+
+    Returns (tokens, pairs) where pairs are 0-based (i,j) indices that must pair.
+
+    >>> parse_dotless_pattern("A(T)G")
+    (['A', '(', 'T', ')', 'G'], [(1, 3)])
+    >>> parse_dotless_pattern("A[T]G")
+    (['A', '[', 'T', ']', 'G'], [(1, 3)])
+
+    """
+    tokens = list(dotless)
+    allowed_chars = set(IUPAC.keys()) | {"(", ")", "[", "]"}
+
+    for t in tokens:
+        assert t  in allowed_chars, f"Invalid token '{t}' found in structure pattern! Only allowed are: IUPAC {sorted(IUPAC.keys())} and ()[]"
+
+    stacks: Dict[str, List[int]] = {"(": [], "[": []}
+    pairs: List[Tuple[int, int]] = []
+
+    for i, t in enumerate(tokens):
+        if t in PAIR_OPEN:
+            stacks[t].append(i)
+        elif t in PAIR_CLOSE:
+            opener = PAIR_MATCH[t]
+            assert stacks[opener], f"Unmatched closing '{t}' at position {i}!"
+            j = stacks[opener].pop()
+            pairs.append((j, i))
+
+    leftovers = []
+    for op, st in stacks.items():
+        for pos in st:
+            leftovers.append(f"'{op}'@{pos}")
+    assert not leftovers, f"Unmatched opening bracket(s): " + ", ".join(leftovers)
+
+    pairs.sort()
+    return tokens, pairs
+
+
+################################################################################
+
+def find_single_dot_run(pat: str) -> Optional[Tuple[int, int]]:
+    """
+    Return (start,end) of the single contiguous '.' run (variable length and nucleotide 
+    content spacer) if present.
+    - If no dots -> None
+    - If multiple dot runs -> raise PatternError
+
+    >>> find_single_dot_run("ACGU")
+    >>> find_single_dot_run("AA...UU")
+    (2, 5)
+
+    """
+
+    runs: List[Tuple[int, int]] = []
+    i = 0
+    while i < len(pat):
+        if pat[i] == ".":
+            j = i
+            while j < len(pat) and pat[j] == ".":
+                j += 1
+            runs.append((i, j))
+            i = j
+        else:
+            i += 1
+
+    if not runs:
+        return None
+    assert not len(runs) > 1, "given structure pattern string (\"%s\") contains multiple spacers (== consecutive dots), or a spacer at start/end. Please provide a valid structure pattern string via --regex!" %(pat)
+
+    return runs[0]
+
+
+################################################################################
+
+"""
+For standard regex search, define IUPAC code conversion. 
+
+"""
+
+# DNA IUPAC -> regex character class conversion (DNA alphabet A,C,G,T).
+IUPAC_DNA_TO_CLASS = {
+    "A": "A",
+    "C": "C",
+    "G": "G",
+    "T": "T",
+    "U": "T",
+    "R": "[AG]",
+    "Y": "[CT]",
+    "S": "[GC]",
+    "W": "[AT]",
+    "K": "[GT]",
+    "M": "[AC]",
+    "B": "[CGT]",
+    "D": "[AGT]",
+    "H": "[ACT]",
+    "V": "[ACG]",
+    "N": "[ACGT]",
+}
+
+_IUPAC_KEYS = set(IUPAC_DNA_TO_CLASS.keys())
+
+
+################################################################################
+
+def convert_iupac_in_regex(regex: str) -> str:
+    """
+    Convert IUPAC ambiguity codes in a regex string into explicit DNA character classes.
+
+    This function is regex-aware in the sense that it will NOT convert:
+      -> escaped characters (e.g. \\N)
+      -> characters inside existing character classes [...]  (so [NR] stays as-is)
+    It thus will convert IUPAC letters outside of [...] and not escaped.
+
+    Notes:
+    Conversion is case-preserving in behavior: both 'r' and 'R' become '[AG]'.
+    'U' is converted to 'T' (RBPBench works on DNA sequences).
+
+    >>> convert_iupac_in_regex("ACGT")
+    'ACGT'
+    >>> convert_iupac_in_regex("ARNNT")
+    'A[AG][ACGT][ACGT]T'
+    >>> convert_iupac_in_regex("aRn?t")  # case-insensitive patterns.
+    'A[AG][ACGT]?T'
+    >>> convert_iupac_in_regex(r"\\N")  # escaped N should NOT be converted.
+    '\\\\N'
+    >>> convert_iupac_in_regex(r"A\\+N")  # the N converts, the \\+ stays literal plus.
+    'A\\\\+[ACGT]'
+    >>> convert_iupac_in_regex("[NR]N")   # inside [] left untouched, trailing N converted.
+    '[NR][ACGT]'
+    >>> convert_iupac_in_regex("A[ACGT]R")  # R outside [] converted.
+    'A[ACGT][AG]'
+
+    """
+
+    out = []
+    in_class = False
+    i = 0
+    while i < len(regex):
+        ch = regex[i]
+
+        # Handle escapes: keep backslash + next char unchanged.
+        if ch == "\\":
+            if i + 1 < len(regex):
+                out.append(regex[i:i+2])
+                i += 2
+            else:
+                out.append("\\")
+                i += 1
+            continue
+
+        # Track character classes [...].
+        if ch == "[" and not in_class:
+            in_class = True
+            out.append(ch)
+            i += 1
+            continue
+        if ch == "]" and in_class:
+            in_class = False
+            out.append(ch)
+            i += 1
+            continue
+
+        if not in_class:
+            up = ch.upper()
+            if up in _IUPAC_KEYS:
+                out.append(IUPAC_DNA_TO_CLASS[up])
+            else:
+                out.append(ch)
+        else:
+            # Inside [...] we do not rewrite (to avoid changing regex semantics unexpectedly).
+            out.append(ch)
+
+        i += 1
+
+    return "".join(out)
 
 
 ################################################################################
@@ -1007,6 +1754,9 @@ def is_valid_regex(regex):
     """
     Check if regex string is valid regex.
 
+    ALAMO
+
+
     >>> is_valid_regex(".*")
     True
     >>> is_valid_regex(".*[")
@@ -1912,7 +2662,7 @@ def get_regexes_from_file(regex_file):
 
 ################################################################################
 
-def search_regex_in_seqs_dic(regex, seqs_dic,
+def search_regex_in_seqs_dic_old(regex, seqs_dic,
                              step_size_one=False,
                              case_sensitive=True,
                              min_spacing=0):
@@ -1924,29 +2674,29 @@ def search_regex_in_seqs_dic(regex, seqs_dic,
     
     >>> seqs_dic = {'seq1': 'XXXXXXX'}
     >>> regex = "AA"
-    >>> search_regex_in_seqs_dic(regex, seqs_dic)
+    >>> search_regex_in_seqs_dic_old(regex, seqs_dic)
     {}
     >>> seqs_dic = {'seq1': 'ATXXAGX'}
     >>> regex = "A[GT]"
-    >>> search_regex_in_seqs_dic(regex, seqs_dic)
+    >>> search_regex_in_seqs_dic_old(regex, seqs_dic)
     {'seq1': [[0, 2, 'AT'], [4, 6, 'AG']]}
     >>> regex = "a[GT]"
     >>> seqs_dic = {'seq1': 'ATXXAGX'}
-    >>> search_regex_in_seqs_dic(regex, seqs_dic, case_sensitive=False)
+    >>> search_regex_in_seqs_dic_old(regex, seqs_dic, case_sensitive=False)
     {'seq1': [[0, 2, 'AT'], [4, 6, 'AG']]}
     >>> regex = "AAAC"
     >>> seqs_dic = {'seq1': 'AAA'}
-    >>> search_regex_in_seqs_dic(regex, seqs_dic)
+    >>> search_regex_in_seqs_dic_old(regex, seqs_dic)
     {}
     >>> regex = "AA"
     >>> seqs_dic = {'seq1': 'AAAA', 'seq2': 'TTTT'}
-    >>> search_regex_in_seqs_dic(regex, seqs_dic, step_size_one=True)
+    >>> search_regex_in_seqs_dic_old(regex, seqs_dic, step_size_one=True)
     {'seq1': [[0, 2, 'AA'], [1, 3, 'AA'], [2, 4, 'AA']]}
     >>> regex = "ACGT"
     >>> seqs_dic = {'seq1': 'ACGTACGTACGT'}
-    >>> search_regex_in_seqs_dic(regex, seqs_dic, step_size_one=True, min_spacing=4)
+    >>> search_regex_in_seqs_dic_old(regex, seqs_dic, step_size_one=True, min_spacing=4)
     {'seq1': [[0, 4, 'ACGT'], [8, 12, 'ACGT']]}
-    >>> search_regex_in_seqs_dic(regex, seqs_dic, step_size_one=True, min_spacing=5)
+    >>> search_regex_in_seqs_dic_old(regex, seqs_dic, step_size_one=True, min_spacing=5)
     {'seq1': [[0, 4, 'ACGT']]}
     
     """
@@ -1964,6 +2714,10 @@ def search_regex_in_seqs_dic(regex, seqs_dic,
     if all(ord(char) < 128 for char in regex):
         flags |= re.ASCII
     compiled_regex = re.compile(regex, flags)
+
+    # Check if compiled regex matches empty string.
+    if compiled_regex.match("") is not None:
+        assert False, "Provided regex matches empty string. Please provide regex that matches non-empty strings only!"
 
     if step_size_one:
 
@@ -2010,6 +2764,102 @@ def search_regex_in_seqs_dic(regex, seqs_dic,
                     hits_dic[seq_name] = [[match.start(), match.end(), match.group()]]
                 else:
                     hits_dic[seq_name].append([match.start(), match.end(), match.group()])
+
+    return hits_dic
+
+
+################################################################################
+
+def search_regex_in_seqs_dic(regex, seqs_dic,
+                             step_size_one=False,
+                             case_sensitive=True,
+                             min_spacing=0):
+    """
+    Get regex matches in sequences stored in seqs_dic, using lookahead 
+    approach for overlapping matches.
+    match.start : 0-based index of the start of the match
+    match.end : 1-based index of the end of the match
+    match.group : the matched string
+
+    >>> seqs_dic = {'seq1': 'XXXXXXX'}
+    >>> regex = "AA"
+    >>> search_regex_in_seqs_dic(regex, seqs_dic)
+    {}
+    >>> seqs_dic = {'seq1': 'ATXXAGX'}
+    >>> regex = "A[GT]"
+    >>> search_regex_in_seqs_dic(regex, seqs_dic)
+    {'seq1': [[0, 2, 'AT'], [4, 6, 'AG']]}
+    >>> regex = "a[GT]"
+    >>> seqs_dic = {'seq1': 'ATXXAGX'}
+    >>> search_regex_in_seqs_dic(regex, seqs_dic, case_sensitive=False)
+    {'seq1': [[0, 2, 'AT'], [4, 6, 'AG']]}
+    >>> regex = "AAAC"
+    >>> seqs_dic = {'seq1': 'AAA'}
+    >>> search_regex_in_seqs_dic(regex, seqs_dic)
+    {}
+    >>> regex = "AA"
+    >>> seqs_dic = {'seq1': 'AAAA', 'seq2': 'TTTT'}
+    >>> search_regex_in_seqs_dic(regex, seqs_dic, step_size_one=True)
+    {'seq1': [[0, 2, 'AA'], [1, 3, 'AA'], [2, 4, 'AA']]}
+    >>> regex = "ACGT"
+    >>> seqs_dic = {'seq1': 'ACGTACGTACGT'}
+    >>> search_regex_in_seqs_dic(regex, seqs_dic, step_size_one=True, min_spacing=4)
+    {'seq1': [[0, 4, 'ACGT'], [8, 12, 'ACGT']]}
+    >>> search_regex_in_seqs_dic(regex, seqs_dic, step_size_one=True, min_spacing=5)
+    {'seq1': [[0, 4, 'ACGT']]}
+
+    """
+
+    if not is_valid_regex(regex):
+        return "Invalid regex"
+
+    hits_dic = {}
+    seq_c = 0
+
+    # Pre-compile the regular expression.
+    flags = 0
+    if not case_sensitive:
+        flags |= re.IGNORECASE
+    if all(ord(char) < 128 for char in regex):
+        flags |= re.ASCII
+
+    base_regex = re.compile(regex, flags)
+
+    # Check if compiled regex matches empty string.
+    if base_regex.match("") is not None:
+        assert False, "Provided regex matches empty string. Please provide regex that matches non-empty strings only!"
+
+    # If overlapping hits requested, wrap in lookahead and capture the actual hit.
+    # Use a named group to avoid interacting with user's own capturing groups.
+    if step_size_one:
+        compiled_regex = re.compile(rf"(?=(?P<HIT>{base_regex.pattern}))", base_regex.flags)
+        use_lookahead = True
+    else:
+        compiled_regex = base_regex
+        use_lookahead = False
+
+    for seq_name, seq in seqs_dic.items():
+        seq_c += 1
+        if seq_c % 1000 == 0:
+            print(f"{seq_c} sequences scanned ... ")
+
+        last_hit_end = -np.inf
+
+        for match in compiled_regex.finditer(seq):
+            if use_lookahead:
+                start_abs = match.start()          # zero-length match position.
+                hit = match.group("HIT")           # the actual matched substring.
+                end_abs = start_abs + len(hit)
+            else:
+                start_abs = match.start()
+                end_abs = match.end()
+                hit = match.group()
+
+            if min_spacing > 0 and start_abs < last_hit_end + min_spacing:
+                continue
+            last_hit_end = end_abs
+
+            hits_dic.setdefault(seq_name, []).append([start_abs, end_abs, hit])
 
     return hits_dic
 
@@ -6557,19 +7407,14 @@ def bed_sort_file(in_bed, out_bed,
 
 ################################################################################
 
-def bed_get_site_distances(in_bed):
-    """
-    Get minimum site distance (i.e. distance to next site) for each site.
-    Return site -> distance dictionary.
-    If e.g. site is only one on one chromosome + strand, return
-    site -> -1 as entry.
-
-    AALAMO
+# def bed_get_site_distances(in_bed):
+#     """
+#     Get minimum site distance (i.e. distance to next site) for each site.
+#     Return site -> distance dictionary.
+#     If e.g. site is only one on one chromosome + strand, return
+#     site -> -1 as entry.
     
-    """
-
-
-
+#     """
 
 
 """
@@ -9650,19 +10495,26 @@ class GenomicRegion:
 
 ################################################################################
 
-class FimoHit(GenomicRegion):
+class StrPatHit(GenomicRegion):
     """
-    Fimo motif hit class, with 1-based start+end coordinates.
-    
+    Structure pattern motif hit class, with 1-based start+end coordinates.
+
     """
     def __init__(self, chr_id, start, end, strand, score,
-                 motif_id: str, seq_name: str, pval: float, 
+                 motif_id: str, seq_name: str, pval: float,  # motif_id == structure pattern string.
                  qval: Optional[float] = None,
                  matched_seq: Optional[str] = None,
                  seq_s: Optional[int] = None,
                  seq_e: Optional[int] = None,
-                 center_dist: Optional[int] = None,  # Distance of motif center position to region center (rbpbench nemo).
-                 genome: Optional[str] = None) -> None:
+                 center_dist: Optional[int] = None,  # Distance of hit center position to region center (rbpbench nemo).
+                 genome: Optional[str] = None,
+                 hit_type: Optional[str] = None,  # "str_pat"
+                 n_pairs: Optional[int] = None,  # In case of structure pattern hits, we have more structure infos.
+                 n_gu: Optional[int] = None,
+                 n_gc: Optional[int] = None,
+                 gu_frac: Optional[float] = None,
+                 gc_frac: Optional[float] = None,
+                 spacer_len: Optional[int] = None) -> None:
         super().__init__(chr_id, start, end, strand, score, genome)
         self.motif_id = motif_id
         self.seq_name = seq_name
@@ -9672,9 +10524,16 @@ class FimoHit(GenomicRegion):
         self.center_dist = center_dist
         self.seq_s = seq_s
         self.seq_e = seq_e
+        self.hit_type = hit_type
+        self.n_pairs = n_pairs
+        self.n_gu = n_gu
+        self.n_gc = n_gc
+        self.gu_frac = gu_frac
+        self.gc_frac = gc_frac
+        self.spacer_len = spacer_len
 
     def __eq__(self, other) -> bool:
-        if not isinstance(other, FimoHit):
+        if not isinstance(other, StrPatHit):
             return False
         return (self.chr_id == other.chr_id and
                 self.start == other.start and
@@ -9689,87 +10548,240 @@ class FimoHit(GenomicRegion):
 
 ################################################################################
 
+class SeqHit(GenomicRegion):
+    """
+    Fimo/standard sequence regex motif hit class, with 1-based start+end coordinates.
+    
+    """
+    def __init__(self, chr_id, start, end, strand, score,
+                 motif_id: str, seq_name: str, pval: float, 
+                 qval: Optional[float] = None,
+                 matched_seq: Optional[str] = None,
+                 seq_s: Optional[int] = None,
+                 seq_e: Optional[int] = None,
+                 center_dist: Optional[int] = None,  # Distance of motif center position to region center (rbpbench nemo).
+                 hit_type: Optional[str] = None,  # "fimo", "regex"
+                 genome: Optional[str] = None) -> None:
+        super().__init__(chr_id, start, end, strand, score, genome)
+        self.motif_id = motif_id
+        self.seq_name = seq_name
+        self.pval = pval
+        self.qval = qval
+        self.matched_seq = matched_seq
+        self.center_dist = center_dist
+        self.seq_s = seq_s
+        self.seq_e = seq_e
+        self.hit_type = hit_type
+        
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, SeqHit):
+            return False
+        return (self.chr_id == other.chr_id and
+                self.start == other.start and
+                self.end == other.end and
+                self.strand == other.strand and
+                self.motif_id == other.motif_id and
+                self.genome == other.genome and
+                self.hit_type == other.hit_type)
+
+    def __repr__(self) -> str:
+        return f"{self.chr_id}:{self.start}-{self.end}({self.strand}){self.motif_id}"
+
+
+################################################################################
+
 def get_regex_hits(regex, regex_id, seqs_dic,
                    step_size_one=False,
                    seq_based=False,
                    reg_dic=None,
+                   use_lookahead=True,
+                   regex_type="sequence",
+                   regex_spacer_min=5,
+                   regex_spacer_max=200,
+                   regex_max_gu=1.0,
+                   regex_min_gc=0.0,
                    use_motif_regex_id=False):
     """
     Given a regular expression (regex), get all hits in sequence dictionary.
-    Store hits as FimoHit objects in list.
+    Store hits as SeqHit objects in list.
 
     use_motif_regex_id:
         If True, store regex_id as motif ID. If False, store regex as motif ID. 
 
     seq_based:
-        If true, input to regex search was sequences, so use coordinates as they are (not genomic + relative).
+        If True, input to regex search were sequences, so use coordinates as they are (not genomic + relative).
         Also seq_name is the sequence ID, and does not have to have format like "chr6:35575787-35575923(-)"
     reg_dic:
         If provided, use this dictionary (mapping reg_id -> "chr1:100-200(+)", take value string) 
         to get genomic coordinates from get_genomic_coords_from_seq_name, instead of seq_name.
         This can be applied in cases where seq_name is some ID that does not contain region info, but
         motif hit coordinates are still relative to the region.
+    use_lookahead:
+        Use lookahead for regex search, which is faster than old implementation.
+    regex_type:
+        Can be "sequence" (standard regex) or "structure" (structure pattern).
+        E.g.
+        AAA[AG]TG -> standard regex.
+        AGA(((AA...AA)))ACC -> structure pattern.
+        Depending on type, different search functions are used.
+
+    aalamo
 
     """
 
-    assert is_valid_regex(regex), "invalid regex given"
-
-    hits_dic = search_regex_in_seqs_dic(regex, seqs_dic,
-                                        step_size_one=step_size_one,
-                                        case_sensitive=True)
+    assert regex_type in ["sequence", "structure"], "invalid regex_type given (%s)" %(regex_type)
 
     regex_hits_list = []
 
-    motif_id = regex
-    if use_motif_regex_id:
-        motif_id = regex_id
+    if regex_type == "sequence":
 
-    for hit in hits_dic:
-        seq_name = hit
-        for hit_info in hits_dic[hit]:
-            start = hit_info[0]  # 0-based.
-            end = hit_info[1]  # 1-based.
-            matched_seq = hit_info[2]  # matched sequence.
+        assert is_valid_regex(regex), "invalid regex given"
 
-            if seq_based:
+        if use_lookahead:  # Faster than old implementation.
+            hits_dic = search_regex_in_seqs_dic(regex, seqs_dic,
+                                                step_size_one=step_size_one,
+                                                case_sensitive=True)
 
-                regex_hit = FimoHit(chr_id=seq_name, 
-                                start=start+1, 
-                                end=end,
-                                strand="+", 
-                                score=-1.0, 
-                                motif_id=motif_id, 
-                                seq_name=seq_name, 
-                                pval=-1.0, 
-                                qval=-1.0,
-                                seq_s=start+1,
-                                seq_e=end,
-                                matched_seq=matched_seq)
+        else:
+            hits_dic = search_regex_in_seqs_dic_old(regex, seqs_dic,
+                                                step_size_one=step_size_one,
+                                                case_sensitive=True)
 
-            else:
+        motif_id = regex
+        if use_motif_regex_id:
+            motif_id = regex_id
 
-                region_info_seq_name = seq_name
+        for hit in hits_dic:
+            seq_name = hit
+            for hit_info in hits_dic[hit]:
+                start = hit_info[0]  # 0-based.
+                end = hit_info[1]  # 1-based.
+                matched_seq = hit_info[2]  # matched sequence.
 
-                if reg_dic is not None:
-                    region_info_seq_name = reg_dic[seq_name]
+                if seq_based:
 
-                gen_motif_coords = get_genomic_coords_from_seq_name(region_info_seq_name, start, end,
-                                                                    one_based_start=True)
+                    regex_hit = SeqHit(chr_id=seq_name, 
+                                    start=start+1, 
+                                    end=end,
+                                    strand="+", 
+                                    score=-1.0, 
+                                    motif_id=motif_id, 
+                                    seq_name=seq_name, 
+                                    pval=-1.0, 
+                                    qval=-1.0,
+                                    seq_s=start+1,
+                                    seq_e=end,
+                                    matched_seq=matched_seq,
+                                    hit_type="regex")
 
-                regex_hit = FimoHit(chr_id=gen_motif_coords[0], 
-                                start=gen_motif_coords[1], 
-                                end=gen_motif_coords[2],
-                                strand=gen_motif_coords[3], 
-                                score=-1.0, 
-                                motif_id=motif_id, 
-                                seq_name=seq_name, 
-                                pval=-1.0, 
-                                qval=-1.0,
-                                seq_s=start+1,
-                                seq_e=end,
-                                matched_seq=matched_seq)
+                else:
 
-            regex_hits_list.append(regex_hit)
+                    region_info_seq_name = seq_name
+
+                    if reg_dic is not None:
+                        region_info_seq_name = reg_dic[seq_name]
+
+                    gen_motif_coords = get_genomic_coords_from_seq_name(region_info_seq_name, start, end,
+                                                                        one_based_start=True)
+
+                    regex_hit = SeqHit(chr_id=gen_motif_coords[0], 
+                                    start=gen_motif_coords[1], 
+                                    end=gen_motif_coords[2],
+                                    strand=gen_motif_coords[3], 
+                                    score=-1.0, 
+                                    motif_id=motif_id, 
+                                    seq_name=seq_name, 
+                                    pval=-1.0, 
+                                    qval=-1.0,
+                                    seq_s=start+1,
+                                    seq_e=end,
+                                    matched_seq=matched_seq,
+                                    hit_type="regex")
+
+                regex_hits_list.append(regex_hit)
+
+
+    elif regex_type == "structure":
+
+        hits_dic = search_str_pat_in_seqs_dic(regex, seqs_dic,
+                                    step_size_one=step_size_one,
+                                    regex_spacer_min=regex_spacer_min,
+                                    regex_spacer_max=regex_spacer_max,
+                                    regex_max_gu=regex_max_gu,
+                                    regex_min_gc=regex_min_gc)
+
+        motif_id = regex
+        if use_motif_regex_id:
+            motif_id = regex_id
+
+        # hits_dic format: seq_id -> list of hit lists.
+        # hit list format: [start0, end1, matched_seq, n_pairs, n_gc, n_gu, gc_frac, gu_frac, spacer_len]
+        for hit in hits_dic:
+            seq_name = hit
+            for hit_info in hits_dic[hit]:
+                start = hit_info[0]  # 0-based.
+                end = hit_info[1]  # 1-based.
+                matched_seq = hit_info[2]  # matched sequence.
+                n_pairs = hit_info[3]
+                n_gc = hit_info[4]
+                n_gu = hit_info[5]
+                gc_frac = hit_info[6]
+                gu_frac = hit_info[7]
+                spacer_len = hit_info[8]
+                
+                if seq_based:  # AALAMO
+
+                    regex_hit = StrPatHit(chr_id=seq_name, 
+                                    start=start+1, 
+                                    end=end,
+                                    strand="+", 
+                                    score=-1.0, 
+                                    motif_id=motif_id, 
+                                    seq_name=seq_name, 
+                                    pval=-1.0, 
+                                    qval=-1.0,
+                                    seq_s=start+1,
+                                    seq_e=end,
+                                    matched_seq=matched_seq,
+                                    hit_type="str_pat",
+                                    n_pairs=n_pairs,
+                                    n_gu=n_gu,
+                                    n_gc=n_gc,
+                                    gu_frac=gu_frac,
+                                    gc_frac=gc_frac,
+                                    spacer_len=spacer_len)
+
+                else:
+
+                    region_info_seq_name = seq_name
+
+                    if reg_dic is not None:
+                        region_info_seq_name = reg_dic[seq_name]
+
+                    gen_motif_coords = get_genomic_coords_from_seq_name(region_info_seq_name, start, end,
+                                                                        one_based_start=True)
+
+                    regex_hit = StrPatHit(chr_id=gen_motif_coords[0],
+                                    start=gen_motif_coords[1], 
+                                    end=gen_motif_coords[2],
+                                    strand=gen_motif_coords[3], 
+                                    score=-1.0, 
+                                    motif_id=motif_id, 
+                                    seq_name=seq_name, 
+                                    pval=-1.0, 
+                                    qval=-1.0,
+                                    seq_s=start+1,
+                                    seq_e=end,
+                                    matched_seq=matched_seq,
+                                    hit_type="str_pat",
+                                    n_pairs=n_pairs,
+                                    n_gu=n_gu,
+                                    n_gc=n_gc,
+                                    gu_frac=gu_frac,
+                                    gc_frac=gc_frac,
+                                    spacer_len=spacer_len)
+
+                regex_hits_list.append(regex_hit)
 
     return regex_hits_list
 
@@ -9893,8 +10905,8 @@ def filter_out_center_motif_hits(hits_list, core_rel_reg_dic,
     If hit overlaps with core region, filter it out, otherwise keep it and 
     store in flt_hits_list.
 
-    >>> fh1 = FimoHit("chr1", 140, 150, "+", 0.0, "motif1", "pos1", 0.0, seq_s=40, seq_e=50)
-    >>> fh2 = FimoHit("chr1", 120, 130, "+", 0.0, "motif1", "pos1", 0.0, seq_s=20, seq_e=30)
+    >>> fh1 = SeqHit("chr1", 140, 150, "+", 0.0, "motif1", "pos1", 0.0, seq_s=40, seq_e=50)
+    >>> fh2 = SeqHit("chr1", 120, 130, "+", 0.0, "motif1", "pos1", 0.0, seq_s=20, seq_e=30)
     >>> hits_list = [fh1, fh2]
     >>> core_rel_reg_dic = {"pos1": ["pos1", 45, 55, "+"]}
     >>> flt_hits_list = filter_out_center_motif_hits(hits_list, core_rel_reg_dic)
@@ -9954,8 +10966,8 @@ def filter_out_neg_center_motif_hits(neg_hits_list, core_rel_reg_dic,
     Currently just assume both positive and negative regions have same lengths, 
     thus mask same relative core region.
 
-    >>> fh1 = FimoHit("chr1", 140, 150, "+", 0.0, "motif1", "pos1;neg1", 0.0, seq_s=40, seq_e=50)
-    >>> fh2 = FimoHit("chr1", 120, 130, "+", 0.0, "motif1", "pos1;neg1", 0.0, seq_s=20, seq_e=30)
+    >>> fh1 = SeqHit("chr1", 140, 150, "+", 0.0, "motif1", "pos1;neg1", 0.0, seq_s=40, seq_e=50)
+    >>> fh2 = SeqHit("chr1", 120, 130, "+", 0.0, "motif1", "pos1;neg1", 0.0, seq_s=20, seq_e=30)
     >>> hits_list = [fh1, fh2]
     >>> core_rel_reg_dic = {"pos1": ["pos1", 45, 55, "+"]}
     >>> flt_hits_list = filter_out_neg_center_motif_hits(hits_list, core_rel_reg_dic)
@@ -10083,7 +11095,7 @@ def read_in_fimo_results(fimo_tsv,
 
             if seq_based:
 
-                fimo_hit = FimoHit(chr_id=seq_name, 
+                fimo_hit = SeqHit(chr_id=seq_name, 
                                 start=motif_s+1, 
                                 end=motif_e,
                                 strand="+", 
@@ -10094,7 +11106,8 @@ def read_in_fimo_results(fimo_tsv,
                                 qval=qval,
                                 seq_s=motif_s+1,
                                 seq_e=motif_e,
-                                matched_seq=matched_seq)
+                                matched_seq=matched_seq,
+                                hit_type="fimo")
                 
             else:
 
@@ -10106,7 +11119,7 @@ def read_in_fimo_results(fimo_tsv,
                 gen_motif_coords = get_genomic_coords_from_seq_name(region_info_seq_name, motif_s, motif_e,
                                                                     one_based_start=True)
             
-                fimo_hit = FimoHit(chr_id=gen_motif_coords[0], 
+                fimo_hit = SeqHit(chr_id=gen_motif_coords[0], 
                                 start=gen_motif_coords[1], 
                                 end=gen_motif_coords[2],
                                 strand=gen_motif_coords[3], 
@@ -10117,7 +11130,8 @@ def read_in_fimo_results(fimo_tsv,
                                 qval=qval,
                                 seq_s=motif_s+1,
                                 seq_e=motif_e,
-                                matched_seq=matched_seq)
+                                matched_seq=matched_seq,
+                                hit_type="fimo")
 
             fimo_hits_list.append(fimo_hit)
 
@@ -10569,7 +11583,8 @@ def join_motif_hits(motif_hits_list,
 ################################################################################
 
 def remove_special_chars_from_str(check_str,
-                                  reg_ex=r'[^A-Za-z0-9_-]+'):
+                                  reg_ex=r'[^A-Za-z0-9_-]+',
+                                  to_upper=False):
     """
     Remove special characters from string.
 
@@ -10604,6 +11619,8 @@ def remove_special_chars_from_str(check_str,
 
     check_str = check_str.replace(r"\t", "").replace(r"\n", "").replace("\\", "")
     clean_string = re.sub(reg_ex, '', check_str)
+    if to_upper:
+        clean_string = clean_string.upper()
     return clean_string
 
 

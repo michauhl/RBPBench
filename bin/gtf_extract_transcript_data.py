@@ -83,6 +83,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Skip genes with TEC (To be Experimentally Confirmed) gene biotype (default: False)")
+    p.add_argument("--ignore-miss-tr",
+                   dest="ignore_miss_tr",
+                   default = False,
+                   action = "store_true",
+                   help = "Skip transcript IDs provided via --tr-list that are not in --gtf. By default throws an error (default: False)")
     # p.add_argument("--bed-col4-infos",
     #                dest="bed_col4_infos",
     #                type=int,
@@ -162,9 +167,10 @@ if __name__ == '__main__':
         tr_ids_dic = benchlib.read_ids_into_dic(args.tr_list,
                                                 check_dic=False)
         assert tr_ids_dic, "no IDs read in from provided --tr-list file. Please provide a valid IDs file (one ID per row)"
-        for tr_id in tr_ids_dic:
-            assert tr_id in tr2gid_dic, "transcript ID \"%s\" from provided --tr-list file does not appear in --gtf file (or if --gene-ids-list supplied not in resulting subset). Please provide compatible settings" %(tr_id)
-            tr_ids_dic[tr_id] = tr2gid_dic[tr_id]
+        if not args.ignore_miss_tr:
+            for tr_id in tr_ids_dic:
+                assert tr_id in tr2gid_dic, "transcript ID \"%s\" from provided --tr-list file does not appear in --gtf file (or if --gene-ids-list supplied not in resulting subset). Please provide compatible settings" %(tr_id)
+                tr_ids_dic[tr_id] = tr2gid_dic[tr_id]
         print("# of transcript IDs (read in from --tr-list): ", len(tr_ids_dic))
     else:
         # Get most prominent transcripts from gene infos.
@@ -200,10 +206,17 @@ if __name__ == '__main__':
     assert tid2tio_dic, "no transcript infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
 
     # (in)sanity checks.
-    for tr_id in tr_ids_dic:
-        assert tr_id in tid2tio_dic, "transcript ID %s not in tid2tio_dic"
+    if not args.ignore_miss_tr:
+        for tr_id in tr_ids_dic:
+            assert tr_id in tid2tio_dic, "transcript ID %s not in tid2tio_dic" %(tr_id)
+    else:
+        # Make sure tr_ids_dic only contains transcript IDs present in tid2tio_dic.
+        tr_ids_dic = {}
+        for tr_id in tid2tio_dic:
+            tr_ids_dic[tr_id] = 1
+
     for tr_id in tid2tio_dic:
-        assert tr_id in tr_ids_dic, "transcript ID %s not in tr_ids_dic"
+        assert tr_id in tr_ids_dic, "transcript ID %s not in tr_ids_dic" %(tr_id)
 
     c_tr_infos = len(tid2tio_dic)
     print("# transcript features read in from --gtf:", c_tr_infos)

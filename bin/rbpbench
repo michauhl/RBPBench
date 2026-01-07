@@ -178,7 +178,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', ..")
+                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]")
     p_s.add_argument("--regex-id",
                    dest="regex_id",
                    type=str,
@@ -190,12 +190,23 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help="Use --regex-id for motif ID as well. By default, regular expression string is used as motif ID for regex motif hits")
+    p_s.add_argument("--regex-type",
+                   dest="regex_type",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Set type of supplied --regex string 1: auto-detect type (standard regex or structure pattern). 2: given --regex string is standard regex, e.g. AC[AG]T. 3: given --regex string is structure pattern string, e.g. ((AA(((...)))AA)) (default: 1)")
     p_s.add_argument("--regex-search-mode",
                    dest="regex_search_mode",
                    type=int,
                    default=1,
                    choices=[1, 2],
                    help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
+    # p_s.add_argument("--regex-lookahead",
+    #                dest="regex_lookahead",
+    #                default = False,
+    #                action = "store_true",
+    #                help="Enable lookahead in regex search (default: False)")
     p_s.add_argument("--fimo-ntf-file",
                    dest="fimo_user_ntf_file",
                    type=str,
@@ -760,7 +771,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', ..")
+                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]")
     p_b.add_argument("--regex-search-mode",
                    dest="regex_search_mode",
                    type=int,
@@ -1362,7 +1373,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    required=True,
-                   help="Define regular expression (regex) DNA motif used for search, e.g. --regex AAAAA, --regex 'C[ACGT]AC[AC]'. Alternatively, provide a file with regexes (first column regex ID, second column regex), e.g. --regex regexes.txt")
+                   help="Define regular expression (regex) DNA motif used for search, e.g. --regex AAAAA, --regex 'C[ACGT]AC[AC]' .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]. Alternatively, provide a file with regexes (first column regex ID, second column regex), e.g. --regex regexes.txt")
     p_srm.add_argument("--out",
                    dest="out_folder",
                    type=str,
@@ -1525,7 +1536,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', ..")
+                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]")
     p_sl.add_argument("--regex-id",
                    dest="regex_id",
                    type=str,
@@ -1804,7 +1815,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', ..")
+                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]")
     p_scr.add_argument("--regex-id",
                    dest="regex_id",
                    type=str,
@@ -2207,7 +2218,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', ..")
+                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]")
     p_smr.add_argument("--regex-id",
                    dest="regex_id",
                    type=str,
@@ -2494,7 +2505,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', ..")
+                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]")
     p_em.add_argument("--regex-id",
                    dest="regex_id",
                    type=str,
@@ -2841,7 +2852,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', ..")
+                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]")
     p_nm.add_argument("--regex-id",
                    dest="regex_id",
                    type=str,
@@ -3161,7 +3172,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    required=True,
-                   help="Specify regular expression (regex) DNA motif for which to look for sponge transcripts, e.g. --regex AAACCC, --regex 'C[ACGT]AC[AC]', ..")
+                   help="Specify regular expression (regex) DNA motif for which to look for sponge transcripts, e.g. --regex AAACCC, --regex 'C[ACGT]AC[AC]' .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]")
     p_spnm.add_argument("--out",
                    dest="out_folder",
                    type=str,
@@ -3244,7 +3255,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    required=True,
-                   help="Specify regular expression (regex) DNA motif for which to check for differences in hit occurrences between transcript isoforms, e.g. --regex AAACCC, --regex 'C[ACGT]AC[AC]', ..")
+                   help="Specify regular expression (regex) DNA motif for which to check for differences in hit occurrences between transcript isoforms, e.g. --regex AAACCC, --regex 'C[ACGT]AC[AC]' .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]")
     p_isom.add_argument("--out",
                    dest="out_folder",
                    type=str,
@@ -3906,8 +3917,25 @@ def main_search(args):
         assert os.path.exists(args.in_gtf), "--gtf file \"%s\" not found" % (args.in_gtf)
 
     # Regex check.
+    regex_type = "sequence"
     if args.regex:
-        assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
+        if args.regex_type == 1:
+            print("Check given --regex type ... ")
+            if benchlib.looks_like_structure(args.regex):
+                print("Given --regex looks like structure pattern ... ")
+                regex_type = "structure"
+            else:
+                print("Given --regex assumed to be standard regex ... ")
+                regex_type = "sequence"
+        elif args.regex_type == 2:
+            regex_type = "sequence"
+        elif args.regex_type == 3:
+            regex_type = "structure"
+        else:
+            assert False, "unexpected --regex-type value set (%d)" %(args.regex_type)
+        # If standard regex, check validity.
+        if regex_type == "sequence":
+            assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
 
     # Additional BED regions for annotation.
     if args.add_annot_bed:
@@ -4045,39 +4073,38 @@ def main_search(args):
     if not os.path.exists(args.out_folder):
         os.makedirs(args.out_folder)
 
-    filtered_sites_bed = args.out_folder + "/in_sites.filtered.bed"
-    filtered_sites_fa = args.out_folder + "/in_sites.filtered.fa"
-    seq_motifs_xml = args.out_folder + "/seq_motifs.xml"
-    str_motifs_cm = args.out_folder + "/str_motifs.cm"
-    fimo_res_tsv = args.out_folder + "/fimo_results.tsv"
-    cmsearch_res_txt = args.out_folder + "/cmsearch_results.txt"
+    filtered_sites_bed = os.path.join(args.out_folder, 'in_sites.filtered.bed')
+    filtered_sites_fa = os.path.join(args.out_folder, 'in_sites.filtered.fa')
+    seq_motifs_xml = os.path.join(args.out_folder, 'seq_motifs.xml')
+    str_motifs_cm = os.path.join(args.out_folder, 'str_motifs.cm')
+    fimo_res_tsv = os.path.join(args.out_folder, 'fimo_results.tsv')
+    cmsearch_res_txt = os.path.join(args.out_folder, 'cmsearch_results.txt')
 
-    rbp_stats_out = args.out_folder + "/rbp_hit_stats.tsv"
-    motif_stats_out = args.out_folder + "/motif_hit_stats.tsv"
-    # con_res_out_tsv = args.out_folder + "/contingency_table_results.tsv"
-    settings_file = args.out_folder + "/settings.rbpbench_search.out"
-    rbp_reg_occ_table_out = args.out_folder + "/rbp_region_occupancies.tsv"
+    rbp_stats_out = os.path.join(args.out_folder, "rbp_hit_stats.tsv")
+    motif_stats_out = os.path.join(args.out_folder, "motif_hit_stats.tsv")
+    # con_res_out_tsv = os.path.join(args.out_folder, "contingency_table_results.tsv")
+    settings_file = os.path.join(args.out_folder, "settings.rbpbench_search.out")
+    rbp_reg_occ_table_out = os.path.join(args.out_folder, "rbp_region_occupancies.tsv")
 
     # Output unique motif hits.
-    motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_search.bed"
+    motif_hits_bed_out = os.path.join(args.out_folder, "motif_hits.rbpbench_search.bed")
     # Output matched sequences stats.
-    matched_seqs_out = args.out_folder + "/matched_seq_stats.tsv"
+    matched_seqs_out = os.path.join(args.out_folder, "matched_seq_stats.tsv")
 
     # Output RBP co-ooccurrence stats as table.
-    cooc_stats_out = args.out_folder + "/rbp_cooc_stats.tsv"
+    cooc_stats_out = os.path.join(args.out_folder, "rbp_cooc_stats.tsv")
 
     # GOA results.
-    goa_results_tsv = args.out_folder + "/goa_results.tsv"
+    goa_results_tsv = os.path.join(args.out_folder, "goa_results.tsv")
 
     # Addition annotation regions output BED files.
-    gene_regions_bed = args.out_folder + "/gene_regions.bed"
-    promoter_regions_bed = args.out_folder + "/promoter_regions.bed"
-
+    gene_regions_bed = os.path.join(args.out_folder, "gene_regions.bed")
+    promoter_regions_bed = os.path.join(args.out_folder, "promoter_regions.bed")
     # Temp files.
     # random_id = uuid.uuid1()
     # tmp_out_bed = args.out_folder + "/" + str(random_id) + ".filtered_in.bed"
-    out_tmp_bed = args.out_folder + "/rbp_motif_hit_regions.tmp.bed"
-    cmstat_tmp_out = args.out_folder + "/cmstat_out.tmp.txt"
+    out_tmp_bed = os.path.join(args.out_folder, "rbp_motif_hit_regions.tmp.bed")
+    cmstat_tmp_out = os.path.join(args.out_folder, "cmstat_out.tmp.txt")
 
     # Delete if existing folder.
     if os.path.exists(fimo_res_tsv):
@@ -4226,18 +4253,31 @@ def main_search(args):
     Treat regex as sequence motif / fimo type.
     rbp_id: regex, motif_id: regex, motif_db: regex
 
+    AALAMO
+
     """
 
     regex_id = args.regex_id
     regex = args.regex
-    
+
     if args.regex:
 
-        # Remove , ; from given regex, to avoid motif_id format conflicts.
-        regex = benchlib.remove_special_chars_from_str(args.regex,
-                                                       reg_ex="[ ;]")  # [ :;\(\)]
-        
-        assert regex, "empty string after removing special chars ( ;) from --regex. Please provide a valid regex with DNA letters"
+        if regex_type == "sequence":
+
+            # Remove , ; from given regex, to avoid motif_id format conflicts.
+            regex = benchlib.remove_special_chars_from_str(args.regex,
+                                                        reg_ex="[ ;]",
+                                                        to_upper=False)  # [ :;\(\)]
+            
+            assert regex, "empty string after removing special chars ( ;) from --regex. Please provide a valid regex with DNA letters"
+
+            # Convert IUPAC codes (if present) in regex to standard regex format.
+            regex = benchlib.convert_iupac_in_regex(regex)
+
+        elif regex_type == "structure":
+
+            # Check structure pattern and format.
+            regex = benchlib.check_format_str_pattern(args.regex)
 
         args.regex = regex
 
@@ -4555,7 +4595,8 @@ def main_search(args):
 
         print("Extract --exp-gene-list gene regions from --gtf file ... ")
         
-        tmp_gene_reg_bed = args.out_folder + "/gene_regions.exp_gene_list.bed"
+        tmp_gene_reg_bed = os.path.join(args.out_folder, "gene_regions.exp_gene_list.bed")
+
         c_out_gene_reg = benchlib.gtf_output_gene_regions_to_bed(args.in_gtf, tmp_gene_reg_bed,
                                                                  gids_dic=exp_gene_ids_dic,
                                                                  chr_id_style=chr_style)
@@ -4563,7 +4604,7 @@ def main_search(args):
         assert c_out_gene_reg, "no gene regions extracted from --gtf file. Please provide a valid GTF file with gene annotations compatible with --exp-gene-list gene IDs"
 
         print("Filter --in regions by --exp-gene-list gene regions ... ")
-        tmp_in_filtered_bed = args.out_folder + "/in_sites.exp_gene_list.filtered.bed"
+        tmp_in_filtered_bed = os.path.join(args.out_folder, "in_sites.exp_gene_list.filtered.bed")
 
         params = "-u -s"
         if args.exp_gene_filter_mode == 2:  # Keep --in regions not overlapping with --exp-gene-list gene regions.
@@ -4782,6 +4823,8 @@ def main_search(args):
         """
         If --regex is set, search for regex hits in sequences (stored in out_seqs_dic).
 
+        alamo
+
         """
         if args.regex:
 
@@ -4796,6 +4839,8 @@ def main_search(args):
             print("Run search for --regex \"%s\" ... " %(regex))
             regex_hits_list = benchlib.get_regex_hits(regex, regex_id, out_seqs_dic,
                                                       step_size_one=step_size_one,
+                                                      # use_lookahead=args.regex_lookahead,
+                                                      regex_type=regex_type,
                                                       use_motif_regex_id=args.motif_regex_id)
 
             c_regex_hits = len(regex_hits_list)
@@ -6025,7 +6070,7 @@ def main_search(args):
 
     if args.in_gtf:  # and c_regions_with_hits:
 
-        reg_annot_table_file = args.out_folder + "/" + "region_annotations.tsv"
+        reg_annot_table_file = os.path.join(args.out_folder, "region_annotations.tsv")
 
         # Get gene infos.
         print("Read in gene features from --gtf ... ")
@@ -6095,7 +6140,9 @@ def main_search(args):
 
         # Extract exon + intron regions of selected transcripts from transcript infos.
         print("Output intron annotations to BED ... ")
-        intron_exon_out_bed = args.out_folder + "/intron_exon_regions.tmp.bed"
+
+        intron_exon_out_bed = os.path.join(args.out_folder, "intron_exon_regions.tmp.bed")
+
         benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
                                             output_mode=3,  # only introns.
                                             report_counts=True,
@@ -6122,7 +6169,8 @@ def main_search(args):
         print("Overlap annotations with input regions ... ")
         params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
         # params = "-s -wo -f %s -F %s -e" %(str(args.gtf_feat_min_overlap), str(args.gtf_feat_min_overlap))
-        overlap_annotations_bed = args.out_folder + "/overlap_region_annotations.tmp.bed"
+        overlap_annotations_bed = os.path.join(args.out_folder, "overlap_region_annotations.tmp.bed")
+
         benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_out_bed, 
                                      overlap_annotations_bed,
                                      params=params)
@@ -6419,7 +6467,7 @@ def main_search(args):
         # Get mRNA transcripts, with 5'UTR,CDS,3'UTR lengths list.
         tid2regl_dic = benchlib.get_mrna_region_lengths(tid2tio_dic)
 
-        mrna_exon_out_bed = args.out_folder + "/mrna_exon_regions.tmp.bed"
+        mrna_exon_out_bed = os.path.join(args.out_folder, "mrna_exon_regions.tmp.bed")
         print("Output mRNA exon regions ... ")
         benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, mrna_exon_out_bed,
                                             tr_ids_dic=tid2regl_dic,
@@ -6430,7 +6478,7 @@ def main_search(args):
                                             number_format=2, # format exon;ENST001;1
                                             empty_check=False)
 
-        mrna_exon_sites_overlap_bed = args.out_folder + "/mrna_exon_regions.filtered_sites.overlap.tmp.bed"
+        mrna_exon_sites_overlap_bed = os.path.join(args.out_folder, "mrna_exon_regions.filtered_sites.overlap.tmp.bed")
         print("Overlap mRNA exon regions with input sites ... ")
         # Fraction of B, so -F instead of -f.
         benchlib.bed_intersect_files(mrna_exon_out_bed, filtered_sites_bed, mrna_exon_sites_overlap_bed, params="-s -wb -F %s" %(str(args.gtf_min_mrna_overlap)))
@@ -6645,7 +6693,7 @@ def main_search(args):
             gene_infos_file = benchlib_path + "/content/ensembl_gene_infos.biomart.GRCh38.112.tsv.gz"
             if os.path.exists(gene_infos_file):
                 print("Output target region annotations ... ")
-                target_reg_annot_file = args.out_folder + "/target_region_annotations.tsv"
+                target_reg_annot_file = os.path.join(args.out_folder, "target_region_annotations.tsv")
                 
                 benchlib.output_target_reg_annot(target_genes_dic, gene_infos_file, target_reg_annot_file,
                                                  gid2tid_dic=gid2tid_dic,
@@ -6700,10 +6748,10 @@ def main_search(args):
         print("Overlap annotations with motif hit regions ... ")
 
         params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
-        motif_hits_bed_tmp_out = args.out_folder + "/motif_hits.tmp.bed"
+        motif_hits_bed_tmp_out = os.path.join(args.out_folder, "motif_hits.tmp.bed")
         benchlib.reformat_to_bed10(motif_hits_bed_out, motif_hits_bed_tmp_out)
 
-        overlap_motif_hit_annotations_bed = args.out_folder + "/overlap_motif_hit_annotations.tmp.bed"
+        overlap_motif_hit_annotations_bed = os.path.join(args.out_folder, "overlap_motif_hit_annotations.tmp.bed")
         benchlib.bed_intersect_files(motif_hits_bed_tmp_out, intron_exon_out_bed, 
                                      overlap_motif_hit_annotations_bed,
                                      params=params)
@@ -6792,9 +6840,9 @@ def main_search(args):
     
     """
 
-    html_report_out = args.out_folder + "/" + "report.rbpbench_search.html"
+    html_report_out = os.path.join(args.out_folder, "report.rbpbench_search.html")
     if args.plot_abs_paths:
-        html_report_out = os.path.abspath(args.out_folder) + "/" + "report.rbpbench_search.html"
+        html_report_out = os.path.join(os.path.abspath(args.out_folder), "report.rbpbench_search.html")
 
     # If HTML file already exists, remove it.
     if os.path.exists(html_report_out):
@@ -6869,9 +6917,9 @@ def main_search(args):
     Motif plots and motif hit statistics HTML.
 
     """
-    html_motif_plots_out = args.out_folder + "/" + "motif_plots.rbpbench_search.html"
+    html_motif_plots_out = os.path.join(args.out_folder, "motif_plots.rbpbench_search.html")
     if args.plot_abs_paths:
-        html_motif_plots_out = os.path.abspath(args.out_folder) + "/" + "motif_plots.rbpbench_search.html"
+        html_motif_plots_out = os.path.join(os.path.abspath(args.out_folder), "motif_plots.rbpbench_search.html")
     # If HTML file already exists, remove it.
     if os.path.exists(html_motif_plots_out):
         os.remove(html_motif_plots_out)
@@ -7057,6 +7105,9 @@ def main_batch(args):
                                                        reg_ex="[ ;]")
         
         assert regex, "empty string after removing special chars ( ;) from --regex. Please provide a valid regex with DNA letters"
+
+        # Convert IUPAC codes (if present) in regex to standard regex format.
+        regex = benchlib.convert_iupac_in_regex(regex)
 
 
     """
@@ -7276,17 +7327,17 @@ def main_batch(args):
     if not os.path.exists(args.out_folder):
         os.makedirs(args.out_folder)
 
-    filtered_sites_bed = args.out_folder + "/in_sites.filtered.bed"
-    filtered_sites_fa = args.out_folder + "/in_sites.filtered.fa"
-    seq_motifs_xml = args.out_folder + "/seq_motifs.xml"
-    str_motifs_cm = args.out_folder + "/str_motifs.cm"
-    fimo_res_tsv = args.out_folder + "/fimo_results.tsv"
-    cmsearch_res_txt = args.out_folder + "/cmsearch_results.txt"
+    filtered_sites_bed = os.path.join(args.out_folder, "in_sites.filtered.bed")
+    filtered_sites_fa = os.path.join(args.out_folder, "in_sites.filtered.fa")
+    seq_motifs_xml = os.path.join(args.out_folder, "seq_motifs.xml")
+    str_motifs_cm = os.path.join(args.out_folder, "str_motifs.cm")
+    fimo_res_tsv = os.path.join(args.out_folder, "fimo_results.tsv")
+    cmsearch_res_txt = os.path.join(args.out_folder, "cmsearch_results.txt")
 
-    rbp_stats_out = args.out_folder + "/rbp_hit_stats.tsv"
-    motif_stats_out = args.out_folder + "/motif_hit_stats.tsv"
-    # con_res_out_tsv = args.out_folder + "/contingency_table_results.tsv"
-    settings_file = args.out_folder + "/settings.rbpbench_batch.out"
+    rbp_stats_out = os.path.join(args.out_folder, "rbp_hit_stats.tsv")
+    motif_stats_out = os.path.join(args.out_folder, "motif_hit_stats.tsv")
+    # con_res_out_tsv = os.path.join(args.out_folder, "contingency_table_results.tsv")
+    settings_file = os.path.join(args.out_folder, "settings.rbpbench_batch.out")
 
     # Output unique motif hits.
     motif_hits_bed_out = args.out_folder + "/motif_hits.rbpbench_batch.bed"
@@ -11373,6 +11424,9 @@ def main_searchlong(args):
                 
         assert regex, "empty string after removing special chars ( ;) from --regex. Please provide a valid regex with DNA letters"
 
+        # Convert IUPAC codes (if present) in regex to standard regex format.
+        regex = benchlib.convert_iupac_in_regex(regex)
+
         args.regex = regex
 
         regex_id = benchlib.remove_special_chars_from_str(args.regex_id)
@@ -12984,6 +13038,9 @@ def main_searchrna(args):
                                                        reg_ex="[ ;]")
         
         assert regex, "empty string after removing special chars ( [ ;] ) from --regex. Please provide a valid regex with DNA letters"
+
+        # Convert IUPAC codes (if present) in regex to standard regex format.
+        regex = benchlib.convert_iupac_in_regex(regex)
 
         args.regex = regex
 
@@ -15139,6 +15196,9 @@ def main_searchlongrna(args):
         
         assert regex, "empty string after removing special chars ( [ ;] ) from --regex. Please provide a valid regex with DNA letters"
 
+        # Convert IUPAC codes (if present) in regex to standard regex format.
+        regex = benchlib.convert_iupac_in_regex(regex)
+
         args.regex = regex
 
         regex_id = benchlib.remove_special_chars_from_str(args.regex_id)
@@ -16994,6 +17054,9 @@ def main_enmo(args):
                                                        reg_ex="[ ;]")
         
         assert regex, "empty string after removing special chars ( [ ;] ) from --regex. Please provide a valid regex with DNA letters"
+
+        # Convert IUPAC codes (if present) in regex to standard regex format.
+        regex = benchlib.convert_iupac_in_regex(regex)
 
         args.regex = regex
 
@@ -19351,6 +19414,9 @@ def main_nemo(args):
                                                        reg_ex="[ ;]")
         
         assert regex, "empty string after removing special chars ( [ ;] ) from --regex. Please provide a valid regex with DNA letters"
+
+        # Convert IUPAC codes (if present) in regex to standard regex format.
+        regex = benchlib.convert_iupac_in_regex(regex)
 
         args.regex = regex
 
