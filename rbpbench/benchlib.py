@@ -157,7 +157,10 @@ def check_format_str_pattern(pattern: str) -> str:
             assert False, "invalid character found in provided stucture pattern (string: \"%s\", character: \"%s\"). Please provide a valid structure pattern string via --regex!" %(pat, ch)
 
     # Check for spacers (single dot runs). Only one spacer allowed, but not at string ends.
-    assert check_single_internal_dot_run(pat), "given structure pattern string (\"%s\") contains multiple spacers (== consecutive dots), or a spacer at start/end. Please provide a valid structure pattern string via --regex!" %(pat)
+    assert check_single_internal_dot_run(pat), "given structure pattern string (\"%s\") contains multiple spacers (== sets of consecutive dots), or a spacer at start/end. Please provide a valid structure pattern string via --regex!" %(pat)
+
+    # Check that base pairs ( () or [] brackets ) are balanced and properly nested.
+    assert brackets_are_balanced(pat), "given structure pattern string (\"%s\") contains unbalanced or improperly nested brackets. Please provide a valid structure pattern string via --regex!" %(pat)
 
     return pat
 
@@ -551,33 +554,6 @@ def scan_one_spacer(seq_name: str,
             hits_dic.setdefault(seq_name, []).append([start, start + L, seq[start:start + L], n_pairs, n_gc, n_gu, gc_frac, gu_frac, spacer_len])
             
 
-"""
-start = hit_info[0]  # 0-based.
-end = hit_info[1]  # 1-based.
-matched_seq = hit_info[2]  # matched sequence.
-n_pairs
-n_gc
-n_gu
-gc_frac
-gu_frac
-spacer_len
-
-            out.append({
-                "start0": start,
-                "end1": start + L,
-                "seq": seq[start:start + L],
-                "n_pairs": n_pairs,
-                "n_gu": n_gu,
-                "gu_frac": gu_frac,
-                "n_gc": n_gc,
-                "gc_frac": gc_frac,
-                "pat_len": L,
-                "spacer_len": spacer_len,
-            })
-
-"""
-
-
 ################################################################################
 
 def compile_dotless(dotless: str) -> CompiledBasePattern:
@@ -655,6 +631,50 @@ def parse_dotless_pattern(dotless: str) -> Tuple[List[str], List[Tuple[int, int]
 
     pairs.sort()
     return tokens, pairs
+
+
+################################################################################
+
+def brackets_are_balanced(pattern: str) -> bool:
+    """
+    Check whether round brackets () and square brackets [] are balanced and 
+    properly nested in given structure pattern string.
+
+    Rules:
+      - Every '(' must be closed by a ')' in correct order.
+      - Every '[' must be closed by a ']' in correct order.
+      - Mixed crossings like '([)]' are invalid.
+
+    >>> brackets_are_balanced("((AAAA((((AA[AA))))AA]AA))")
+    False
+    >>> brackets_are_balanced("((AA[[CC]]AA))")
+    True
+    >>> brackets_are_balanced("([AA])")
+    True
+    >>> brackets_are_balanced("([)]")   # crossing
+    False
+    >>> brackets_are_balanced("((AA)")
+    False
+    >>> brackets_are_balanced("AA))")
+    False
+    >>> brackets_are_balanced("AA..AA")  # dots/letters ignored
+    True
+
+    """
+    stack = []
+    match = {")": "(", "]": "["}
+    opens = set(match.values())
+    closes = set(match.keys())
+
+    for ch in pattern:
+        if ch in opens:
+            stack.append(ch)
+        elif ch in closes:
+            if not stack or stack[-1] != match[ch]:
+                return False
+            stack.pop()
+
+    return not stack
 
 
 ################################################################################
@@ -10701,7 +10721,7 @@ def get_regex_hits(regex, regex_id, seqs_dic,
                 regex_hits_list.append(regex_hit)
 
 
-    elif regex_type == "structure":
+    elif regex_type == "structure":  # if structure pattern regex is supplied.
 
         hits_dic = search_str_pat_in_seqs_dic(regex, seqs_dic,
                                     step_size_one=step_size_one,
@@ -10734,8 +10754,8 @@ def get_regex_hits(regex, regex_id, seqs_dic,
                     regex_hit = StrPatHit(chr_id=seq_name, 
                                     start=start+1, 
                                     end=end,
-                                    strand="+", 
-                                    score=-1.0, 
+                                    strand="+",
+                                    score=-1.0,
                                     motif_id=motif_id, 
                                     seq_name=seq_name, 
                                     pval=-1.0, 

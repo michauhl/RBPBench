@@ -201,7 +201,32 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2],
-                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position. NOTE that structure pattern regex currently always uses mode 1 (default: 1)")
+    p_s.add_argument("--regex-min-gc",
+                    dest="regex_min_gc",
+                    type=float,
+                    metavar='float',
+                    default=0.0,
+                    help="Minimum GC base pair fraction to report structure pattern regex hits (default: 0.0)")
+    p_s.add_argument("--regex-max-gu",
+                    dest="regex_max_gu",
+                    type=float,
+                    metavar='float',
+                    default=1.0,
+                    help="Maximum GU (GT) base pair fraction to report structure pattern regex hits (default: 1.0)")
+    p_s.add_argument("--regex-spacer-min",
+                   dest="regex_spacer_min",
+                   type=int,
+                   metavar='int',
+                   default=5,
+                   help="Minimum spacer length for structure pattern regex search (default: 5)")
+    p_s.add_argument("--regex-spacer-max",
+                   dest="regex_spacer_max",
+                   type=int,
+                   metavar='int',
+                   default=200,
+                   help="Maximum spacer length for structure pattern regex search (default: 200)")
+
     # p_s.add_argument("--regex-lookahead",
     #                dest="regex_lookahead",
     #                default = False,
@@ -4841,6 +4866,10 @@ def main_search(args):
                                                       step_size_one=step_size_one,
                                                       # use_lookahead=args.regex_lookahead,
                                                       regex_type=regex_type,
+                                                      regex_spacer_min=args.regex_spacer_min,
+                                                      regex_spacer_max=args.regex_spacer_max,
+                                                      regex_min_gc=args.regex_min_gc,
+                                                      regex_max_gu=args.regex_max_gu,
                                                       use_motif_regex_id=args.motif_regex_id)
 
             c_regex_hits = len(regex_hits_list)
@@ -5466,6 +5495,8 @@ def main_search(args):
         # What gets displayed in hover box in violin plot.
         # motif_str_plot = "%s,%i-%i,%s" %(fh.motif_id, fh.seq_s, fh.seq_e, str(fh.pval))
         motif_str_plot = "%s:%i-%i" %(fh.motif_id, fh.seq_s, fh.seq_e)
+        # Hit type.
+        hit_type = fh.hit_type
 
         # Center position of motif hit.
         motif_hit_s = fh.seq_s - 1
@@ -5502,7 +5533,10 @@ def main_search(args):
         # Store motif hit as BED.
         hit_id = "%s:%s-%s(%s)%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), matched_seq)
+            if fh.hit_type == "str_pat":
+                bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t-1.0\t-1.0\t%s\t%s\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.gc_frac), str(fh.gu_frac), matched_seq)
+            else:
+                bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), matched_seq)
             motif_reg_dic[hit_id] = bed_row
             if rbp_id not in match_c_dic:
                 match_c_dic[rbp_id] = {}
