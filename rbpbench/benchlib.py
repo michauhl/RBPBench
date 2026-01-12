@@ -7996,6 +7996,30 @@ def get_eib_annot_c(annot_list, eib_annot_c_dic,
 
 ################################################################################
 
+def get_motif_id_from_hit_str(motif_hit_str):
+    """
+    Get motif ID part from motif hit string, which has format like:
+    chr1:10-15(+)motif_id
+    chr1:10-15(-)AAA((A[A)))A]A)))
+    
+    >>> get_motif_id_from_hit_str("chr1:10-15(+)MOTIF1")
+    'MOTIF1'
+    >>> get_motif_id_from_hit_str("chr1:10-15(-)AAA((A[A)))A]A)))")
+    'AAA((A[A)))A]A)))'
+    >>> get_motif_id_from_hit_str("chr1:10-15(+AAACACA(((AA)))")
+    False
+
+    """
+    i = motif_hit_str.find("(")
+    if i == -1 or i + 2 >= len(motif_hit_str):
+        return False
+    if motif_hit_str[i:i+3] in ("(+)", "(-)"):
+        return motif_hit_str[i+3:]
+    return False
+
+
+################################################################################
+
 def get_region_annotations(overlap_annotations_bed,
                            tid2tio_dic,
                            motif_hits=False,
@@ -9339,8 +9363,46 @@ def extract_pol_from_seq_ids(out_seqs_dic):
 
 ################################################################################
 
+def get_ext_parts(ext_up_down_str):
+    """
+    Return up- downstream extension numbers from given --ext
+    string.
+    
+    >>> get_ext_parts("0")
+    (0, 0)
+    >>> get_ext_parts("10")
+    (10, 10)
+    >>> get_ext_parts("20,10")
+    (20, 10)
+     
+    """
+    assert ext_up_down_str, "given ext_up_down_str empty"
+
+    ext_up = 0
+    ext_down = 0
+
+    ext_parts = ext_up_down_str.split(",")
+    c_ext_parts = len(ext_parts)
+    
+    if c_ext_parts == 1:
+        ext_up = int(ext_parts[0])
+        ext_down = int(ext_parts[0])
+    elif c_ext_parts == 2:
+        ext_up = int(ext_parts[0])
+        ext_down = int(ext_parts[1]) 
+    else:
+        assert False, "invalid --ext argument provided (correct format: --ext 10 OR --ext 20,10)"
+
+    return ext_up, ext_down
+
+
+################################################################################
+
 def bed_check_ids_output_bed(in_bed, out_bed,
                              id_check=True,
+                             ext_up=0,
+                             ext_down=0,
+                             chr_len_dic=False,
                              new_header_id="reg",
                              make_uniq_headers=False):
     """
@@ -9360,8 +9422,8 @@ def bed_check_ids_output_bed(in_bed, out_bed,
         for line in f:
             cols = line.strip().split("\t")
             chr_id = cols[0]
-            reg_s = cols[1]
-            reg_e = cols[2]
+            reg_s = int(cols[1])
+            reg_e = int(cols[2])
             reg_id = cols[3]
             reg_sc = cols[4]
             reg_pol = cols[5]
@@ -9372,10 +9434,25 @@ def bed_check_ids_output_bed(in_bed, out_bed,
 
             if id_check:
                 assert reg_id not in bed_reg_dic, "non-unique region ID \"%s\" found in --in BED file. Please provide unique column 4 IDs or set --make-uniq-headers" %(reg_id)
-            
-            bed_reg_dic[reg_id] = [chr_id, reg_s, reg_e, reg_pol]
 
-            OUTBED.write("%s\t%s\t%s\t%s\t%s\t%s\n" % (chr_id, reg_s, reg_e, reg_id, reg_sc, reg_pol))
+            # Extend.
+            new_s = reg_s - ext_up
+            new_e = reg_e + ext_down
+            if reg_pol == "-":
+                new_s = reg_s - ext_down
+                new_e = reg_e + ext_up
+            # Bound border checks.
+            if new_s < 0:
+                new_s = 0
+            if chr_len_dic:
+                if chr_id in chr_len_dic:
+                    chr_len = chr_len_dic[chr_id]
+                    if new_e > chr_len:
+                        new_e = chr_len
+
+            bed_reg_dic[reg_id] = [chr_id, str(new_s), str(new_e), reg_pol]
+
+            OUTBED.write("%s\t%i\t%i\t%s\t%s\t%s\n" % (chr_id, new_s, new_e, reg_id, reg_sc, reg_pol))
 
     f.closed
     OUTBED.close()
@@ -10627,7 +10704,6 @@ def get_regex_hits(regex, regex_id, seqs_dic,
 
     use_motif_regex_id:
         If True, store regex_id as motif ID. If False, store regex as motif ID. 
-
     seq_based:
         If True, input to regex search were sequences, so use coordinates as they are (not genomic + relative).
         Also seq_name is the sequence ID, and does not have to have format like "chr6:35575787-35575923(-)"

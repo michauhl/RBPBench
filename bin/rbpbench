@@ -178,7 +178,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]")
+                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]. Alternatively, supply structure pattern, e.g. AA((((ARA))))AA or CC(((A...R)))CC with variable spacer")
     p_s.add_argument("--regex-id",
                    dest="regex_id",
                    type=str,
@@ -796,13 +796,43 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]")
+                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]. Alternatively, supply structure pattern, e.g. AA((((ARA))))AA or CC(((A...R)))CC with variable spacer")
     p_b.add_argument("--regex-search-mode",
                    dest="regex_search_mode",
                    type=int,
                    default=1,
                    choices=[1, 2],
-                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position. NOTE that structure pattern regex currently always uses mode 1 (default: 1)")
+    p_b.add_argument("--regex-type",
+                   dest="regex_type",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Set type of supplied --regex string 1: auto-detect type (standard regex or structure pattern). 2: given --regex string is standard regex, e.g. AC[AG]T. 3: given --regex string is structure pattern string, e.g. ((AA(((...)))AA)) (default: 1)")
+    p_b.add_argument("--regex-min-gc",
+                    dest="regex_min_gc",
+                    type=float,
+                    metavar='float',
+                    default=0.0,
+                    help="Minimum GC base pair fraction to report structure pattern regex hits (default: 0.0)")
+    p_b.add_argument("--regex-max-gu",
+                    dest="regex_max_gu",
+                    type=float,
+                    metavar='float',
+                    default=1.0,
+                    help="Maximum GU (GT) base pair fraction to report structure pattern regex hits (default: 1.0)")
+    p_b.add_argument("--regex-spacer-min",
+                   dest="regex_spacer_min",
+                   type=int,
+                   metavar='int',
+                   default=5,
+                   help="Minimum spacer length for structure pattern regex search (default: 5)")
+    p_b.add_argument("--regex-spacer-max",
+                   dest="regex_spacer_max",
+                   type=int,
+                   metavar='int',
+                   default=200,
+                   help="Maximum spacer length for structure pattern regex search (default: 200)")
     p_b.add_argument("--max-motif-dist",
                    dest="max_motif_dist",
                    type=int,
@@ -1398,7 +1428,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    required=True,
-                   help="Define regular expression (regex) DNA motif used for search, e.g. --regex AAAAA, --regex 'C[ACGT]AC[AC]' .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]. Alternatively, provide a file with regexes (first column regex ID, second column regex), e.g. --regex regexes.txt")
+                   help="Define regular expression (regex) DNA motif used for search, e.g. --regex AAAAA, --regex 'C[ACGT]AC[AC]' .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]. Moreover, structure patterns can be supplied, e.g. AA((((ARA))))AA or CC(((A...R)))CC with variable spacer. Alternatively, provide a file with regexes (first column regex ID, second column regex), e.g. --regex regexes.txt")
     p_srm.add_argument("--out",
                    dest="out_folder",
                    type=str,
@@ -1427,7 +1457,37 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2],
-                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position. NOTE that structure pattern regex currently always uses mode 1 (default: 1)")
+    p_sr.add_argument("--regex-min-gc",
+                    dest="regex_min_gc",
+                    type=float,
+                    metavar='float',
+                    default=0.0,
+                    help="Minimum GC base pair fraction to report structure pattern regex hits (default: 0.0)")
+    p_sr.add_argument("--regex-max-gu",
+                    dest="regex_max_gu",
+                    type=float,
+                    metavar='float',
+                    default=1.0,
+                    help="Maximum GU (GT) base pair fraction to report structure pattern regex hits (default: 1.0)")
+    p_sr.add_argument("--regex-spacer-min",
+                   dest="regex_spacer_min",
+                   type=int,
+                   metavar='int',
+                   default=5,
+                   help="Minimum spacer length for structure pattern regex search (default: 5)")
+    p_sr.add_argument("--regex-spacer-max",
+                   dest="regex_spacer_max",
+                   type=int,
+                   metavar='int',
+                   default=200,
+                   help="Maximum spacer length for structure pattern regex search (default: 200)")
+    p_sr.add_argument("--ext",
+                   dest="ext_up_down",
+                   type=str,
+                   metavar='str',
+                   default="0",
+                   help="Up- and downstream extension of --in sites in nucleotides (nt), if --in are genomic regions in BED format. Set e.g. --ext 30 for 30 nt on both sides, or --ext 20,10 for different up- and downstream extension (default: 0)")
     p_sr.add_argument("--add-zero-hits",
                    dest="add_zero_hits",
                    default = False,
@@ -1561,7 +1621,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]")
+                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]. Alternatively, supply structure pattern, e.g. AA((((ARA))))AA or CC(((A...R)))CC with variable spacer")
     p_sl.add_argument("--regex-id",
                    dest="regex_id",
                    type=str,
@@ -1573,12 +1633,42 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help="Use --regex-id for motif ID as well. By default, regular expression string is used as motif ID for regex motif hits")
+    p_sl.add_argument("--regex-type",
+                   dest="regex_type",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Set type of supplied --regex string 1: auto-detect type (standard regex or structure pattern). 2: given --regex string is standard regex, e.g. AC[AG]T. 3: given --regex string is structure pattern string, e.g. ((AA(((...)))AA)) (default: 1)")
     p_sl.add_argument("--regex-search-mode",
                    dest="regex_search_mode",
                    type=int,
                    default=1,
                    choices=[1, 2],
-                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position. NOTE that structure pattern regex currently always uses mode 1 (default: 1)")
+    p_sl.add_argument("--regex-min-gc",
+                    dest="regex_min_gc",
+                    type=float,
+                    metavar='float',
+                    default=0.0,
+                    help="Minimum GC base pair fraction to report structure pattern regex hits (default: 0.0)")
+    p_sl.add_argument("--regex-max-gu",
+                    dest="regex_max_gu",
+                    type=float,
+                    metavar='float',
+                    default=1.0,
+                    help="Maximum GU (GT) base pair fraction to report structure pattern regex hits (default: 1.0)")
+    p_sl.add_argument("--regex-spacer-min",
+                   dest="regex_spacer_min",
+                   type=int,
+                   metavar='int',
+                   default=5,
+                   help="Minimum spacer length for structure pattern regex search (default: 5)")
+    p_sl.add_argument("--regex-spacer-max",
+                   dest="regex_spacer_max",
+                   type=int,
+                   metavar='int',
+                   default=200,
+                   help="Maximum spacer length for structure pattern regex search (default: 200)")
     p_sl.add_argument("--fimo-ntf-file",
                    dest="fimo_user_ntf_file",
                    type=str,
@@ -1840,7 +1930,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]")
+                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]. Alternatively, supply structure pattern, e.g. AA((((ARA))))AA or CC(((A...R)))CC with variable spacer")
     p_scr.add_argument("--regex-id",
                    dest="regex_id",
                    type=str,
@@ -1852,12 +1942,42 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help="Use --regex-id for motif ID as well. By default, regular expression string is used as motif ID for regex motif hits")
+    p_scr.add_argument("--regex-type",
+                   dest="regex_type",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Set type of supplied --regex string 1: auto-detect type (standard regex or structure pattern). 2: given --regex string is standard regex, e.g. AC[AG]T. 3: given --regex string is structure pattern string, e.g. ((AA(((...)))AA)) (default: 1)")
     p_scr.add_argument("--regex-search-mode",
                    dest="regex_search_mode",
                    type=int,
                    default=1,
                    choices=[1, 2],
-                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position. NOTE that structure pattern regex currently always uses mode 1 (default: 1)")
+    p_scr.add_argument("--regex-min-gc",
+                    dest="regex_min_gc",
+                    type=float,
+                    metavar='float',
+                    default=0.0,
+                    help="Minimum GC base pair fraction to report structure pattern regex hits (default: 0.0)")
+    p_scr.add_argument("--regex-max-gu",
+                    dest="regex_max_gu",
+                    type=float,
+                    metavar='float',
+                    default=1.0,
+                    help="Maximum GU (GT) base pair fraction to report structure pattern regex hits (default: 1.0)")
+    p_scr.add_argument("--regex-spacer-min",
+                   dest="regex_spacer_min",
+                   type=int,
+                   metavar='int',
+                   default=5,
+                   help="Minimum spacer length for structure pattern regex search (default: 5)")
+    p_scr.add_argument("--regex-spacer-max",
+                   dest="regex_spacer_max",
+                   type=int,
+                   metavar='int',
+                   default=200,
+                   help="Maximum spacer length for structure pattern regex search (default: 200)")
     p_scr.add_argument("--bed-score-col",
                    dest="bed_score_col",
                    type=int,
@@ -2243,7 +2363,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]")
+                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]. Alternatively, supply structure pattern, e.g. AA((((ARA))))AA or CC(((A...R)))CC with variable spacer")
     p_smr.add_argument("--regex-id",
                    dest="regex_id",
                    type=str,
@@ -2255,12 +2375,42 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help="Use --regex-id for motif ID as well. By default, regular expression string is used as motif ID for regex motif hits")
+    p_smr.add_argument("--regex-type",
+                   dest="regex_type",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Set type of supplied --regex string 1: auto-detect type (standard regex or structure pattern). 2: given --regex string is standard regex, e.g. AC[AG]T. 3: given --regex string is structure pattern string, e.g. ((AA(((...)))AA)) (default: 1)")
     p_smr.add_argument("--regex-search-mode",
                    dest="regex_search_mode",
                    type=int,
                    default=1,
                    choices=[1, 2],
-                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position. NOTE that structure pattern regex currently always uses mode 1 (default: 1)")
+    p_smr.add_argument("--regex-min-gc",
+                    dest="regex_min_gc",
+                    type=float,
+                    metavar='float',
+                    default=0.0,
+                    help="Minimum GC base pair fraction to report structure pattern regex hits (default: 0.0)")
+    p_smr.add_argument("--regex-max-gu",
+                    dest="regex_max_gu",
+                    type=float,
+                    metavar='float',
+                    default=1.0,
+                    help="Maximum GU (GT) base pair fraction to report structure pattern regex hits (default: 1.0)")
+    p_smr.add_argument("--regex-spacer-min",
+                   dest="regex_spacer_min",
+                   type=int,
+                   metavar='int',
+                   default=5,
+                   help="Minimum spacer length for structure pattern regex search (default: 5)")
+    p_smr.add_argument("--regex-spacer-max",
+                   dest="regex_spacer_max",
+                   type=int,
+                   metavar='int',
+                   default=200,
+                   help="Maximum spacer length for structure pattern regex search (default: 200)")
     p_smr.add_argument("--fimo-ntf-file",
                    dest="fimo_user_ntf_file",
                    type=str,
@@ -2530,7 +2680,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]")
+                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]. Alternatively, supply structure pattern, e.g. AA((((ARA))))AA or CC(((A...R)))CC with variable spacer")
     p_em.add_argument("--regex-id",
                    dest="regex_id",
                    type=str,
@@ -2542,12 +2692,42 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help="Use --regex-id for motif ID as well. By default, regular expression string is used as motif ID for regex motif hits")
+    p_em.add_argument("--regex-type",
+                   dest="regex_type",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Set type of supplied --regex string 1: auto-detect type (standard regex or structure pattern). 2: given --regex string is standard regex, e.g. AC[AG]T. 3: given --regex string is structure pattern string, e.g. ((AA(((...)))AA)) (default: 1)")
     p_em.add_argument("--regex-search-mode",
                    dest="regex_search_mode",
                    type=int,
                    default=1,
                    choices=[1, 2],
-                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position. NOTE that structure pattern regex currently always uses mode 1 (default: 1)")
+    p_em.add_argument("--regex-min-gc",
+                    dest="regex_min_gc",
+                    type=float,
+                    metavar='float',
+                    default=0.0,
+                    help="Minimum GC base pair fraction to report structure pattern regex hits (default: 0.0)")
+    p_em.add_argument("--regex-max-gu",
+                    dest="regex_max_gu",
+                    type=float,
+                    metavar='float',
+                    default=1.0,
+                    help="Maximum GU (GT) base pair fraction to report structure pattern regex hits (default: 1.0)")
+    p_em.add_argument("--regex-spacer-min",
+                   dest="regex_spacer_min",
+                   type=int,
+                   metavar='int',
+                   default=5,
+                   help="Minimum spacer length for structure pattern regex search (default: 5)")
+    p_em.add_argument("--regex-spacer-max",
+                   dest="regex_spacer_max",
+                   type=int,
+                   metavar='int',
+                   default=200,
+                   help="Maximum spacer length for structure pattern regex search (default: 200)")
     p_em.add_argument("--bed-score-col",
                    dest="bed_score_col",
                    type=int,
@@ -2877,7 +3057,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]")
+                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]. Alternatively, supply structure pattern, e.g. AA((((ARA))))AA or CC(((A...R)))CC with variable spacer")
     p_nm.add_argument("--regex-id",
                    dest="regex_id",
                    type=str,
@@ -2889,12 +3069,42 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help="Use --regex-id for motif ID as well. By default, regular expression string is used as motif ID for regex motif hits")
+    p_nm.add_argument("--regex-type",
+                   dest="regex_type",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Set type of supplied --regex string 1: auto-detect type (standard regex or structure pattern). 2: given --regex string is standard regex, e.g. AC[AG]T. 3: given --regex string is structure pattern string, e.g. ((AA(((...)))AA)) (default: 1)")
     p_nm.add_argument("--regex-search-mode",
                    dest="regex_search_mode",
                    type=int,
                    default=1,
                    choices=[1, 2],
-                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position (default: 1)")
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position. NOTE that structure pattern regex currently always uses mode 1 (default: 1)")
+    p_nm.add_argument("--regex-min-gc",
+                    dest="regex_min_gc",
+                    type=float,
+                    metavar='float',
+                    default=0.0,
+                    help="Minimum GC base pair fraction to report structure pattern regex hits (default: 0.0)")
+    p_nm.add_argument("--regex-max-gu",
+                    dest="regex_max_gu",
+                    type=float,
+                    metavar='float',
+                    default=1.0,
+                    help="Maximum GU (GT) base pair fraction to report structure pattern regex hits (default: 1.0)")
+    p_nm.add_argument("--regex-spacer-min",
+                   dest="regex_spacer_min",
+                   type=int,
+                   metavar='int',
+                   default=5,
+                   help="Minimum spacer length for structure pattern regex search (default: 5)")
+    p_nm.add_argument("--regex-spacer-max",
+                   dest="regex_spacer_max",
+                   type=int,
+                   metavar='int',
+                   default=200,
+                   help="Maximum spacer length for structure pattern regex search (default: 200)")
     p_nm.add_argument("--bed-score-col",
                    dest="bed_score_col",
                    type=int,
@@ -3197,7 +3407,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    required=True,
-                   help="Specify regular expression (regex) DNA motif for which to look for sponge transcripts, e.g. --regex AAACCC, --regex 'C[ACGT]AC[AC]' .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]")
+                   help="Specify regular expression (regex) DNA motif for which to look for sponge transcripts, e.g. --regex AAACCC, --regex 'C[ACGT]AC[AC]' .. IUPAC code is also supported, e.g. AAARN resol. Alternatively, supply structure pattern, e.g. AA((((ARA))))AA or CC(((A...R)))CC with variable spacer")
     p_spnm.add_argument("--out",
                    dest="out_folder",
                    type=str,
@@ -3280,7 +3490,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    required=True,
-                   help="Specify regular expression (regex) DNA motif for which to check for differences in hit occurrences between transcript isoforms, e.g. --regex AAACCC, --regex 'C[ACGT]AC[AC]' .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]")
+                   help="Specify regular expression (regex) DNA motif for which to check for differences in hit occurrences between transcript isoforms, e.g. --regex AAACCC, --regex 'C[ACGT]AC[AC]' .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]. Alternatively, supply structure pattern, e.g. AA((((ARA))))AA or CC(((A...R)))CC with variable spacer")
     p_isom.add_argument("--out",
                    dest="out_folder",
                    type=str,
@@ -4278,8 +4488,6 @@ def main_search(args):
     Treat regex as sequence motif / fimo type.
     rbp_id: regex, motif_id: regex, motif_db: regex
 
-    AALAMO
-
     """
 
     regex_id = args.regex_id
@@ -4664,28 +4872,21 @@ def main_search(args):
     assert benchlib.boundary_check(prom_ext_up, 1, 100000), "set promoter upstream extension expected to be >= 1 and <= 100000"
     assert benchlib.boundary_check(prom_ext_down, 0, 100000), "set promoter downstream extension expected to be >= 0 and <= 100000"
 
+    """
+    Get extension info for --in regions.
+    
+    """
+
+    # Process extension info.
+    ext_up, ext_down = benchlib.get_ext_parts(args.ext_up_down)
+
+    args.ext_up = ext_up
+    args.ext_down = ext_down
 
     """
     Filter / extend --in genomic regions BED file.
 
     """
-
-    # Process extension info.
-    ext_parts = args.ext_up_down.split(",")
-    c_ext_parts = len(ext_parts)
-    ext_up = 0
-    ext_down = 0
-    if c_ext_parts == 1:
-        ext_up = int(ext_parts[0])
-        ext_down = int(ext_parts[0])
-    elif c_ext_parts == 2:
-        ext_up = int(ext_parts[0])
-        ext_down = int(ext_parts[1]) 
-    else:
-        assert False, "invalid --ext argument provided (correct format: --ext 10 OR --ext 20,10)"
-
-    args.ext_up = ext_up
-    args.ext_down = ext_down
 
     # Unstranded option.
     if args.unstranded:
@@ -4847,8 +5048,6 @@ def main_search(args):
 
         """
         If --regex is set, search for regex hits in sequences (stored in out_seqs_dic).
-
-        alamo
 
         """
         if args.regex:
@@ -6798,7 +6997,10 @@ def main_search(args):
 
         for motif_hit in motif_hit2annot_dic:
             # motif_hit format: "chr1:10-15(+)motif_id". Get motif_id.
-            motif_id = motif_hit.split(")")[1]  # Should work since motif_id/regex cannot contain ")".
+            # motif_id = motif_hit.split(")")[1]  # Should work since motif_id/regex cannot contain ")".
+            motif_id = benchlib.get_motif_id_from_hit_str(motif_hit)
+            assert motif_id, "motif_id extraction failed for motif_hit string \"%s\"" %(motif_hit)
+
             annot = motif_hit2annot_dic[motif_hit][0]
             # tr_id = motif_hit2annot_dic[motif_hit][1]
             rbp_id = id2name_dic[motif_id]
@@ -7128,20 +7330,51 @@ def main_batch(args):
         args.add_annot_id = benchlib.remove_special_chars_from_str(args.add_annot_id)
         assert args.add_annot_id, "empty string after removing special chars from --add-annot-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
 
-    # Regex check.
+    """
+    Regex checks.
+
+    """
+
+    regex_type = "sequence"
     regex = False
 
     if args.regex:
-        assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
 
-        # Remove , ; from given regex, to avoid motif_id format conflicts.
-        regex = benchlib.remove_special_chars_from_str(args.regex,
-                                                       reg_ex="[ ;]")
-        
-        assert regex, "empty string after removing special chars ( ;) from --regex. Please provide a valid regex with DNA letters"
+        if args.regex_type == 1:
+            print("Check given --regex type ... ")
+            if benchlib.looks_like_structure(args.regex):
+                print("Given --regex looks like structure pattern ... ")
+                regex_type = "structure"
+            else:
+                print("Given --regex assumed to be standard regex ... ")
+                regex_type = "sequence"
+        elif args.regex_type == 2:
+            regex_type = "sequence"
+        elif args.regex_type == 3:
+            regex_type = "structure"
+        else:
+            assert False, "unexpected --regex-type value set (%d)" %(args.regex_type)
 
-        # Convert IUPAC codes (if present) in regex to standard regex format.
-        regex = benchlib.convert_iupac_in_regex(regex)
+        if regex_type == "sequence":
+
+            assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
+
+            # Remove , ; from given regex, to avoid motif_id format conflicts.
+            regex = benchlib.remove_special_chars_from_str(args.regex,
+                                                        reg_ex="[ ;]",
+                                                        to_upper=False)  # [ :;\(\)]
+            
+            assert regex, "empty string after removing special chars ( ;) from --regex. Please provide a valid regex with DNA letters"
+
+            # Convert IUPAC codes (if present) in regex to standard regex format.
+            regex = benchlib.convert_iupac_in_regex(regex)
+
+        elif regex_type == "structure":
+
+            # Check structure pattern and format.
+            regex = benchlib.check_format_str_pattern(args.regex)
+
+        args.regex = regex
 
 
     """
@@ -7420,18 +7653,8 @@ def main_batch(args):
 
     """
 
-    ext_parts = args.ext_up_down.split(",")
-    c_ext_parts = len(ext_parts)
-    ext_up = 0
-    ext_down = 0
-    if c_ext_parts == 1:
-        ext_up = int(ext_parts[0])
-        ext_down = int(ext_parts[0])
-    elif c_ext_parts == 2:
-        ext_up = int(ext_parts[0])
-        ext_down = int(ext_parts[1]) 
-    else:
-        assert False, "invalid --ext argument provided (correct format: --ext 10 OR --ext 20,10)"
+    # Process extension info.
+    ext_up, ext_down = benchlib.get_ext_parts(args.ext_up_down)
 
     args.ext_up = ext_up
     args.ext_down = ext_down
@@ -7483,11 +7706,11 @@ def main_batch(args):
         tr2gid_dic = {}
         tr_types_dic = {}  # Store transcript biotypes in GTF file.
         gid2gio_dic = benchlib.gtf_read_in_gene_infos(args.in_gtf,
-                                                        tr2gid_dic=tr2gid_dic,
-                                                        tr_types_dic=tr_types_dic,
-                                                        check_chr_ids_dic=chr_ids_dic,
-                                                        chr_style=chr_style,
-                                                        empty_check=False)
+                                                    tr2gid_dic=tr2gid_dic,
+                                                    tr_types_dic=tr_types_dic,
+                                                    check_chr_ids_dic=chr_ids_dic,
+                                                    chr_style=chr_style,
+                                                    empty_check=False)
 
         assert gid2gio_dic, "no gene infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
         c_gene_infos = len(gid2gio_dic)
@@ -7998,6 +8221,11 @@ def main_batch(args):
             print("Run search for --regex \"%s\" ... " %(regex))
             regex_hits_list = benchlib.get_regex_hits(regex, regex, out_seqs_dic,
                                                       step_size_one=step_size_one,
+                                                      regex_type=regex_type,
+                                                      regex_spacer_min=args.regex_spacer_min,
+                                                      regex_spacer_max=args.regex_spacer_max,
+                                                      regex_min_gc=args.regex_min_gc,
+                                                      regex_max_gu=args.regex_max_gu,
                                                       use_motif_regex_id=True)
 
             # Store regions with regex motif hits.
@@ -9418,18 +9646,46 @@ def main_searchregex(args):
 
     assert os.path.exists(args.in_file), "--in file \"%s\" not found" % (args.in_file)
 
-    regex_dic = {}
+    regex_check_dic = {}
 
     if os.path.isfile(args.regex):
 
-        regex_dic = benchlib.get_regexes_from_file(args.regex)
+        regex_check_dic = benchlib.get_regexes_from_file(args.regex)
 
     else:
 
-        assert benchlib.is_valid_regex(args.regex), "invalid --regex \"%s\" given. Please provide a valid regex string" % (args.regex)
+        # assert benchlib.is_valid_regex(args.regex), "invalid --regex \"%s\" given. Please provide a valid regex string" % (args.regex)
         
-        regex_dic["regex"] = args.regex
+        regex_check_dic["regex"] = args.regex
     
+    assert regex_check_dic, "no regexes found from --regex input"
+
+    # Check regexes.
+    print("Checking given regex(es) ... ")
+
+    regex_dic = {}
+
+    for regex_id in regex_check_dic:
+
+        regex = regex_check_dic[regex_id]
+
+        if benchlib.looks_like_structure(regex):
+
+            print("Given regex \"%s\" looks like structure pattern ... " % regex)
+
+            regex = benchlib.check_format_str_pattern(regex)
+
+        else:
+
+            print("Given regex \"%s\" assumed to be standard regex ... " % regex)
+
+            assert benchlib.is_valid_regex(regex), "given regex \"%s\" is not a valid regular expression. Please provide valid expression" % (regex)
+
+            regex = benchlib.convert_iupac_in_regex(regex)
+        
+        regex_dic[regex_id] = regex
+
+    assert regex_dic, "no remaining regexes after regex checks"
 
     # Output files.
     if not os.path.exists(args.out_folder):
@@ -9457,7 +9713,6 @@ def main_searchregex(args):
 
         print("--in input file is FASTA. Read in sequences ... ")
 
-        
         in_seqs_dic = benchlib.read_fasta_into_dic(args.in_file,
                                         dna=True,
                                         all_uc=True,
@@ -9480,8 +9735,13 @@ def main_searchregex(args):
 
         is_bed = True
 
+        # Process extension info.
+        ext_up, ext_down = benchlib.get_ext_parts(args.ext_up_down)
+
         bed_reg_dic = benchlib.bed_check_ids_output_bed(args.in_file, in_reg_bed,
                                                         id_check=id_check,
+                                                        ext_up=ext_up,
+                                                        ext_down=ext_down,
                                                         new_header_id=args.header_id,
                                                         make_uniq_headers=args.make_uniq_headers)
 
@@ -9540,13 +9800,31 @@ def main_searchregex(args):
     seqids2hit_c_dic = {}
 
     for regex_id in regex_dic:
+
         regex = regex_dic[regex_id]
+        
         print("Search for regex \"%s\" hits (ID: %s) ..." %(regex, regex_id))
 
+        # Determine regex type.
+        regex_type = "sequence"
+        if benchlib.looks_like_structure(regex):
+            regex_type = "structure"
 
-        hits_dic = benchlib.search_regex_in_seqs_dic(regex, in_seqs_dic,
-                                                    step_size_one=step_size_one,
-                                                    case_sensitive=True)
+        # Run regex search based on type.
+        if regex_type == "sequence":
+
+            hits_dic = benchlib.search_regex_in_seqs_dic(regex, in_seqs_dic,
+                                                        step_size_one=step_size_one,
+                                                        case_sensitive=True)
+
+        else:  # structure pattern assumed.
+
+            hits_dic = benchlib.search_str_pat_in_seqs_dic(regex, in_seqs_dic,
+                                        step_size_one=step_size_one,
+                                        regex_spacer_min=args.regex_spacer_min,
+                                        regex_spacer_max=args.regex_spacer_max,
+                                        regex_max_gu=args.regex_max_gu,
+                                        regex_min_gc=args.regex_min_gc)
 
         for hit in hits_dic:
             c_all_hits += len(hits_dic[hit])
@@ -9569,18 +9847,27 @@ def main_searchregex(args):
 
         seen_motif_sites_dic = {}
 
-        for hit in hits_dic:
-            seq_id = hit
-            c_hits = len(hits_dic[hit])
+        add_info1 = "-"
+        add_info2 = "-"
+
+        for seq_id in hits_dic:
+
+            c_hits = len(hits_dic[seq_id])
+
             if seq_id in seqids2hit_c_dic:
                 seqids2hit_c_dic[seq_id] += c_hits
             else:
                 seqids2hit_c_dic[seq_id] = c_hits
 
-            for hit_info in hits_dic[hit]:
+            for hit_info in hits_dic[seq_id]:  # for each hit on sequence with seq_id.
                 start = hit_info[0]
                 end = hit_info[1]
                 seq = hit_info[2]
+
+                if regex_type == "structure":
+
+                    add_info1 = hit_info[6]  # GC base pair fraction.
+                    add_info2 = hit_info[7]  # GU base pair fraction.
 
                 if is_bed:
 
@@ -9600,7 +9887,7 @@ def main_searchregex(args):
                         continue
                     else:
                         seen_motif_sites_dic[motif_site_str] = 1
-                        MOTIFOUT.write("%s\t%i\t%i\t%s\t0\t%s\t%s\n" %(chr_id, gen_motif_s, gen_motif_e, regex_id, strand, seq))
+                        MOTIFOUT.write("%s\t%i\t%i\t%s\t0\t%s\t%s\t%s\t%s\t%s\n" %(chr_id, gen_motif_s, gen_motif_e, regex_id, strand, seq, regex, add_info1, add_info2))
 
                 else:
 
@@ -9609,7 +9896,7 @@ def main_searchregex(args):
                         continue
                     else:
                         seen_motif_sites_dic[motif_site_str] = 1
-                        MOTIFOUT.write("%s\t%s\t%s\t%s\t0\t+\t%s\n" %(seq_id, start, end, regex_id, seq))
+                        MOTIFOUT.write("%s\t%s\t%s\t%s\t0\t+\t%s\t%s\t%s\t%s\n" %(seq_id, start, end, regex_id, seq, regex, add_info1, add_info2))
 
         print("# unique regex hits: ", len(seen_motif_sites_dic))
 
@@ -10669,7 +10956,7 @@ def main_searchseq(args):
     Init hit profiles for each sequence ID.
     I.e., for each sequence ID, store motif hit (or RBP hit) occurrences (0 if not hit).
 
-    AALAMO
+    AALAMO AALAMO
 
     """
 
@@ -11156,7 +11443,7 @@ def main_searchlong(args):
         fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
 
     # Regex check.
-    if args.regex:
+    if args.regex:  # aalamo
         assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
 
     """
