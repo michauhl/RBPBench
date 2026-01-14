@@ -210,10 +210,12 @@ def search_str_pat_in_seqs_dic(regex, seqs_dic,
                                regex_spacer_min=5,
                                regex_spacer_max=200,
                                regex_max_gu=1.0,
-                               regex_min_gc=0.0):
+                               regex_min_gc=0.0,
+                               digits_round=4):
     """
     Run structure pattern (== regex) search on all sequences in seqs_dic.
 
+    AALAMO
     """
 
     hits_dic = {}
@@ -248,6 +250,7 @@ def search_str_pat_in_seqs_dic(regex, seqs_dic,
                 max_gu=regex_max_gu,
                 min_gc=regex_min_gc,
                 step=1,
+                digits_round=digits_round
             )
 
     else:  # If structure pattern contains NO spacer.
@@ -268,6 +271,7 @@ def search_str_pat_in_seqs_dic(regex, seqs_dic,
                 max_gu=regex_max_gu,
                 min_gc=regex_min_gc,
                 step=1,
+                digits_round=digits_round,
             )
 
 
@@ -314,7 +318,8 @@ def scan_no_spacer(seq_name: str,
                    hits_dic = None,
                    max_gu: float = 1.0,
                    min_gc: float = 0.0,
-                   step: int = 1) -> List[Dict[str, object]]:
+                   step: int = 1,
+                   digits_round: int = 4) -> List[Dict[str, object]]:
     """
     Scan sequence for matches to a dotless compiled pattern (structure pattern 
     with no variable length/nucleotide composition spacer).
@@ -405,6 +410,12 @@ def scan_no_spacer(seq_name: str,
             gu_frac = (n_gu / n_pairs) if n_pairs else 0.0
             gc_frac = (n_gc / n_pairs) if n_pairs else 0.0
 
+            if digits_round:
+                if gu_frac:
+                    gu_frac = round_to_n_significant_digits_v2(gu_frac, digits_round)
+                if gc_frac:
+                    gc_frac = round_to_n_significant_digits_v2(gc_frac, digits_round)
+
             if n_pairs > 0:
                 if gu_frac > max_gu:
                     continue
@@ -428,7 +439,8 @@ def scan_one_spacer(seq_name: str,
                     hits_dic = None,
                     max_gu: float = 1.0,
                     min_gc: float = 0.0,
-                    step: int = 1) -> List[Dict[str, object]]:
+                    step: int = 1,
+                    digits_round: int = 4) -> List[Dict[str, object]]:
     """
     Scan sequence for a structure pattern containing a single spacer inserted at dot_index.
 
@@ -542,6 +554,12 @@ def scan_one_spacer(seq_name: str,
             gu_frac = (n_gu / n_pairs) if n_pairs else 0.0
             gc_frac = (n_gc / n_pairs) if n_pairs else 0.0
 
+            if digits_round:
+                if gu_frac:
+                    gu_frac = round_to_n_significant_digits_v2(gu_frac, digits_round)
+                if gc_frac:
+                    gc_frac = round_to_n_significant_digits_v2(gc_frac, digits_round)
+
             if n_pairs > 0:
                 if gu_frac > max_gu:
                     continue
@@ -635,29 +653,31 @@ def parse_dotless_pattern(dotless: str) -> Tuple[List[str], List[Tuple[int, int]
 
 ################################################################################
 
-def brackets_are_balanced(pattern: str) -> bool:
+def brackets_are_balanced_no_pk(pattern: str) -> bool:
     """
     Check whether round brackets () and square brackets [] are balanced and 
-    properly nested in given structure pattern string.
+    properly nested in given oldstructure pattern string.
+
+    Does not support pseudoknots (crossings) between () and []!
 
     Rules:
       - Every '(' must be closed by a ')' in correct order.
       - Every '[' must be closed by a ']' in correct order.
       - Mixed crossings like '([)]' are invalid.
 
-    >>> brackets_are_balanced("((AAAA((((AA[AA))))AA]AA))")
+    >>> brackets_are_balanced_no_pk("((AAAA((((AA[AA))))AA]AA))")
     False
-    >>> brackets_are_balanced("((AA[[CC]]AA))")
+    >>> brackets_are_balanced_no_pk("((AA[[CC]]AA))")
     True
-    >>> brackets_are_balanced("([AA])")
+    >>> brackets_are_balanced_no_pk("([AA])")
     True
-    >>> brackets_are_balanced("([)]")   # crossing
+    >>> brackets_are_balanced_no_pk("([)]")   # crossing
     False
-    >>> brackets_are_balanced("((AA)")
+    >>> brackets_are_balanced_no_pk("((AA)")
     False
-    >>> brackets_are_balanced("AA))")
+    >>> brackets_are_balanced_no_pk("AA))")
     False
-    >>> brackets_are_balanced("AA..AA")  # dots/letters ignored
+    >>> brackets_are_balanced_no_pk("AA..AA")  # dots/letters ignored
     True
 
     """
@@ -675,6 +695,58 @@ def brackets_are_balanced(pattern: str) -> bool:
             stack.pop()
 
     return not stack
+
+
+################################################################################
+
+def brackets_are_balanced(pattern: str) -> bool:
+    """
+    Validate structure pattern strings allowing pseudoknots between () and [].
+
+    Rule:
+      - For each bracket type separately, opens/closes must be balanced and properly nested.
+      - Crossings between different types are ALLOWED.
+
+    >>> brackets_are_balanced("((AAAA((((AA[AA))))AA]AA))")
+    True
+    >>> brackets_are_balanced("((AA[[CC]]AA))")
+    True
+    >>> brackets_are_balanced("([AA])")  # crossing between types is allowed here
+    True
+    >>> brackets_are_balanced("([)]")    # also crossing, allowed
+    True
+    >>> brackets_are_balanced("((AA)")
+    False
+    >>> brackets_are_balanced("AA))")
+    False
+    >>> brackets_are_balanced("AA..AA")
+    True
+    >>> brackets_are_balanced("((((A[A)))).((((A]A))))")
+    True
+    >>> brackets_are_balanced("((((AA)))).((((A]A))))")
+    False
+    >>> brackets_are_balanced("((((AAA))A))")
+    True
+
+    """
+    stack_paren = []
+    stack_square = []
+
+    for ch in pattern:
+        if ch == "(":
+            stack_paren.append(ch)
+        elif ch == ")":
+            if not stack_paren:
+                return False
+            stack_paren.pop()
+        elif ch == "[":
+            stack_square.append(ch)
+        elif ch == "]":
+            if not stack_square:
+                return False
+            stack_square.pop()
+
+    return (not stack_paren) and (not stack_square)
 
 
 ################################################################################
@@ -1773,9 +1845,6 @@ def check_tool_version(tool_call, min_version):
 def is_valid_regex(regex):
     """
     Check if regex string is valid regex.
-
-    ALAMO
-
 
     >>> is_valid_regex(".*")
     True
@@ -4157,6 +4226,11 @@ def isocomp_search_regex_hits(seqs_dic, regex, gid2iso_dic,
                               tr2reg_dic=None,
                               tid2regl_dic=None,
                               hits_bed_out=False,
+                              regex_type="sequence",
+                              regex_spacer_min=5,
+                              regex_spacer_max=200,
+                              regex_max_gu=1.0,
+                              regex_min_gc=0.0,
                               digits_round=4):
     """
     Compare regex hit counts between transcript isoforms of each gene.
@@ -4164,12 +4238,27 @@ def isocomp_search_regex_hits(seqs_dic, regex, gid2iso_dic,
     """
     assert seqs_dic, "given dictionary seqs_dic empty"
     assert gid2iso_dic, "given dictionary gid2iso_dic empty"
+    assert regex_type in ["sequence", "structure"], "regex_type %s not in valid types" %(regex_type)
 
-    # Regex search in sequences.
-    hit_dic = search_regex_in_seqs_dic(regex, seqs_dic,
-                                       step_size_one=step_size_one,
-                                       min_spacing=min_spacing,
-                                       case_sensitive=True)  # {seq_id: [[start, end, match], ...]}
+    # Run regex search based on type.
+    if regex_type == "sequence":
+
+        # hit_dic format: {seq_id: [[start, end, match], ...]}
+        hit_dic = search_regex_in_seqs_dic(regex, seqs_dic,  
+                                           step_size_one=step_size_one,
+                                           min_spacing=min_spacing,
+                                           case_sensitive=True)
+
+    else:  # structure pattern assumed.
+
+        # hit_dic format: {seq_id: [[start, end, match, ...], ...]}
+        hit_dic = search_str_pat_in_seqs_dic(regex, seqs_dic,
+                                    step_size_one=step_size_one,
+                                    regex_spacer_min=regex_spacer_min,
+                                    regex_spacer_max=regex_spacer_max,
+                                    regex_max_gu=regex_max_gu,
+                                    regex_min_gc=regex_min_gc,
+                                    digits_round=digits_round)
 
     # Output regex hits to BED file if specified.
     if hits_bed_out:
@@ -4179,7 +4268,10 @@ def isocomp_search_regex_hits(seqs_dic, regex, gid2iso_dic,
         HITOUT = open(hits_bed_out, "w")
         for seq_id in hit_dic:
             for hit in hit_dic[seq_id]:
-                start, end, match = hit  # 0-based start, 1-based end, match string.
+                start = hit[0]
+                end = hit[1]
+                match = hit[2]
+                # start, end, match = hit  # 0-based start, 1-based end, match string.
                 hit_id = "%s:%i-%i(+)" % (seq_id, start, end)
                 mrna_region = "-"
                 tr_id = seq_id
@@ -4285,6 +4377,11 @@ def sponge_search_regex_hits(seqs_dic, regex,
                              tr2type_dic=None,
                              tid2regl_dic=None,
                              hits_bed_out=False,
+                             regex_type="sequence",
+                             regex_spacer_min=5,
+                             regex_spacer_max=200,
+                             regex_max_gu=1.0,
+                             regex_min_gc=0.0,
                              digits_round=4):
     """
     Search for regex hits in sequences dictionary seqs_dic.
@@ -4292,6 +4389,7 @@ def sponge_search_regex_hits(seqs_dic, regex,
     """
 
     assert seqs_dic, "given dictionary seqs_dic empty"
+    assert regex_type in ["sequence", "structure"], "regex_type %s not in valid types" %(regex_type)
 
     # Optionally filter sequences by minimum length.
     if min_seq_len:
@@ -4300,11 +4398,26 @@ def sponge_search_regex_hits(seqs_dic, regex,
         if not seqs_dic:
             raise ValueError(f"No sequences found with length >= {min_seq_len} in seqs_dic")
 
-    # Regex search in sequences.
-    hit_dic = search_regex_in_seqs_dic(regex, seqs_dic,
-                                       step_size_one=step_size_one,
-                                       min_spacing=min_spacing,
-                                       case_sensitive=True)  # {seq_id: [[start, end, match], ...]}
+
+    # Run regex search based on type.
+    if regex_type == "sequence":
+
+        # hit_dic format: {seq_id: [[start, end, match], ...]}
+        hit_dic = search_regex_in_seqs_dic(regex, seqs_dic,  
+                                           step_size_one=step_size_one,
+                                           min_spacing=min_spacing,
+                                           case_sensitive=True)
+
+    else:  # structure pattern assumed.
+
+        # hit_dic format: {seq_id: [[start, end, match, ...], ...]}
+        hit_dic = search_str_pat_in_seqs_dic(regex, seqs_dic,
+                                    step_size_one=step_size_one,
+                                    regex_spacer_min=regex_spacer_min,
+                                    regex_spacer_max=regex_spacer_max,
+                                    regex_max_gu=regex_max_gu,
+                                    regex_min_gc=regex_min_gc,
+                                    digits_round=digits_round)
 
     # Output regex hits to BED file if specified.
     if hits_bed_out:
@@ -4314,7 +4427,10 @@ def sponge_search_regex_hits(seqs_dic, regex,
         HITOUT = open(hits_bed_out, "w")
         for seq_id in hit_dic:
             for hit in hit_dic[seq_id]:
-                start, end, match = hit  # 0-based start, 1-based end, match string.
+                start = hit[0]
+                end = hit[1]
+                match = hit[2]
+                # start, end, match = hit  # 0-based start, 1-based end, match string.
                 hit_id = "%s:%i-%i(+)" % (seq_id, start, end)
                 mrna_region = "-"
                 tr_id = seq_id
@@ -10697,7 +10813,8 @@ def get_regex_hits(regex, regex_id, seqs_dic,
                    regex_spacer_max=200,
                    regex_max_gu=1.0,
                    regex_min_gc=0.0,
-                   use_motif_regex_id=False):
+                   use_motif_regex_id=False,
+                   digits_round=4):
     """
     Given a regular expression (regex), get all hits in sequence dictionary.
     Store hits as SeqHit objects in list.
@@ -10720,9 +10837,9 @@ def get_regex_hits(regex, regex_id, seqs_dic,
         AAA[AG]TG -> standard regex.
         AGA(((AA...AA)))ACC -> structure pattern.
         Depending on type, different search functions are used.
-
-    aalamo
-
+    digits_round:
+        Round GC and GU fractions to this many digits (only for structure pattern regex).
+        
     """
 
     assert regex_type in ["sequence", "structure"], "invalid regex_type given (%s)" %(regex_type)
@@ -10804,7 +10921,8 @@ def get_regex_hits(regex, regex_id, seqs_dic,
                                     regex_spacer_min=regex_spacer_min,
                                     regex_spacer_max=regex_spacer_max,
                                     regex_max_gu=regex_max_gu,
-                                    regex_min_gc=regex_min_gc)
+                                    regex_min_gc=regex_min_gc,
+                                    digits_round=digits_round)
 
         motif_id = regex
         if use_motif_regex_id:
@@ -18040,9 +18158,219 @@ def min_max_scale(values, new_min=0, new_max=1):
 
 
 
+
 ################################################################################
 
-def create_pca_hit_prof_plot_plotly(seqid2feat_dic, 
+def create_pca_hit_prof_plot_plotly(
+    seqid2feat_dic,
+    plot_out,
+    color_var="GC content",
+    highlight_id=False,
+    include_plotlyjs="cdn",
+    full_html=False,
+):
+    """
+    Create motif hit profiles PCA plot in 3D.
+
+    Option A:
+      - If highlight_id is provided, the highlighted point becomes its own legend entry
+        so you can click/double-click it in the legend to (de)select/isolate it.
+      - The highlighted marker stays larger than the rest (global update_traces won't shrink it).
+    """
+    assert seqid2feat_dic, "seqid2feat_dic is empty"
+
+    prof_ll = []
+    seq_ids_list = []
+    seq_len_list = []
+    hits_c_list = []
+    seq_entr_list = []
+    nt_perc_str_list = []
+    gc_perc_list = []
+
+    for seq_id in seqid2feat_dic:
+        seq_feat = seqid2feat_dic[seq_id]
+        if seq_feat.c_hits == 0:
+            continue
+
+        prof_ll.append(seq_feat.hit_profile)
+        seq_ids_list.append(seq_id)
+        seq_len_list.append(seq_feat.seq_len)
+        hits_c_list.append(seq_feat.c_hits)
+        seq_entr_list.append(seq_feat.seq_entropy)
+        nt_perc_str_list.append(seq_feat.mono_nt_perc_str)
+
+        gc_perc = seq_feat.gc_perc
+        if gc_perc > 0:
+            gc_perc = round(gc_perc, 2)
+        gc_perc_list.append(gc_perc)
+
+    if highlight_id:
+        assert (
+            highlight_id in seq_ids_list
+        ), (
+            'sequence ID "%s" to be highlighted is not in sequence IDs list '
+            "(either from the beginning or because there were no motif hits on the sequence"
+            % (highlight_id)
+        )
+
+    hover_data = [
+        "Sequence length",
+        "Motif hit count",
+        "Sequence complexity",
+        "GC content",
+        "Mono-nucleotide percentages",
+    ]
+    color = color_var
+    color_scale = ["#c6dbef", "#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#08519c", "#08306b"]
+
+    # PCA
+    pca = PCA(n_components=3)
+    data_3d_pca = pca.fit_transform(prof_ll)
+
+    df = pd.DataFrame(data_3d_pca, columns=["PC1", "PC2", "PC3"])
+    df["Sequence ID"] = seq_ids_list
+    df["Sequence length"] = seq_len_list
+    df["Motif hit count"] = hits_c_list
+    df["Sequence complexity"] = seq_entr_list
+    df["GC content"] = gc_perc_list
+    df["Mono-nucleotide percentages"] = nt_perc_str_list
+
+    explained_variance = pca.explained_variance_ratio_ * 100
+
+    # Build figure
+    if highlight_id:
+        df_highlight = df[df["Sequence ID"] == highlight_id]
+        df_rest = df[df["Sequence ID"] != highlight_id]
+
+        # Trace 1: all other points (with color gradient)
+        fig = px.scatter_3d(
+            df_rest,
+            x="PC1",
+            y="PC2",
+            z="PC3",
+            color=color,
+            color_continuous_scale=color_scale,
+            title="3D PCA plot of motif hit profiles",
+            hover_name="Sequence ID",
+            hover_data=hover_data,
+            labels={
+                "PC1": f"PC1 ({explained_variance[0]:.2f}% variance)",
+                "PC2": f"PC2 ({explained_variance[1]:.2f}% variance)",
+                "PC3": f"PC3 ({explained_variance[2]:.2f}% variance)",
+            },
+        )
+
+        # Trace 2: highlighted point (legend-clickable)
+        fig.add_scatter3d(
+            x=df_highlight["PC1"],
+            y=df_highlight["PC2"],
+            z=df_highlight["PC3"],
+            mode="markers",
+            marker=dict(size=6, color="#ff7f0e", line=dict(width=0.8, color="white")),
+            name=f"highlight: {highlight_id}",
+            showlegend=True,
+            customdata=df_highlight[
+                [
+                    "Sequence length",
+                    "Motif hit count",
+                    "Sequence complexity",
+                    "GC content",
+                    "Mono-nucleotide percentages",
+                ]
+            ].values,
+            hovertext=df_highlight["Sequence ID"],
+        )
+
+        # Force the main cloud into the legend so isolate works
+        for tr in fig.data:
+            if tr.name is None or tr.name == "":
+                tr.name = "All other sequences"
+                tr.showlegend = True
+
+
+    else:
+        fig = px.scatter_3d(
+            df,
+            x="PC1",
+            y="PC2",
+            z="PC3",
+            color=color,
+            title="3D PCA plot of motif hit profiles",
+            labels={
+                "PC1": f"PC1 ({explained_variance[0]:.2f}% variance)",
+                "PC2": f"PC2 ({explained_variance[1]:.2f}% variance)",
+                "PC3": f"PC3 ({explained_variance[2]:.2f}% variance)",
+            },
+            hover_name="Sequence ID",
+            color_continuous_scale=color_scale,
+            hover_data=hover_data,
+        )
+
+    # Layout / aspect
+    fig.update_scenes(aspectmode="cube")
+    fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
+
+    # Hover template (applied to all traces)
+    hovertemplate = (
+        "<b>%{hovertext}</b><br>"
+        "Sequence length:<br>%{customdata[0]}<br>"
+        "Motif hit count:<br>%{customdata[1]}<br>"
+        "Sequence complexity:<br>%{customdata[2]}<br>"
+        "GC content (%):<br>%{customdata[3]}<br>"
+        "Mono-nucleotide percentages:<br>%{customdata[4]}<extra></extra>"
+    )
+
+    # Apply marker sizing carefully: keep highlight large, rest small
+    for tr in fig.data:
+        tr.hovertemplate = hovertemplate
+
+        # default for "rest"
+        if not (tr.name and tr.name.startswith("highlight:")):
+            tr.marker.size = 2
+            tr.marker.line.width = 0.4
+            tr.marker.line.color = "white"
+        else:
+            # keep highlight obvious
+            tr.marker.size = 6
+            tr.marker.line.width = 0.8
+            tr.marker.line.color = "white"
+
+    # fig.update_layout(
+    #     legend=dict(
+    #         x=0.01, y=0.99,            # top-left
+    #         xanchor="left", yanchor="top",
+    #         bgcolor="rgba(255,255,255,0.7)",  # optional: readable over points
+    #         borderwidth=0
+    #     )
+    # )
+
+    # fig.update_layout(
+    #     legend=dict(
+    #         x=0.01, y=0.99,
+    #         xanchor="left", yanchor="top",
+    #         bgcolor="rgba(255,255,255,0.7)",
+    #         itemclick="toggleothers",     # <- single click isolates the clicked trace
+    #         itemdoubleclick="toggle",     # <- double click just toggles clicked trace (optional)
+    #     )
+    # )
+
+    fig.update_layout(
+        legend=dict(
+            x=0.01, y=0.99,
+            xanchor="left", yanchor="top",
+            bgcolor="rgba(255,255,255,0.7)",
+            itemclick="toggleothers",
+            itemdoubleclick="toggle",
+        )
+    )
+
+
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
+def create_pca_hit_prof_plot_plotly_old(seqid2feat_dic, 
                                     plot_out,
                                     color_var="GC content",
                                     highlight_id=False,
@@ -18051,6 +18379,8 @@ def create_pca_hit_prof_plot_plotly(seqid2feat_dic,
     """
     Create motif hit profiles PCA plot in 3D (Nature trail to hell ..).
     
+AAALAMO
+
     """
 
     assert seqid2feat_dic, "seqid2feat_dic is empty"
@@ -23316,7 +23646,7 @@ def create_motif_plot(motif_id,
 
     """
 
-    assert motif_id in seq_motif_blocks_dic, "motif ID %s not found in seq_motif_blocks_dic" %(motif_id)
+    assert motif_id in seq_motif_blocks_dic, "motif ID \"%s\" not found in seq_motif_blocks_dic" %(motif_id)
     motif_rows = seq_motif_blocks_dic[motif_id]
 
     motif_freqs_dic = {}

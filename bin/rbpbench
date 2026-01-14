@@ -1260,6 +1260,59 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
+    p_ss.add_argument("--regex",
+                   dest="regex",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]. Alternatively, supply structure pattern, e.g. AA((((ARA))))AA or CC(((A...R)))CC with variable spacer")
+    p_ss.add_argument("--regex-id",
+                   dest="regex_id",
+                   type=str,
+                   metavar='str',
+                   default = "regex",
+                   help="Set regex ID used as RBP ID and database ID associated to -regex hits (default: \"regex\")")
+    p_ss.add_argument("--motif-regex-id",
+                   dest="motif_regex_id",
+                   default = False,
+                   action = "store_true",
+                   help="Use --regex-id for motif ID as well. By default, regular expression string is used as motif ID for regex motif hits")
+    p_ss.add_argument("--regex-type",
+                   dest="regex_type",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Set type of supplied --regex string 1: auto-detect type (standard regex or structure pattern). 2: given --regex string is standard regex, e.g. AC[AG]T. 3: given --regex string is structure pattern string, e.g. ((AA(((...)))AA)) (default: 1)")
+    p_ss.add_argument("--regex-search-mode",
+                   dest="regex_search_mode",
+                   type=int,
+                   default=1,
+                   choices=[1, 2],
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position. NOTE that structure pattern regex currently always uses mode 1 (default: 1)")
+    p_ss.add_argument("--regex-min-gc",
+                    dest="regex_min_gc",
+                    type=float,
+                    metavar='float',
+                    default=0.0,
+                    help="Minimum GC base pair fraction to report structure pattern regex hits (default: 0.0)")
+    p_ss.add_argument("--regex-max-gu",
+                    dest="regex_max_gu",
+                    type=float,
+                    metavar='float',
+                    default=1.0,
+                    help="Maximum GU (GT) base pair fraction to report structure pattern regex hits (default: 1.0)")
+    p_ss.add_argument("--regex-spacer-min",
+                   dest="regex_spacer_min",
+                   type=int,
+                   metavar='int',
+                   default=5,
+                   help="Minimum spacer length for structure pattern regex search (default: 5)")
+    p_ss.add_argument("--regex-spacer-max",
+                   dest="regex_spacer_max",
+                   type=int,
+                   metavar='int',
+                   default=200,
+                   help="Maximum spacer length for structure pattern regex search (default: 200)")
     p_ss.add_argument("--motifs",
                    dest="motifs_list",
                    type=str,
@@ -3402,7 +3455,7 @@ def setup_argument_parser():
     # Add required arguments group.
     p_spnm = p_spn.add_argument_group("required arguments")
     # Required arguments for sponge.
-    p_spnm.add_argument("--regex",
+    p_spnm.add_argument("--regex",  # AALAMO
                    dest="regex",
                    type=str,
                    metavar='str',
@@ -3449,7 +3502,7 @@ def setup_argument_parser():
                    dest="allow_overlaps",
                    default = False,
                    action = "store_true",
-                   help = "Allow overlapping regex hits. By default, search continues +1 after regex hit end position (i.e., not overlapping) (default: False)")
+                   help = "Allow overlapping regex hits. By default, search continues +1 after regex hit end position (i.e., not overlapping). NOTE that if --regex is structure pattern, search is currently always overlapping (default: False)")
     p_spn.add_argument("--min-spacer-len",
                    dest="min_spacer_len",
                    type=int,
@@ -3468,6 +3521,30 @@ def setup_argument_parser():
                    metavar='int',
                    default=0,
                    help="Minimum regex hit count for a transcript to be included in percentile calculation and output table (default: 0)")
+    p_spn.add_argument("--regex-min-gc",
+                    dest="regex_min_gc",
+                    type=float,
+                    metavar='float',
+                    default=0.0,
+                    help="Minimum GC base pair fraction to report structure pattern regex hits (default: 0.0)")
+    p_spn.add_argument("--regex-max-gu",
+                    dest="regex_max_gu",
+                    type=float,
+                    metavar='float',
+                    default=1.0,
+                    help="Maximum GU (GT) base pair fraction to report structure pattern regex hits (default: 1.0)")
+    p_spn.add_argument("--regex-spacer-min",
+                   dest="regex_spacer_min",
+                   type=int,
+                   metavar='int',
+                   default=5,
+                   help="Minimum spacer length for structure pattern regex search (default: 5)")
+    p_spn.add_argument("--regex-spacer-max",
+                   dest="regex_spacer_max",
+                   type=int,
+                   metavar='int',
+                   default=200,
+                   help="Maximum spacer length for structure pattern regex search (default: 200)")
     p_spn.add_argument("--chr-id-style",
                    dest="chr_id_style",
                    type=int,
@@ -3526,7 +3603,7 @@ def setup_argument_parser():
                    dest="allow_overlaps",
                    default = False,
                    action = "store_true",
-                   help = "Allow overlapping regex hits. By default, search continues +1 after regex hit end position (i.e., not overlapping) (default: False)")
+                   help = "Allow overlapping regex hits. By default, search continues +1 after regex hit end position (i.e., not overlapping). NOTE that if --regex is structure pattern, search is currently always overlapping (default: False)")
     p_iso.add_argument("--min-spacer-len",
                    dest="min_spacer_len",
                    type=int,
@@ -3539,6 +3616,30 @@ def setup_argument_parser():
                    metavar='int',
                    default=False,
                    help="Minimum sequence length required for input transcript sequences to be included in search (default: False)")
+    p_iso.add_argument("--regex-min-gc",
+                    dest="regex_min_gc",
+                    type=float,
+                    metavar='float',
+                    default=0.0,
+                    help="Minimum GC base pair fraction to report structure pattern regex hits (default: 0.0)")
+    p_iso.add_argument("--regex-max-gu",
+                    dest="regex_max_gu",
+                    type=float,
+                    metavar='float',
+                    default=1.0,
+                    help="Maximum GU (GT) base pair fraction to report structure pattern regex hits (default: 1.0)")
+    p_iso.add_argument("--regex-spacer-min",
+                   dest="regex_spacer_min",
+                   type=int,
+                   metavar='int',
+                   default=5,
+                   help="Minimum spacer length for structure pattern regex search (default: 5)")
+    p_iso.add_argument("--regex-spacer-max",
+                   dest="regex_spacer_max",
+                   type=int,
+                   metavar='int',
+                   default=200,
+                   help="Maximum spacer length for structure pattern regex search (default: 200)")
     p_iso.add_argument("--chr-id-style",
                    dest="chr_id_style",
                    type=int,
@@ -4470,7 +4571,7 @@ def main_search(args):
                 id2name_dic[acc_id] = user_rbp_id
 
     """
-    Check if loaded RBP IDs have motifs.
+    Check if loaded RBP IDs have motifs. AALAMO
 
     """
     for rbp_id in loaded_rbps_dic:
@@ -10014,6 +10115,29 @@ def main_searchseq(args):
         fimo_freqs_file = args.fimo_user_ntf_file
     assert os.path.exists(fimo_freqs_file), "set FIMO nucleotide frequencies file \"%s\" not found" % (fimo_freqs_file)
 
+    # Regex check.
+    regex_type = "sequence"
+    if args.regex:
+        if args.regex_type == 1:
+            print("Check given --regex type ... ")
+            if benchlib.looks_like_structure(args.regex):
+                print("Given --regex looks like structure pattern ... ")
+                regex_type = "structure"
+            else:
+                print("Given --regex assumed to be standard regex ... ")
+                regex_type = "sequence"
+        elif args.regex_type == 2:
+            regex_type = "sequence"
+        elif args.regex_type == 3:
+            regex_type = "structure"
+        else:
+            assert False, "unexpected --regex-type value set (%d)" %(args.regex_type)
+        # If standard regex, check validity.
+        if regex_type == "sequence":
+            assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
+
+    # AALAMO
+
     """
     Motif database.
     """
@@ -10173,7 +10297,7 @@ def main_searchseq(args):
         assert not args.user_cm, "--user-cm provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
         assert not args.user_rbp_id, "--user-rbp-id set but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
 
-    special_rbp_ids_list = ["USER"]
+    special_rbp_ids_list = ["USER", "REGEX"]
 
     # If ALL set, load all RBPs (+ optinally USER).
     if "ALL" in rbp_in_dic:
@@ -10275,6 +10399,91 @@ def main_searchseq(args):
 
 
     """
+    Check if loaded RBP IDs have motifs.
+
+    """
+    for rbp_id in loaded_rbps_dic:
+        for motif_id in name2ids_dic[rbp_id]:
+            found = 0
+            if motif_id in seq_motif_blocks_dic:
+                found += 1
+            if motif_id in str_motif_blocks_dic:
+                found += 1
+            assert found, "no motifs loaded for RBP ID \"%s\". Please provide the respective motifs file" %(rbp_id)
+
+
+
+    """
+    If --regex is set:
+    Treat regex as sequence motif / fimo type.
+    rbp_id: regex, motif_id: regex, motif_db: regex
+
+    AALAMO
+
+    """
+
+    regex_id = args.regex_id
+    regex = args.regex
+
+    if args.regex:
+
+        if regex_type == "sequence":
+
+            # Remove , ; from given regex, to avoid motif_id format conflicts.
+            regex = benchlib.remove_special_chars_from_str(args.regex,
+                                                        reg_ex="[ ;]",
+                                                        to_upper=False)  # [ :;\(\)]
+            
+            assert regex, "empty string after removing special chars ( ;) from --regex. Please provide a valid regex with DNA letters"
+
+            # Convert IUPAC codes (if present) in regex to standard regex format.
+            regex = benchlib.convert_iupac_in_regex(regex)
+
+        elif regex_type == "structure":
+
+            # Check structure pattern and format.
+            regex = benchlib.check_format_str_pattern(args.regex)
+
+        args.regex = regex
+
+        regex_id = benchlib.remove_special_chars_from_str(args.regex_id)
+
+        assert regex_id, "empty string after removing special chars from --regex-id. Please provide alphanumeric string for regex ID (- or _ are okay as well)"
+        assert regex_id not in name2ids_dic, "--regex set but a different RBP ID with name \"%s\" was found. Please provide a different RBP ID or --regex-id" %(regex_id)
+
+        args.regex_id = regex_id
+
+        if args.motif_regex_id:
+            assert regex_id not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or --regex-id" %(regex_id)
+
+            id2name_dic[regex_id] = regex_id    # motif_id -> rbp_id
+            id2type_dic[regex_id] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme_xml
+            loaded_motif_ids_dic[regex_id] = regex_id  # motif_id -> motif_db_str
+            name2ids_dic[regex_id] = [regex_id]  # rbp_id -> motif_ids
+
+        else:
+            assert regex not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or use --motif-regex-id" %(regex_id)
+
+            id2name_dic[regex] = regex_id    # motif_id -> rbp_id
+            id2type_dic[regex] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme_xml
+            loaded_motif_ids_dic[regex] = regex_id  # motif_id -> motif_db_str
+            name2ids_dic[regex_id] = [regex]  # rbp_id -> motif_ids
+
+        loaded_rbps_dic[regex_id] = regex_id  # rbp_id -> motif_db_str
+
+        """
+        Dictionaries that use motif_id as keys.
+        loaded_motif_ids_dic
+        name2ids_dic
+        id2name_dic
+        id2type_dic
+        """
+    else:
+        regex_id = False
+
+
+
+    """
     Get function ID -> function descriptions mapping.
 
     """
@@ -10313,6 +10522,16 @@ def main_searchseq(args):
             else:
                 filtered_name2ids_dic[rbp_id] = [motif_id]
 
+        # ALAMO
+        if args.regex:
+            filtered_rbps_dic[regex_id] = regex_id
+            if args.motif_regex_id:
+                filtered_motif_ids_dic[regex_id] = regex_id
+                filtered_name2ids_dic[regex_id] = [regex_id]
+            else:
+                filtered_motif_ids_dic[regex] = regex_id
+                filtered_name2ids_dic[regex_id] = [regex]
+
         c_loaded_rbps_pre = len(loaded_rbps_dic)
         c_loaded_rbps_post = len(filtered_rbps_dic)
         loaded_rbps_dic = filtered_rbps_dic
@@ -10350,9 +10569,12 @@ def main_searchseq(args):
         for fid in rbp_fids_dic:
             assert fid in fid2desc_dic, "function ID \"%s\" provided via --functions not found in internal function ID -> description mapping. Please provide valid function IDs (see rbpbench info for a detailed description)" %(fid)
 
-        # Filter loaded_rbps_dic.
+        # Filter loaded_rbps_dic.  AALAMO
         filtered_rbps_dic = {}
         for rbp_id in loaded_rbps_dic:
+            if rbp_id == regex_id:  # keep regex if set.
+                filtered_rbps_dic[regex_id] = regex_id
+                continue
             if rbp_id not in name2fids_dic:
                 continue
             for fid in rbp_fids_dic:
@@ -10370,13 +10592,20 @@ def main_searchseq(args):
 
         assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
 
-        # Filter loaded motif IDs.
+        # Filter loaded motif IDs. AALAMO
         filtered_motif_ids_dic = {}
         for rbp_id in loaded_rbps_dic:
-            for motif_id in name2ids_dic[rbp_id]:
-                set_db_str = loaded_motif_ids_dic[motif_id]
-                filtered_motif_ids_dic[motif_id] = set_db_str
+            if rbp_id == regex_id:
+                if args.motif_regex_id:
+                    filtered_motif_ids_dic[regex_id] = regex_id
+                else:
+                    filtered_motif_ids_dic[regex] = regex_id
+            else:
+                for motif_id in name2ids_dic[rbp_id]:
+                    set_db_str = loaded_motif_ids_dic[motif_id]
+                    filtered_motif_ids_dic[motif_id] = set_db_str
         
+
         c_loaded_motif_ids_pre = len(loaded_motif_ids_dic)
         c_loaded_motif_ids_post = len(filtered_motif_ids_dic)
         loaded_motif_ids_dic = filtered_motif_ids_dic
@@ -10385,18 +10614,6 @@ def main_searchseq(args):
         print("# motif IDs post-filtering by functions:", c_loaded_motif_ids_post)
 
 
-    """
-    Check if loaded RBP IDs have motifs.
-
-    """
-    for rbp_id in loaded_rbps_dic:
-        for motif_id in name2ids_dic[rbp_id]:
-            found = 0
-            if motif_id in seq_motif_blocks_dic:
-                found += 1
-            if motif_id in str_motif_blocks_dic:
-                found += 1
-            assert found, "no motifs loaded for RBP ID \"%s\". Please provide the respective motifs file" %(rbp_id)
 
     """
     Load RBP data, store in RBP() class.
@@ -10420,16 +10637,23 @@ def main_searchseq(args):
         
             assert motif_id in loaded_motif_ids_dic, "motif_id %s not in loaded_motif_ids_dic" %(motif_id)
 
-            if id2type_dic[motif_id] == "meme_xml":
+            if id2type_dic[motif_id] == "meme_xml":  # AALAMO
                 rbp.seq_motif_ids.append(motif_id)
                 motif_id2idx_dic[motif_id] = len(rbp.seq_motif_ids) - 1
                 rbp.seq_motif_hits.append(0)
                 seq_rbps_dic[rbp_id] = 1
-            else:
+            elif id2type_dic[motif_id] == "regex":
+                rbp.seq_motif_ids.append(motif_id)
+                motif_id2idx_dic[motif_id] = len(rbp.seq_motif_ids) - 1
+                rbp.seq_motif_hits.append(0)
+                seq_rbps_dic[rbp_id] = 1
+            elif id2type_dic[motif_id] == "cm":
                 rbp.str_motif_ids.append(motif_id)
                 motif_id2idx_dic[motif_id] = len(rbp.str_motif_ids) - 1
                 rbp.str_motif_hits.append(0)
                 str_rbps_dic[rbp_id] = 1
+            else:
+                assert False, "unknown motif type (\"%s\") set for motif_id %s" %(id2type_dic[motif_id], motif_id)
 
         search_rbps_dic[rbp_id] = rbp
 
@@ -10555,6 +10779,38 @@ def main_searchseq(args):
 
         c_fimo_hits = len(fimo_hits_list)
         print("# of FIMO motif hits:", c_fimo_hits)
+
+
+        """
+        If --regex is set, search for regex hits in sequences (stored in in_seqs_dic).
+
+        """
+        if args.regex:  # AALAMO
+
+            step_size_one = False
+            if args.regex_search_mode == 1:
+                step_size_one = True
+            elif args.regex_search_mode == 2:
+                step_size_one = False
+            else:
+                assert False, "invalid --regex-search-mode %i set" %(args.regex_search_mode)
+
+            print("Run search for --regex \"%s\" ... " %(regex))
+            regex_hits_list = benchlib.get_regex_hits(regex, regex_id, in_seqs_dic,
+                                                      step_size_one=step_size_one,
+                                                      regex_type=regex_type,
+                                                      seq_based=True,
+                                                      regex_spacer_min=args.regex_spacer_min,
+                                                      regex_spacer_max=args.regex_spacer_max,
+                                                      regex_min_gc=args.regex_min_gc,
+                                                      regex_max_gu=args.regex_max_gu,
+                                                      use_motif_regex_id=args.motif_regex_id)
+
+            c_regex_hits = len(regex_hits_list)
+            print("# of regex hits:", c_regex_hits)
+
+            # Add regex hits to fimo_hits_list.
+            fimo_hits_list += regex_hits_list
 
 
     """
@@ -10723,7 +10979,7 @@ def main_searchseq(args):
         {rbp_id1 -> {'motif_region1': c_motif_region1, 'motif_region2': c_motif_region2}, rbp_id2 -> .. }
     """
 
-    for rbp_id in unique_motifs_dic:
+    for rbp_id in unique_motifs_dic: # AALAMO
         c_uniq_motif_hits = len(unique_motifs_dic[rbp_id])
         search_rbps_dic[rbp_id].c_uniq_motif_hits = c_uniq_motif_hits
         # Store individual motif unique hits.
@@ -10732,8 +10988,12 @@ def main_searchseq(args):
             idx = motif_id2idx_dic[motif_id]
             if id2type_dic[motif_id] == "meme_xml":
                 search_rbps_dic[rbp_id].seq_motif_hits[idx] += 1
-            else:
+            elif id2type_dic[motif_id] == "regex":
+                search_rbps_dic[rbp_id].seq_motif_hits[idx] += 1
+            elif id2type_dic[motif_id] == "cm":
                 search_rbps_dic[rbp_id].str_motif_hits[idx] += 1
+            else:
+                assert False, "unknown motif type (\"%s\") set for motif_id %s" %(id2type_dic[motif_id], motif_id)
 
     """
     Number of motif nucleotides over called + effective region size.
@@ -11058,7 +11318,11 @@ def main_searchseq(args):
         # Store motif hit as BED.
         hit_id = "%s:%s-%s(%s)%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), matched_seq)
+            if fh.hit_type == "str_pat":
+                bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t-1.0\t-1.0\t%s\t%s\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.gc_frac), str(fh.gu_frac), matched_seq)
+            else:
+                bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), matched_seq)
+            # bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), matched_seq)
             motif_reg_dic[hit_id] = bed_row
             if rbp_id not in match_c_dic:
                 match_c_dic[rbp_id] = {}
@@ -11318,8 +11582,6 @@ def main_searchseq(args):
 
 
 
-
-
     """
     Motif plots and motif hit statistics HTML.
 
@@ -11339,7 +11601,7 @@ def main_searchseq(args):
         args.c_regions = c_regions
         args.ext_up = None
         args.ext_down = None
-        args.regex_id = False
+        # args.regex_id = False
         # Only valid for searchlongrna.
         args.run_goa_tr = False
 
@@ -11443,8 +11705,26 @@ def main_searchlong(args):
         fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
 
     # Regex check.
-    if args.regex:  # aalamo
-        assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
+    regex_type = "sequence"
+    if args.regex:
+        if args.regex_type == 1:
+            print("Check given --regex type ... ")
+            if benchlib.looks_like_structure(args.regex):
+                print("Given --regex looks like structure pattern ... ")
+                regex_type = "structure"
+            else:
+                print("Given --regex assumed to be standard regex ... ")
+                regex_type = "sequence"
+        elif args.regex_type == 2:
+            regex_type = "sequence"
+        elif args.regex_type == 3:
+            regex_type = "structure"
+        else:
+            assert False, "unexpected --regex-type value set (%d)" %(args.regex_type)
+        # If standard regex, check validity.
+        if regex_type == "sequence":
+            assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
+
 
     """
     Library path.
@@ -11739,14 +12019,22 @@ def main_searchlong(args):
     
     if args.regex:
 
-        # Remove , ; from given regex, to avoid motif_id format conflicts.
-        regex = benchlib.remove_special_chars_from_str(args.regex,
-                                                       reg_ex="[ ;]")
-                
-        assert regex, "empty string after removing special chars ( ;) from --regex. Please provide a valid regex with DNA letters"
+        if regex_type == "sequence":
 
-        # Convert IUPAC codes (if present) in regex to standard regex format.
-        regex = benchlib.convert_iupac_in_regex(regex)
+            # Remove , ; from given regex, to avoid motif_id format conflicts.
+            regex = benchlib.remove_special_chars_from_str(args.regex,
+                                                        reg_ex="[ ;]",
+                                                        to_upper=False)  # [ :;\(\)]
+            
+            assert regex, "empty string after removing special chars ( ;) from --regex. Please provide a valid regex with DNA letters"
+
+            # Convert IUPAC codes (if present) in regex to standard regex format.
+            regex = benchlib.convert_iupac_in_regex(regex)
+
+        elif regex_type == "structure":
+
+            # Check structure pattern and format.
+            regex = benchlib.check_format_str_pattern(args.regex)
 
         args.regex = regex
 
@@ -12247,7 +12535,13 @@ def main_searchlong(args):
             print("Run search for --regex \"%s\" ... " %(regex))
             regex_hits_list = benchlib.get_regex_hits(regex, regex_id, out_seqs_dic,
                                                       step_size_one=step_size_one,
+                                                      regex_type=regex_type,
+                                                      regex_spacer_min=args.regex_spacer_min,
+                                                      regex_spacer_max=args.regex_spacer_max,
+                                                      regex_min_gc=args.regex_min_gc,
+                                                      regex_max_gu=args.regex_max_gu,
                                                       use_motif_regex_id=args.motif_regex_id)
+
 
             c_regex_hits = len(regex_hits_list)
             print("# of regex hits:", c_regex_hits)
@@ -12620,8 +12914,13 @@ def main_searchlong(args):
         # Store motif hit as BED.
         hit_id = "%s:%s-%s(%s)%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), matched_seq)
+            if fh.hit_type == "str_pat":
+                bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t-1.0\t-1.0\t%s\t%s\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.gc_frac), str(fh.gu_frac), matched_seq)
+            else:
+                bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), matched_seq)
             motif_reg_dic[hit_id] = bed_row
+            # bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), matched_seq)
+            # motif_reg_dic[hit_id] = bed_row
             if rbp_id not in match_c_dic:
                 match_c_dic[rbp_id] = {}
             if fh.motif_id not in match_c_dic[rbp_id]:
@@ -12839,7 +13138,7 @@ def main_searchlong(args):
         OUTBED.close()
 
         for motif_hit in motif_hit2annot_dic:
-            # motif_hit format: "chr1:10-15(+)motif_id". Get motif_id.
+            # motif_hit format: "chr1:10-15(+)motif_id". Get motif_id.  AALAMO
             motif_id = motif_hit.split(")")[1]
             annot = motif_hit2annot_dic[motif_hit][0]
             # tr_id = motif_hit2annot_dic[motif_hit][1]
@@ -13044,8 +13343,25 @@ def main_searchrna(args):
         fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
 
     # Regex check.
+    regex_type = "sequence"
     if args.regex:
-        assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
+        if args.regex_type == 1:
+            print("Check given --regex type ... ")
+            if benchlib.looks_like_structure(args.regex):
+                print("Given --regex looks like structure pattern ... ")
+                regex_type = "structure"
+            else:
+                print("Given --regex assumed to be standard regex ... ")
+                regex_type = "sequence"
+        elif args.regex_type == 2:
+            regex_type = "sequence"
+        elif args.regex_type == 3:
+            regex_type = "structure"
+        else:
+            assert False, "unexpected --regex-type value set (%d)" %(args.regex_type)
+        # If standard regex, check validity.
+        if regex_type == "sequence":
+            assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
 
     """
     Library path.
@@ -13354,14 +13670,22 @@ def main_searchrna(args):
     
     if args.regex:
 
-        # Remove , ; from given regex, to avoid motif_id format conflicts.
-        regex = benchlib.remove_special_chars_from_str(args.regex,
-                                                       reg_ex="[ ;]")
-        
-        assert regex, "empty string after removing special chars ( [ ;] ) from --regex. Please provide a valid regex with DNA letters"
+        if regex_type == "sequence":
 
-        # Convert IUPAC codes (if present) in regex to standard regex format.
-        regex = benchlib.convert_iupac_in_regex(regex)
+            # Remove , ; from given regex, to avoid motif_id format conflicts.
+            regex = benchlib.remove_special_chars_from_str(args.regex,
+                                                        reg_ex="[ ;]",
+                                                        to_upper=False)  # [ :;\(\)]
+            
+            assert regex, "empty string after removing special chars ( ;) from --regex. Please provide a valid regex with DNA letters"
+
+            # Convert IUPAC codes (if present) in regex to standard regex format.
+            regex = benchlib.convert_iupac_in_regex(regex)
+
+        elif regex_type == "structure":
+
+            # Check structure pattern and format.
+            regex = benchlib.check_format_str_pattern(args.regex)
 
         args.regex = regex
 
@@ -14014,6 +14338,11 @@ def main_searchrna(args):
             print("Run search for --regex \"%s\" ... " %(regex))
             regex_hits_list = benchlib.get_regex_hits(regex, regex_id, out_seqs_dic,
                                                       step_size_one=step_size_one,
+                                                      regex_type=regex_type,
+                                                      regex_spacer_min=args.regex_spacer_min,
+                                                      regex_spacer_max=args.regex_spacer_max,
+                                                      regex_min_gc=args.regex_min_gc,
+                                                      regex_max_gu=args.regex_max_gu,
                                                       use_motif_regex_id=args.motif_regex_id)
 
             c_regex_hits = len(regex_hits_list)
@@ -14497,7 +14826,11 @@ def main_searchrna(args):
         # Store motif hit as BED.
         hit_id = "%s:%s-%s(%s)%s" %(fh.chr_id, str(fh.start), str(fh.end), fh.strand, fh.motif_id)
         if hit_id not in motif_reg_dic:
-            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), matched_seq)
+            if fh.hit_type == "str_pat":
+                bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t-1.0\t-1.0\t%s\t%s\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.gc_frac), str(fh.gu_frac), matched_seq)
+            else:
+                bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), matched_seq)
+            # bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), matched_seq)
             motif_reg_dic[hit_id] = bed_row
             if rbp_id not in match_c_dic:
                 match_c_dic[rbp_id] = {}
@@ -15212,8 +15545,25 @@ def main_searchlongrna(args):
         fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
 
     # Regex check.
+    regex_type = "sequence"
     if args.regex:
-        assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
+        if args.regex_type == 1:
+            print("Check given --regex type ... ")
+            if benchlib.looks_like_structure(args.regex):
+                print("Given --regex looks like structure pattern ... ")
+                regex_type = "structure"
+            else:
+                print("Given --regex assumed to be standard regex ... ")
+                regex_type = "sequence"
+        elif args.regex_type == 2:
+            regex_type = "sequence"
+        elif args.regex_type == 3:
+            regex_type = "structure"
+        else:
+            assert False, "unexpected --regex-type value set (%d)" %(args.regex_type)
+        # If standard regex, check validity.
+        if regex_type == "sequence":
+            assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
 
     """
     Library path.
@@ -15511,14 +15861,22 @@ def main_searchlongrna(args):
     
     if args.regex:
 
-        # Remove , ; from given regex, to avoid motif_id format conflicts.
-        regex = benchlib.remove_special_chars_from_str(args.regex,
-                                                       reg_ex="[ ;]")
-        
-        assert regex, "empty string after removing special chars ( [ ;] ) from --regex. Please provide a valid regex with DNA letters"
+        if regex_type == "sequence":
 
-        # Convert IUPAC codes (if present) in regex to standard regex format.
-        regex = benchlib.convert_iupac_in_regex(regex)
+            # Remove , ; from given regex, to avoid motif_id format conflicts.
+            regex = benchlib.remove_special_chars_from_str(args.regex,
+                                                        reg_ex="[ ;]",
+                                                        to_upper=False)  # [ :;\(\)]
+            
+            assert regex, "empty string after removing special chars ( ;) from --regex. Please provide a valid regex with DNA letters"
+
+            # Convert IUPAC codes (if present) in regex to standard regex format.
+            regex = benchlib.convert_iupac_in_regex(regex)
+
+        elif regex_type == "structure":
+
+            # Check structure pattern and format.
+            regex = benchlib.check_format_str_pattern(args.regex)
 
         args.regex = regex
 
@@ -15984,6 +16342,11 @@ def main_searchlongrna(args):
             regex_hits_list = benchlib.get_regex_hits(regex, regex_id, tr_seqs_dic,
                                                       step_size_one=step_size_one,
                                                       seq_based=True,
+                                                      regex_type=regex_type,
+                                                      regex_spacer_min=args.regex_spacer_min,
+                                                      regex_spacer_max=args.regex_spacer_max,
+                                                      regex_min_gc=args.regex_min_gc,
+                                                      regex_max_gu=args.regex_max_gu,
                                                       use_motif_regex_id=args.motif_regex_id)
 
             c_regex_hits = len(regex_hits_list)
@@ -16497,7 +16860,11 @@ def main_searchlongrna(args):
             annot_str = "-"
             if annot:
                 annot_str = annot[0]
-            bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t%s\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), annot_str, matched_seq)
+            if fh.hit_type == "str_pat":
+                bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t-1.0\t-1.0\t%s\t%s\t-\t%s\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.gc_frac), str(fh.gu_frac), annot_str, matched_seq)
+            else:
+                bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t-\t%s\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), annot_str, matched_seq)
+            # bed_row = "%s\t%i\t%i\t%s:%s;%i;%s:%s\t0\t%s\t%s\t%s\t-1.0\t-1.0\t%s\t%s" %(fh.chr_id, fh.start-1, fh.end, rbp_id, fh.motif_id, uniq_count, args.method_id, args.data_id, fh.strand, str(fh.score), str(fh.pval), annot_str, matched_seq)
             motif_reg_dic[hit_id] = bed_row
             if rbp_id not in match_c_dic:
                 match_c_dic[rbp_id] = {}
@@ -16856,8 +17223,12 @@ def main_searchlongrna(args):
     rbp2motif2annot2c_dic = {}  # rbp_id -> motif_id -> annot -> count
 
     for motif_hit in motif_hit2annot_dic:
+
         # motif_hit format: "chr1:10-15(+)motif_id". Get motif_id.
-        motif_id = motif_hit.split(")")[1]
+        # motif_id = motif_hit.split(")")[1]  # Should work since motif_id/regex cannot contain ")".
+        motif_id = benchlib.get_motif_id_from_hit_str(motif_hit)
+        assert motif_id, "motif_id extraction failed for motif_hit string \"%s\"" %(motif_hit)
+        # motif_id = motif_hit.split(")")[1]
         annot = motif_hit2annot_dic[motif_hit][0]
         # tr_id = motif_hit2annot_dic[motif_hit][1]
         rbp_id = id2name_dic[motif_id]
@@ -17037,8 +17408,25 @@ def main_enmo(args):
         fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-qvalue --no-pgc"
 
     # Regex check.
+    regex_type = "sequence"
     if args.regex:
-        assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
+        if args.regex_type == 1:
+            print("Check given --regex type ... ")
+            if benchlib.looks_like_structure(args.regex):
+                print("Given --regex looks like structure pattern ... ")
+                regex_type = "structure"
+            else:
+                print("Given --regex assumed to be standard regex ... ")
+                regex_type = "sequence"
+        elif args.regex_type == 2:
+            regex_type = "sequence"
+        elif args.regex_type == 3:
+            regex_type = "structure"
+        else:
+            assert False, "unexpected --regex-type value set (%d)" %(args.regex_type)
+        # If standard regex, check validity.
+        if regex_type == "sequence":
+            assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
 
     # Fixed seed number?
     import random
@@ -17370,14 +17758,22 @@ def main_enmo(args):
     
     if args.regex:
 
-        # Remove , ; from given regex, to avoid motif_id format conflicts.
-        regex = benchlib.remove_special_chars_from_str(args.regex,
-                                                       reg_ex="[ ;]")
-        
-        assert regex, "empty string after removing special chars ( [ ;] ) from --regex. Please provide a valid regex with DNA letters"
+        if regex_type == "sequence":
 
-        # Convert IUPAC codes (if present) in regex to standard regex format.
-        regex = benchlib.convert_iupac_in_regex(regex)
+            # Remove , ; from given regex, to avoid motif_id format conflicts.
+            regex = benchlib.remove_special_chars_from_str(args.regex,
+                                                        reg_ex="[ ;]",
+                                                        to_upper=False)  # [ :;\(\)]
+            
+            assert regex, "empty string after removing special chars ( ;) from --regex. Please provide a valid regex with DNA letters"
+
+            # Convert IUPAC codes (if present) in regex to standard regex format.
+            regex = benchlib.convert_iupac_in_regex(regex)
+
+        elif regex_type == "structure":
+
+            # Check structure pattern and format.
+            regex = benchlib.check_format_str_pattern(args.regex)
 
         args.regex = regex
 
@@ -18403,6 +18799,11 @@ def main_enmo(args):
             print("Run search for --regex \"%s\" ... " %(regex))
             pos_regex_hits_list = benchlib.get_regex_hits(regex, regex_id, pos_seqs_dic,
                                                       step_size_one=step_size_one,
+                                                      regex_type=regex_type,
+                                                      regex_spacer_min=args.regex_spacer_min,
+                                                      regex_spacer_max=args.regex_spacer_max,
+                                                      regex_min_gc=args.regex_min_gc,
+                                                      regex_max_gu=args.regex_max_gu,
                                                       use_motif_regex_id=args.motif_regex_id)
 
             c_pos_regex_hits = len(pos_regex_hits_list)
@@ -18414,6 +18815,11 @@ def main_enmo(args):
             neg_regex_hits_list = benchlib.get_regex_hits(regex, regex_id, neg_seqs_dic,
                                                       step_size_one=step_size_one,
                                                       seq_based=seq_based,
+                                                      regex_type=regex_type,
+                                                      regex_spacer_min=args.regex_spacer_min,
+                                                      regex_spacer_max=args.regex_spacer_max,
+                                                      regex_min_gc=args.regex_min_gc,
+                                                      regex_max_gu=args.regex_max_gu,
                                                       use_motif_regex_id=args.motif_regex_id)
 
             c_neg_regex_hits = len(neg_regex_hits_list)
@@ -19402,8 +19808,25 @@ def main_nemo(args):
         fimo_params = "--norc --verbosity 1 --skip-matched-sequence --text --no-pgc"
 
     # Regex check.
+    regex_type = "sequence"
     if args.regex:
-        assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
+        if args.regex_type == 1:
+            print("Check given --regex type ... ")
+            if benchlib.looks_like_structure(args.regex):
+                print("Given --regex looks like structure pattern ... ")
+                regex_type = "structure"
+            else:
+                print("Given --regex assumed to be standard regex ... ")
+                regex_type = "sequence"
+        elif args.regex_type == 2:
+            regex_type = "sequence"
+        elif args.regex_type == 3:
+            regex_type = "structure"
+        else:
+            assert False, "unexpected --regex-type value set (%d)" %(args.regex_type)
+        # If standard regex, check validity.
+        if regex_type == "sequence":
+            assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
 
     # Fixed seed number?
     import random
@@ -19730,14 +20153,22 @@ def main_nemo(args):
     
     if args.regex:
 
-        # Remove , ; from given regex, to avoid motif_id format conflicts.
-        regex = benchlib.remove_special_chars_from_str(args.regex,
-                                                       reg_ex="[ ;]")
-        
-        assert regex, "empty string after removing special chars ( [ ;] ) from --regex. Please provide a valid regex with DNA letters"
+        if regex_type == "sequence":
 
-        # Convert IUPAC codes (if present) in regex to standard regex format.
-        regex = benchlib.convert_iupac_in_regex(regex)
+            # Remove , ; from given regex, to avoid motif_id format conflicts.
+            regex = benchlib.remove_special_chars_from_str(args.regex,
+                                                        reg_ex="[ ;]",
+                                                        to_upper=False)  # [ :;\(\)]
+            
+            assert regex, "empty string after removing special chars ( ;) from --regex. Please provide a valid regex with DNA letters"
+
+            # Convert IUPAC codes (if present) in regex to standard regex format.
+            regex = benchlib.convert_iupac_in_regex(regex)
+
+        elif regex_type == "structure":
+
+            # Check structure pattern and format.
+            regex = benchlib.check_format_str_pattern(args.regex)
 
         args.regex = regex
 
@@ -20877,6 +21308,11 @@ def main_nemo(args):
             pos_regex_hits_list = benchlib.get_regex_hits(regex, regex_id, pos_seqs_dic,
                                                       step_size_one=step_size_one,
                                                       reg_dic=pos_reg_dic,
+                                                      regex_type=regex_type,
+                                                      regex_spacer_min=args.regex_spacer_min,
+                                                      regex_spacer_max=args.regex_spacer_max,
+                                                      regex_min_gc=args.regex_min_gc,
+                                                      regex_max_gu=args.regex_max_gu,
                                                       use_motif_regex_id=args.motif_regex_id)
 
             c_pos_regex_hits = len(pos_regex_hits_list)
@@ -20889,6 +21325,11 @@ def main_nemo(args):
                                                       step_size_one=step_size_one,
                                                       reg_dic=neg_reg_dic,
                                                       seq_based=seq_based,
+                                                      regex_type=regex_type,
+                                                      regex_spacer_min=args.regex_spacer_min,
+                                                      regex_spacer_max=args.regex_spacer_max,
+                                                      regex_min_gc=args.regex_min_gc,
+                                                      regex_max_gu=args.regex_max_gu,
                                                       use_motif_regex_id=args.motif_regex_id)
 
             c_neg_regex_hits = len(neg_regex_hits_list)
@@ -21999,10 +22440,6 @@ def main_con(args):
     print("")
 
 
-
-
-
-
 ################################################################################
 
 def main_sponge(args):
@@ -22019,7 +22456,23 @@ def main_sponge(args):
     # assert os.path.exists(args.in_fa), "--in \"%s\" not found" % (args.in_fa)
     # assert benchlib.fasta_check_format(args.in_fa), "--in \"%s\" not in FASTA format" % (args.in_fa)
 
-    assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
+    # Check regex.
+    regex = args.regex
+    regex_type = "sequence"
+
+    if benchlib.looks_like_structure(regex):
+
+        print("Given regex \"%s\" looks like structure pattern ... " % regex)
+        regex = benchlib.check_format_str_pattern(regex)
+        regex_type = "structure"
+
+    else:
+
+        print("Given regex \"%s\" assumed to be standard regex ... " % regex)
+        assert benchlib.is_valid_regex(regex), "given regex \"%s\" is not a valid regular expression. Please provide valid expression" % (regex)
+        regex = benchlib.convert_iupac_in_regex(regex)
+        regex_type = "sequence"
+
     assert args.in_genome or args.in_gtf or args.in_fasta, "Please provide either --genome, --gtf or --fasta file to extract transcript sequences for sponge testing"
 
     if args.in_genome:
@@ -22220,7 +22673,7 @@ def main_sponge(args):
         if args.min_spacer_len > 0:
             args.allow_overlaps = True
 
-        result_df = benchlib.sponge_search_regex_hits(tr_seqs_dic, args.regex,
+        result_df = benchlib.sponge_search_regex_hits(tr_seqs_dic, regex,
                                                       min_seq_len=args.min_seq_len,
                                                       min_spacing=args.min_spacer_len,
                                                       min_hit_count=args.min_hit_count,
@@ -22231,7 +22684,12 @@ def main_sponge(args):
                                                       tr2type_dic=tr2type_dic,
                                                       gn2type_dic=gn2type_dic,
                                                       tid2regl_dic=tid2regl_dic,
-                                                      hits_bed_out=hits_bed_out)
+                                                      hits_bed_out=hits_bed_out,
+                                                      regex_type=regex_type,
+                                                      regex_spacer_min=args.regex_spacer_min,
+                                                      regex_spacer_max=args.regex_spacer_max,
+                                                      regex_min_gc=args.regex_min_gc,
+                                                      regex_max_gu=args.regex_max_gu)
 
         total_entries = len(result_df)
 
@@ -22291,7 +22749,23 @@ def main_isocomp(args):
     parser = setup_argument_parser()
     args = parser.parse_args()
 
-    assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
+    # Check regex.
+    regex = args.regex
+    regex_type = "sequence"
+
+    if benchlib.looks_like_structure(regex):
+
+        print("Given regex \"%s\" looks like structure pattern ... " % regex)
+        regex = benchlib.check_format_str_pattern(regex)
+        regex_type = "structure"
+
+    else:
+
+        print("Given regex \"%s\" assumed to be standard regex ... " % regex)
+        assert benchlib.is_valid_regex(regex), "given regex \"%s\" is not a valid regular expression. Please provide valid expression" % (regex)
+        regex = benchlib.convert_iupac_in_regex(regex)
+        regex_type = "sequence"
+
     assert args.in_genome or args.in_gtf or args.in_fasta, "Please provide either --genome, --gtf or --fasta file to extract transcript sequences for sponge testing"
 
     if args.in_genome:
@@ -22581,6 +23055,8 @@ def main_isocomp(args):
     """
     Compare regex hits between isoforms.
 
+
+    aalamo
     """
 
     if tr_seqs_dic:
@@ -22588,13 +23064,18 @@ def main_isocomp(args):
         if args.min_spacer_len > 0:
             args.allow_overlaps = True
 
-        result_df = benchlib.isocomp_search_regex_hits(tr_seqs_dic, args.regex, gid2iso_dic,
+        result_df = benchlib.isocomp_search_regex_hits(tr_seqs_dic, regex, gid2iso_dic,
                                                        min_spacing=args.min_spacer_len,
                                                        step_size_one=args.allow_overlaps,
                                                        tr2reg_dic=tr2reg_dic,
                                                        tid2regl_dic=tid2regl_dic,
                                                        hits_bed_out=hits_bed_out,
-                                                       digits_round=4)
+                                                       digits_round=4,
+                                                       regex_type=regex_type,
+                                                       regex_spacer_min=args.regex_spacer_min,
+                                                       regex_spacer_max=args.regex_spacer_max,
+                                                       regex_min_gc=args.regex_min_gc,
+                                                       regex_max_gu=args.regex_max_gu)
 
         total_entries = len(result_df)
         print("# isoform comparisons: %i" % (total_entries))
@@ -22623,23 +23104,6 @@ def main_isocomp(args):
     print("Regex hits in transcript sequences .bed:\n%s" %(hits_bed_out))
     print("Compared isoforms .tsv:\n%s" %(compared_isoforms_out))
     print("")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 ################################################################################
