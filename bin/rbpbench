@@ -10668,6 +10668,8 @@ def main_searchseq(args):
     if args.make_uniq_headers:
         id_check = False
     
+    print("Read in sequences from --in FASTA ... ")
+    
     in_seqs_dic = benchlib.read_fasta_into_dic(args.in_seqs,
                                        dna=True,
                                        all_uc=True,
@@ -10681,21 +10683,33 @@ def main_searchseq(args):
 
     assert in_seqs_dic, "no sequences read in from --in FASTA file. Make sure to provide a FASTA formatted file with DNA or RNA sequences"
 
+    print("# of read-in sequences:   ", len(in_seqs_dic))
+
     if args.min_seq_len or args.max_seq_len:
         if args.min_seq_len and args.max_seq_len:
             assert args.min_seq_len <= args.max_seq_len, "set --min-seq-length should be <= --max-seq-length"
         
         print("Filtering input sequences by set min/max lengths ... ")
+        # print("# of input sequences pre-filtering:  ", len(in_seqs_dic))
+
         filtered_seqs_dic = {}
         for seq_id, seq in in_seqs_dic.items():
             seq_len = len(seq)
-            if args.min_seq_len and args.min_seq_len <= seq_len:
-                filtered_seqs_dic[seq_id] = seq
-            if args.max_seq_len and args.max_seq_len >= seq_len:
-                filtered_seqs_dic[seq_id] = seq
+            if args.min_seq_len and not args.max_seq_len:
+                if seq_len >= args.min_seq_len:
+                    filtered_seqs_dic[seq_id] = seq
+            elif args.max_seq_len and not args.min_seq_len:
+                if seq_len <= args.max_seq_len:
+                    filtered_seqs_dic[seq_id] = seq
+            else:  # both min and max set.
+                if seq_len >= args.min_seq_len and seq_len <= args.max_seq_len:
+                    filtered_seqs_dic[seq_id] = seq
 
         assert filtered_seqs_dic, "no sequences remaining after filtering by set min/max lengths ... "
+        print("# of remaining sequences: ", len(filtered_seqs_dic))
         in_seqs_dic = filtered_seqs_dic
+
+
 
     if args.profiles_seq_id:
         assert args.profiles_seq_id in in_seqs_dic, "specified --profiles-seq-id is not a sequence ID found in input sequences (or filtered out by min/max length?). Please provide a compatible sequence ID"
@@ -10723,11 +10737,10 @@ def main_searchseq(args):
     reg_len_min = min(len_list)
     reg_len_max = max(len_list)
 
-    print("# of input sequences:         ", len(in_seqs_dic))
-    print("Mean input sequence length:   ", reg_len_mean)
-    print("Median input sequence length: ", reg_len_median)
-    print("Minimum input sequence length:", reg_len_min)
-    print("Maximum input sequence length:", reg_len_max)
+    print("Mean sequence length:     ", reg_len_mean)
+    print("Median sequence length:   ", reg_len_median)
+    print("Minimum sequence length:  ", reg_len_min)
+    print("Maximum sequence length:  ", reg_len_max)
 
 
     """

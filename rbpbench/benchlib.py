@@ -18237,12 +18237,14 @@ def create_pca_hit_prof_plot_plotly(
 
     explained_variance = pca.explained_variance_ratio_ * 100
 
-    # Build figure
+    # Build figure.
     if highlight_id:
+        import numpy as np
+
         df_highlight = df[df["Sequence ID"] == highlight_id]
         df_rest = df[df["Sequence ID"] != highlight_id]
 
-        # Trace 1: all other points (with color gradient)
+        # Trace 1: all other points (with color gradient).
         fig = px.scatter_3d(
             df_rest,
             x="PC1",
@@ -18260,7 +18262,7 @@ def create_pca_hit_prof_plot_plotly(
             },
         )
 
-        # Trace 2: highlighted point (legend-clickable)
+        # Trace 2: highlighted point.
         fig.add_scatter3d(
             x=df_highlight["PC1"],
             y=df_highlight["PC2"],
@@ -18268,7 +18270,7 @@ def create_pca_hit_prof_plot_plotly(
             mode="markers",
             marker=dict(size=6, color="#ff7f0e", line=dict(width=0.8, color="white")),
             name=f"highlight: {highlight_id}",
-            showlegend=True,
+            showlegend=False,
             customdata=df_highlight[
                 [
                     "Sequence length",
@@ -18281,14 +18283,63 @@ def create_pca_hit_prof_plot_plotly(
             hovertext=df_highlight["Sequence ID"],
         )
 
-        # Force the main cloud into the legend so isolate works
-        for tr in fig.data:
-            if tr.name is None or tr.name == "":
-                tr.name = "All other sequences"
-                tr.showlegend = True
+        # Camera / zoom handling (robust for 3D).
+        hx = float(df_highlight["PC1"].iloc[0])
+        hy = float(df_highlight["PC2"].iloc[0])
+        hz = float(df_highlight["PC3"].iloc[0])
 
+        # Close-view radius (tune factor if needed).
+        spread = max(
+            float(df["PC1"].max() - df["PC1"].min()),
+            float(df["PC2"].max() - df["PC2"].min()),
+            float(df["PC3"].max() - df["PC3"].min()),
+        )
+        r = max(0.05 * spread, 1e-6)
+
+        focus_ranges = {
+            "scene.xaxis.range": [hx - r, hx + r],
+            "scene.yaxis.range": [hy - r, hy + r],
+            "scene.zaxis.range": [hz - r, hz + r],
+        }
+
+        full_ranges = {
+            "scene.xaxis.range": [float(df["PC1"].min()), float(df["PC1"].max())],
+            "scene.yaxis.range": [float(df["PC2"].min()), float(df["PC2"].max())],
+            "scene.zaxis.range": [float(df["PC3"].min()), float(df["PC3"].max())],
+        }
+
+        # Start focused on the highlighted sequence / point.
+        fig.update_layout(**focus_ranges)
+        fig.update_scenes(
+            xaxis=dict(autorange=False),
+            yaxis=dict(autorange=False),
+            zaxis=dict(autorange=False),
+        )
+
+        # Add buttons: focus / show all.
+        fig.update_layout(
+            updatemenus=[dict(
+                type="buttons",
+                direction="right",
+                x=0.01, y=0.01,
+                xanchor="left", yanchor="bottom",
+                buttons=[
+                    dict(
+                        label="Focus highlight",
+                        method="relayout",
+                        args=[focus_ranges],
+                    ),
+                    dict(
+                        label="Show all",
+                        method="relayout",
+                        args=[full_ranges],
+                    ),
+                ],
+            )]
+        )
 
     else:
+
         fig = px.scatter_3d(
             df,
             x="PC1",
@@ -18306,11 +18357,11 @@ def create_pca_hit_prof_plot_plotly(
             hover_data=hover_data,
         )
 
-    # Layout / aspect
+    # Layout / aspect.
     fig.update_scenes(aspectmode="cube")
     fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
 
-    # Hover template (applied to all traces)
+    # Hover template.
     hovertemplate = (
         "<b>%{hovertext}</b><br>"
         "Sequence length:<br>%{customdata[0]}<br>"
@@ -18320,50 +18371,16 @@ def create_pca_hit_prof_plot_plotly(
         "Mono-nucleotide percentages:<br>%{customdata[4]}<extra></extra>"
     )
 
-    # Apply marker sizing carefully: keep highlight large, rest small
+    # Marker styling.
     for tr in fig.data:
         tr.hovertemplate = hovertemplate
-
-        # default for "rest"
-        if not (tr.name and tr.name.startswith("highlight:")):
+        if tr.name and tr.name.startswith("highlight:"):
+            tr.marker.size = 4
+            tr.marker.line.width = 0.6
+        else:
             tr.marker.size = 2
             tr.marker.line.width = 0.4
-            tr.marker.line.color = "white"
-        else:
-            # keep highlight obvious
-            tr.marker.size = 6
-            tr.marker.line.width = 0.8
-            tr.marker.line.color = "white"
-
-    # fig.update_layout(
-    #     legend=dict(
-    #         x=0.01, y=0.99,            # top-left
-    #         xanchor="left", yanchor="top",
-    #         bgcolor="rgba(255,255,255,0.7)",  # optional: readable over points
-    #         borderwidth=0
-    #     )
-    # )
-
-    # fig.update_layout(
-    #     legend=dict(
-    #         x=0.01, y=0.99,
-    #         xanchor="left", yanchor="top",
-    #         bgcolor="rgba(255,255,255,0.7)",
-    #         itemclick="toggleothers",     # <- single click isolates the clicked trace
-    #         itemdoubleclick="toggle",     # <- double click just toggles clicked trace (optional)
-    #     )
-    # )
-
-    fig.update_layout(
-        legend=dict(
-            x=0.01, y=0.99,
-            xanchor="left", yanchor="top",
-            bgcolor="rgba(255,255,255,0.7)",
-            itemclick="toggleothers",
-            itemdoubleclick="toggle",
-        )
-    )
-
+        tr.marker.line.color = "white"
 
     fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
 
@@ -18494,7 +18511,7 @@ AAALAMO
 
 ################################################################################
 
-def create_pca_kmer_prof_plot_plotly(seqid2feat_dic, 
+def create_pca_kmer_prof_plot_plotly_old(seqid2feat_dic, 
                                      plot_out,
                                      color_var="GC content",
                                      highlight_id=False,
@@ -18503,8 +18520,6 @@ def create_pca_kmer_prof_plot_plotly(seqid2feat_dic,
     """
     Create k-mer hit profiles 3D PCA plot.
     
-    AALAMO
-
     """
 
     assert seqid2feat_dic, "seqid2feat_dic is empty"
@@ -18615,6 +18630,223 @@ def create_pca_kmer_prof_plot_plotly(seqid2feat_dic,
     # fig.update_traces(marker=dict(size=3, color='#1f77b4', line=dict(width=0.5, color='white')))  # for monochrome points.
 
     fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
+    fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
+
+
+################################################################################
+
+def create_pca_kmer_prof_plot_plotly(seqid2feat_dic, plot_out,
+                                     color_var="GC content",
+                                     highlight_id=False,
+                                     include_plotlyjs="cdn",
+                                     full_html=False):
+    """
+    Create k-mer hit profiles 3D PCA plot.
+
+    If highlight_id is given:
+      - Adds a highlighted point
+      - Starts zoomed-in around the highlighted point
+      - Adds two buttons: "Focus highlight" (zoom in) and "Show all" (zoom out)
+
+    """
+
+    assert seqid2feat_dic, "seqid2feat_dic is empty"
+
+    prof_ll = []
+    seq_ids_list = []
+    seq_len_list = []
+    c_non_zero_k_list = []
+    seq_entr_list = []
+    nt_perc_str_list = []
+    gc_perc_list = []
+
+    for seq_id in seqid2feat_dic:
+        seq_feat = seqid2feat_dic[seq_id]
+        if seq_feat.c_non_zero_k == 0:
+            continue
+
+        # This preserves original behavior (iterate dict order).
+        kmer_perc_l = []
+        for kmer in seq_feat.kmer_perc:
+            kmer_perc_l.append(seq_feat.kmer_perc[kmer])
+
+        prof_ll.append(kmer_perc_l)
+        seq_ids_list.append(seq_id)
+        seq_len_list.append(seq_feat.seq_len)
+        c_non_zero_k_list.append(seq_feat.c_non_zero_k)
+        seq_entr_list.append(seq_feat.seq_entropy)
+        nt_perc_str_list.append(seq_feat.mono_nt_perc_str)
+
+        gc_perc = seq_feat.gc_perc
+        if gc_perc > 0:
+            gc_perc = round(gc_perc, 2)
+        gc_perc_list.append(gc_perc)
+
+    if highlight_id:
+        assert highlight_id in seq_ids_list, (
+            'sequence ID "%s" to be highlighted is not in sequence IDs list '
+            "(either from the beginning or because there were no k-mers on the sequence)"
+            % (highlight_id)
+        )
+
+    hover_data = [
+        "Sequence length",
+        "Non-zero k-mer count",
+        "Sequence complexity",
+        "GC content",
+        "Mono-nucleotide percentages",
+    ]
+    color = color_var
+    color_scale = ["#c6dbef", "#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#08519c", "#08306b"]
+
+    pca = PCA(n_components=3)
+    data_3d_pca = pca.fit_transform(prof_ll)
+
+    df = pd.DataFrame(data_3d_pca, columns=["PC1", "PC2", "PC3"])
+    df["Sequence ID"] = seq_ids_list
+    df["Sequence length"] = seq_len_list
+    df["Non-zero k-mer count"] = c_non_zero_k_list
+    df["Sequence complexity"] = seq_entr_list
+    df["GC content"] = gc_perc_list
+    df["Mono-nucleotide percentages"] = nt_perc_str_list
+
+    explained_variance = pca.explained_variance_ratio_ * 100
+
+    # Build figure.
+    if highlight_id:
+        import numpy as np
+
+        df_highlight = df[df["Sequence ID"] == highlight_id]
+        df_rest = df[df["Sequence ID"] != highlight_id]
+
+        # Trace 1: all other points (with color gradient).
+        fig = px.scatter_3d(
+            df_rest,
+            x="PC1",
+            y="PC2",
+            z="PC3",
+            color=color,
+            color_continuous_scale=color_scale,
+            title="3D PCA plot of k-mer hit profiles",
+            hover_name="Sequence ID",
+            hover_data=hover_data,
+            labels={
+                "PC1": f"PC1 ({explained_variance[0]:.2f}% variance)",
+                "PC2": f"PC2 ({explained_variance[1]:.2f}% variance)",
+                "PC3": f"PC3 ({explained_variance[2]:.2f}% variance)",
+            },
+        )
+
+        # Trace 2: highlighted point.
+        fig.add_scatter3d(
+            x=df_highlight["PC1"],
+            y=df_highlight["PC2"],
+            z=df_highlight["PC3"],
+            mode="markers",
+            marker=dict(size=6, color="#ff7f0e", line=dict(width=0.8, color="white")),
+            name=f"highlight: {highlight_id}",
+            showlegend=False,
+            customdata=df_highlight[
+                [
+                    "Sequence length",
+                    "Non-zero k-mer count",
+                    "Sequence complexity",
+                    "GC content",
+                    "Mono-nucleotide percentages",
+                ]
+            ].values,
+            hovertext=df_highlight["Sequence ID"],
+        )
+
+        # Zoom handling to lock axis ranges around highlight + buttons.
+        hx = float(df_highlight["PC1"].iloc[0])
+        hy = float(df_highlight["PC2"].iloc[0])
+        hz = float(df_highlight["PC3"].iloc[0])
+
+        spread = max(
+            float(df["PC1"].max() - df["PC1"].min()),
+            float(df["PC2"].max() - df["PC2"].min()),
+            float(df["PC3"].max() - df["PC3"].min()),
+        )
+        # Can be changed from 0.05 to e.g. 0.03 (tighter) or 0.08 (wider) default zoom.
+        r = max(0.05 * spread, 1e-6)  
+
+        focus_ranges = {
+            "scene.xaxis.range": [hx - r, hx + r],
+            "scene.yaxis.range": [hy - r, hy + r],
+            "scene.zaxis.range": [hz - r, hz + r],
+        }
+        full_ranges = {
+            "scene.xaxis.range": [float(df["PC1"].min()), float(df["PC1"].max())],
+            "scene.yaxis.range": [float(df["PC2"].min()), float(df["PC2"].max())],
+            "scene.zaxis.range": [float(df["PC3"].min()), float(df["PC3"].max())],
+        }
+
+        # Start focused on highlighted sequence point.
+        fig.update_layout(**focus_ranges)
+        fig.update_scenes(
+            xaxis=dict(autorange=False),
+            yaxis=dict(autorange=False),
+            zaxis=dict(autorange=False),
+        )
+
+        # Two buttons are needed.
+        fig.update_layout(
+            updatemenus=[dict(
+                type="buttons",
+                direction="right",
+                x=0.01, y=0.01,
+                xanchor="left", yanchor="bottom",
+                buttons=[
+                    dict(label="Focus highlight", method="relayout", args=[focus_ranges]),
+                    dict(label="Show all", method="relayout", args=[full_ranges]),
+                ],
+            )]
+        )
+
+    else:
+
+        fig = px.scatter_3d(
+            df,
+            x="PC1",
+            y="PC2",
+            z="PC3",
+            color=color,
+            title="3D PCA plot of k-mer hit profiles",
+            labels={
+                "PC1": f"PC1 ({explained_variance[0]:.2f}% variance)",
+                "PC2": f"PC2 ({explained_variance[1]:.2f}% variance)",
+                "PC3": f"PC3 ({explained_variance[2]:.2f}% variance)",
+            },
+            hover_name="Sequence ID",
+            color_continuous_scale=color_scale,
+            hover_data=hover_data,
+        )
+
+    # Layout / styling.
+    fig.update_scenes(aspectmode="cube")
+    fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
+
+    hovertemplate = (
+        "<b>%{hovertext}</b><br>"
+        "Sequence length:<br>%{customdata[0]}<br>"
+        "Non-zero k-mer count:<br>%{customdata[1]}<br>"
+        "Sequence complexity:<br>%{customdata[2]}<br>"
+        "GC content (%):<br>%{customdata[3]}<br>"
+        "Mono-nucleotide percentages:<br>%{customdata[4]}<extra></extra>"
+    )
+
+    # Apply hovertemplate + marker styles.
+    for tr in fig.data:
+        tr.hovertemplate = hovertemplate
+        if tr.name and tr.name.startswith("highlight:"):
+            tr.marker.size = 4
+            tr.marker.line.width = 0.6
+        else:
+            tr.marker.size = 2
+            tr.marker.line.width = 0.4
+        tr.marker.line.color = "white"
+
     fig.write_html(plot_out, full_html=full_html, include_plotlyjs=include_plotlyjs)
 
 
@@ -18861,7 +19093,7 @@ Sequence length statistics in nt.
 
     profiles_seq_id_info = ""
     if args.profiles_seq_id:
-        profiles_seq_id_info = "Selected sequence ID \"%s\" is highlighted in orange." %(args.profiles_seq_id)
+        profiles_seq_id_info = "Selected sequence ID \"%s\" is highlighted in orange (click *Focus highlight* to zoom in on highlighted sequence point, or *Show all* to zoom out on all points)." %(args.profiles_seq_id)
 
     if c_seqs_with_hits > 3:
 
