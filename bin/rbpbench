@@ -3455,7 +3455,7 @@ def setup_argument_parser():
     # Add required arguments group.
     p_spnm = p_spn.add_argument_group("required arguments")
     # Required arguments for sponge.
-    p_spnm.add_argument("--regex",  # AALAMO
+    p_spnm.add_argument("--regex",
                    dest="regex",
                    type=str,
                    metavar='str',
@@ -4571,7 +4571,7 @@ def main_search(args):
                 id2name_dic[acc_id] = user_rbp_id
 
     """
-    Check if loaded RBP IDs have motifs. AALAMO
+    Check if loaded RBP IDs have motifs.
 
     """
     for rbp_id in loaded_rbps_dic:
@@ -10136,8 +10136,6 @@ def main_searchseq(args):
         if regex_type == "sequence":
             assert benchlib.is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
 
-    # AALAMO
-
     """
     Motif database.
     """
@@ -10418,8 +10416,6 @@ def main_searchseq(args):
     Treat regex as sequence motif / fimo type.
     rbp_id: regex, motif_id: regex, motif_db: regex
 
-    AALAMO
-
     """
 
     regex_id = args.regex_id
@@ -10569,7 +10565,7 @@ def main_searchseq(args):
         for fid in rbp_fids_dic:
             assert fid in fid2desc_dic, "function ID \"%s\" provided via --functions not found in internal function ID -> description mapping. Please provide valid function IDs (see rbpbench info for a detailed description)" %(fid)
 
-        # Filter loaded_rbps_dic.  AALAMO
+        # Filter loaded_rbps_dic.
         filtered_rbps_dic = {}
         for rbp_id in loaded_rbps_dic:
             if rbp_id == regex_id:  # keep regex if set.
@@ -10592,7 +10588,7 @@ def main_searchseq(args):
 
         assert loaded_rbps_dic, "no remaining RBPs after filtering by provided function IDs. Please provide compatible RBPs + function IDs (see rbpbench info for annotated RBP functions)"
 
-        # Filter loaded motif IDs. AALAMO
+        # Filter loaded motif IDs.
         filtered_motif_ids_dic = {}
         for rbp_id in loaded_rbps_dic:
             if rbp_id == regex_id:
@@ -10637,7 +10633,7 @@ def main_searchseq(args):
         
             assert motif_id in loaded_motif_ids_dic, "motif_id %s not in loaded_motif_ids_dic" %(motif_id)
 
-            if id2type_dic[motif_id] == "meme_xml":  # AALAMO
+            if id2type_dic[motif_id] == "meme_xml":
                 rbp.seq_motif_ids.append(motif_id)
                 motif_id2idx_dic[motif_id] = len(rbp.seq_motif_ids) - 1
                 rbp.seq_motif_hits.append(0)
@@ -10798,7 +10794,7 @@ def main_searchseq(args):
         If --regex is set, search for regex hits in sequences (stored in in_seqs_dic).
 
         """
-        if args.regex:  # AALAMO
+        if args.regex:
 
             step_size_one = False
             if args.regex_search_mode == 1:
@@ -10992,7 +10988,7 @@ def main_searchseq(args):
         {rbp_id1 -> {'motif_region1': c_motif_region1, 'motif_region2': c_motif_region2}, rbp_id2 -> .. }
     """
 
-    for rbp_id in unique_motifs_dic: # AALAMO
+    for rbp_id in unique_motifs_dic:
         c_uniq_motif_hits = len(unique_motifs_dic[rbp_id])
         search_rbps_dic[rbp_id].c_uniq_motif_hits = c_uniq_motif_hits
         # Store individual motif unique hits.
@@ -11229,8 +11225,6 @@ def main_searchseq(args):
     Init hit profiles for each sequence ID.
     I.e., for each sequence ID, store motif hit (or RBP hit) occurrences (0 if not hit).
 
-    AALAMO AALAMO
-
     """
 
     profile_ids_list = []
@@ -11257,19 +11251,97 @@ def main_searchseq(args):
         else:
             assert False, "invalid hit profile level %i set. Please set --profiles-level to 1 or 2" %(args.profiles_level)
 
+    # seqid2feat_dic = {}
+
+    # # AALAMO
+    # for seq_id in in_seqs_dic:
+    #     seq_feat = benchlib.SeqFeat(seq_id, in_seqs_dic[seq_id], k=args.profiles_k)
+    #     for profile_id in profile_ids_list:
+    #         seq_feat.hit_profile.append(0)
+    #     seqid2feat_dic[seq_id] = seq_feat
+    #     if not profile_kmer_ids_list:
+    #         for kmer in seq_feat.kmer_perc:
+    #             profile_kmer_ids_list.append(kmer)
+
+    # get_kmer_counts_dic(self.seq, 1, rna=False, count_norm_mode=2, empty_check=False)  # get percentages.
+
+    nr_motifs = len(profile_ids_list)  # number of search motifs / rbps == number of hit counts.
+    nr_kmers = 4 ** args.profiles_k
+    nr_seqs = len(in_seqs_dic)
+
+    # Dense k-mer percentage matrix (float32).
+    kmer_mat = np.zeros((nr_seqs, nr_kmers), dtype=np.float32)
+
+    # Dense motif hit matrix (fill later).
+    motif_mat = np.zeros((nr_seqs, nr_motifs), dtype=np.float32)
+
+    # seqfeats = []
     seqid2feat_dic = {}
 
-    # AALAMO
-    for seq_id in in_seqs_dic:
-        seq_feat = benchlib.SeqFeat(seq_id, in_seqs_dic[seq_id], k=args.profiles_k)
-        for profile_id in profile_ids_list:
-            seq_feat.hit_profile.append(0)
-        seqid2feat_dic[seq_id] = seq_feat
-        if not profile_kmer_ids_list:
-            for kmer in seq_feat.kmer_perc:
-                profile_kmer_ids_list.append(kmer)
+    # for seq_id in in_seqs_dic:
+    for idx, seq_id in enumerate(sorted(in_seqs_dic)):
+        seq = in_seqs_dic[seq_id].upper()
+        seq_len = len(seq)
 
-    
+        # Mono-nt percentages.
+        mono_nt_perc = benchlib.get_kmer_counts_dic(seq, 1,   # get mono-nt percentages.
+                                                    rna=False,
+                                                    count_norm_mode=2,
+                                                    empty_check=False)
+        
+        a_perc = mono_nt_perc.get("A", 0.0)
+        c_perc = mono_nt_perc.get("C", 0.0)
+        g_perc = mono_nt_perc.get("G", 0.0)
+        t_perc = mono_nt_perc.get("T", 0.0)
+
+        # Mono-nt counts.
+        mono_nt_c = benchlib.get_kmer_counts_dic(seq, 1, 
+                                        rna=False, 
+                                        count_norm_mode=1, 
+                                        empty_check=False)
+        # GC percentage.
+        gc_perc = benchlib.calc_seq_gc_cont(mono_nt_c, get_perc=True)
+
+        # Entropy.
+        entropy = benchlib.seq_calc_entropy(seq, rna=False, k=1) if seq else 0.0
+        entropy = round(entropy, 6)
+
+        seq_feat = benchlib.SeqFeat(
+            seq_id=seq_id,
+            seq_len=seq_len,
+            gc_perc=gc_perc,
+            a_perc=a_perc,
+            c_perc=c_perc,
+            g_perc=g_perc,
+            t_perc=t_perc,
+            entropy=entropy,
+            kmer_i=idx,
+            motif_i=idx,
+        )
+
+        seqid2feat_dic[seq_id] = seq_feat
+
+
+"""
+
+        self,
+        seq_id,
+        seq_len,
+        gc_perc,
+        a_perc,
+        c_perc,
+        g_perc,
+        t_perc,
+        entropy,
+        c_hits=0,
+        c_non_zero_k=0,
+        kmer_i,
+        motif_i,
+"""
+
+
+
+
     """
     Output motif region stats (1 row for each motif hit).
     Report ALL motif hits,
@@ -13151,7 +13223,7 @@ def main_searchlong(args):
         OUTBED.close()
 
         for motif_hit in motif_hit2annot_dic:
-            # motif_hit format: "chr1:10-15(+)motif_id". Get motif_id.  AALAMO
+            # motif_hit format: "chr1:10-15(+)motif_id". Get motif_id.
             motif_id = motif_hit.split(")")[1]
             annot = motif_hit2annot_dic[motif_hit][0]
             # tr_id = motif_hit2annot_dic[motif_hit][1]
@@ -23068,8 +23140,6 @@ def main_isocomp(args):
     """
     Compare regex hits between isoforms.
 
-
-    aalamo
     """
 
     if tr_seqs_dic:

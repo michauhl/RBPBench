@@ -6233,8 +6233,61 @@ class TranscriptInfoExonTest:
 
 class SeqFeat:
     """
-    Store DNA sequence with together with some sequence features (k-mer frequencies,
+    More efficient version of SeqFeat, outsourcing k-mer and hit profile data,
+    instead storing indices to external lists.
+
+    """
+    __slots__ = (
+        "seq_id",
+        "seq_len",
+        "gc_perc",
+        "a_perc",
+        "c_perc",
+        "g_perc",
+        "t_perc",
+        "entropy",
+        "c_hits",
+        "c_non_zero_k",
+        "kmer_i",
+        "motif_i",
+    )
+
+    def __init__(
+        self,
+        seq_id,
+        seq_len,
+        gc_perc,
+        a_perc,
+        c_perc,
+        g_perc,
+        t_perc,
+        entropy,
+        c_hits=0,
+        c_non_zero_k=0,
+        kmer_i,
+        motif_i,
+    ):
+        self.seq_id = seq_id
+        self.seq_len = seq_len
+        self.gc_perc = gc_perc
+        self.a_perc = a_perc
+        self.c_perc = c_perc
+        self.g_perc = g_perc
+        self.t_perc = t_perc
+        self.entropy = entropy
+        self.c_hits = c_hits
+        self.c_non_zero_k = c_non_zero_k
+        self.kmer_i = kmer_i
+        self.motif_i = motif_i
+
+
+################################################################################
+
+class SeqFeat_old:
+    """
+    Store DNA sequence together with some sequence features (k-mer frequencies,
     motif hit profile ...).
+
     AALAMO
 
     """
@@ -18161,14 +18214,11 @@ def min_max_scale(values, new_min=0, new_max=1):
 
 ################################################################################
 
-def create_pca_hit_prof_plot_plotly(
-    seqid2feat_dic,
-    plot_out,
-    color_var="GC content",
-    highlight_id=False,
-    include_plotlyjs="cdn",
-    full_html=False,
-):
+def create_pca_hit_prof_plot_plotly(seqid2feat_dic, plot_out,
+                                    color_var="GC content",
+                                    highlight_id=False,
+                                    include_plotlyjs="cdn",
+                                    full_html=False):
     """
     Create motif hit profiles PCA plot in 3D.
 
