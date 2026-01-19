@@ -215,7 +215,6 @@ def search_str_pat_in_seqs_dic(regex, seqs_dic,
     """
     Run structure pattern (== regex) search on all sequences in seqs_dic.
 
-    AALAMO
     """
 
     hits_dic = {}
@@ -273,7 +272,6 @@ def search_str_pat_in_seqs_dic(regex, seqs_dic,
                 step=1,
                 digits_round=digits_round,
             )
-
 
     return hits_dic
 
@@ -1046,6 +1044,83 @@ def bed_read_in_regions(in_bed,
 
 ################################################################################
 
+def calc_rbc_effect_size(n1, n2, u_stat, signed=True):
+    """
+    Calculate effect size (here: Rank-biserial correlation) from Mann-Whitney U 
+    (Wilcoxon rank-sum) statistic.
+
+    Parameters:
+    n1, n2 : int
+        Sample sizes of group1 (x) and group2 (y).
+    u_stat : float
+        U statistic returned by scipy.stats.mannwhitneyu(x, y, ...).
+    signed : bool
+        If True, return signed rank-biserial where
+          positive r means group1 > group2, negative r means group1 < group2.
+        If False, return magnitude only (>= 0), for "two-sided" test
+
+    """
+    if n1 <= 0 or n2 <= 0:
+        raise ValueError("n1 and n2 must be > 0 to calculate effect size.")
+
+    denom = n1 * n2
+    r = (2.0 * u_stat) / denom - 1.0  # signed: + => group1 tends higher.
+
+    return r if signed else abs(r)
+
+
+################################################################################
+
+def calc_cl_effect_size(n1, n2, u_stat):
+    """
+    Compute the Common Language Effect Size (CLES):
+    P(group1 > group2).
+
+    Common Language Effect Size (CLES):
+    Probability that a random value from group1 exceeds one from group2.
+
+    Returns a value in [0, 1], where 0.5 means no effect, > 0.5 means 
+    group1 tends to have higher values.
+
+    n1: size group 1
+    n2: size group 2
+    u_stat: Mann–Whitney U statistic (from scipy.stats.mannwhitneyu)
+
+    """
+    if n1 == 0 or n2 == 0:
+        raise ValueError("Both groups must be non-empty.")
+
+    cles = u_stat / (n1 * n2)
+    return cles
+
+
+################################################################################
+
+def get_eff_sizes(g1v, g2v, stat, round=True, round_n=4):
+    """
+    Get RBC ES + CL ES from group1 values (g1v), group2 values (g2v), 
+    and Wilcoxon rank sum test statistic (stat).
+
+    """
+
+    assert g1v, "given group 1 values list empty"
+    assert g2v, "given group 2 values list empty"
+
+    n1 = len(g1v)
+    n2 = len(g2v)
+
+    rbc_eff_size = calc_rbc_effect_size(n1, n2, stat)
+    cl_eff_size = calc_cl_effect_size(n1, n2, stat)
+
+    if round:
+        rbc_eff_size = round_to_n_significant_digits(rbc_eff_size, round_n)
+        cl_eff_size = round_to_n_significant_digits(cl_eff_size, round_n)
+
+    return rbc_eff_size, cl_eff_size
+
+
+################################################################################
+
 def get_region_dic_stats(region_dic):
     """
     region_dic format:
@@ -1132,8 +1207,8 @@ def con_generate_html_report(args, stats_dic, benchlib_path,
                              html_report_out="report.rbpbench_con.html",
                              pc_plot_name="phastCons_scores.png",
                              pp_plot_name="phyloP_scores.png",
-                             pc_pval=1.0,
-                             pp_pval=1.0):
+                             pc_pval_stats=False,
+                             pp_pval_stats=False):
 
     """
     Create rbpbench con report.
@@ -1151,6 +1226,9 @@ def con_generate_html_report(args, stats_dic, benchlib_path,
         pc_plot = True
     if os.path.exists(pp_plot_path_check):
         pp_plot = True
+
+    assert pc_pval_stats, "no pc_pval_stats given"
+    assert pp_pval_stats, "no pp_pval_stats given"
 
     if not pp_plot and not pc_plot:
         assert False, "Neither %s nor %s plot found in output folder" %(pc_plot_name, pp_plot_name)
@@ -1337,7 +1415,10 @@ score for each site (i.e., averaged over all site positions).
         in_max = stats_dic["in_phastcons_stats"][4]
         ctrl_max = stats_dic["ctrl_phastcons_stats"][4]
 
-        # pc_pval
+        pc_pval = pc_pval_stats[0]
+        pc_rbc_es = pc_pval_stats[1]
+        pc_cl_es = pc_pval_stats[2]
+
         pval_info = "Small test p-values (< 0.05) indicate that input sites have significantly higher conservation scores than control sites."
         if args.wrs_mode == 2:
             pval_info = "Small test p-values (< 0.05) indicate that input sites have significantly lower conservation scores than control sites."
@@ -1347,7 +1428,7 @@ score for each site (i.e., averaged over all site positions).
         mdtext += """
 **Figure:** Distribution of phastCons conservation scores in input and control sites.
 For each site, the average phastCons score is used (i.e., average over all genomic site positions).
-Wilcoxon rank-sum test p-value = %s.
+Wilcoxon rank-sum test p-value = %s (effect sizes (RBC, CL) = %s, %s).
 Wilcoxon rank-sum test is applied to check for significant differences between input and control site scores.
 %s
  # input sites = %i, # control sites = %i, mean input score = %.2f, mean control score = %.2f,
@@ -1357,7 +1438,7 @@ Wilcoxon rank-sum test is applied to check for significant differences between i
 
 &nbsp;
 
-""" %(str(pc_pval), pval_info, in_c_sites, ctrl_c_sites, in_mean, ctrl_mean, in_median, ctrl_median, in_min, ctrl_min, in_max, ctrl_max)
+""" %(str(pc_pval), str(pc_rbc_es), str(pc_cl_es), pval_info, in_c_sites, ctrl_c_sites, in_mean, ctrl_mean, in_median, ctrl_median, in_min, ctrl_min, in_max, ctrl_max)
 
 
 
@@ -1390,7 +1471,10 @@ score for each site (i.e., averaged over all site positions).
         in_max = stats_dic["in_phylop_stats"][4]
         ctrl_max = stats_dic["ctrl_phylop_stats"][4]
 
-        # pc_pval
+        pp_pval = pp_pval_stats[0]
+        pp_rbc_es = pp_pval_stats[1]
+        pp_cl_es = pp_pval_stats[2]
+
         pval_info = "Small test p-values (< 0.05) indicate that input sites have significantly higher conservation scores than control sites."
         if args.wrs_mode == 2:
             pval_info = "Small test p-values (< 0.05) indicate that input sites have significantly lower conservation scores than control sites."
@@ -1400,7 +1484,7 @@ score for each site (i.e., averaged over all site positions).
         mdtext += """
 **Figure:** Distribution of phyloP conservation scores in input and control sites.
 For each site, the average phyloP score is used (i.e., average over all genomic site positions).
-Wilcoxon rank-sum test p-value = %s.
+Wilcoxon rank-sum test p-value = %s (effect sizes (RBC, CL) = %s, %s).
 Wilcoxon rank-sum test is applied to check for significant differences between input and control site scores.
 %s
  # input sites = %i, # control sites = %i, mean input score = %.2f, mean control score = %.2f,
@@ -1410,7 +1494,7 @@ Wilcoxon rank-sum test is applied to check for significant differences between i
 
 &nbsp;
 
-""" %(str(pp_pval), pval_info, in_c_sites, ctrl_c_sites, in_mean, ctrl_mean, in_median, ctrl_median, in_min, ctrl_min, in_max, ctrl_max)
+""" %(str(pp_pval), str(pp_rbc_es), str(pp_cl_es), pval_info, in_c_sites, ctrl_c_sites, in_mean, ctrl_mean, in_median, ctrl_median, in_min, ctrl_min, in_max, ctrl_max)
 
 
     # Convert mdtext to html.
@@ -1661,10 +1745,14 @@ def compare_conservation_scores(args,
         # Compare distributions.
         stat, pc_pval = mannwhitneyu(in_scores, control_scores, alternative=wrs_alt_hypo)
         # Round p-value to 4 significant digits.
-        pc_pval = round_to_n_significant_digits_v2(pc_pval, 4,
+        pc_pval = round_to_n_significant_digits_v2(pc_pval, 4,  # AALAMO does not work for negative values yet!
                                                    min_val=0.0)
+        # Get effect sizes.
+        pc_rbc_es, pc_cl_es = get_eff_sizes(in_scores, control_scores, stat,
+                                            round=True, round_n=4)
 
         print(f"Wilcoxon rank-sum test: U = {stat:.2f}, p = {pc_pval:.4g}")
+        print(f"RBC effect size = {pc_rbc_es}, CL effect size = {pc_cl_es}")
 
         create_con_sc_violin_plot(in_scores, control_scores, pc_plot_path, 
                                   pval=pc_pval,
@@ -1734,7 +1822,12 @@ def compare_conservation_scores(args,
         pp_pval = round_to_n_significant_digits_v2(pp_pval, 4,
                                                    min_val=0.0)
         
+        # Get effect sizes.
+        pp_rbc_es, pp_cl_es = get_eff_sizes(in_scores, control_scores, stat,
+                                            round=True, round_n=4)
+
         print(f"Wilcoxon rank-sum test: U = {stat:.2f}, p = {pp_pval:.4g}")
+        print(f"RBC effect size = {pp_rbc_es}, CL effect size = {pp_cl_es}")
 
         create_con_sc_violin_plot(in_scores, control_scores, pp_plot_path, 
                                   pval=pp_pval,
@@ -1765,14 +1858,17 @@ def compare_conservation_scores(args,
 
     """
 
+    pc_pval_stats = [pc_pval, pc_rbc_es, pc_cl_es]
+    pp_pval_stats = [pp_pval, pp_rbc_es, pp_cl_es]
+
     print("Create HTML report ... ")
 
     con_generate_html_report(args, stats_dic, benchlib_path,
                              html_report_out=html_report_out,
                              pc_plot_name=pc_plot_name,
                              pp_plot_name=pp_plot_name,
-                             pc_pval=pc_pval,
-                             pp_pval=pp_pval)
+                             pc_pval_stats=pc_pval_stats,
+                             pp_pval_stats=pp_pval_stats)
 
     """
     Output site conservation scores.
@@ -2478,7 +2574,7 @@ def run_go_analysis(target_genes_dic, background_genes_dic,
 
 ################################################################################
 
-def round_to_n_significant_digits_v2(num, n, zero_check_val=1e-304,
+def round_to_n_significant_digits_v2(num, n, zero_check_val=1e-304,  # AALAMO
                                      min_val=0):
     """
     Round float / scientific notation number to n significant digits.
@@ -2510,7 +2606,51 @@ def round_to_n_significant_digits_v2(num, n, zero_check_val=1e-304,
 
 ################################################################################
 
-def round_to_n_significant_digits(num, n,
+def round_to_n_significant_digits(num, n, zero_check_val=1e-304, min_val=0):
+    """
+    Round float / scientific notation number to n significant digits.
+    Works for positive and negative numbers.
+
+    >>> round_to_n_significant_digits(4.0980000000000007e-38, 4)
+    4.098e-38
+    >>> round_to_n_significant_digits(4.410999999999999e-81, 4)
+    4.411e-81
+    >>> round_to_n_significant_digits(0.0000934234823499234, 4)
+    9.342e-05
+    >>> round_to_n_significant_digits(0.0112123123123123, 4)
+    0.01121
+    >>> round_to_n_significant_digits(0.0, 2)
+    0
+    >>> round_to_n_significant_digits(1e-300, 3)
+    1e-300
+    >>> round_to_n_significant_digits(-0.003436, 3)
+    -0.00344
+    """
+
+    if n <= 0:
+        raise ValueError("n must be a positive integer")
+
+    if num == 0:
+        return 0
+
+    sign = -1 if num < 0 else 1
+    abs_num = abs(num)
+
+    if abs_num < zero_check_val:
+        return min_val
+
+    getcontext().prec = n
+    d_num = Decimal(abs_num)
+
+    exponent = -int(floor(log10(abs_num))) + (n - 1)
+    rounded = round(d_num, exponent)
+
+    return sign * float(rounded)
+
+
+################################################################################
+
+def round_to_n_significant_digits_old(num, n,
                                   zero_check_val=1e-300):
     """
     Round float / scientific notation number to n significant digits.
@@ -2529,7 +2669,6 @@ def round_to_n_significant_digits(num, n,
     >>> round_to_n_significant_digits(1e-300, 3)
     1e-300
 
-    
     """
 
     if num < zero_check_val:
@@ -6248,8 +6387,7 @@ class SeqFeat:
         "entropy",
         "c_hits",
         "c_non_zero_k",
-        "kmer_i",
-        "motif_i",
+        "mono_nt_perc_str",
     )
 
     def __init__(
@@ -6262,10 +6400,9 @@ class SeqFeat:
         g_perc,
         t_perc,
         entropy,
-        c_hits=0,
-        c_non_zero_k=0,
-        kmer_i,
-        motif_i,
+        c_hits,
+        c_non_zero_k,
+        mono_nt_perc_str,
     ):
         self.seq_id = seq_id
         self.seq_len = seq_len
@@ -6277,8 +6414,7 @@ class SeqFeat:
         self.entropy = entropy
         self.c_hits = c_hits
         self.c_non_zero_k = c_non_zero_k
-        self.kmer_i = kmer_i
-        self.motif_i = motif_i
+        self.mono_nt_perc_str = mono_nt_perc_str
 
 
 ################################################################################
@@ -6287,8 +6423,6 @@ class SeqFeat_old:
     """
     Store DNA sequence together with some sequence features (k-mer frequencies,
     motif hit profile ...).
-
-    AALAMO
 
     """
 
@@ -9240,8 +9374,8 @@ def check_report_in_file(in_file):
     with open(in_file) as f:
         for line in f:
             cols = line.strip().split("\t")
-            if len(cols) == 27: # RBP stats.
-                if cols[0] == "data_id" and cols[26] == "internal_id":
+            if len(cols) == 29: # RBP stats.
+                if cols[0] == "data_id" and cols[28] == "internal_id":
                     type = "rbp_stats"
             elif len(cols) == 21:
                 if cols[0] == "data_id" and cols[20] == "internal_id":
@@ -10550,6 +10684,8 @@ class RBPStats:
                  uniq_motif_hits_cal_1000nt = 0.0,
                  uniq_motif_hits_eff_1000nt = 0.0,
                  wc_pval = 1.0,
+                 wc_rbc_es = 0.0,
+                 wc_cl_es = 0.0,
                  seq_motif_ids = None,
                  str_motif_ids = None,
                  seq_motif_hits = None,
@@ -10577,6 +10713,8 @@ class RBPStats:
         self.uniq_motif_hits_cal_1000nt = uniq_motif_hits_cal_1000nt
         self.uniq_motif_hits_eff_1000nt = uniq_motif_hits_eff_1000nt
         self.wc_pval = wc_pval
+        self.wc_rbc_es = wc_rbc_es
+        self.wc_cl_es = wc_cl_es
         if seq_motif_ids is None:
             self.seq_motif_ids = []
         else:
@@ -10611,14 +10749,14 @@ def read_in_rbp_stats(in_file,
     with open(in_file) as f:
         for line in f:
             cols = line.strip().split("\t")
-            internal_id = cols[26]
+            internal_id = cols[28]
             if internal_id == "internal_id":
                 continue
             assert internal_id not in id_check_dic, "internal_id %s (supposed to be unique) appears > 1 in %s. Please contact developers!" %(internal_id, in_file)
             id_check_dic[internal_id] = 1
             rbp_stats = RBPStats(internal_id, cols[0], cols[1], cols[2], cols[3])
             rbp_stats.rbp_id = cols[4]
-            rbp_stats.c_regions = int(cols[5])
+            rbp_stats.c_regions = int(cols[5])  # alamo
             rbp_stats.mean_reg_len = float(cols[6])
             rbp_stats.median_reg_len = float(cols[7])
             rbp_stats.min_reg_len = int(cols[8])
@@ -10635,10 +10773,12 @@ def read_in_rbp_stats(in_file,
             rbp_stats.uniq_motif_hits_cal_1000nt = float(cols[19])
             rbp_stats.uniq_motif_hits_eff_1000nt = float(cols[20])
             rbp_stats.wc_pval = float(cols[21])
-            seq_motif_ids = cols[22]
-            seq_motif_hits = cols[23]
-            str_motif_ids = cols[24]
-            str_motif_hits = cols[25]
+            rbp_stats.wc_rbc_es = float(cols[22])
+            rbp_stats.wc_cl_es = float(cols[23])
+            seq_motif_ids = cols[24]
+            seq_motif_hits = cols[25]
+            str_motif_ids = cols[26]
+            str_motif_hits = cols[27]
             if seq_motif_ids != "-":
                 for motif_id in seq_motif_ids.split(","):
                     rbp_stats.seq_motif_ids.append(motif_id)
@@ -10681,6 +10821,8 @@ class RBP:
                  uniq_motif_hits_cal_1000nt = 0.0, # unique motif hits per called 1000 nt.
                  # ks_pval = 1.0, # Kolmogorov-Smirnov (KS) statistic p-value (are higher scoring sites enriched with motifs).
                  wc_pval = 1.0, # Wilcoxon rank-sum test (Mann-Whitney U test) statistic p-value (are higher scoring sites enriched with motifs).
+                 wc_rbc_es = 0.0,  # Wilcoxon rank-biserial correlation effect size.
+                 wc_cl_es = 0.0, # Wilcoxon common language effect size.
                  wc_pval_less = 1.0, # Wilcoxon rank-sum test (Mann-Whitney U test) statistic p-value (are lower scoring sites enriched with motifs).
                  organism: Optional[str] = None) -> None:
         self.name = name
@@ -10713,6 +10855,8 @@ class RBP:
         self.uniq_motif_hits_cal_1000nt = uniq_motif_hits_cal_1000nt
         # self.ks_pval = ks_pval
         self.wc_pval = wc_pval
+        self.wc_rbc_es = wc_rbc_es
+        self.wc_cl_es = wc_cl_es
         self.wc_pval_less = wc_pval_less
         self.organism = organism
 
@@ -10996,7 +11140,7 @@ def get_regex_hits(regex, regex_id, seqs_dic,
                 gu_frac = hit_info[7]
                 spacer_len = hit_info[8]
                 
-                if seq_based:  # AALAMO
+                if seq_based:
 
                     regex_hit = StrPatHit(chr_id=seq_name, 
                                     start=start+1, 
@@ -14393,7 +14537,7 @@ No plot generated since < 4 datasets were provided.
     Input datasets RBP region score motif enrichment statistics.
 
     Format:
-    id2motif_enrich_stats_dic[internal_id] = [c_reg_with_hits, perc_reg_with_hits, c_uniq_motif_hits, wc_pval]
+    id2motif_enrich_stats_dic[internal_id] = [c_reg_with_hits, perc_reg_with_hits, c_uniq_motif_hits, wc_pval, wc_rbc_es, wc_cl_es]
 
 
     """
@@ -14419,17 +14563,23 @@ that %s-scoring regions are more likely to contain RBP motif hits.
 **NOTE** that if scores associated with input genomic regions are all the same, p-values become meaningless 
 (i.e., they result in p-values of 1.0).
 Likewise, the p-value becomes non-informative if most or all input regions have RBP motif hits (i.e., very high hit region percentages).
+For p-value interpretation, two test **effect sizes** are given (RBC ES: rank-biserial correlation effect size, CL ES: common language effect size).
+RBC ES: range -1 to +1, 0 -> no effect, +1 -> all scores in hit regions > non-hit regions. -1 -> all scores in hit regions < non-hit regions. 
+CL ES: range 0 to +1. Probability that a random score from hit region group exceeds one from non-hit region. 0.5 -> no effect, > 0.5 
+-> hit region scores tend to be higher, < 0.5 -> hit region scores tend to be lower.
 By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
 
 """ %(wrs_mode_info1, wrs_mode_info2)
 
-        mdtext += '<table style="max-width: 1000px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += '<table style="max-width: 1100px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
         mdtext += "<thead>\n"
         mdtext += "<tr>\n"
         mdtext += "<th>Dataset ID</th>\n"
         mdtext += "<th># hit regions</th>\n"
         mdtext += "<th>% hit regions</th>\n"
         mdtext += "<th># motif hits</th>\n"
+        mdtext += "<th>RBC ES</th>\n"
+        mdtext += "<th>CL ES</th>\n"
         mdtext += "<th>p-value</th>\n"
         mdtext += "</tr>\n"
         mdtext += "</thead>\n"
@@ -14457,6 +14607,8 @@ By default, BED genomic regions input file column 5 is used as the score column 
             mdtext += "<td>" + str(c_hit_reg) + "</td>\n"
             mdtext += "<td>%.2f" %(perc_hit_reg) + "</td>\n"
             mdtext += "<td>" + str(c_uniq_motif_hits) + "</td>\n"
+            mdtext += "<td>" + str(id2motif_enrich_stats_dic[internal_id][4]) + "</td>\n"
+            mdtext += "<td>" + str(id2motif_enrich_stats_dic[internal_id][5]) + "</td>\n"
             mdtext += "<td>" + str(wc_pval) + "</td>\n"
             mdtext += '</tr>' + "\n"
 
@@ -14470,6 +14622,8 @@ By default, BED genomic regions input file column 5 is used as the score column 
         mdtext += '**# hit regions** -> number of input genomic regions with motif hits (after filtering and optional extension), '
         mdtext += '**% hit regions** -> percentage of motif hit regions over all regions (i.e., how many input regions contain >= 1 RBP motif hit), '
         mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
+        mdtext += '**RBC ES** -> rank-biserial correlation effect size calculated from test statistic, '
+        mdtext += '**CL ES** -> common language effect size calculated from test statistic, '
         mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
         mdtext += "\n&nbsp;\n"
 
@@ -14477,10 +14631,12 @@ By default, BED genomic regions input file column 5 is used as the score column 
     """
     regex motif enrichment statistics.
     
+    Format:
+    id2regex_stats_dic[internal_id] = [c_regex_hit_reg, c_regex_no_hit_reg, c_uniq_regex_hits, wc_pval, wc_rbc_es, wc_cl_es]
+
     """
 
     if id2regex_stats_dic:
-
 
         mdtext += """
 ## Regular expression region score motif enrichment statistics ### {#regex-enrich-stats}
@@ -14493,6 +14649,10 @@ In other words, a low test p-value for a given dataset indicates
 that %s-scoring regions are more likely to contain regex hits.
 **NOTE** that if scores associated to input genomic regions are all the same, p-values become meaningless 
 (i.e., they result in p-values of 1.0).
+For p-value interpretation, two test **effect sizes** are given (RBC ES: rank-biserial correlation effect size, CL ES: common language effect size).
+RBC ES: range -1 to +1, 0 -> no effect, +1 -> all scores in hit regions > non-hit regions. -1 -> all scores in hit regions < non-hit regions. 
+CL ES: range 0 to +1. Probability that a random score from hit region group exceeds one from non-hit region. 0.5 -> no effect, > 0.5 
+-> hit region scores tend to be higher, < 0.5 -> hit region scores tend to be lower.
 By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
 
 """ %(args.regex, wrs_mode_info1, wrs_mode_info2)
@@ -14500,7 +14660,7 @@ By default, BED genomic regions input file column 5 is used as the score column 
         # mdtext += '| Dataset ID  | # regions | # hit regions | % hit regions | # regex hits | p-value |' + " \n"
         # mdtext += '| :-: | :-: | :-: | :-: | :-: | :-: |' + " \n"
 
-        mdtext += '<table style="max-width: 1000px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += '<table style="max-width: 1100px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
         mdtext += "<thead>\n"
         mdtext += "<tr>\n"
         mdtext += "<th>Dataset ID</th>\n"
@@ -14508,6 +14668,8 @@ By default, BED genomic regions input file column 5 is used as the score column 
         mdtext += "<th># hit regions</th>\n"
         mdtext += "<th>% hit regions</th>\n"
         mdtext += "<th># regex hits</th>\n"
+        mdtext += "<th>RBC ES</th>\n"
+        mdtext += "<th>CL ES</th>\n"
         mdtext += "<th>p-value</th>\n"
         mdtext += "</tr>\n"
         mdtext += "</thead>\n"
@@ -14539,6 +14701,8 @@ By default, BED genomic regions input file column 5 is used as the score column 
             mdtext += "<td>%i</td>\n" %(c_regex_hit_reg)
             mdtext += "<td>%s</td>\n" %(perc_hit_reg)
             mdtext += "<td>%i</td>\n" %(c_uniq_regex_hits)
+            mdtext += "<td>%s</td>\n" %(str(id2regex_stats_dic[internal_id][4]))
+            mdtext += "<td>%s</td>\n" %(str(id2regex_stats_dic[internal_id][5]))
             mdtext += "<td>%s</td>\n" %(str(wc_pval))
             mdtext += "</tr>\n"
 
@@ -14552,6 +14716,8 @@ By default, BED genomic regions input file column 5 is used as the score column 
         mdtext += '**# hit regions** -> number of input genomic regions with regex hits (after filtering and optional extension), '
         mdtext += '**% hit regions** -> percentage of regex hit regions over all regions (i.e., how many input regions contain >= 1 regex motif hit), '
         mdtext += '**# regex hits** -> number of unique regex motif hits in input regions (removed double counts), '
+        mdtext += '**RBC ES** -> rank-biserial correlation effect size calculated from test statistic, '
+        mdtext += '**CL ES** -> common language effect size calculated from test statistic, '
         mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
         mdtext += "\n&nbsp;\n"
 
@@ -14603,10 +14769,10 @@ between regex and RBP motif(s) for each dataset.
             method_id = id2infos_dic[internal_id][2]
             database_id = id2infos_dic[internal_id][3]
 
-            avg_min_dist = id2regex_stats_dic[internal_id][4]
-            perc_close_hits = id2regex_stats_dic[internal_id][5]
-            cont_table = id2regex_stats_dic[internal_id][6]
-            fisher_pval = id2regex_stats_dic[internal_id][7]
+            avg_min_dist = id2regex_stats_dic[internal_id][6]
+            perc_close_hits = id2regex_stats_dic[internal_id][7]
+            cont_table = id2regex_stats_dic[internal_id][8]
+            fisher_pval = id2regex_stats_dic[internal_id][9]
 
             combined_id = rbp_id + "," + method_id + "," + data_id
             if add_motif_db_info:
@@ -18210,11 +18376,107 @@ def min_max_scale(values, new_min=0, new_max=1):
     return scaled_values
 
 
+################################################################################
+
+def top_similar_and_closest(feat_mat: np.ndarray,
+                            seqid2idx_dic: dict,
+                            highlight_id: str,
+                            x: int = 20,
+                            eps: float = 1e-12,
+                            block_size: int = 8192):
+    """
+    Compute cosine similarities + euclidean distances between highlight_id and all other sequences.
+    feat_mat format: [n_sequences, n_features]
+
+    Returns:
+      top_cos: list of (seq_id, cosine_similarity) sorted desc
+      top_euc: list of (seq_id, euclidean_distance) sorted asc
+    
+    """
+    assert highlight_id in seqid2idx_dic, f"highlight_id '{highlight_id}' not in seqid2idx_dic"
+
+    N, D = feat_mat.shape
+    hi = seqid2idx_dic[highlight_id]
+
+    # Make mapping idx -> seq_id.
+    idx2seqid = [None] * N
+    for sid, i in seqid2idx_dic.items():
+        idx2seqid[i] = sid
+
+    # Mask: keep rows with any non-zero and exclude the highlight row from "others".
+    # (use abs + eps to be safe for float32).
+    nonzero_mask = (np.abs(feat_mat) > eps).any(axis=1)
+    nonzero_mask[hi] = False
+    valid_idx = np.where(nonzero_mask)[0]
+    # If all other vectors only have zero values (or below eps), return empty lists.
+    if valid_idx.size == 0:  
+        return [], [], 1
+
+    # Deal with highlight vector.
+    q = feat_mat[hi].astype(np.float32, copy=False)
+    q_norm = float(np.linalg.norm(q))
+    if not np.isfinite(q_norm) or q_norm <= eps:
+        return [], [], 2
+
+    # Calculate cosine similarities highlight seq to others.
+    # Normalize valid rows (row-wise) and q, then dot.
+    # Do this in blocks to avoid allocating a full normalized copy if N is large.
+    qn = q / (q_norm + eps)
+
+    cos_scores = np.empty(valid_idx.shape[0], dtype=np.float32)
+
+    out_pos = 0
+    for start in range(0, valid_idx.shape[0], block_size):
+        block_rows = valid_idx[start:start + block_size]
+        X = feat_mat[block_rows]  # (b, D), view/copy depending on advanced indexing.
+
+        X_norm = np.linalg.norm(X, axis=1)
+        # Avoid divide-by-zero (shouldn't happen due to nonzero_mask, but still).
+        Xn = X / (X_norm[:, None] + eps)
+
+        cos_scores[out_pos:out_pos + len(block_rows)] = Xn @ qn
+        out_pos += len(block_rows)
+
+    # Top x others by cosine similarity (descending).
+    k = min(x, cos_scores.shape[0])
+    top_cos_idx_local = np.argpartition(-cos_scores, k - 1)[:k]
+    top_cos_idx_local = top_cos_idx_local[np.argsort(-cos_scores[top_cos_idx_local])]
+
+    top_cos = []
+    for loc in top_cos_idx_local:
+        row_i = int(valid_idx[loc])
+        top_cos.append((idx2seqid[row_i], float(cos_scores[loc])))
+
+    # Calculate euclidean distances highlight seq to others.
+    # Also do in blocks (computing full (N,D) difference stresses compute resources).
+    euc_dists = np.empty(valid_idx.shape[0], dtype=np.float32)
+
+    out_pos = 0
+    for start in range(0, valid_idx.shape[0], block_size):
+        block_rows = valid_idx[start:start + block_size]
+        X = feat_mat[block_rows]  # (b, D)
+
+        diff = X - q  # (b, D) temporary block.
+        euc_dists[out_pos:out_pos + len(block_rows)] = np.linalg.norm(diff, axis=1)
+        out_pos += len(block_rows)
+
+    # Top x others by euclidean distance (ascending).
+    k = min(x, euc_dists.shape[0])
+    top_euc_idx_local = np.argpartition(euc_dists, k - 1)[:k]
+    top_euc_idx_local = top_euc_idx_local[np.argsort(euc_dists[top_euc_idx_local])]
+
+    top_euc = []
+    for loc in top_euc_idx_local:
+        row_i = int(valid_idx[loc])
+        top_euc.append((idx2seqid[row_i], float(euc_dists[loc])))
+
+    return top_cos, top_euc, 0
 
 
 ################################################################################
 
-def create_pca_hit_prof_plot_plotly(seqid2feat_dic, plot_out,
+def create_pca_hit_prof_plot_plotly(seqid2feat_dic, seqid2idx_dic, 
+                                    motif_mat, plot_out,
                                     color_var="GC content",
                                     highlight_id=False,
                                     include_plotlyjs="cdn",
@@ -18229,24 +18491,29 @@ def create_pca_hit_prof_plot_plotly(seqid2feat_dic, plot_out,
     """
     assert seqid2feat_dic, "seqid2feat_dic is empty"
 
-    prof_ll = []
-    seq_ids_list = []
+    # prof_ll = []
+    # seq_ids_list = []
     seq_len_list = []
     hits_c_list = []
     seq_entr_list = []
     nt_perc_str_list = []
     gc_perc_list = []
 
-    for seq_id in seqid2feat_dic:
-        seq_feat = seqid2feat_dic[seq_id]
-        if seq_feat.c_hits == 0:
-            continue
+    # Mask with format np.array([True, False, True, .. ]) to mark non-zero motif hit count rows.
+    # True: hit count != 0
+    mask = (motif_mat != 0).any(axis=1)
+    # Indices where mask is True.
+    kept_idx = np.where(mask)[0]
+    # idx to seq_id mapping.
+    idx2seqid_dic = {v: k for k, v in seqid2idx_dic.items()}
+    # Sequence IDs list for kept indices.
+    seq_ids_list = [idx2seqid_dic[i] for i in kept_idx]
 
-        prof_ll.append(seq_feat.hit_profile)
-        seq_ids_list.append(seq_id)
+    for seq_id in seq_ids_list:
+        seq_feat = seqid2feat_dic[seq_id]
         seq_len_list.append(seq_feat.seq_len)
         hits_c_list.append(seq_feat.c_hits)
-        seq_entr_list.append(seq_feat.seq_entropy)
+        seq_entr_list.append(seq_feat.entropy)
         nt_perc_str_list.append(seq_feat.mono_nt_perc_str)
 
         gc_perc = seq_feat.gc_perc
@@ -18254,12 +18521,15 @@ def create_pca_hit_prof_plot_plotly(seqid2feat_dic, plot_out,
             gc_perc = round(gc_perc, 2)
         gc_perc_list.append(gc_perc)
 
+    # Apply mask for motif matrix to get only rows with >= 1 non-zero motif hit count / normalized count.
+    X = motif_mat[mask]
+
     if highlight_id:
         assert (
             highlight_id in seq_ids_list
         ), (
             'sequence ID "%s" to be highlighted is not in sequence IDs list '
-            "(either from the beginning or because there were no motif hits on the sequence"
+            "(either from the beginning or because there were no motif hits in the sequence"
             % (highlight_id)
         )
 
@@ -18275,7 +18545,7 @@ def create_pca_hit_prof_plot_plotly(seqid2feat_dic, plot_out,
 
     # PCA
     pca = PCA(n_components=3)
-    data_3d_pca = pca.fit_transform(prof_ll)
+    data_3d_pca = pca.fit_transform(X)
 
     df = pd.DataFrame(data_3d_pca, columns=["PC1", "PC2", "PC3"])
     df["Sequence ID"] = seq_ids_list
@@ -18289,7 +18559,6 @@ def create_pca_hit_prof_plot_plotly(seqid2feat_dic, plot_out,
 
     # Build figure.
     if highlight_id:
-        import numpy as np
 
         df_highlight = df[df["Sequence ID"] == highlight_id]
         df_rest = df[df["Sequence ID"] != highlight_id]
@@ -18446,8 +18715,6 @@ def create_pca_hit_prof_plot_plotly_old(seqid2feat_dic,
     """
     Create motif hit profiles PCA plot in 3D (Nature trail to hell ..).
     
-AAALAMO
-
     """
 
     assert seqid2feat_dic, "seqid2feat_dic is empty"
@@ -18526,8 +18793,7 @@ AAALAMO
             # hoverinfo='text'
             customdata=df_highlight[['Sequence length', 'Motif hit count', 'Sequence complexity', 'GC content', 'Mono-nucleotide percentages']].values,
             hovertext=df_highlight['Sequence ID']
-        )  # AALAMO
-
+        )
 
     else:
 
@@ -18545,7 +18811,6 @@ AAALAMO
             color_continuous_scale=color_scale,  # Remove to have one dot color only (set in update_traces).
             hover_data=hover_data
         )
-
 
     fig.update_scenes(aspectmode='cube')
 
@@ -18685,7 +18950,8 @@ def create_pca_kmer_prof_plot_plotly_old(seqid2feat_dic,
 
 ################################################################################
 
-def create_pca_kmer_prof_plot_plotly(seqid2feat_dic, plot_out,
+def create_pca_kmer_prof_plot_plotly(seqid2feat_dic, seqid2idx_dic,
+                                     kmer_mat, plot_out,
                                      color_var="GC content",
                                      highlight_id=False,
                                      include_plotlyjs="cdn",
@@ -18702,35 +18968,37 @@ def create_pca_kmer_prof_plot_plotly(seqid2feat_dic, plot_out,
 
     assert seqid2feat_dic, "seqid2feat_dic is empty"
 
-    prof_ll = []
-    seq_ids_list = []
+    # Mask with format np.array([True, False, True, .. ]) to mark non-zero k-mer hit percentage rows.
+    # True: hit count != 0
+    mask = (kmer_mat != 0).any(axis=1)
+    # Indices where mask is True.
+    kept_idx = np.where(mask)[0]
+    # idx to seq_id mapping.
+    idx2seqid_dic = {v: k for k, v in seqid2idx_dic.items()}
+    # Sequence IDs list for kept indices.
+    seq_ids_list = [idx2seqid_dic[i] for i in kept_idx]
+
     seq_len_list = []
     c_non_zero_k_list = []
     seq_entr_list = []
     nt_perc_str_list = []
     gc_perc_list = []
 
-    for seq_id in seqid2feat_dic:
+    for seq_id in seq_ids_list:
         seq_feat = seqid2feat_dic[seq_id]
-        if seq_feat.c_non_zero_k == 0:
-            continue
-
-        # This preserves original behavior (iterate dict order).
-        kmer_perc_l = []
-        for kmer in seq_feat.kmer_perc:
-            kmer_perc_l.append(seq_feat.kmer_perc[kmer])
-
-        prof_ll.append(kmer_perc_l)
-        seq_ids_list.append(seq_id)
         seq_len_list.append(seq_feat.seq_len)
         c_non_zero_k_list.append(seq_feat.c_non_zero_k)
-        seq_entr_list.append(seq_feat.seq_entropy)
+
+        seq_entr_list.append(seq_feat.entropy)
         nt_perc_str_list.append(seq_feat.mono_nt_perc_str)
 
         gc_perc = seq_feat.gc_perc
         if gc_perc > 0:
             gc_perc = round(gc_perc, 2)
         gc_perc_list.append(gc_perc)
+
+    # Apply mask for k-mer hit percentage matrix to get only rows with >= 1 non-zero percentage.
+    X = kmer_mat[mask]
 
     if highlight_id:
         assert highlight_id in seq_ids_list, (
@@ -18750,7 +19018,7 @@ def create_pca_kmer_prof_plot_plotly(seqid2feat_dic, plot_out,
     color_scale = ["#c6dbef", "#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#08519c", "#08306b"]
 
     pca = PCA(n_components=3)
-    data_3d_pca = pca.fit_transform(prof_ll)
+    data_3d_pca = pca.fit_transform(X)
 
     df = pd.DataFrame(data_3d_pca, columns=["PC1", "PC2", "PC3"])
     df["Sequence ID"] = seq_ids_list
@@ -18764,7 +19032,6 @@ def create_pca_kmer_prof_plot_plotly(seqid2feat_dic, plot_out,
 
     # Build figure.
     if highlight_id:
-        import numpy as np
 
         df_highlight = df[df["Sequence ID"] == highlight_id]
         df_rest = df[df["Sequence ID"] != highlight_id]
@@ -18903,7 +19170,8 @@ def create_pca_kmer_prof_plot_plotly(seqid2feat_dic, plot_out,
 ################################################################################
 
 def searchseq_generate_html_report(args, 
-                                   seqid2feat_dic,
+                                   seqid2feat_dic, seqid2idx_dic,
+                                   motif_mat, kmer_mat,
                                    benchlib_path,
                                    html_report_out="report.rbpbench_search.html",
                                    rbpbench_mode="searchseq",
@@ -18915,10 +19183,13 @@ def searchseq_generate_html_report(args,
 
     """
     Create HTML report for searchseq mode, including --profiles results.
-
+    
     """
 
-    assert seqid2feat_dic, "seqid2feat_dic empty"
+    assert seqid2feat_dic, "seqid2feat_dic is empty"
+    if args.profiles_seq_id:
+        assert args.profiles_seq_id in seqid2feat_dic, "sequence ID \"%s\" to be highlighted is not in seqid2feat_dic!" %(args.profiles_seq_id)
+        assert args.profiles_seq_id in seqid2idx_dic, "sequence ID \"%s\" to be highlighted is not in seqid2idx_dic!" %(args.profiles_seq_id)
 
     # Use absolute paths?
     out_folder = args.out_folder
@@ -18941,6 +19212,21 @@ def searchseq_generate_html_report(args,
     html_out = out_folder + "/" + "report.rbpbench_search.html"
     if html_report_out:
         html_out = html_report_out
+
+    """
+    Setup sorttable.js to make tables in HTML sortable.
+
+    """
+    sorttable_js_path = benchlib_path + "/content/sorttable.js"
+    assert os.path.exists(sorttable_js_path), "sorttable.js not at %s" %(sorttable_js_path)
+    sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    if args.sort_js_mode == 2:
+        shutil.copy(sorttable_js_path, plots_out_folder)
+        sorttable_js_path = plots_folder + "/sorttable.js"
+        sorttable_js_html = '<script src="' + sorttable_js_path + '" type="text/javascript"></script>'
+    elif args.sort_js_mode == 3:
+        js_code = read_file_content_into_str_var(sorttable_js_path)
+        sorttable_js_html = "<script>\n" + js_code + "\n</script>\n"
 
     """
     Setup plotly .js to support plotly plots.
@@ -19030,10 +19316,11 @@ def searchseq_generate_html_report(args,
 
     # HTML tail section.
     html_tail = """
+%s
 </body>
 
 </html>
-"""
+""" %(sorttable_js_html)
 
     # Markdown part.
     mdtext = """
@@ -19041,19 +19328,25 @@ def searchseq_generate_html_report(args,
 List of available statistics and plots generated
 by RBPBench (%s, rbpbench %s):
 
-- [Input sequence length and hit statistics](#seq-stats)
-- [Input sequence motif hit profiles plot](#hit-profiles-plot)
-- [Input sequence k-mer profiles plot](#kmer-profiles-plot)""" %(version_str, rbpbench_mode)
+- [Sequence length and hit statistics](#seq-stats)
+- [Sequence motif hit profiles plot](#hit-profiles-plot)""" %(version_str, rbpbench_mode)
 
     mdtext += "\n"
 
+    if args.profiles_seq_id:
+        mdtext += "- [Sequence motif hit profile similarity statistics](#motif-sim-stats)\n"
 
-    # AALAMO
+    mdtext += "- [Sequence k-mer profiles plot](#kmer-profiles-plot)\n"
+
+    if args.profiles_seq_id:
+        mdtext += "- [Sequence k-mer profile similarity statistics](#kmer-sim-stats)\n"
+
+    mdtext += "\n&nbsp;\n"
 
     c_input_seqs = len(seqid2feat_dic)
 
     mdtext += """
-## Input sequence length and hit statistics ### {#seq-stats}
+## Sequence length and hit statistics ### {#seq-stats}
 
 **Table:** Sequence length and motif hit statistics of input sequences (# sequences = %i). 
 Number of database RBPs (motifs) selected for search = %i (%i).
@@ -19111,15 +19404,6 @@ Sequence length statistics in nt.
     mdtext += "\n&nbsp;\n"
 
 
-    """
-    Sequence motif hit profiles plot.
-
-    AALAMO:
-    Create a plotly plot from test2.py / test.py for each profiles plot.
-    Filter out zero hit sequences in hits profile
-    
-    """
-
     mdtext += """
 ## Sequence motif hit profiles plot ### {#hit-profiles-plot}
 
@@ -19150,19 +19434,11 @@ Sequence length statistics in nt.
         hit_prof_plot_plotly =  "motif_hit_profiles.plotly.html"
         hit_prof_plot_plotly_out = plots_out_folder + "/" + hit_prof_plot_plotly
 
-        create_pca_hit_prof_plot_plotly(seqid2feat_dic, 
+        create_pca_hit_prof_plot_plotly(seqid2feat_dic, seqid2idx_dic, motif_mat,
                                         hit_prof_plot_plotly_out,
                                         highlight_id=args.profiles_seq_id,
                                         include_plotlyjs=include_plotlyjs,
                                         full_html=plotly_full_html)
-
-        # create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
-        #                                 occ_comp_plot_plotly_out,
-        #                                 sparse_pca=False,
-        #                                 id2hk_gene_stats_dic=id2hk_gene_stats_dic,
-        #                                 add_motif_db_info=add_motif_db_info,
-        #                                 include_plotlyjs=include_plotlyjs,
-        #                                 full_html=plotly_full_html)
 
         plot_path = plots_folder + "/" + hit_prof_plot_plotly
 
@@ -19204,6 +19480,133 @@ No motif hit profiles plot generated since < 4 input sequences have motif hits.
 
 """
 
+    if args.profiles_seq_id:
+
+        mdtext += """
+## Sequence motif hit profile similarity statistics ### {#motif-sim-stats}
+
+"""
+        top_cos, top_euc, failed = top_similar_and_closest(
+                                            feat_mat=motif_mat,
+                                            seqid2idx_dic=seqid2idx_dic,
+                                            highlight_id=args.profiles_seq_id,
+                                            x=args.profiles_top_n)
+
+        # If successful (i.e. at least one non-zero vector combination found).
+        if not failed:
+
+            mdtext += """
+**Table:** List of sequences (top %i) most similar to set sequence \"%s\" (via --profiles-seq-id) based on their motif hit profiles.
+*Cosine similarity* of motif hit vectors is used as similarity measure. Note that sequences with no hits cannot appear in this list.
+""" %(args.profiles_top_n, args.profiles_seq_id)
+
+            # Top cosine similarities list.
+            mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+            mdtext += "<thead>\n"
+            mdtext += "<tr>\n"
+            mdtext += "<th>Sequence ID</th>\n"
+            mdtext += "<th>Cosine Sim</th>\n"
+            mdtext += "<th># motif hits</th>\n"
+            mdtext += "<th>Length</th>\n"
+            mdtext += "<th>GC %</th>\n"
+            mdtext += "<th>Entropy</th>\n"
+            mdtext += "<th>A %</th>\n"
+            mdtext += "<th>C %</th>\n"
+            mdtext += "<th>G %</th>\n"
+            mdtext += "<th>T %</th>\n"
+            mdtext += "</tr>\n"
+            mdtext += "</thead>\n"
+            mdtext += "<tbody>\n"
+
+            for seq_id, sim in top_cos:
+            
+                mdtext += "<tr>\n"
+                mdtext += "<td>%s</td>\n" % seq_id
+                mdtext += "<td>%.4f</td>\n" % sim
+                mdtext += "<td>%i</td>\n" % seqid2feat_dic[seq_id].c_hits
+                mdtext += "<td>%i</td>\n" % seqid2feat_dic[seq_id].seq_len
+                mdtext += "<td>%.2f</td>\n" % seqid2feat_dic[seq_id].gc_perc
+                mdtext += "<td>%.4f</td>\n" % seqid2feat_dic[seq_id].entropy
+                mdtext += "<td>%.2f</td>\n" % seqid2feat_dic[seq_id].a_perc
+                mdtext += "<td>%.2f</td>\n" % seqid2feat_dic[seq_id].c_perc
+                mdtext += "<td>%.2f</td>\n" % seqid2feat_dic[seq_id].g_perc
+                mdtext += "<td>%.2f</td>\n" % seqid2feat_dic[seq_id].t_perc
+                mdtext += "</tr>\n"
+
+            mdtext += "</tbody>\n"
+            mdtext += "</table>\n"
+            mdtext += "\n&nbsp;\n"
+
+
+            mdtext += """
+**Table:** List of sequences (top %i) closest to set sequence \"%s\" (via --profiles-seq-id) based on their motif hit profiles.
+*Euclidean distance* of motif hit vectors is used as distance measure. Note that sequences with no hits cannot appear in this list.
+""" %(args.profiles_top_n, args.profiles_seq_id)
+            
+            # Top euclidean distances list.
+            mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+            mdtext += "<thead>\n"
+            mdtext += "<tr>\n"
+            mdtext += "<th>Sequence ID</th>\n"
+            mdtext += "<th>Euclidean Dist</th>\n"
+            mdtext += "<th># motif hits</th>\n"
+            mdtext += "<th>Length</th>\n"
+            mdtext += "<th>GC %</th>\n"
+            mdtext += "<th>Entropy</th>\n"
+            mdtext += "<th>A %</th>\n"
+            mdtext += "<th>C %</th>\n"
+            mdtext += "<th>G %</th>\n"
+            mdtext += "<th>T %</th>\n"
+            mdtext += "</tr>\n"
+            mdtext += "</thead>\n"
+            mdtext += "<tbody>\n"
+
+            for seq_id, dist in top_euc:
+
+                mdtext += "<tr>\n"
+                mdtext += "<td>%s</td>\n" % seq_id
+                mdtext += "<td>%.4f</td>\n" % dist
+                mdtext += "<td>%i</td>\n" % seqid2feat_dic[seq_id].c_hits
+                mdtext += "<td>%i</td>\n" % seqid2feat_dic[seq_id].seq_len
+                mdtext += "<td>%.2f</td>\n" % seqid2feat_dic[seq_id].gc_perc
+                mdtext += "<td>%.4f</td>\n" % seqid2feat_dic[seq_id].entropy
+                mdtext += "<td>%.2f</td>\n" % seqid2feat_dic[seq_id].a_perc
+                mdtext += "<td>%.2f</td>\n" % seqid2feat_dic[seq_id].c_perc
+                mdtext += "<td>%.2f</td>\n" % seqid2feat_dic[seq_id].g_perc
+                mdtext += "<td>%.2f</td>\n" % seqid2feat_dic[seq_id].t_perc
+                mdtext += "</tr>\n"
+            
+            mdtext += "</tbody>\n"
+            mdtext += "</table>\n"
+            mdtext += "\n&nbsp;\n"
+
+        else:
+            if failed == 1:
+                mdtext += """
+No top similar/closest sequences to highlighted sequence \"%s\" computed since all other sequences have zero motif hits.
+
+&nbsp;
+
+""" %(args.profiles_seq_id)
+
+            elif failed == 2:
+                mdtext += """
+No top similar/closest sequences to highlighted sequence \"%s\" computed since highlighted sequence has zero motif hits.
+
+&nbsp;
+
+""" %(args.profiles_seq_id)
+
+            else:
+                assert False, "invalid failed reason given"
+
+
+
+    mdtext += """
+## Sequence k-mer profiles plot ### {#kmer-profiles-plot}
+
+"""
+
     if c_seqs_non_zero_k > 3:
 
         """
@@ -19214,7 +19617,7 @@ No motif hit profiles plot generated since < 4 input sequences have motif hits.
         kmer_prof_plot_plotly =  "kmer_hit_profiles.plotly.html"
         kmer_prof_plot_plotly_out = plots_out_folder + "/" + kmer_prof_plot_plotly
 
-        create_pca_kmer_prof_plot_plotly(seqid2feat_dic, 
+        create_pca_kmer_prof_plot_plotly(seqid2feat_dic, seqid2idx_dic, kmer_mat,
                                          kmer_prof_plot_plotly_out,
                                          highlight_id=args.profiles_seq_id,
                                          include_plotlyjs=include_plotlyjs,
@@ -19238,16 +19641,18 @@ No motif hit profiles plot generated since < 4 input sequences have motif hits.
             elif plotly_embed_style == 2:
                 mdtext += '<object data="' + plot_path + '" width="1200" height="1000"> </object>' + "\n"
 
+        nr_kmers = 4 ** args.profiles_k
+
         mdtext += """
 
-**Figure:** Comparison of input sequences, using their k-mer hit profiles (3-dimensional PCA, k = %i) as features, 
+**Figure:** Comparison of input sequences, using their k-mer hit profiles (3-dimensional PCA, k = %i -> # of k-mers = %i) as features, 
 to show similarities of input sequences based on type and amount of occurring k-mers (points close to each other have similar k-mer profiles).
 Note that only sequences with valid k-mers are included in the plot (# of sequences with profiles: %i).
 %s
 
 &nbsp;
 
-""" %(args.profiles_k, c_seqs_non_zero_k, profiles_seq_id_info)
+""" %(args.profiles_k, nr_kmers, c_seqs_non_zero_k, profiles_seq_id_info)
 
     else:
         mdtext += """
@@ -19258,11 +19663,126 @@ No k-mer hit profiles plot generated since < 4 input sequences have non-zero k-m
 
 """
 
+    if args.profiles_seq_id:
 
-    # AALAMO
+        mdtext += """
+## Sequence k-mer profile similarity statistics ### {#kmer-sim-stats}
+
+"""
+
+        top_cos, top_euc, failed = top_similar_and_closest(
+                                            feat_mat=kmer_mat,
+                                            seqid2idx_dic=seqid2idx_dic,
+                                            highlight_id=args.profiles_seq_id,
+                                            x=args.profiles_top_n)
+
+        # If successful (i.e. at least one non-zero vector combination found).
+        if not failed:
+
+            mdtext += """
+**Table:** List of sequences (top %i) most similar to set sequence \"%s\" (via --profiles-seq-id) based on their k-mer (k = %i) percentage profiles.
+*Cosine similarity* of k-mer percentage vectors is used as similarity measure. Note that sequences without valid k-mers cannot appear in this list.
+""" %(args.profiles_top_n, args.profiles_seq_id, args.profiles_k)
+
+            # Top cosine similarities list.
+            mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+            mdtext += "<thead>\n"
+            mdtext += "<tr>\n"
+            mdtext += "<th>Sequence ID</th>\n"
+            mdtext += "<th>Cosine Sim</th>\n"
+            mdtext += "<th># non-zero k-mers</th>\n"
+            mdtext += "<th>Length</th>\n"
+            mdtext += "<th>GC %</th>\n"
+            mdtext += "<th>Entropy</th>\n"
+            mdtext += "<th>A %</th>\n"
+            mdtext += "<th>C %</th>\n"
+            mdtext += "<th>G %</th>\n"
+            mdtext += "<th>T %</th>\n"
+            mdtext += "</tr>\n"
+            mdtext += "</thead>\n"
+            mdtext += "<tbody>\n"
+
+            for seq_id, sim in top_cos:
+            
+                mdtext += "<tr>\n"
+                mdtext += "<td>%s</td>\n" % seq_id
+                mdtext += "<td>%.4f</td>\n" % sim
+                mdtext += "<td>%i</td>\n" % seqid2feat_dic[seq_id].c_non_zero_k
+                mdtext += "<td>%i</td>\n" % seqid2feat_dic[seq_id].seq_len
+                mdtext += "<td>%.2f</td>\n" % seqid2feat_dic[seq_id].gc_perc
+                mdtext += "<td>%.4f</td>\n" % seqid2feat_dic[seq_id].entropy
+                mdtext += "<td>%.2f</td>\n" % seqid2feat_dic[seq_id].a_perc
+                mdtext += "<td>%.2f</td>\n" % seqid2feat_dic[seq_id].c_perc
+                mdtext += "<td>%.2f</td>\n" % seqid2feat_dic[seq_id].g_perc
+                mdtext += "<td>%.2f</td>\n" % seqid2feat_dic[seq_id].t_perc
+                mdtext += "</tr>\n"
+
+            mdtext += "</tbody>\n"
+            mdtext += "</table>\n"
+            mdtext += "\n&nbsp;\n"
 
 
+            mdtext += """
+**Table:** List of sequences (top %i) closest to set sequence \"%s\" (via --profiles-seq-id) based on their k-mer (k = %i) percentage profiles.
+*Euclidean distance* of k-mer percentage vectors is used as distance measure. Note that sequences without valid k-mers cannot appear in this list.
+""" %(args.profiles_top_n, args.profiles_seq_id, args.profiles_k)
+            
+            # Top euclidean distances list.
+            mdtext += '<table style="max-width: 1200px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+            mdtext += "<thead>\n"
+            mdtext += "<tr>\n"
+            mdtext += "<th>Sequence ID</th>\n"
+            mdtext += "<th>Euclidean Dist</th>\n"
+            mdtext += "<th># non-zero k-mers</th>\n"
+            mdtext += "<th>Length</th>\n"
+            mdtext += "<th>GC %</th>\n"
+            mdtext += "<th>Entropy</th>\n"
+            mdtext += "<th>A %</th>\n"
+            mdtext += "<th>C %</th>\n"
+            mdtext += "<th>G %</th>\n"
+            mdtext += "<th>T %</th>\n"
+            mdtext += "</tr>\n"
+            mdtext += "</thead>\n"
+            mdtext += "<tbody>\n"
 
+            for seq_id, dist in top_euc:
+
+                mdtext += "<tr>\n"
+                mdtext += "<td>%s</td>\n" % seq_id
+                mdtext += "<td>%.4f</td>\n" % dist
+                mdtext += "<td>%i</td>\n" % seqid2feat_dic[seq_id].c_non_zero_k
+                mdtext += "<td>%i</td>\n" % seqid2feat_dic[seq_id].seq_len
+                mdtext += "<td>%.2f</td>\n" % seqid2feat_dic[seq_id].gc_perc
+                mdtext += "<td>%.4f</td>\n" % seqid2feat_dic[seq_id].entropy
+                mdtext += "<td>%.2f</td>\n" % seqid2feat_dic[seq_id].a_perc
+                mdtext += "<td>%.2f</td>\n" % seqid2feat_dic[seq_id].c_perc
+                mdtext += "<td>%.2f</td>\n" % seqid2feat_dic[seq_id].g_perc
+                mdtext += "<td>%.2f</td>\n" % seqid2feat_dic[seq_id].t_perc
+                mdtext += "</tr>\n"
+            
+            mdtext += "</tbody>\n"
+            mdtext += "</table>\n"
+            mdtext += "\n&nbsp;\n"
+
+        else:
+            if failed == 1:
+                mdtext += """
+No top similar/closest sequences to highlighted sequence \"%s\" computed since all other sequences have zero valid k-mers.
+
+&nbsp;
+
+""" %(args.profiles_seq_id)
+
+            elif failed == 2:
+                mdtext += """
+No top similar/closest sequences to highlighted sequence \"%s\" computed since highlighted sequence has zero valid k-mers.
+
+&nbsp;
+
+""" %(args.profiles_seq_id)
+
+            else:
+                assert False, "invalid failed reason given"
 
 
     # Convert mdtext to html.
@@ -19609,6 +20129,10 @@ that %s-scoring regions are more likely to contain motif hits of the respective 
 **NOTE** that if scores associated with input genomic regions are all the same, p-values become meaningless 
 (i.e., they result in p-values of 1.0).
 Likewise, the p-value becomes non-informative if most or all input regions have RBP motif hits (i.e., very high hit region percentages).
+For p-value interpretation, two test **effect sizes** are given (RBC ES: rank-biserial correlation effect size, CL ES: common language effect size).
+RBC ES: range -1 to +1, 0 -> no effect, +1 -> all scores in hit regions > non-hit regions. -1 -> all scores in hit regions < non-hit regions. 
+CL ES: range 0 to +1. Probability that a random score from hit region group exceeds one from non-hit region. 0.5 -> no effect, > 0.5 
+-> hit region scores tend to be higher, < 0.5 -> hit region scores tend to be lower.
 By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
 %s
 
@@ -19636,29 +20160,35 @@ By default, BED genomic regions input file column 5 is used as the score column 
         # mdtext += '| RBP ID | # hit regions | % hit regions | # motif hits | p-value |' + " \n"
         # mdtext += "| :-: | :-: | :-: | :-: | :-: |\n"
 
-        mdtext += '<table style="max-width: 800px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
+        mdtext += '<table style="max-width: 900px; width: 100%; border-collapse: collapse; line-height: 0.8;">' + "\n"
         mdtext += "<thead>\n"
         mdtext += "<tr>\n"
         mdtext += "<th>RBP ID</th>\n"
         mdtext += "<th># hit regions</th>\n"
         mdtext += "<th>% hit regions</th>\n"
         mdtext += "<th># motif hits</th>\n"
+        mdtext += "<th>RBC ES</th>\n"
+        mdtext += "<th>CL ES</th>\n"
         mdtext += "<th>p-value</th>\n"
         mdtext += "</tr>\n"
         mdtext += "</thead>\n"
         mdtext += "<tbody>\n"
 
         for rbp_id, wc_pval in sorted(pval_dic.items(), key=lambda item: item[1], reverse=False):
-            wc_pval_str = convert_sci_not_to_decimal(wc_pval)  # Convert scientific notation to decimal string for sorting to work.
+            # wc_pval_str = convert_sci_not_to_decimal(wc_pval)  # Convert scientific notation to decimal string for sorting to work.
             c_hit_reg = search_rbps_dic[rbp_id].c_hit_reg
             perc_hit_reg = search_rbps_dic[rbp_id].perc_hit_reg
             c_uniq_motif_hits = search_rbps_dic[rbp_id].c_uniq_motif_hits
+            wc_rbc_es = search_rbps_dic[rbp_id].wc_rbc_es
+            wc_cl_es = search_rbps_dic[rbp_id].wc_cl_es
             # mdtext += "| %s | %i | %.2f | %i | %s |\n" %(rbp_id, c_hit_reg, perc_hit_reg, c_uniq_motif_hits, wc_pval)
             mdtext += '<tr>' + "\n"
             mdtext += "<td>" + rbp_id + "</td>\n"
             mdtext += "<td>" + str(c_hit_reg) + "</td>\n"
             mdtext += "<td>%.2f" %(perc_hit_reg) + "</td>\n"
             mdtext += "<td>" + str(c_uniq_motif_hits) + "</td>\n"
+            mdtext += "<td>" + str(wc_rbc_es) + "</td>\n"
+            mdtext += "<td>" + str(wc_cl_es) + "</td>\n"
             mdtext += "<td>" + str(wc_pval) + "</td>\n"
             mdtext += '</tr>' + "\n"
 
@@ -19671,6 +20201,8 @@ By default, BED genomic regions input file column 5 is used as the score column 
         mdtext += '**# hit regions** -> number of input genomic regions with motif hits (after filtering and optional extension), '
         mdtext += '**% hit regions** -> percentage of hit regions over all regions (i.e., how many input regions contain >= 1 RBP binding motif), '
         mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
+        mdtext += '**RBC ES** -> rank-biserial correlation effect size calculated from test statistic, '
+        mdtext += '**CL ES** -> common language effect size calculated from test statistic, '
         mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
         mdtext += "\n&nbsp;\n"
 

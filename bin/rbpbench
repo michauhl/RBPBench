@@ -1425,7 +1425,13 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Specify sequence ID to highlight in profile PCA plots (default: False, i.e., no sequence ID is highlighted)")
+                   help = "Specify sequence ID to highlight in profile PCA plots and calculate other sequence similarities for (default: False, i.e., no sequence ID is highlighted)")
+    p_ss.add_argument("--profiles-top-n",
+                   dest="profiles_top_n",
+                   type=int,
+                   metavar='int',
+                   default=20,
+                   help="Set top n similar sequences (similar to --profiles-seq-id sequence, using cosine similarity and euclidean distance) to be reported in HTML report (--profiles-seq-id needs to be set) (default: 20)")
     p_ss.add_argument("--plot-motifs",
                    dest="plot_motifs",
                    default = False,
@@ -5450,6 +5456,9 @@ def main_search(args):
         print("WARNING: all site scores identical. Reported p-values meaningless! (i.e., equal 1.0)")
 
     wc_pval_dic = {}
+    wc_rbc_es_dic = {}
+    wc_cl_es_dic = {}
+
     for rbp_id in regions_with_motifs_dic:
         hit_reg_scores = []
         non_hit_reg_scores = []
@@ -5498,31 +5507,51 @@ def main_search(args):
             wc_stat, wc_pval = mannwhitneyu(hit_reg_scores, non_hit_reg_scores, alternative=wrs_alt_hypo)
             # wc_stat_less, wc_pval_less = mannwhitneyu(hit_reg_scores, non_hit_reg_scores, alternative="less")
 
-            # Round p-values to 4 significant digits.
+            rbc_eff_size, cl_eff_size = benchlib.get_eff_sizes(hit_reg_scores, non_hit_reg_scores, wc_stat,
+                                                               round=True, round_n=4)
+
+            # rbc_eff_size = benchlib.calc_rbc_effect_size(c_hit_reg, c_non_hit_reg, wc_stat)
+            # cl_eff_size = benchlib.calc_cl_effect_size(c_hit_reg, c_non_hit_reg, wc_stat)
+
+            # print("n1:", len(hit_reg_scores))
+            # print("n2:", len(non_hit_reg_scores))
+            # print("wc_stat:", wc_stat)
+            # print("wc_pval:", wc_pval)
+            # print("rbc_eff_size:", rbc_eff_size)
+
+            # Round p-values and effect size.
             wc_pval = benchlib.round_to_n_significant_digits_v2(wc_pval, 4)
+            # rbc_eff_size = benchlib.round_to_n_significant_digits_v2(rbc_eff_size, 4)
+            # cl_eff_size = benchlib.round_to_n_significant_digits_v2(cl_eff_size, 4)
 
             #print("hit_reg_scores:", hit_reg_scores)
             #print("non_hit_reg_scores:", non_hit_reg_scores)
             # search_rbps_dic[rbp_id].ks_pval = ks_pval
             search_rbps_dic[rbp_id].wc_pval = wc_pval
+            search_rbps_dic[rbp_id].wc_rbc_es = rbc_eff_size
+            search_rbps_dic[rbp_id].wc_cl_es = cl_eff_size
             # search_rbps_dic[rbp_id].wc_pval_less = wc_pval_less
             wc_pval_dic[rbp_id] = wc_pval
-
+            wc_rbc_es_dic[rbp_id] = rbc_eff_size
+            wc_cl_es_dic[rbp_id] = cl_eff_size
+            
         # print("KS p-value (%s):" %(rbp_id), p_value)
 
 
     # Print out RBPs sorted by Wilcoxon p-value.
     sorted_wc_pval_dic = dict(sorted(wc_pval_dic.items(), key=lambda item: item[1], reverse=False))
-    print("Compact hit stats (RBP ID, # unique hits, Wilcoxon p-value):")
+    print("Compact hit stats (RBP ID, # unique hits, Wilcoxon p-value, eff sizes (RBC, CL)):")
     for rbp_id, p_value in sorted_wc_pval_dic.items():
         # print("KS p-value (%s):" %(rbp_id), p_value)
         # print(rbp_id, ":", p_value)
         c_hits = search_rbps_dic[rbp_id].c_uniq_motif_hits
+        rbc_eff_size = wc_rbc_es_dic[rbp_id]
+        cl_eff_size = wc_cl_es_dic[rbp_id]
         # ks_pval = search_rbps_dic[rbp_id].ks_pval
         # wc_pval_less = search_rbps_dic[rbp_id].wc_pval_less
         # print("RBP:", rbp_id, "# hits:", c_uniq_motif_hits, "KS p-value:", p_value)
         # print("%s\t%i\t%s\t%s" %(rbp_id, c_hits, str(p_value), str(wc_pval_less)))
-        print("%s\t%i\t%s" %(rbp_id, c_hits, str(p_value)))
+        print("%s\t%i\t%s (%s, %s)" %(rbp_id, c_hits, str(p_value), str(rbc_eff_size), str(cl_eff_size)))
     print("")
     """
     Output RBP hit stats (ie one row per RBP).
@@ -5555,7 +5584,7 @@ def main_search(args):
     rbp_stats_header = "data_id\tmethod_id\trun_id\tmotif_db\trbp_id\tc_regions\tmean_reg_len\tmedian_reg_len\tmin_reg_len\tmax_reg_len\t"
     rbp_stats_header += "called_reg_size\teffective_reg_size\tc_reg_with_hits\tperc_reg_with_hits\t"
     rbp_stats_header += "c_motif_hits\tc_uniq_motif_hits\tc_uniq_motif_nts\tperc_uniq_motif_nts_cal_reg\tperc_uniq_motif_nts_eff_reg\tuniq_motif_hits_cal_1000nt\t"
-    rbp_stats_header += "uniq_motif_hits_eff_1000nt\twc_pval\tseq_motif_ids\tseq_motif_hits\tstr_motif_ids\tstr_motif_hits\tinternal_id\n"
+    rbp_stats_header += "uniq_motif_hits_eff_1000nt\twc_pval\twc_rbc_eff_size\twc_cl_eff_size\tseq_motif_ids\tseq_motif_hits\tstr_motif_ids\tstr_motif_hits\tinternal_id\n"
     OUTSTATS.write(rbp_stats_header)
 
     for rbp_id in search_rbps_dic:
@@ -5575,6 +5604,8 @@ def main_search(args):
         uniq_motif_hits_cal_1000nt = search_rbps_dic[rbp_id].uniq_motif_hits_cal_1000nt
         uniq_motif_hits_eff_1000nt = search_rbps_dic[rbp_id].uniq_motif_hits_eff_1000nt
         wc_pval = search_rbps_dic[rbp_id].wc_pval
+        wc_rbc_es = search_rbps_dic[rbp_id].wc_rbc_es
+        wc_cl_es = search_rbps_dic[rbp_id].wc_cl_es
         internal_id = search_rbps_dic[rbp_id].internal_id
 
         seq_motif_hits = ",".join(str(hc) for hc in search_rbps_dic[rbp_id].seq_motif_hits)
@@ -5617,6 +5648,8 @@ def main_search(args):
         row_str += str(uniq_motif_hits_cal_1000nt) + "\t"
         row_str += str(uniq_motif_hits_eff_1000nt) + "\t"
         row_str += str(wc_pval) + "\t"
+        row_str += str(wc_rbc_es) + "\t"
+        row_str += str(wc_cl_es) + "\t"
         row_str += seq_motif_ids + "\t"
         row_str += seq_motif_hits + "\t"
         row_str += str_motif_ids + "\t"
@@ -7985,7 +8018,7 @@ def main_batch(args):
     rbp_stats_header = "data_id\tmethod_id\trun_id\tmotif_db\trbp_id\tc_regions\tmean_reg_len\tmedian_reg_len\tmin_reg_len\tmax_reg_len\t"
     rbp_stats_header += "called_reg_size\teffective_reg_size\tc_reg_with_hits\tperc_reg_with_hits\t"
     rbp_stats_header += "c_motif_hits\tc_uniq_motif_hits\tc_uniq_motif_nts\tperc_uniq_motif_nts_cal_reg\tperc_uniq_motif_nts_eff_reg\tuniq_motif_hits_cal_1000nt\t"
-    rbp_stats_header += "uniq_motif_hits_eff_1000nt\twc_pval\tseq_motif_ids\tseq_motif_hits\tstr_motif_ids\tstr_motif_hits\tinternal_id\n"
+    rbp_stats_header += "uniq_motif_hits_eff_1000nt\twc_pval\twc_rbc_eff_size\twc_cl_eff_size\tseq_motif_ids\tseq_motif_hits\tstr_motif_ids\tstr_motif_hits\tinternal_id\n"
     OUTRBPSTATS.write(rbp_stats_header)
 
     # Motif batch stats file.
@@ -8049,7 +8082,7 @@ def main_batch(args):
     id2hit_reg_annot_dic = {}  # Store internal ID to region annotation dictionary (only sites with hits).
     id2infos_dic = {}  # Store internal ID to list containing RBP ID, data ID, method ID, database ID, BED file path.
     id2motif_enrich_stats_dic = {}  # Store internal ID to RBP motif enrichment stats dictionary.
-    id2wc_pval_dic = {}  # Store internal ID to Wilcoxon rank-sum test p-value.
+    id2wc_pval_dic = {}  # Store internal ID to Wilcoxon rank-sum test p-value and effect sizes.
     id2regex_stats_dic = {}  # Store internal ID to regex stats dictionary.
     # id2kmer_dic = {}  # Store internal ID to k-mer dictionary.
     c_all_hits = 0  # Sum up hits for all RBPs.
@@ -8600,6 +8633,8 @@ def main_batch(args):
                     non_hit_reg_scores.append(reg_sc)
 
         wc_pval = 1.0
+        wc_rbc_es = 0.0
+        wc_cl_es = 0.0
         # In case no regions without motif hits.
         if not non_hit_reg_scores:
             print("WARNING: all input regions contain motifs. Adding dummy scores (median) ... ")
@@ -8612,14 +8647,21 @@ def main_batch(args):
 
         if unique_motifs_dic:
             wc_stat, wc_pval = mannwhitneyu(hit_reg_scores, non_hit_reg_scores, alternative=wrs_alt_hypo)
+
             wc_pval = benchlib.round_to_n_significant_digits_v2(wc_pval, 4)
             rbp.wc_pval = wc_pval
+            # Get effect sizes.
+            wc_rbc_es, wc_cl_es = benchlib.get_eff_sizes(hit_reg_scores, non_hit_reg_scores, wc_stat,
+                                                         round=True, round_n=4)
 
-        print("Compact hit stats (RBP ID, # unique hits, Wilcoxon p-value):")
-        print("%s\t%i\t%s" %(rbp_id, rbp.c_uniq_motif_hits, str(wc_pval)))
+            rbp.wc_rbc_es = wc_rbc_es
+            rbp.wc_cl_es = wc_cl_es
 
-        # Store RBP Wilcoxon rank-sum test p-value.
-        id2wc_pval_dic[internal_id] = str(wc_pval)
+        print("Compact hit stats (RBP ID, # unique hits, Wilcoxon p-value, effect sizes (RBC, CL)):")
+        print("%s\t%i\t%s (%s, %s)" %(rbp_id, rbp.c_uniq_motif_hits, str(wc_pval), str(wc_rbc_es), str(wc_cl_es)))
+
+        # Store RBP Wilcoxon rank-sum test p-value + effect sizes.
+        id2wc_pval_dic[internal_id] = [str(wc_pval), str(wc_rbc_es), str(wc_cl_es)]
 
         """
         Motif enrichment test for regex motifs.
@@ -8653,6 +8695,8 @@ def main_batch(args):
                         non_hit_reg_scores.append(reg_sc)
 
             wc_pval = 1.0
+            wc_rbc_es = 0.0
+            wc_cl_es = 0.0
             # In case no regions without motif hits.
             if not non_hit_reg_scores:
                 print("WARNING: all input regions contain motifs. Adding dummy scores (median) ... ")
@@ -8668,14 +8712,17 @@ def main_batch(args):
             if unique_regex_dic:
                 wc_stat, wc_pval = mannwhitneyu(hit_reg_scores, non_hit_reg_scores, alternative=wrs_alt_hypo)
                 wc_pval = benchlib.round_to_n_significant_digits_v2(wc_pval, 4)
+                # Get effect sizes.
+                wc_rbc_es, wc_cl_es = benchlib.get_eff_sizes(hit_reg_scores, non_hit_reg_scores, wc_stat,
+                                                             round=True, round_n=4)
 
-            print("Compact hit stats (RBP ID, # unique hits, Wilcoxon p-value):")
-            print("regex\t%i\t%s" %(c_uniq_regex_hits, str(wc_pval)))
+            print("Compact hit stats (RBP ID, # unique hits, Wilcoxon p-value, effect sizes (RBC, CL)):")
+            print("regex\t%i\t%s (%s, %s)" %(c_uniq_regex_hits, str(wc_pval), str(wc_rbc_es), str(wc_cl_es)))
 
             c_regex_hit_reg = len(hit_reg_scores)
             c_regex_no_hit_reg = len(non_hit_reg_scores)
 
-            id2regex_stats_dic[internal_id] = [c_regex_hit_reg, c_regex_no_hit_reg, c_uniq_regex_hits, wc_pval]
+            id2regex_stats_dic[internal_id] = [c_regex_hit_reg, c_regex_no_hit_reg, c_uniq_regex_hits, wc_pval, wc_rbc_es, wc_cl_es]
 
             # Calculate Fisher exact test for regex vs RBP hits.
             print("Calculate Fisher exact test statistics for --regex ... ")
@@ -8708,6 +8755,8 @@ def main_batch(args):
         uniq_motif_hits_cal_1000nt = rbp.uniq_motif_hits_cal_1000nt
         uniq_motif_hits_eff_1000nt = rbp.uniq_motif_hits_eff_1000nt
         wc_pval = rbp.wc_pval
+        wc_rbc_es = rbp.wc_rbc_es
+        wc_cl_es = rbp.wc_cl_es
 
         seq_motif_hits = ",".join(str(hc) for hc in rbp.seq_motif_hits)
         str_motif_hits = ",".join(str(hc) for hc in rbp.str_motif_hits)
@@ -8749,6 +8798,8 @@ def main_batch(args):
         row_str += str(uniq_motif_hits_cal_1000nt) + "\t"
         row_str += str(uniq_motif_hits_eff_1000nt) + "\t"
         row_str += str(wc_pval) + "\t"
+        row_str += str(wc_rbc_es) + "\t"
+        row_str += str(wc_cl_es) + "\t"
         row_str += seq_motif_ids + "\t"
         row_str += seq_motif_hits + "\t"
         row_str += str_motif_ids + "\t"
@@ -8758,7 +8809,7 @@ def main_batch(args):
         OUTRBPSTATS.write(row_str)
 
         # For motif enrichment stats table in HTML report.
-        id2motif_enrich_stats_dic[internal_id] = [c_reg_with_hits, perc_reg_with_hits, c_uniq_motif_hits, wc_pval]
+        id2motif_enrich_stats_dic[internal_id] = [c_reg_with_hits, perc_reg_with_hits, c_uniq_motif_hits, wc_pval, wc_rbc_es, wc_cl_es]
 
         """
         Output motif region stats (one row per motif hit).
@@ -9634,7 +9685,7 @@ def main_batch(args):
 
         # Write header.
         header_annot_str = "\t".join(annot_list)
-        OUTRBP.write("rbp_id\tmethod_id\tdata_id\tc_hit_regions\tc_all_regions\tperc_hit_reg\twc_pval\t%s\tinternal_id\n" %(header_annot_str))
+        OUTRBP.write("rbp_id\tmethod_id\tdata_id\tc_hit_regions\tc_all_regions\tperc_hit_reg\twc_pval\twc_rbc_es\twc_cl_es\t%s\tinternal_id\n" %(header_annot_str))
         OUTALL.write("rbp_id\tmethod_id\tdata_id\tc_all_regions\t%s\tinternal_id\n" %(header_annot_str))
 
         for internal_id in id2reg_annot_dic:
@@ -9646,7 +9697,9 @@ def main_batch(args):
 
             id_infos = id2infos_dic[internal_id]
 
-            wc_pval = id2wc_pval_dic[internal_id]
+            wc_pval = id2wc_pval_dic[internal_id][0]
+            wc_rbc_es = id2wc_pval_dic[internal_id][1]
+            wc_cl_es = id2wc_pval_dic[internal_id][2]
 
             rbp_id = id_infos[0]
             data_id = id_infos[1]
@@ -9669,7 +9722,7 @@ def main_batch(args):
             perc_rbp_annot_str = "\t".join(str(round(perc, 2)) for perc in id_rbp_annot_list)
             perc_hit_all = (c_hit_regions / c_all_regions) * 100
             perc_hit_all = str(round(perc_hit_all, 2))
-            OUTRBP.write("%s\t%s\t%s\t%i\t%i\t%s\t%s\t%s\t%s\n" %(rbp_id, method_id, data_id, c_hit_regions, c_all_regions, perc_hit_all, wc_pval, perc_rbp_annot_str, internal_id))
+            OUTRBP.write("%s\t%s\t%s\t%i\t%i\t%s\t%s\t%s\t%s\t%s\t%s\n" %(rbp_id, method_id, data_id, c_hit_regions, c_all_regions, perc_hit_all, wc_pval, wc_rbc_es, wc_cl_es, perc_rbp_annot_str, internal_id))
 
             id_all_annot_list = []
             for annot in annot_list:
@@ -10518,7 +10571,6 @@ def main_searchseq(args):
             else:
                 filtered_name2ids_dic[rbp_id] = [motif_id]
 
-        # ALAMO
         if args.regex:
             filtered_rbps_dic[regex_id] = regex_id
             if args.motif_regex_id:
@@ -11067,7 +11119,7 @@ def main_searchseq(args):
     rbp_stats_header = "data_id\tmethod_id\trun_id\tmotif_db\trbp_id\tc_regions\tmean_reg_len\tmedian_reg_len\tmin_reg_len\tmax_reg_len\t"
     rbp_stats_header += "called_reg_size\teffective_reg_size\tc_reg_with_hits\tperc_reg_with_hits\t"
     rbp_stats_header += "c_motif_hits\tc_uniq_motif_hits\tc_uniq_motif_nts\tperc_uniq_motif_nts_cal_reg\tperc_uniq_motif_nts_eff_reg\tuniq_motif_hits_cal_1000nt\t"
-    rbp_stats_header += "uniq_motif_hits_eff_1000nt\twc_pval\tseq_motif_ids\tseq_motif_hits\tstr_motif_ids\tstr_motif_hits\tinternal_id\n"
+    rbp_stats_header += "uniq_motif_hits_eff_1000nt\twc_pval\twc_rbc_eff_size\twc_cl_eff_size\tseq_motif_ids\tseq_motif_hits\tstr_motif_ids\tstr_motif_hits\tinternal_id\n"
     OUTSTATS.write(rbp_stats_header)
 
     for rbp_id in search_rbps_dic:
@@ -11086,7 +11138,13 @@ def main_searchseq(args):
         perc_uniq_motif_nts_eff_reg = search_rbps_dic[rbp_id].perc_uniq_motif_nts_eff_reg
         uniq_motif_hits_cal_1000nt = search_rbps_dic[rbp_id].uniq_motif_hits_cal_1000nt
         uniq_motif_hits_eff_1000nt = search_rbps_dic[rbp_id].uniq_motif_hits_eff_1000nt
-        wc_pval = search_rbps_dic[rbp_id].wc_pval
+        # wc_pval = search_rbps_dic[rbp_id].wc_pval
+        # wc_rbc_es = search_rbps_dic[rbp_id].wc_rbc_es
+        # wc_cl_es = search_rbps_dic[rbp_id].wc_cl_es
+        wc_pval = "-"
+        wc_rbc_es = "-"
+        wc_cl_es = "-"
+
         internal_id = search_rbps_dic[rbp_id].internal_id
 
         seq_motif_hits = ",".join(str(hc) for hc in search_rbps_dic[rbp_id].seq_motif_hits)
@@ -11129,6 +11187,8 @@ def main_searchseq(args):
         row_str += str(uniq_motif_hits_cal_1000nt) + "\t"
         row_str += str(uniq_motif_hits_eff_1000nt) + "\t"
         row_str += str(wc_pval) + "\t"
+        row_str += str(wc_rbc_es) + "\t"
+        row_str += str(wc_cl_es) + "\t"
         row_str += seq_motif_ids + "\t"
         row_str += seq_motif_hits + "\t"
         row_str += str_motif_ids + "\t"
@@ -11227,33 +11287,32 @@ def main_searchseq(args):
 
     """
 
-    profile_ids_list = []
-    profile_ids_dic = {}
-    profile_kmer_ids_list = []
+    pid_list = []  # profile IDs == motif IDs (on motif level or RBP level).
+    pid2idx_dic = {}  # profile ID -> idx dictionary.
+    # profile_kmer_ids_list = []
 
     idx = 0
     for rbp_id in search_rbps_dic:
         if args.profiles_level == 1:  # on RBP hit level.
-            profile_ids_list.append(rbp_id)
-            profile_ids_dic[rbp_id] = idx
+            pid_list.append(rbp_id)
+            pid2idx_dic[rbp_id] = idx
             idx += 1
         elif args.profiles_level == 2:  # on individual motif hit level.
             for motif_id in search_rbps_dic[rbp_id].seq_motif_ids:
                 rbp_motif_id = rbp_id + ";" + motif_id
-                profile_ids_list.append(rbp_motif_id)
-                profile_ids_dic[rbp_motif_id] = idx
+                pid_list.append(rbp_motif_id)
+                pid2idx_dic[rbp_motif_id] = idx
                 idx += 1
             for motif_id in search_rbps_dic[rbp_id].str_motif_ids:
                 rbp_motif_id = rbp_id + ";" + motif_id
-                profile_ids_list.append(rbp_motif_id)
-                profile_ids_dic[rbp_motif_id] = idx
+                pid_list.append(rbp_motif_id)
+                pid2idx_dic[rbp_motif_id] = idx
                 idx += 1
         else:
             assert False, "invalid hit profile level %i set. Please set --profiles-level to 1 or 2" %(args.profiles_level)
 
     # seqid2feat_dic = {}
 
-    # # AALAMO
     # for seq_id in in_seqs_dic:
     #     seq_feat = benchlib.SeqFeat(seq_id, in_seqs_dic[seq_id], k=args.profiles_k)
     #     for profile_id in profile_ids_list:
@@ -11265,7 +11324,7 @@ def main_searchseq(args):
 
     # get_kmer_counts_dic(self.seq, 1, rna=False, count_norm_mode=2, empty_check=False)  # get percentages.
 
-    nr_motifs = len(profile_ids_list)  # number of search motifs / rbps == number of hit counts.
+    nr_motifs = len(pid_list)  # number of search motifs / rbps == number of hit counts.
     nr_kmers = 4 ** args.profiles_k
     nr_seqs = len(in_seqs_dic)
 
@@ -11275,8 +11334,14 @@ def main_searchseq(args):
     # Dense motif hit matrix (fill later).
     motif_mat = np.zeros((nr_seqs, nr_motifs), dtype=np.float32)
 
+    # Get kmer to index dictionary.
+    from itertools import product
+    # Dictionary format: {'AA': 0, 'AC': 1, 'AG': 2, ... }
+    kmer2idx_dic = {"".join(p): idx for idx, p in enumerate(product("ACGT", repeat=args.profiles_k))}
+
     # seqfeats = []
     seqid2feat_dic = {}
+    seqid2idx_dic = {}  # seq_id to matrix index.
 
     # for seq_id in in_seqs_dic:
     for idx, seq_id in enumerate(sorted(in_seqs_dic)):
@@ -11294,6 +11359,9 @@ def main_searchseq(args):
         g_perc = mono_nt_perc.get("G", 0.0)
         t_perc = mono_nt_perc.get("T", 0.0)
 
+        # Mono-nt percentage string.
+        mono_nt_perc_str = benchlib.get_kmer_perc_str(mono_nt_perc)
+
         # Mono-nt counts.
         mono_nt_c = benchlib.get_kmer_counts_dic(seq, 1, 
                                         rna=False, 
@@ -11306,6 +11374,20 @@ def main_searchseq(args):
         entropy = benchlib.seq_calc_entropy(seq, rna=False, k=1) if seq else 0.0
         entropy = round(entropy, 6)
 
+        # Get k-mer percentages dictionary from sequence.
+        kmer_perc_dic = benchlib.get_kmer_counts_dic(seq, 
+                                                     args.profiles_k, 
+                                                     rna=False, 
+                                                     count_norm_mode=2, 
+                                                     empty_check=False)
+
+        row = kmer_mat[idx]  # Gets view into row i (not a copy!).
+        non_zero = 0
+        for kmer, val in kmer_perc_dic.items():
+            if val:
+                row[kmer2idx_dic[kmer]] = float(val)
+                non_zero += 1
+
         seq_feat = benchlib.SeqFeat(
             seq_id=seq_id,
             seq_len=seq_len,
@@ -11315,32 +11397,13 @@ def main_searchseq(args):
             g_perc=g_perc,
             t_perc=t_perc,
             entropy=entropy,
-            kmer_i=idx,
-            motif_i=idx,
+            c_hits=0,  # Add motif hit counts later.
+            c_non_zero_k=non_zero,  # Number of appearing k-mers (== non-zero percentage k-mers).
+            mono_nt_perc_str=mono_nt_perc_str,
         )
 
         seqid2feat_dic[seq_id] = seq_feat
-
-
-"""
-
-        self,
-        seq_id,
-        seq_len,
-        gc_perc,
-        a_perc,
-        c_perc,
-        g_perc,
-        t_perc,
-        entropy,
-        c_hits=0,
-        c_non_zero_k=0,
-        kmer_i,
-        motif_i,
-"""
-
-
-
+        seqid2idx_dic[seq_id] = idx
 
     """
     Output motif region stats (1 row for each motif hit).
@@ -11416,11 +11479,15 @@ def main_searchseq(args):
             if matched_seq not in match_c_dic[rbp_id][fh.motif_id]:
                 match_c_dic[rbp_id][fh.motif_id][matched_seq] = 0
             match_c_dic[rbp_id][fh.motif_id][matched_seq] += 1
-            # AALAMO
+            # Record motif hit counts in matrix.
             if args.profiles_level == 1:
-                seqid2feat_dic[region_id].hit_profile[profile_ids_dic[rbp_id]] += 1
+                # motif_mat = np.zeros((nr_seqs, nr_motifs), dtype=np.float32)
+                motif_mat[seqid2idx_dic[region_id], pid2idx_dic[rbp_id]] += 1
+                # seqid2feat_dic[region_id].hit_profile[pid2idx_dic[rbp_id]] += 1
             elif args.profiles_level == 2:
-                seqid2feat_dic[region_id].hit_profile[profile_ids_dic[rbp_motif_id]] += 1
+                motif_mat[seqid2idx_dic[region_id], pid2idx_dic[rbp_motif_id]] += 1
+                # seqid2feat_dic[region_id].hit_profile[pid2idx_dic[rbp_motif_id]] += 1
+            # Increment total hit count.
             seqid2feat_dic[region_id].c_hits += 1
 
         row_str = args.data_id + "\t"
@@ -11491,11 +11558,12 @@ def main_searchseq(args):
             if matched_seq not in match_c_dic[rbp_id][cmsh.motif_id]:
                 match_c_dic[rbp_id][cmsh.motif_id][matched_seq] = 0
             match_c_dic[rbp_id][cmsh.motif_id][matched_seq] += 1
-            # AALAMO
+            # Record motif hit counts in matrix.
             if args.profiles_level == 1:
-                seqid2feat_dic[region_id].hit_profile[profile_ids_dic[rbp_id]] += 1
+                motif_mat[seqid2idx_dic[region_id], pid2idx_dic[rbp_id]] += 1
             elif args.profiles_level == 2:
-                seqid2feat_dic[region_id].hit_profile[profile_ids_dic[rbp_motif_id]] += 1
+                motif_mat[seqid2idx_dic[region_id], pid2idx_dic[rbp_motif_id]] += 1
+            # Increment total hit count.
             seqid2feat_dic[region_id].c_hits += 1
 
         row_str = args.data_id + "\t"
@@ -11538,28 +11606,31 @@ def main_searchseq(args):
 
     """
     Normalize profile hit counts.
-    AALAMO
+
+    Motif hit count matrix definition:
+    motif_mat = np.zeros((nr_seqs, nr_motifs), dtype=np.float32)
 
     """
-    if args.profiles_norm == 1:  # Normalize to hit counts per 1000 nt.
-        for seq_id in seqid2feat_dic:
-            profile_list = seqid2feat_dic[seq_id].hit_profile
-            seq_len = seqid2feat_dic[seq_id].seq_len
 
-            for idx, hit_c in enumerate(profile_list):
-                hit_c_norm = 0.0
-                if hit_c > 0:
-                    hit_c_norm = (float(hit_c) / float(seq_len)) * 1000.0 if seq_len > 0 else 0.0
-                seqid2feat_dic[seq_id].hit_profile[idx] = hit_c_norm
+    for seq_id in seqid2feat_dic:
+        # profile_list = seqid2feat_dic[seq_id].hit_profile
+        seq_len = seqid2feat_dic[seq_id].seq_len
+        row = motif_mat[seqid2idx_dic[seq_id]]  # Fix hit counts row for specific sequence.
 
-    elif args.profiles_norm == 2:  # Set count to 1 if hits, else 0.
-        for seq_id in seqid2feat_dic:
-            profile_list = seqid2feat_dic[seq_id].hit_profile
-            for idx, hit_c in enumerate(profile_list):
-                if hit_c > 0:
-                    seqid2feat_dic[seq_id].hit_profile[idx] = 1
-                else:
-                    seqid2feat_dic[seq_id].hit_profile[idx] = 0
+        for j in range(nr_motifs):
+                
+                hit_c = row[j]
+
+                if args.profiles_norm == 1:  # Normalize to hits per 1000 nt.
+                    if hit_c > 0:
+                        row[j] = (float(hit_c) / float(seq_len)) * 1000.0 if seq_len > 0 else 0.0
+                    else:
+                        row[j] = 0.0
+                elif args.profiles_norm == 2:  # Set count to 1 if hits, else 0.
+                    if hit_c > 0:
+                        row[j] = 1
+                    else:
+                        row[j] = 0
 
 
     """
@@ -11567,39 +11638,65 @@ def main_searchseq(args):
     """
 
     OUTHITP = open(hit_profiles_out, "w")
-    motif_ids_str = ";".join(profile_ids_list)
+    motif_ids_str = ";".join(pid_list)
     OUTHITP.write("seq_id\tseq_len\tseq_entropy\tA_perc\tC_perc\tG_perc\tT_perc\tc_hits\t%s\n" %(motif_ids_str))
     OUTKMERP = open(kmer_profiles_out, "w")
-    kmer_ids_str = ";".join(profile_kmer_ids_list)
+    kmer_ids_str = ";".join(kmer2idx_dic.keys())
     OUTKMERP.write("seq_id\tseq_len\tseq_entropy\tA_perc\tC_perc\tG_perc\tT_perc\tk\t%s\n" %(kmer_ids_str))
 
     for seq_id in seqid2feat_dic:
         seq_feat = seqid2feat_dic[seq_id]
         seq_len = seq_feat.seq_len
-        seq_entropy = seq_feat.seq_entropy
+        seq_entropy = seq_feat.entropy
         c_hits = seq_feat.c_hits
-        kmer_k = seq_feat.k  
-        hit_profile_list = seq_feat.hit_profile  # motif hit profile.
-        kmer_profile_dic = seq_feat.kmer_perc  # k-mer percentages profile.
-        hit_profile_str_list = []
-        for hv in hit_profile_list:
-            if hv > 0:
-                hv = "%.4f" %(hv)
-            hit_profile_str_list.append(str(hv))
-        hit_profile_str = ";".join(hit_profile_str_list)
-        # hit_profile_str = ";".join(str(hv) for hv in hit_profile_list)
+        kmer_k = args.profiles_k
+
+        # Row index of sequence in motif_mat and kmer_mat.
+        seq_idx = seqid2idx_dic[seq_id]
+
+        kmer_row = kmer_mat[seq_idx]
+
         kmer_profile_str_list = []
-        for kmer in profile_kmer_ids_list:
-            kmer_perc = kmer_profile_dic[kmer]
+        for kmer in kmer2idx_dic:
+            kmer_idx = kmer2idx_dic[kmer]
+            kmer_perc = kmer_row[kmer_idx]
             if kmer_perc > 0:
                 kmer_perc = "%.4f" %(kmer_perc)
             kmer_profile_str_list.append(str(kmer_perc))
+
+        motif_row = motif_mat[seq_idx]
+
+        hit_profile_str_list = []
+        for pid in pid2idx_dic:
+            motif_idx = pid2idx_dic[pid]
+            motif_hit_val = motif_row[motif_idx]
+            if motif_hit_val > 0:
+                motif_hit_val = "%.4f" %(motif_hit_val)
+            hit_profile_str_list.append(str(motif_hit_val))
+
+        # hit_profile_list = seq_feat.hit_profile  # motif hit profile.
+        # kmer_profile_dic = seq_feat.kmer_perc  # k-mer percentages profile.
+        # hit_profile_str_list = []
+        # for hv in hit_profile_list:
+        #     if hv > 0:
+        #         hv = "%.4f" %(hv)
+        #     hit_profile_str_list.append(str(hv))
+        
+        # # hit_profile_str = ";".join(str(hv) for hv in hit_profile_list)
+        # kmer_profile_str_list = []
+        # for kmer in kmer2idx_dic:
+        #     kmer_perc = kmer_profile_dic[kmer]
+        #     if kmer_perc > 0:
+        #         kmer_perc = "%.4f" %(kmer_perc)
+        #     kmer_profile_str_list.append(str(kmer_perc))
+
+        hit_profile_str = ";".join(hit_profile_str_list)
         kmer_profile_str = ";".join(kmer_profile_str_list)
         # kmer_profile_str = ";".join(str(kmer_profile_dic[kmer]) for kmer in profile_kmer_ids_list)
-        perc_A = seq_feat.mono_nt_perc["A"]
-        perc_C = seq_feat.mono_nt_perc["C"]
-        perc_G = seq_feat.mono_nt_perc["G"]
-        perc_T = seq_feat.mono_nt_perc["T"]
+        perc_A = seq_feat.a_perc
+        perc_C = seq_feat.c_perc
+        perc_G = seq_feat.g_perc
+        perc_T = seq_feat.t_perc
         row_str = "%s\t%i\t%.4f\t%.2f\t%.2f\t%.2f\t%.2f\t%i\t%s\n" %(seq_id, seq_len, seq_entropy, perc_A, perc_C, perc_G, perc_T, c_hits, hit_profile_str)
         OUTHITP.write(row_str)
         row_str = "%s\t%i\t%.4f\t%.2f\t%.2f\t%.2f\t%.2f\t%i\t%s\n" %(seq_id, seq_len, seq_entropy, perc_A, perc_C, perc_G, perc_T, kmer_k, kmer_profile_str)
@@ -11634,11 +11731,8 @@ def main_searchseq(args):
     OUTTSV.close()
 
 
-
     """
     Generate HTML report (if --profiles set).
-    
-    AALAMO
 
     """
 
@@ -11659,6 +11753,9 @@ def main_searchseq(args):
 
         benchlib.searchseq_generate_html_report(args,
                                                 seqid2feat_dic,
+                                                seqid2idx_dic,
+                                                motif_mat,
+                                                kmer_mat,
                                                 benchlib_path,
                                                 html_report_out=html_report_out,
                                                 c_search_rbps=len(loaded_rbps_dic),
@@ -12881,7 +12978,7 @@ def main_searchlong(args):
     rbp_stats_header = "data_id\tmethod_id\trun_id\tmotif_db\trbp_id\tc_regions\tmean_reg_len\tmedian_reg_len\tmin_reg_len\tmax_reg_len\t"
     rbp_stats_header += "called_reg_size\teffective_reg_size\tc_reg_with_hits\tperc_reg_with_hits\t"
     rbp_stats_header += "c_motif_hits\tc_uniq_motif_hits\tc_uniq_motif_nts\tperc_uniq_motif_nts_cal_reg\tperc_uniq_motif_nts_eff_reg\tuniq_motif_hits_cal_1000nt\t"
-    rbp_stats_header += "uniq_motif_hits_eff_1000nt\twc_pval\tseq_motif_ids\tseq_motif_hits\tstr_motif_ids\tstr_motif_hits\tinternal_id\n"
+    rbp_stats_header += "uniq_motif_hits_eff_1000nt\twc_pval\twc_rbc_eff_size\twc_cl_eff_size\tseq_motif_ids\tseq_motif_hits\tstr_motif_ids\tstr_motif_hits\tinternal_id\n"
     OUTSTATS.write(rbp_stats_header)
 
     for rbp_id in search_rbps_dic:
@@ -12901,6 +12998,8 @@ def main_searchlong(args):
         uniq_motif_hits_cal_1000nt = search_rbps_dic[rbp_id].uniq_motif_hits_cal_1000nt
         uniq_motif_hits_eff_1000nt = search_rbps_dic[rbp_id].uniq_motif_hits_eff_1000nt
         wc_pval = "-"
+        wc_rbc_es = "-"
+        wc_cl_es = "-"
         internal_id = search_rbps_dic[rbp_id].internal_id
 
         seq_motif_hits = ",".join(str(hc) for hc in search_rbps_dic[rbp_id].seq_motif_hits)
@@ -12943,6 +13042,8 @@ def main_searchlong(args):
         row_str += str(uniq_motif_hits_cal_1000nt) + "\t"
         row_str += str(uniq_motif_hits_eff_1000nt) + "\t"
         row_str += wc_pval + "\t"
+        row_str += wc_rbc_es + "\t"
+        row_str += wc_cl_es + "\t"
         row_str += seq_motif_ids + "\t"
         row_str += seq_motif_hits + "\t"
         row_str += str_motif_ids + "\t"
@@ -14683,7 +14784,7 @@ def main_searchrna(args):
     rbp_stats_header = "data_id\tmethod_id\trun_id\tmotif_db\trbp_id\tc_regions\tmean_reg_len\tmedian_reg_len\tmin_reg_len\tmax_reg_len\t"
     rbp_stats_header += "called_reg_size\teffective_reg_size\tc_reg_with_hits\tperc_reg_with_hits\t"
     rbp_stats_header += "c_motif_hits\tc_uniq_motif_hits\tc_uniq_motif_nts\tperc_uniq_motif_nts_cal_reg\tperc_uniq_motif_nts_eff_reg\tuniq_motif_hits_cal_1000nt\t"
-    rbp_stats_header += "uniq_motif_hits_eff_1000nt\twc_pval\tseq_motif_ids\tseq_motif_hits\tstr_motif_ids\tstr_motif_hits\tinternal_id\n"
+    rbp_stats_header += "uniq_motif_hits_eff_1000nt\twc_pval\twc_rbc_eff_size\twc_cl_eff_size\tseq_motif_ids\tseq_motif_hits\tstr_motif_ids\tstr_motif_hits\tinternal_id\n"
     OUTSTATS.write(rbp_stats_header)
 
     for rbp_id in search_rbps_dic:
@@ -14703,6 +14804,8 @@ def main_searchrna(args):
         uniq_motif_hits_cal_1000nt = search_rbps_dic[rbp_id].uniq_motif_hits_cal_1000nt
         uniq_motif_hits_eff_1000nt = search_rbps_dic[rbp_id].uniq_motif_hits_eff_1000nt
         wc_pval = search_rbps_dic[rbp_id].wc_pval
+        wc_rbc_es = search_rbps_dic[rbp_id].wc_rbc_es
+        wc_cl_es = search_rbps_dic[rbp_id].wc_cl_es
         internal_id = search_rbps_dic[rbp_id].internal_id
 
         seq_motif_hits = ",".join(str(hc) for hc in search_rbps_dic[rbp_id].seq_motif_hits)
@@ -14745,6 +14848,8 @@ def main_searchrna(args):
         row_str += str(uniq_motif_hits_cal_1000nt) + "\t"
         row_str += str(uniq_motif_hits_eff_1000nt) + "\t"
         row_str += str(wc_pval) + "\t"
+        row_str += str(wc_rbc_es) + "\t"
+        row_str += str(wc_cl_es) + "\t"
         row_str += seq_motif_ids + "\t"
         row_str += seq_motif_hits + "\t"
         row_str += str_motif_ids + "\t"
@@ -16688,7 +16793,7 @@ def main_searchlongrna(args):
     rbp_stats_header = "data_id\tmethod_id\trun_id\tmotif_db\trbp_id\tc_regions\tmean_reg_len\tmedian_reg_len\tmin_reg_len\tmax_reg_len\t"
     rbp_stats_header += "called_reg_size\teffective_reg_size\tc_reg_with_hits\tperc_reg_with_hits\t"
     rbp_stats_header += "c_motif_hits\tc_uniq_motif_hits\tc_uniq_motif_nts\tperc_uniq_motif_nts_cal_reg\tperc_uniq_motif_nts_eff_reg\tuniq_motif_hits_cal_1000nt\t"
-    rbp_stats_header += "uniq_motif_hits_eff_1000nt\twc_pval\tseq_motif_ids\tseq_motif_hits\tstr_motif_ids\tstr_motif_hits\tinternal_id\n"
+    rbp_stats_header += "uniq_motif_hits_eff_1000nt\twc_pval\twc_rbc_eff_size\twc_cl_eff_size\tseq_motif_ids\tseq_motif_hits\tstr_motif_ids\tstr_motif_hits\tinternal_id\n"
     OUTSTATS.write(rbp_stats_header)
 
     for rbp_id in search_rbps_dic:
@@ -16708,6 +16813,8 @@ def main_searchlongrna(args):
         uniq_motif_hits_cal_1000nt = search_rbps_dic[rbp_id].uniq_motif_hits_cal_1000nt
         uniq_motif_hits_eff_1000nt = search_rbps_dic[rbp_id].uniq_motif_hits_eff_1000nt
         wc_pval = "-"
+        wc_rbc_es = "-"
+        wc_cl_es = "-"
         internal_id = search_rbps_dic[rbp_id].internal_id
 
         seq_motif_hits = ",".join(str(hc) for hc in search_rbps_dic[rbp_id].seq_motif_hits)
@@ -16750,6 +16857,8 @@ def main_searchlongrna(args):
         row_str += str(uniq_motif_hits_cal_1000nt) + "\t"
         row_str += str(uniq_motif_hits_eff_1000nt) + "\t"
         row_str += wc_pval + "\t"
+        row_str += wc_rbc_es + "\t"
+        row_str += wc_cl_es + "\t"
         row_str += seq_motif_ids + "\t"
         row_str += seq_motif_hits + "\t"
         row_str += str_motif_ids + "\t"
@@ -21778,7 +21887,7 @@ def main_nemo(args):
         motif_enrich_stats.dist_plot_counts_dic = dist_plot_counts_dic
 
         # Wilcoxon rank-sum test two-sided.
-        wrs_test_stat, wrs_pval = mannwhitneyu(upstream_counts, downstream_counts, alternative="two-sided")
+        wrs_test_stat, wrs_pval = mannwhitneyu(upstream_counts, downstream_counts, alternative="two-sided")  # ALAMO
         wrs_pval = benchlib.round_to_n_significant_digits_v2(wrs_pval, 4)
         motif_enrich_stats.wrs_pval_two_sided = wrs_pval
         motif_enrich_stats.wrs_test_stat_two_sided = wrs_test_stat
@@ -24883,36 +24992,6 @@ def main_compare(args):
     3) between different datasets (same rbp_id,method_id,motif_db)
 
     Only do 1) 3) here, 2) can be done in search mode!
-        
-    for 1) kennzahlen:
-    perc_uniq_motif_nts_cal_reg	perc_uniq_motif_nts_eff_reg	uniq_motif_hits_cal_1000nt	uniq_motif_hits_eff_1000nt
-
-
-    data_id,method_id,motif_db,rbp_id,internal_id
-    k562_eclip,dewseq_w100_s5,human_v0.1,PUM1,XRgmwD56
-    k562_eclip,dewseq_w100_s5,human_v0.1,PUM2,ZzLuEZR9
-    k562_eclip,clipper_idr,human_v0.1,PUM1,GeR1WaFK
-    k562_eclip,clipper_idr,human_v0.1,PUM2,fEag63xM
-
-    MotifStats.hit_id : chr:s-e(+)motif_id
-
-    compare_methods_dic: {'k562_eclip,human_v0.1,PUM1': [['clipper_idr', 'GeR1WaFK', 'PUM1', 'k562_eclip', 'human_v0.1'], 
-    ['dewseq_w100_s5', 'aErgL-gv', 'PUM1', 'k562_eclip', 'human_v0.1']], 
-    'k562_eclip,human_v0.1,PUM2': [['clipper_idr', 'fEag63xM', 'PUM2', 'k562_eclip', 'human_v0.1'], 
-    ['dewseq_w100_s5', 'ZzLuEZR9', 'PUM2', 'k562_eclip', 'human_v0.1']]}
-
-    Single run, so same method ID, changing comp_ids:
-    k562_eclip,human_v0.1,PUM1
-    k562_eclip,human_v0.1,PUM2
-    k562_eclip,human_v0.1,SLBP
-
-    So we would need new comp_id:
-    k562_eclip,human_v0.1,clipper_idr
-    And variable ID will be rbp_id
-    
-    change to dic of dic 
-    clipper_idr,human_v0.1,PUM1 -> k562_eclip -> GeR1WaFK
-    
 
     """
     compare_methods_dic = {}

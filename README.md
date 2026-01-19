@@ -10,8 +10,8 @@ user-supplied RBPs) in genomic regions, over motif enrichment and co-occurrence 
 in-depth comparisons over multiple datasets via sequence and genomic annotation statistics,
 to benchmarking CLIP-seq peak caller methods as well as comparisons across cell types 
 and CLIP-seq protocols. RBPBench supports both sequence and structure motifs,
-as well as regular expressions. Moreover, users can easily provide their own 
-motif collections.
+as well as regular expressions (sequence and structure patterns). 
+Moreover, users can easily provide their own motif collections.
 
 
 ## Table of contents
@@ -155,8 +155,8 @@ we can use `rbpbench search` mode. This mode contains many useful functions
 and command line options (please check out the help prompt `rbpbench search -h` 
 as well as the [documentation](#documentation) below for more details on the 
 various functionalities of the different modes). In this first example, we take 
-PUM2 eCLIP regions and search for motifs of PUM1, PUM2, RBFOX2 (see `rbpbench info` for 
-all available RBPs), as well as the regular expression `AATAAA` (known polyadenylation signal sequence, more on regex use [here](#motifs)):
+PUM2 eCLIP regions and search for motifs of PUM1, PUM2, RBFOX2 (see `rbpbench info` for
+all available RBPs), as well as the regular expression `AATAAA` (known polyadenylation signal sequence, more on regex use [here](#regular-expressions)):
 
 ```
 rbpbench search --in eclip_clipper_idr/PUM2_K562_IDR_peaks.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_pum2_ex1_out --rbps PUM2 PUM1 RBFOX2 --ext 10 --regex AATAAA
@@ -743,7 +743,7 @@ for the comparison. Two sets of genomic sites in BED format have to be provided
 (input sites via `--in`, control sites via `--ctrl-in`).
 For each genomic site the average conservation score is taken (i.e., by averaging over all single position scores), 
 and the distributions of the two sets are compared using the Wilcoxon rank-sum test. 
-A low p-value indicates that input sites have significantly higher conservation scores. 
+A low p-value indicates that input sites have significantly higher conservation scores (effect sizes are provided as well in the HTML report). 
 This mode can thus be used e.g. to compare different sets of motif hit regions, 
 or sets from different peak callers. An HTML report is produced to summarize and visually inspect the results.
 
@@ -811,7 +811,7 @@ It is known that NORAD, a highly conserved cytoplasmic lncRNA, can sequester PUM
 To check whether there are differences in motif hits between transcript isoforms, we can use `rbpbench isocomp`. This will calculate differences in motif hit counts (both absolute and and normalized by transcript lengths) between all annotated transcript isoforms of a gene, and report them in a table. Again it is possible to provide transcript sequences via a FASTA file (`--fasta`), or to use annotated transcripts from a GTF file (given GTF and genome FASTA file). Moreover, the type of extracted sequences from the GTF file can be further defined: We can use either 3'UTR, 5'UTR, full mRNA, full non-coding, or all full transcripts from the GTF file (choose via `--select-mode`). For example, choosing all annotated 3'UTR sequences and again using the PUM2 consensus motif `TGTA[ACGT]ATA`):
 
 ```
-rbpbench isocomp --regex "TGTA[ACGT]ATA" --out test_isocomp_gtf_out --gtf Homo_sapiens.GRCh38.112.gtf.gz --genome hg38.fa --select-mode 1
+rbpbench isocomp --regex "TGTA[ACGT]ATA" --out test_isocomp_gtf_out --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --select-mode 1
 ```
 
 This allows us to quickly check for genes where there are certain isoforms with changes in motif hit occurrences (sorted by magnitude of change, i.e., difference between hits per kb), which can help in the further functional characterization of the isoform and its underlying gene. Note that in case of user-supplied transcript sequences (via `--fasta`), the FASTA header needs to have the format `>transcript_id,gene_id` for successful isoform assignment.
@@ -888,10 +888,11 @@ for each possible comparison found in the input files.
 ##### Additional motif search modes
 
 Additional more specialised search modes are available as well:
-`rbpbench searchseq` allows inputting FASTA sequences to search for motifs.
-`rbpbench searchregex` allows regular expression (regex) search in genomic regions or sequences. 
-The regular expression can be a simple sequence motif string like `AATAAA`, 
-or complex ones like `[CA]CA[CT].{10,25}CGGAC`. Note that regex search is also possible in 
+`rbpbench searchseq` allows inputting FASTA sequences to search for motifs, as well as showing 
+motif hit and k-mer similarities in an HTML report over all input sequences.
+`rbpbench searchregex` allows regular expression (regex) search in genomic regions or sequences, 
+and supports single as well as multiple regexes (more details on regexes [here](#regular-expressions)).
+Note that regex search is also possible in 
 the other search modes, e.g. combined with the database sequence and structure motifs.
 `rbpbench searchlong` allows searching long genomic regions for RBP motifs and visualize 
 motif prevalences in genomic regions (e.g. whether a motif tends to occur more often in introns, 
@@ -949,11 +950,11 @@ can again be used as input regions for the other modes, allowing for easily refi
 
 Motifs for search can be sequence motifs ([MEME motif format](https://meme-suite.org/meme/doc/meme-format.html)), 
 structure motifs (covariance models obtained through [Infernal](https://github.com/EddyRivasLab/infernal)),
-or regular expressions (e.g., a simple sequence motif string like `AATAAA` or more complex ones like `[CA]CA[CT].{10,25}CGGAC`).
+or [regular expressions](#regular-expressions) (given via `--regex` argument).
 Search motifs are selected via `--rbps`, e.g., to select PUM1 (sequence) and SLBP (structure) motifs `--rbps PUM1 SLBP`.
 To select all database motifs, set `--rbps ALL` (internal motif database can be changed via `--motif-db`, 
 a custom motif database can be supplied too). Additionally, a regular expression (regex) (e.g. `AATAAA`) can be added to 
-search by `--regex AATAAA`. To search only for a regular expression, set `--rbps REGEX --regex AATTA`. Co-occurrence 
+search via `--regex AA[AG]AA`. To search only for a regular expression, set `--rbps REGEX --regex AA[AG]AA`. Co-occurrence 
 and enrichment statistics are calculated on the RBP level in all modes, except `rbpbench enmo` and `rbpbench nemo`, 
 which enable enrichment and co-occurrence statistics on single motif level ([details](#co-occurrence-statistics)). 
 Alternatively, single motifs for search can be selected via `--motifs`, e.g. `--motifs CSTF1_1 DDX3X_1`.
@@ -964,6 +965,17 @@ Moreover, if you have a motif of interest (or a regex), and want to know if ther
 use `rbpbench tomtom` (using MEME SUITE TOMTOM). This mode also informs us whether the reported motif hits 
 are enriched in certain RBP functions (e.g. for regex input `--in TTTTTT`, the top 3 enriched functions are:
 splicing regulation, translation regulation, and RNA stability & decay). 
+
+#### Regular expressions
+
+The `--regex` argument conveniently allows to search for user-defined sequence and structure patterns in genomic regions, transcript regions, or sequences.
+A regular expression string can be either a simple sequence motif string like `AATAAA`, but also more complex ones like `[CA]CA[CT].{10,25}CGGAC`.
+Note that the full [IUPAC nucleotide code](www.bioinformatics.org/sms/iupac.html) is supported, 
+i.e., one can write either `AA[ACGT][AG]TT` or `AANRTT`. Moreover, `--regex` accepts structure patterns,
+such as `AA((((ARNA))))CCC` (where `(` and `)` denote base pairs), `AA(((A[A)))CC(((C]C)))CC` (where `[` and `]` denote pseudoknot base pairs), 
+and even structure patterns with variable length and nucleotide content spacers in it, such as `AA(((AA(((.)))CC)))CC` (where `.` denotes the variable spacer part).
+Furthermore, in the case of a structur pattern, a minimum GC base pair fraction (`--regex-min-gc`), a maximum GU base pair fraction (`--regex-max-gu`),
+and a minimum and maximum spacer length (`--regex-spacer-min`, `--regex-spacer-max`) can be defined to fine-tune the structure pattern search.
 
 
 #### Genomic regions
@@ -1206,6 +1218,8 @@ The RBP hit statistics file `rbp_hit_stats.tsv` contains the following columns:
 | uniq_motif_hits_cal_1000nt | Number of motif hits over 1000 nt of called region size |
 | uniq_motif_hits_eff_1000nt | Number of motif hits over 1000 nt of effective region size |
 | wc_pval | [Wilcoxon rank-sum test p-value](#input-region-score-motif-enrichment-statistics) to test whether motif hit regions tend to feature higher scores | 
+| wc_rbc_eff_size | Rank-biserial correlation effect size for Wilcoxon rank-sum test |
+| wc_cl_eff_size | Rank-biserial correlation effect size for Wilcoxon rank-sum test |
 | seq_motif_ids | Sequence motif IDs. Empty (`-`) if rbp_id has not sequence motifs  | 
 | seq_motif_hits | Sequence motif hit counts (count for each motif ID) | 
 | str_motif_ids | Structure motif IDs. Empty (`-`) if rbp_id has not structure motifs  | 
@@ -1268,6 +1282,11 @@ This means that a low test p-value for a given RBP indicates that higher-scoring
 the test thus can give clues on which RBPs preferentially bind to the provided regions.
 Note that the test is only informative if the scores are themselves informative w.r.t. RBP binding (e.g., not all the same), 
 or e.g. if not all or too many of the input regions contain motif hits. 
+For p-value interpretation, two test **effect sizes** are provided as well (RBC ES: rank-biserial correlation effect size, CL ES: common language effect size).
+RBC ES has a range from -1 to +1, where 0 means no effect, +1 means all hit region scores are greater than non-hit region scores, 
+and -1 means all hit region scores are smaller that non-hit region scores. 
+CL ES has a range 0 to +1. It denotes the probability that a random score from the hit region group exceeds one from the non-hit region group. 
+A CL ES of 0.5 means there is no effect, > 0.5 means hit region scores tend to be higher, and < 0.5 means hit region scores tend to be lower.
 
 The test results are output in the [output tables](#hit-statistics-table-files), as well as in the HTML reports.
 The test can also check for significantly lower scores (change via `--wrs-mode`). Moreover, in `rbpbench batch`, 
