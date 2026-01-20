@@ -166,6 +166,18 @@ def setup_argument_parser():
                    nargs='+',
                    default=False,
                    help="Provide IDs for motifs of interest (need to be in database and loaded). All other RBP motifs will be discarded (except --regex)")
+    p_s.add_argument("--motif-min-len",
+                   dest="motif_min_len",
+                   type=int,
+                   metavar='int',
+                   default=False,
+                   help="Minimum MEME/DREME motif length to include in search. By default all selected RBP motifs are used")
+    p_s.add_argument("--motif-max-len",
+                   dest="motif_max_len",
+                   type=int,
+                   metavar='int',
+                   default=False,
+                   help="Maximum MEME/DREME motif length to include in search. By default all selected RBP motifs are used")
     p_s.add_argument("--functions",
                    dest="rbp_functions",
                    type=str,
@@ -4374,7 +4386,7 @@ def main_search(args):
         seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
                                                            empty_check=True)
     for motif_id in seq_motif_blocks_dic:
-        assert motif_id in id2name_dic, "MEME XML motif ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+        assert motif_id in id2name_dic, "MEME XML motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     """
     Get covariance model database motif blocks dictionary.
@@ -4385,7 +4397,7 @@ def main_search(args):
         str_motif_blocks_dic = benchlib.read_in_cm_blocks(str_motifs_db_file, 
                                                           empty_check=True)
         for motif_id in str_motif_blocks_dic:
-            assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+            assert motif_id in id2name_dic, "Covariance model accession ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     # Remove special chars from run ID.
     args.data_id = benchlib.remove_special_chars_from_str(args.data_id)
@@ -4577,11 +4589,73 @@ def main_search(args):
                 id2name_dic[acc_id] = user_rbp_id
 
     """
+    Get sequence motif lengths.
+
+    """
+
+    id2len_dic = benchlib.get_seq_motif_lengths(seq_motif_blocks_dic)
+
+    """
+    Optionally filter DREME/MEME sequence motifs by length.
+
+    """
+
+    if args.motif_min_len or args.motif_max_len:
+
+        if args.motif_min_len and args.motif_max_len:
+            assert args.motif_min_len <= args.motif_max_len, "set --motif-min-len needs to be <= --motif-max-len!"
+
+        print("Filtering sequence motifs by set min/max lengths ... ")
+
+        flt_seq_motif_blocks_dic = {}
+        flt_loaded_rbps_dic = {}
+        flt_loaded_motif_ids_dic = {}
+        flt_name2ids_dic = {}
+        c_flt_out = 0
+        for motif_id in seq_motif_blocks_dic:
+            motif_len = id2len_dic[motif_id]
+            if benchlib.length_within_bounds(motif_len, min_len=args.motif_min_len, max_len=args.motif_max_len):
+                rbp_id = id2name_dic[motif_id]
+                if rbp_id not in loaded_rbps_dic:  # If single RBPs have been selected (not ALL).
+                    continue
+                # print("Keeping motif ID %s (RBP ID:%s) with length %d" %(motif_id, rbp_id, motif_len))
+                flt_seq_motif_blocks_dic[motif_id] = seq_motif_blocks_dic[motif_id]
+                flt_loaded_motif_ids_dic[motif_id] = loaded_motif_ids_dic[motif_id]
+                flt_loaded_rbps_dic[rbp_id] = loaded_rbps_dic[rbp_id]
+                if rbp_id not in flt_name2ids_dic:
+                    flt_name2ids_dic[rbp_id] = []
+                flt_name2ids_dic[rbp_id].append(motif_id)
+            else:
+                c_flt_out += 1
+        
+        # Add back structure motifs.
+        if str_motif_blocks_dic:
+            for motif_id in str_motif_blocks_dic:
+                rbp_id = id2name_dic[motif_id]
+                if rbp_id not in loaded_rbps_dic:
+                    continue
+                flt_loaded_rbps_dic[rbp_id] = loaded_rbps_dic[rbp_id]
+                flt_loaded_motif_ids_dic[motif_id] = loaded_motif_ids_dic[motif_id]
+                if rbp_id not in flt_name2ids_dic:
+                    flt_name2ids_dic[rbp_id] = []
+                flt_name2ids_dic[rbp_id].append(motif_id)
+
+        seq_motif_blocks_dic = flt_seq_motif_blocks_dic
+        loaded_rbps_dic = flt_loaded_rbps_dic
+        loaded_motif_ids_dic = flt_loaded_motif_ids_dic
+        name2ids_dic = flt_name2ids_dic
+
+        assert loaded_rbps_dic, "no MEME/DREME sequence motifs left after length filtering. Please adjust length filter range (--motif-min-len, --motif-max-len), RBP selection, or disable length filtering!"
+
+        print("Filtered out %d sequence motifs outside set length range" %(c_flt_out))
+
+
+    """
     Check if loaded RBP IDs have motifs.
 
     """
     for rbp_id in loaded_rbps_dic:
-        for motif_id in name2ids_dic[rbp_id]:
+        for motif_id in name2ids_dic[rbp_id]:  # FAILS HERE THEN.
             found = 0
             if motif_id in seq_motif_blocks_dic:
                 found += 1
@@ -4691,7 +4765,7 @@ def main_search(args):
         filtered_name2ids_dic = {}
         for motif_id in motif_fids_dic:
             assert motif_id in id2name_dic, "motif ID \"%s\" provided via --motifs not found in internal motif ID -> RBP ID mapping. Please provide valid motif IDs" %(motif_id)
-            assert motif_id in loaded_motif_ids_dic, "motif ID \"%s\" provided via --motifs not found in loaded motifs (via --rbps). Please provide motif IDs that are part of loaded RBPs" %(motif_id)
+            assert motif_id in loaded_motif_ids_dic, "motif ID \"%s\" provided via --motifs not found in loaded motifs (via --rbps). Please provide motif IDs that are part of loaded RBPs (can also be caused by motif length filtering)" %(motif_id)
             set_db_str = loaded_motif_ids_dic[motif_id]
             filtered_motif_ids_dic[motif_id] = set_db_str
             rbp_id = id2name_dic[motif_id]
@@ -5540,7 +5614,7 @@ def main_search(args):
 
     # Print out RBPs sorted by Wilcoxon p-value.
     sorted_wc_pval_dic = dict(sorted(wc_pval_dic.items(), key=lambda item: item[1], reverse=False))
-    print("Compact hit stats (RBP ID, # unique hits, Wilcoxon p-value, eff sizes (RBC, CL)):")
+    print("Compact hit stats (RBP ID, # unique hits, Wilcoxon p-value, effect sizes (RBC, CL)):")
     for rbp_id, p_value in sorted_wc_pval_dic.items():
         # print("KS p-value (%s):" %(rbp_id), p_value)
         # print(rbp_id, ":", p_value)
@@ -7672,7 +7746,7 @@ def main_batch(args):
         seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
                                                            empty_check=True)
     for motif_id in seq_motif_blocks_dic:
-        assert motif_id in id2name_dic, "MEME XML motif ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+        assert motif_id in id2name_dic, "MEME XML motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     """
     Get covariance model database motif blocks dictionary.
@@ -7683,7 +7757,7 @@ def main_batch(args):
         str_motif_blocks_dic = benchlib.read_in_cm_blocks(str_motifs_db_file,
                                                           empty_check=True)
         for motif_id in str_motif_blocks_dic:
-            assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+            assert motif_id in id2name_dic, "Covariance model accession ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     """
     Check if RBP IDs are in database.
@@ -10251,7 +10325,7 @@ def main_searchseq(args):
         seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
                                                            empty_check=True)
     for motif_id in seq_motif_blocks_dic:
-        assert motif_id in id2name_dic, "MEME XML motif ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+        assert motif_id in id2name_dic, "MEME XML motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     """
     Get covariance model database motif blocks dictionary.
@@ -10262,7 +10336,7 @@ def main_searchseq(args):
         str_motif_blocks_dic = benchlib.read_in_cm_blocks(str_motifs_db_file, 
                                                           empty_check=True)
         for motif_id in str_motif_blocks_dic:
-            assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+            assert motif_id in id2name_dic, "Covariance model accession ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     # Remove special chars from run ID.
     args.data_id = benchlib.remove_special_chars_from_str(args.data_id)
@@ -11990,7 +12064,7 @@ def main_searchlong(args):
         seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
                                                            empty_check=True)
     for motif_id in seq_motif_blocks_dic:
-        assert motif_id in id2name_dic, "MEME XML motif ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+        assert motif_id in id2name_dic, "MEME XML motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     """
     Get covariance model database motif blocks dictionary.
@@ -12001,7 +12075,7 @@ def main_searchlong(args):
         str_motif_blocks_dic = benchlib.read_in_cm_blocks(str_motifs_db_file, 
                                                           empty_check=True)
         for motif_id in str_motif_blocks_dic:
-            assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+            assert motif_id in id2name_dic, "Covariance model accession ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     # Remove special chars from run ID.
     args.data_id = benchlib.remove_special_chars_from_str(args.data_id)
@@ -13631,7 +13705,7 @@ def main_searchrna(args):
         seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
                                                            empty_check=True)
     for motif_id in seq_motif_blocks_dic:
-        assert motif_id in id2name_dic, "MEME XML motif ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+        assert motif_id in id2name_dic, "MEME XML motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     """
     Get covariance model database motif blocks dictionary.
@@ -13642,7 +13716,7 @@ def main_searchrna(args):
         str_motif_blocks_dic = benchlib.read_in_cm_blocks(str_motifs_db_file, 
                                                           empty_check=True)
         for motif_id in str_motif_blocks_dic:
-            assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+            assert motif_id in id2name_dic, "Covariance model accession ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     # Remove special chars from run ID.
     args.data_id = benchlib.remove_special_chars_from_str(args.data_id)
@@ -15837,7 +15911,7 @@ def main_searchlongrna(args):
         seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
                                                            empty_check=True)
     for motif_id in seq_motif_blocks_dic:
-        assert motif_id in id2name_dic, "MEME XML motif ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+        assert motif_id in id2name_dic, "MEME XML motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     """
     Get covariance model database motif blocks dictionary.
@@ -15848,7 +15922,7 @@ def main_searchlongrna(args):
         str_motif_blocks_dic = benchlib.read_in_cm_blocks(str_motifs_db_file, 
                                                           empty_check=True)
         for motif_id in str_motif_blocks_dic:
-            assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+            assert motif_id in id2name_dic, "Covariance model accession ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     # Remove special chars from run ID.
     args.data_id = benchlib.remove_special_chars_from_str(args.data_id)
@@ -17741,7 +17815,7 @@ def main_enmo(args):
         seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
                                                            empty_check=True)
     for motif_id in seq_motif_blocks_dic:
-        assert motif_id in id2name_dic, "MEME XML motif ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+        assert motif_id in id2name_dic, "MEME XML motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     motif2conseq_dic = {}
     if seq_motif_blocks_dic:
@@ -17759,7 +17833,7 @@ def main_enmo(args):
         str_motif_blocks_dic = benchlib.read_in_cm_blocks(str_motifs_db_file, 
                                                           empty_check=True)
         for motif_id in str_motif_blocks_dic:
-            assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+            assert motif_id in id2name_dic, "Covariance model accession ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     """
     Output folders + files.
@@ -20141,7 +20215,7 @@ def main_nemo(args):
         seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
                                                            empty_check=True)
     for motif_id in seq_motif_blocks_dic:
-        assert motif_id in id2name_dic, "MEME XML motif ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+        assert motif_id in id2name_dic, "MEME XML motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     motif2conseq_dic = {}
     if seq_motif_blocks_dic:
@@ -20159,7 +20233,7 @@ def main_nemo(args):
         str_motif_blocks_dic = benchlib.read_in_cm_blocks(str_motifs_db_file, 
                                                           empty_check=True)
         for motif_id in str_motif_blocks_dic:
-            assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+            assert motif_id in id2name_dic, "Covariance model accession ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     """
     Output folders + files.
@@ -21887,7 +21961,7 @@ def main_nemo(args):
         motif_enrich_stats.dist_plot_counts_dic = dist_plot_counts_dic
 
         # Wilcoxon rank-sum test two-sided.
-        wrs_test_stat, wrs_pval = mannwhitneyu(upstream_counts, downstream_counts, alternative="two-sided")  # ALAMO
+        wrs_test_stat, wrs_pval = mannwhitneyu(upstream_counts, downstream_counts, alternative="two-sided")
         wrs_pval = benchlib.round_to_n_significant_digits_v2(wrs_pval, 4)
         motif_enrich_stats.wrs_pval_two_sided = wrs_pval
         motif_enrich_stats.wrs_test_stat_two_sided = wrs_test_stat
@@ -21901,6 +21975,10 @@ def main_nemo(args):
         wrs_pval = benchlib.round_to_n_significant_digits_v2(wrs_pval, 4)
         motif_enrich_stats.wrs_pval_less = wrs_pval
         motif_enrich_stats.wrs_test_stat_less = wrs_test_stat
+
+        # 2DO: Get effect sizes for every wc_pval.
+        # wc_rbc_es, wc_cl_es = benchlib.get_eff_sizes(hit_reg_scores, non_hit_reg_scores, wc_stat,
+        #                                                 round=True, round_n=4)
 
         # if motif_id == "CSTF2_1":
         #     # print("dist_plot_counts_dic:", dist_plot_counts_dic)
@@ -24193,7 +24271,7 @@ def main_optex(args):
         """
         seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file)
         for motif_id in seq_motif_blocks_dic:
-            assert motif_id in id2name_dic, "MEME XML motif ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+            assert motif_id in id2name_dic, "MEME XML motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
         """
         Get covariance model database motif blocks dictionary.
@@ -24201,7 +24279,7 @@ def main_optex(args):
         """
         str_motif_blocks_dic = benchlib.read_in_cm_blocks(str_motifs_db_file)
         for motif_id in str_motif_blocks_dic:
-            assert motif_id in id2name_dic, "Covariance model accession ID %s not found in prior mapping. Please contact developers!" %(motif_id)
+            assert motif_id in id2name_dic, "Covariance model accession ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
         for motif_id in name2ids_dic[rbp_id]:
             loaded_motif_ids_dic[motif_id] = 1

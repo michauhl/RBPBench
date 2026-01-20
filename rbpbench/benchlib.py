@@ -1745,7 +1745,7 @@ def compare_conservation_scores(args,
         # Compare distributions.
         stat, pc_pval = mannwhitneyu(in_scores, control_scores, alternative=wrs_alt_hypo)
         # Round p-value to 4 significant digits.
-        pc_pval = round_to_n_significant_digits_v2(pc_pval, 4,  # AALAMO does not work for negative values yet!
+        pc_pval = round_to_n_significant_digits_v2(pc_pval, 4,
                                                    min_val=0.0)
         # Get effect sizes.
         pc_rbc_es, pc_cl_es = get_eff_sizes(in_scores, control_scores, stat,
@@ -4765,6 +4765,93 @@ def read_in_xml_motifs(meme_xml_file,
 
     return motif_blocks_dic
 
+################################################################################
+
+def length_within_bounds(seq_len, min_len=False, max_len=False):
+    """
+    Check whether a sequence length is within optional bounds.
+
+    >>> length_within_bounds(10, min_len=5, max_len=15)
+    True
+    >>> length_within_bounds(3, min_len=5, max_len=15)
+    False
+    >>> length_within_bounds(20, min_len=5, max_len=15)
+    False
+    >>> length_within_bounds(10, min_len=False, max_len=15)
+    True
+    >>> length_within_bounds(10, min_len=5, max_len=False)
+    True
+    >>> length_within_bounds(3, min_len=5, max_len=False)
+    False
+    >>> length_within_bounds(20, min_len=False, max_len=15)
+    False
+
+    """
+
+    if seq_len < 0:
+        raise ValueError(f"seq_len must be >= 0, got {seq_len}")
+
+    # Validate min_len.
+    if min_len is not False:
+        if not isinstance(min_len, int):
+            raise ValueError(f"min_len must be int or False, got {type(min_len)}")
+        if min_len <= 0:
+            raise ValueError(f"min_len must be > 0, got {min_len}")
+
+    # Validate max_len.
+    if max_len is not False:
+        if not isinstance(max_len, int):
+            raise ValueError(f"max_len must be int or False, got {type(max_len)}")
+        if max_len <= 0:
+            raise ValueError(f"max_len must be > 0, got {max_len}")
+
+    # Validate both.
+    if min_len is not False and max_len is not False:
+        if max_len < min_len:
+            raise ValueError(
+                f"max_len ({max_len}) must be >= min_len ({min_len})"
+            )
+
+    # Bounds check.
+    if min_len is not False and seq_len < min_len:
+        return False
+    if max_len is not False and seq_len > max_len:
+        return False
+
+    return True
+
+
+################################################################################
+
+def get_motif_len_from_seq_block(seq_block):
+    """
+    Get motif length from seq_block.
+
+    seq_block is list with following format:
+    ['letter-probability matrix: alength= 4 w= 10 nsites= 20 E= 0', 
+    ' 0.050000  0.400000  0.050000  0.500000 ', 
+    ' 0.285714  0.000000  0.000000  0.714286 ', 
+    ' 0.252525  0.141414  0.606061  0.000000 ', 
+    ' 0.505051  0.090909  0.404040  0.000000 ', 
+    ' 0.714286  0.000000  0.000000  0.285714 ', 
+    ' 0.081633  0.000000  0.918367  0.000000 ', 
+    ' 0.505051  0.090909  0.404040  0.000000 ', 
+    ' 0.505051  0.090909  0.404040  0.000000 ', 
+    ' 0.353535  0.191919  0.454545  0.000000 ', 
+    ' 0.404040  0.242424  0.353535  0.000000 ']
+
+    """
+    assert seq_block, "seq_block empty"
+    assert len(seq_block) > 1, "seq_block empty (only header present?)"
+    assert seq_block[0].startswith("letter-probability matrix"), "invalid seq_block format (missing header line?)"
+    motif_len1 = len(seq_block) - 1  # Exclude header line.
+    # Extract "w=\s(\d+)\s" from seq_block[0] and compare to motif_len.
+    if re.search(r"w=\s*\d+\s*", seq_block[0]):
+        m = re.search(r"w=\s*(\d+)\s*", seq_block[0])
+        motif_len2 = int(m.group(1))
+        assert motif_len1 == motif_len2, "motif length mismatch in seq_block (header w=%i vs. actual length %i). seq_block\n%s" %(motif_len2, motif_len1, str(seq_block))
+    return motif_len1
+
 
 ################################################################################
 
@@ -4834,9 +4921,15 @@ def extract_motif_blocks(raw_text):
     lines = raw_text.strip().split('\n')
     for l in lines:
         if re.search(r"^MOTIF\s\w+", l):
-            m = re.search(r"MOTIF (\w+)", l)
+            # m = re.search(r"MOTIF (\w+)", l)
+            # m = re.search(r"^MOTIF\s+([A-Za-z0-9_-]+)\s+", l)  # this also matches _ - motif_id characters.
+            m = re.search(r"^MOTIF\s+(\S+)", l) # Match whatever characters.
             motif_id = m.group(1)
-            new_motif_id = remove_special_chars_from_str(motif_id)
+            # new_motif_id = remove_special_chars_from_str(motif_id)
+            # Default: reg_ex=r'[^A-Za-z0-9_-]+', i.e. only allow A-Z a-z 0-9 _ -
+            # Now allow all characters in motif IDs, as MEME XML allows that.
+            new_motif_id = remove_special_chars_from_str(motif_id, reg_ex=r'\s+')  # Only remove whitespace characters.
+
             assert new_motif_id, "no characters left after removal of special characters from motif ID \"%s\". Please use valid MEME XML motif IDs (i.e., modify MOTIF column strings in motifs xml file)" %(motif_id)
             motif_id = new_motif_id
         else:
@@ -10586,6 +10679,27 @@ class MotifStats:
 
 ################################################################################
 
+def get_seq_motif_lengths(seq_motif_blocks_dic):
+    """
+    Get motif lengths dictionary (motif_id -> motif_length) from
+    seq_motif_blocks_dic (motif_id -> seq_motif_block).
+
+    """
+    assert seq_motif_blocks_dic, "given seq_motif_blocks_dic empty"
+
+    id2len_dic = {}
+    for motif_id in seq_motif_blocks_dic:
+        seq_block = seq_motif_blocks_dic[motif_id]
+        motif_len = get_motif_len_from_seq_block(seq_block)
+        id2len_dic[motif_id] = motif_len
+
+    assert id2len_dic, "no motif lengths extracted from seq_motif_blocks_dic!"
+
+    return id2len_dic
+
+
+################################################################################
+
 def read_in_motif_stats(in_file,
                         motif_stats_dic=None,
                         store_uniq_only=True):
@@ -12027,8 +12141,7 @@ def remove_special_chars_from_str(check_str,
 
     """
     # To remove special regex chars: r"[.^$*+?{}[\]()|\]"
-
-    check_str = check_str.replace(r"\t", "").replace(r"\n", "").replace("\\", "")
+    check_str = check_str.replace(r"\t", "").replace(r"\n", "").replace("\\", "")  # Remove \t \n \
     clean_string = re.sub(reg_ex, '', check_str)
     if to_upper:
         clean_string = clean_string.upper()
