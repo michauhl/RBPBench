@@ -9525,17 +9525,10 @@ def get_hit_id_elements(hit_id):
 
 ################################################################################
 
-def get_center_position(start, end):
+def get_center_position_old(start, end):
     """
     Get center position (1-based), given a (genomic) start (0-based) and
     end coordinate (1-based).
-
-    >>> get_center_position(10, 11)
-    11
-    >>> get_center_position(1000,2000)
-    1501
-    >>> get_center_position(11, 20)
-    17
 
     """
     # If region has length of 1, return end position.
@@ -9544,6 +9537,27 @@ def get_center_position(start, end):
     if not end - start == 1:
         center_pos = round( ( (end - start) / 2 ) + start ) + 1
     return center_pos
+
+
+################################################################################
+
+def get_center_position(start, end):
+    """
+    Get center position (1-based), given a (genomic) start (0-based) and
+    end coordinate (1-based).
+
+    >>> get_center_position(10, 11)
+    11
+    >>> get_center_position(1000, 2000)
+    1501
+    >>> get_center_position(11, 20)
+    16
+    >>> get_center_position(3, 8)
+    6
+    """
+    length = end - start  # number of bases covered.
+    center_0based = start + length // 2
+    return center_0based + 1
 
 
 ################################################################################
@@ -10679,6 +10693,67 @@ class MotifStats:
 
 ################################################################################
 
+def filter_dic_by_motif_lengths(seq_motif_blocks_dic,
+                                str_motif_blocks_dic,
+                                loaded_rbps_dic,
+                                loaded_motif_ids_dic,
+                                id2name_dic,
+                                id2len_dic,
+                                motif_min_len=False,
+                                motif_max_len=False):
+    """
+    Filter dictionaries to remove motifs that do not fit set sequence motif 
+    min+max lengths.
+
+    """
+
+    flt_seq_motif_blocks_dic = {}
+    flt_loaded_rbps_dic = {}
+    flt_loaded_motif_ids_dic = {}
+    flt_name2ids_dic = {}
+    c_flt_out = 0
+
+    for motif_id in seq_motif_blocks_dic:
+        motif_len = id2len_dic[motif_id]
+        if length_within_bounds(motif_len, min_len=motif_min_len, max_len=motif_max_len):
+            rbp_id = id2name_dic[motif_id]
+            if rbp_id not in loaded_rbps_dic:  # If single RBPs have been selected (not ALL).
+                continue
+            # print("Keeping motif ID %s (RBP ID:%s) with length %d" %(motif_id, rbp_id, motif_len))
+            flt_seq_motif_blocks_dic[motif_id] = seq_motif_blocks_dic[motif_id]
+            flt_loaded_motif_ids_dic[motif_id] = loaded_motif_ids_dic[motif_id]
+            flt_loaded_rbps_dic[rbp_id] = loaded_rbps_dic[rbp_id]
+            if rbp_id not in flt_name2ids_dic:
+                flt_name2ids_dic[rbp_id] = []
+            flt_name2ids_dic[rbp_id].append(motif_id)
+        else:
+            c_flt_out += 1
+    
+    # Add back structure motifs.
+    if str_motif_blocks_dic:
+        for motif_id in str_motif_blocks_dic:
+            rbp_id = id2name_dic[motif_id]
+            if rbp_id not in loaded_rbps_dic:
+                continue
+            flt_loaded_rbps_dic[rbp_id] = loaded_rbps_dic[rbp_id]
+            flt_loaded_motif_ids_dic[motif_id] = loaded_motif_ids_dic[motif_id]
+            if rbp_id not in flt_name2ids_dic:
+                flt_name2ids_dic[rbp_id] = []
+            flt_name2ids_dic[rbp_id].append(motif_id)
+
+    return flt_seq_motif_blocks_dic, flt_loaded_rbps_dic, flt_loaded_motif_ids_dic, flt_name2ids_dic, c_flt_out
+
+    # seq_motif_blocks_dic = flt_seq_motif_blocks_dic
+    # loaded_rbps_dic = flt_loaded_rbps_dic
+    # loaded_motif_ids_dic = flt_loaded_motif_ids_dic
+    # name2ids_dic = flt_name2ids_dic
+
+    # assert loaded_rbps_dic, "no MEME/DREME sequence motifs left after length filtering. Please adjust length filter range (--motif-min-len, --motif-max-len), RBP selection, or disable length filtering!"
+
+
+
+################################################################################
+
 def get_seq_motif_lengths(seq_motif_blocks_dic):
     """
     Get motif lengths dictionary (motif_id -> motif_length) from
@@ -11466,7 +11541,7 @@ def filter_out_center_motif_hits(hits_list, core_rel_reg_dic,
         # Can be negative if hit upstream of center, or positive if hit downstream.
         hit.center_dist = hit_center_pos - core_center_pos
 
-        flt_hits_list.append(hit)
+        flt_hits_list.append(hit)  # AALAMO
 
     return flt_hits_list
 
@@ -19610,7 +19685,7 @@ No motif hit profiles plot generated since < 4 input sequences have motif hits.
 
             mdtext += """
 **Table:** List of sequences (top %i) most similar to set sequence \"%s\" (via --profiles-seq-id) based on their motif hit profiles.
-*Cosine similarity* of motif hit vectors is used as similarity measure. Note that sequences with no hits cannot appear in this list.
+**Cosine similarity** of motif hit vectors is used as similarity measure. Note that sequences with no hits cannot appear in this list.
 """ %(args.profiles_top_n, args.profiles_seq_id)
 
             # Top cosine similarities list.
@@ -19653,7 +19728,7 @@ No motif hit profiles plot generated since < 4 input sequences have motif hits.
 
             mdtext += """
 **Table:** List of sequences (top %i) closest to set sequence \"%s\" (via --profiles-seq-id) based on their motif hit profiles.
-*Euclidean distance* of motif hit vectors is used as distance measure. Note that sequences with no hits cannot appear in this list.
+**Euclidean distance** of motif hit vectors is used as distance measure. Note that sequences with no hits cannot appear in this list.
 """ %(args.profiles_top_n, args.profiles_seq_id)
             
             # Top euclidean distances list.
@@ -19794,7 +19869,7 @@ No k-mer hit profiles plot generated since < 4 input sequences have non-zero k-m
 
             mdtext += """
 **Table:** List of sequences (top %i) most similar to set sequence \"%s\" (via --profiles-seq-id) based on their k-mer (k = %i) percentage profiles.
-*Cosine similarity* of k-mer percentage vectors is used as similarity measure. Note that sequences without valid k-mers cannot appear in this list.
+**Cosine similarity** of k-mer percentage vectors is used as similarity measure. Note that sequences without valid k-mers cannot appear in this list.
 """ %(args.profiles_top_n, args.profiles_seq_id, args.profiles_k)
 
             # Top cosine similarities list.
@@ -19837,7 +19912,7 @@ No k-mer hit profiles plot generated since < 4 input sequences have non-zero k-m
 
             mdtext += """
 **Table:** List of sequences (top %i) closest to set sequence \"%s\" (via --profiles-seq-id) based on their k-mer (k = %i) percentage profiles.
-*Euclidean distance* of k-mer percentage vectors is used as distance measure. Note that sequences without valid k-mers cannot appear in this list.
+**Euclidean distance** of k-mer percentage vectors is used as distance measure. Note that sequences without valid k-mers cannot appear in this list.
 """ %(args.profiles_top_n, args.profiles_seq_id, args.profiles_k)
             
             # Top euclidean distances list.
