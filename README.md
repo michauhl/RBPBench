@@ -830,7 +830,7 @@ Here we select all motifs in the database (`--rbps ALL`) and use some additional
 
 ## Documentation
 
-This documentation provides further details on RBPBench (version 1.0.x).
+This documentation provides further details on RBPBench (version 1.1.x).
 
 ### Program modes
 
