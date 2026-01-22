@@ -1449,7 +1449,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Specify sequence ID to highlight in profile PCA plots and calculate other sequence similarities for (default: False, i.e., no sequence ID is highlighted)")
+                   help = "Specify sequence ID to highlight in profile PCA plots and to report top --profiles-top-n similar other sequences for, based on motif hit and k-mer profiles (default: False, i.e., no sequence ID is highlighted)")
     p_ss.add_argument("--profiles-top-n",
                    dest="profiles_top_n",
                    type=int,
@@ -22174,7 +22174,7 @@ def main_nemo(args):
             elif dist > 0:
                 downstream_counts.append(dist_plot_counts_dic[dist])
 
-        motif_enrich_stats.dist_plot_counts_dic = dist_plot_counts_dic  # AALAMO
+        motif_enrich_stats.dist_plot_counts_dic = dist_plot_counts_dic
 
         # Wilcoxon rank-sum test two-sided.
         wrs_test_stat, wrs_pval = mannwhitneyu(upstream_counts, downstream_counts, alternative="two-sided")

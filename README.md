@@ -817,6 +817,17 @@ rbpbench isocomp --regex "TGTA[ACGT]ATA" --out test_isocomp_gtf_out --genome hg3
 This allows us to quickly check for genes where there are certain isoforms with changes in motif hit occurrences (sorted by magnitude of change, i.e., difference between hits per kb), which can help in the further functional characterization of the isoform and its underlying gene. Note that in case of user-supplied transcript sequences (via `--fasta`), the FASTA header needs to have the format `>transcript_id,gene_id` for successful isoform assignment.
 
 
+#### Finding similar sequences based on motif hit and k-mer profiles
+
+RBPBench's mode `rbpbench searchseq` offers the creation of motif hit and k-mer profiles for each input sequence, which in turn allows us to show similarities of input sequences based on these profiles (enable with `--profiles`). More specifically, PCA plots (one based on motif hits, one based on k-mer occurrences) are generated in the HTML report. Furthermore, a specific input sequence can be selected (`--profiles-seq-id`), which is then used as a reference, i.e., by highlighting it in the plots, as well as reporting the top n (set via `--profiles-top-n`) most similar other sequences based on cosine similarity and euclidean distance (using the motif hit and k-mer occurrence vectors for calculation). For example, to generate motif hit + k-mer profiles for a set of input sequences in FASTA format (`input_seqs.fa`), we can run:
+
+```
+rbpbench searchseq --in input_seqs.fa --out searchseq_profiles_test_out --rbps ALL --profiles --profiles-level 1 --profiles-k 5 --profiles-top-n 20 --min-seq-len 100 --max-seq-len 5000 --profiles-seq-id 'ENST00000270722'
+```
+
+Here we select all motifs in the database (`--rbps ALL`) and use some additional options, such as `--profiles-level` to define on which hit level to generate the motif hit profile (RBP or individual motif level), `--profiles-k` to set the k-mer size for the k-mer profiles, as well as controlling the minimum and maximum input sequence lengths to consider (`--min-seq-len`, `--max-seq-len`).
+
+
 ## Documentation
 
 This documentation provides further details on RBPBench (version 1.0.x).
@@ -957,7 +968,8 @@ a custom motif database can be supplied too). Additionally, a regular expression
 search via `--regex AA[AG]AA`. To search only for a regular expression, set `--rbps REGEX --regex AA[AG]AA`. Co-occurrence 
 and enrichment statistics are calculated on the RBP level in all modes, except `rbpbench enmo` and `rbpbench nemo`, 
 which enable enrichment and co-occurrence statistics on single motif level ([details](#co-occurrence-statistics)). 
-Alternatively, single motifs for search can be selected via `--motifs`, e.g. `--motifs CSTF1_1 DDX3X_1`.
+Alternatively, single motifs for search can be selected via `--motifs`, e.g. `--motifs CSTF1_1 DDX3X_1`, and sequence motifs (MEME format)
+can be filtered by their length using `--motif-min-len` and `--motif-max-len`.
 To list and visualize all selected motifs, use `--plot-motifs` (in some modes automatically output).
 RBP motifs can also be filtered by their annotated RBP functions. To only inlcude RBPs with e.g. annotated 3' end processing
 function, set `--functions TEP` (for available functions and annotations, run `rbpbench info`).
@@ -1111,10 +1123,16 @@ RF00032	SLBP	cm	human	ENSG00000163950	TEP;VRR	34086933	catRAPID_omics_v2.1	-
 or a structure motif (expected to be found in `str_motifs.cm`).
 An ID / name for the custom database can be defined as well via `--custom-db-id`.
 Alternatively, the files can be input separately via `--custom-db-info`, 
-`--custom-db-meme-xml`, and `--custom-db-cm`.
+`--custom-db-meme-xml`, and `--custom-db-cm`. For example, all human RBP motifs from [CISBP-RNA](https://cisbp-rna.ccbr.utoronto.ca) can be found in the `test/` folder, and we can simply use them as a custom database like this:
+
+```
+rbpbench search --in input_sites.bed --genome hg38.fa --out test_cisbp_rna_search_out --rbps ALL --ext 10 --custom-db-meme-xml cisbp_rna_human_rbp_motifs.meme --custom-db-info cisbp_rna_human_rbp_motifs.info.txt --motif-min-len 6 --motif-max-len 7
+```
+Here we also filter the input sequence motifs by length to allow only motifs of length 6 or 7 nt to be included in the search.
+
 
 If you have some short sequences or regular expressions (regexes), you can also quickly create a MEME format motif 
-database out of these. Only thing needed is a table file containing regexes and associated RBP/motif IDs:
+database out of these (alternatively use `rbpbench searchregex` which supports multiple regexes as input). Only thing needed is a table file containing regexes and associated RBP/motif IDs:
 
 ```
 $ cat custom_motifs.tsv

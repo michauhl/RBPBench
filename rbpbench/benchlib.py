@@ -2574,7 +2574,7 @@ def run_go_analysis(target_genes_dic, background_genes_dic,
 
 ################################################################################
 
-def round_to_n_significant_digits_v2(num, n, zero_check_val=1e-304,  # AALAMO
+def round_to_n_significant_digits_v2(num, n, zero_check_val=1e-304,
                                      min_val=0):
     """
     Round float / scientific notation number to n significant digits.
@@ -10945,7 +10945,7 @@ def read_in_rbp_stats(in_file,
             id_check_dic[internal_id] = 1
             rbp_stats = RBPStats(internal_id, cols[0], cols[1], cols[2], cols[3])
             rbp_stats.rbp_id = cols[4]
-            rbp_stats.c_regions = int(cols[5])  # alamo
+            rbp_stats.c_regions = int(cols[5])
             rbp_stats.mean_reg_len = float(cols[6])
             rbp_stats.median_reg_len = float(cols[7])
             rbp_stats.min_reg_len = int(cols[8])
@@ -11541,7 +11541,7 @@ def filter_out_center_motif_hits(hits_list, core_rel_reg_dic,
         # Can be negative if hit upstream of center, or positive if hit downstream.
         hit.center_dist = hit_center_pos - core_center_pos
 
-        flt_hits_list.append(hit)  # AALAMO
+        flt_hits_list.append(hit)
 
     return flt_hits_list
 
