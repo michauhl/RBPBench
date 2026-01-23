@@ -295,7 +295,7 @@ def setup_argument_parser():
                    dest="bed_sc_thr_rev_filter",
                    default = False,
                    action = "store_true",
-                   help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. for p-values) (default: False)")
+                   help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. if score column contains p-values) (default: False)")
     p_s.add_argument("--wrs-mode",
                    dest="wrs_mode",
                    type=int,
@@ -902,7 +902,7 @@ def setup_argument_parser():
                    dest="bed_sc_thr_rev_filter",
                    default = False,
                    action = "store_true",
-                   help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. for p-values) (default: False)")
+                   help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. if score column contains p-values) (default: False)")
     p_b.add_argument("--wrs-mode",
                    dest="wrs_mode",
                    type=int,
@@ -2101,7 +2101,7 @@ def setup_argument_parser():
                    dest="bed_sc_thr_rev_filter",
                    default = False,
                    action = "store_true",
-                   help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. for p-values) (default: False)")
+                   help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. if score column contains p-values) (default: False)")
     p_scr.add_argument("--fimo-ntf-file",
                    dest="fimo_user_ntf_file",
                    type=str,
@@ -2875,7 +2875,7 @@ def setup_argument_parser():
                    dest="bed_sc_thr_rev_filter",
                    default = False,
                    action = "store_true",
-                   help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. for p-values) (default: False)")
+                   help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. if score column contains p-values) (default: False)")
     # Background set options.
     p_em.add_argument("--bg-mode",
                    dest="bg_mode",
@@ -3264,7 +3264,7 @@ def setup_argument_parser():
                    dest="bed_sc_thr_rev_filter",
                    default = False,
                    action = "store_true",
-                   help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. for p-values) (default: False)")
+                   help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. if score column contains p-values) (default: False)")
     # Background set options.
     p_nm.add_argument("--bg-mode",
                    dest="bg_mode",
@@ -4097,7 +4097,7 @@ def setup_argument_parser():
                    dest="bed_sc_thr_rev_filter",
                    default = False,
                    action = "store_true",
-                   help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. for p-values) (default: False)")
+                   help = "Reverse --bed-sc-thr filtering (i.e. the lower the better, e.g. if score column contains p-values) (default: False)")
     p_oe.add_argument("--ext-pval",
                    dest="ext_pval",
                    type=float,
