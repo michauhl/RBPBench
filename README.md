@@ -6,7 +6,7 @@
 RBPBench is multi-function tool to evaluate CLIP-seq and other genomic region data 
 using a comprehensive collection of known RNA-binding protein (RBP) binding motifs. 
 RBPBench can be used for a variety of purposes, from RBP motif search (database or 
-user-supplied RBPs) in genomic regions, over motif enrichment and co-occurrence analysis, 
+user-supplied RBP motifs) in genomic regions, over motif enrichment and co-occurrence analysis, 
 in-depth comparisons over multiple datasets via sequence and genomic annotation statistics,
 to benchmarking CLIP-seq peak caller methods as well as comparisons across cell types 
 and CLIP-seq protocols. RBPBench supports both sequence and structure motifs,
