@@ -7,7 +7,7 @@ from setuptools import setup
 
 setup(
     name='rbpbench',
-    version='1.0.6',
+    version='1.1.0',
     description='Evaluate CLIP-seq and other genomic region data using a comprehensive collection of known RBP binding motifs',
     long_description=open('README.md').read(),
     url='https://github.com/michauhl/RBPBench',
@@ -28,7 +28,13 @@ setup(
              'bin/gtf_extract_tr_feat_bed.py',
              'bin/bed_merge_ol_reg.py',
              'bin/get_genomic_conservation_scores.py',
-             'bin/batch_get_common_dataset_gene_ids.py'
+             'bin/batch_get_common_dataset_gene_ids.py',
+             'bin/bed_extend_regions.py',
+             'bin/gtf_extract_transcript_data.py',
+             'bin/gtf_get_gene_transcripts.py',
+             'bin/bed_tr_context_add_avg_con_scores.py',
+             'bin/bed_gen_context_add_avg_con_scores.py',
+             'bin/bed_tr_context_add_gene_infos.py'
              ],
     packages=['rbpbench'],
     package_data={'rbpbench': ['content/*', 'content/motif_plots/*']},

@@ -6,12 +6,12 @@
 RBPBench is multi-function tool to evaluate CLIP-seq and other genomic region data 
 using a comprehensive collection of known RNA-binding protein (RBP) binding motifs. 
 RBPBench can be used for a variety of purposes, from RBP motif search (database or 
-user-supplied RBPs) in genomic regions, over motif enrichment and co-occurrence analysis, 
+user-supplied RBP motifs) in genomic regions, over motif enrichment and co-occurrence analysis, 
 in-depth comparisons over multiple datasets via sequence and genomic annotation statistics,
 to benchmarking CLIP-seq peak caller methods as well as comparisons across cell types 
 and CLIP-seq protocols. RBPBench supports both sequence and structure motifs,
-as well as regular expressions. Moreover, users can easily provide their own 
-motif collections.
+as well as regular expressions (sequence and structure patterns). 
+Moreover, users can easily provide their own motif collections.
 
 
 ## Table of contents
@@ -155,8 +155,8 @@ we can use `rbpbench search` mode. This mode contains many useful functions
 and command line options (please check out the help prompt `rbpbench search -h` 
 as well as the [documentation](#documentation) below for more details on the 
 various functionalities of the different modes). In this first example, we take 
-PUM2 eCLIP regions and search for motifs of PUM1, PUM2, RBFOX2 (see `rbpbench info` for 
-all available RBPs), as well as the regular expression `AATAAA` (known polyadenylation signal sequence, more on regex use [here](#motifs)):
+PUM2 eCLIP regions and search for motifs of PUM1, PUM2, RBFOX2 (see `rbpbench info` for
+all available RBPs), as well as the regular expression `AATAAA` (known polyadenylation signal sequence, more on regex use [here](#regular-expressions)):
 
 ```
 rbpbench search --in eclip_clipper_idr/PUM2_K562_IDR_peaks.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_pum2_ex1_out --rbps PUM2 PUM1 RBFOX2 --ext 10 --regex AATAAA
@@ -743,7 +743,7 @@ for the comparison. Two sets of genomic sites in BED format have to be provided
 (input sites via `--in`, control sites via `--ctrl-in`).
 For each genomic site the average conservation score is taken (i.e., by averaging over all single position scores), 
 and the distributions of the two sets are compared using the Wilcoxon rank-sum test. 
-A low p-value indicates that input sites have significantly higher conservation scores. 
+A low p-value indicates that input sites have significantly higher conservation scores (effect sizes are provided as well in the HTML report). 
 This mode can thus be used e.g. to compare different sets of motif hit regions, 
 or sets from different peak callers. An HTML report is produced to summarize and visually inspect the results.
 
@@ -781,11 +781,56 @@ Inspecting the conservation score distribution plots in `test_con_smrna_region_e
 **Fig. 17:** Comparison of phastCons and phyloP conservation score distributions between input sites (mRNA region end positions) and control sites (mRNA region end positions shifted downstream by 50 nt).
 
 
+#### Searching for sponge transcripts
+
+To search for sponge transcripts (i.e., transcripts that serve a sponges for RBPs or miRNAs by harboring larger numbers of potential binding sites), we can use `rbpbench sponge`. Transcript sequences can be provided either as FASTA file, or else we can use the representative transcripts from all annotated genes (GTF + genome FASTA file needed). For example, to look for annotated transcripts (>= 1000 nt) with high match counts of the PUM2 consensus motif (Pumilio Response Element (PRE) of PUM2: UGUANAUA), we can run:
+
+```
+rbpbench sponge --regex 'TGTA[ACGT]ATA' --out test_sponge_search_gtf_out --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz  --min-seq-len 1000
+```
+
+The top 10 transcripts ranked by hits per kilo base (kb) nt we get are the following:
+
+| Transcript ID | Gene Name | Transcript Length | Hit Count | Hits per kb | Transcript Biotype |
+|:--------------:|:--------------:|:--------------:|:--------------:|:--------------:|:--------------:|
+| ENST00000572876 | - | 1514 | 6 | 3.9630 | lncRNA |
+| ENST00000661959 | - | 4683 | 24 | 5.1249 | lncRNA |
+| ENST00000586020 | - | 1803 | 7 | 3.8824 | nonsense_mediated_decay |
+| ENST00000651116 | - | 1287 | 4 | 3.1080 | lncRNA |
+| ENST00000669865 | - | 2811 | 9 | 3.2017 | lncRNA |
+| ENST00000374865 | MRPL50 | 3336 | 10 | 2.9976 | protein_coding |
+| ENST00000690469 | - | 1390 | 4 | 2.8777 | lncRNA |
+| ENST00000641352 | - | 4068 | 12 | 2.9499 | lncRNA |
+| ENST00000369489 | CD58 | 1086 | 3 | 2.7624 | protein_coding |
+| ENST00000565493 | NORAD | 5401 | 15 | 2.7773 | lncRNA |
+
+It is known that NORAD, a highly conserved cytoplasmic lncRNA, can sequester PUMILIO proteins (PUM1 and PUM2) and modulate the expression of their target genes ([Lee et al. 2016](https://doi.org/10.1016/j.cell.2015.12.017)). This shows that a simple and fast search approach like this can be used to identify potential sponge transcripts for any given (RBP) motif of interest, which can then be further investigated. Additional options are available, such as defining a minimum spacer length between regex hits (`--min-spacer-len`), or a minimum regex hit count per transcript (`--min-hit-count`) for transcripts to be included in the output table. Moreover, if GTF annotated transcripts are used, specific subsets can be selected for search via `--select-mode` (all, only mRNAs, only 3'UTRs). Also note that regular expressions can describe complex binding patterns, including variable length spacers, such as the IGF2BP3 binding motif `GGC.{15,25}CA.{7,20}CA.{15,25}GGC.{2,8}[CA]{4}` described in [Schneider et al. 2019](https://doi.org/10.1038/s41467-019-09769-8).
+
+#### Comparing motif hits between transcript isoforms
+
+To check whether there are differences in motif hits between transcript isoforms, we can use `rbpbench isocomp`. This will calculate differences in motif hit counts (both absolute and and normalized by transcript lengths) between all annotated transcript isoforms of a gene, and report them in a table. Again it is possible to provide transcript sequences via a FASTA file (`--fasta`), or to use annotated transcripts from a GTF file (given GTF and genome FASTA file). Moreover, the type of extracted sequences from the GTF file can be further defined: We can use either 3'UTR, 5'UTR, full mRNA, full non-coding, or all full transcripts from the GTF file (choose via `--select-mode`). For example, choosing all annotated 3'UTR sequences and again using the PUM2 consensus motif `TGTA[ACGT]ATA`):
+
+```
+rbpbench isocomp --regex "TGTA[ACGT]ATA" --out test_isocomp_gtf_out --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --select-mode 1
+```
+
+This allows us to quickly check for genes where there are certain isoforms with changes in motif hit occurrences (sorted by magnitude of change, i.e., difference between hits per kb), which can help in the further functional characterization of the isoform and its underlying gene. Note that in case of user-supplied transcript sequences (via `--fasta`), the FASTA header needs to have the format `>transcript_id,gene_id` for successful isoform assignment.
+
+
+#### Finding similar sequences based on motif hit and k-mer profiles
+
+RBPBench's mode `rbpbench searchseq` offers the creation of motif hit and k-mer profiles for each input sequence, which in turn allows us to show similarities of input sequences based on these profiles (enable with `--profiles`). More specifically, PCA plots (one based on motif hits, one based on k-mer occurrences) are generated in the HTML report. Furthermore, a specific input sequence can be selected (`--profiles-seq-id`), which is then used as a reference, i.e., by highlighting it in the plots, as well as reporting the top n (set via `--profiles-top-n`) most similar other sequences based on cosine similarity and euclidean distance (using the motif hit and k-mer occurrence vectors for calculation). For example, to generate motif hit + k-mer profiles for a set of input sequences in FASTA format (`input_seqs.fa`) and use the sequence `ENST00000270722` as a reference, we can run:
+
+```
+rbpbench searchseq --in input_seqs.fa --out searchseq_profiles_test_out --rbps ALL --profiles --profiles-level 1 --profiles-k 5 --profiles-top-n 20 --min-seq-len 100 --max-seq-len 5000 --profiles-seq-id 'ENST00000270722'
+```
+
+Here we select all motifs in the database (`--rbps ALL`) and use some additional options, such as `--profiles-level` to define on which hit level to generate the motif hit profile (RBP or individual motif level), `--profiles-k` to set the k-mer size for the k-mer profiles, as well as controlling the minimum and maximum input sequence lengths to consider (`--min-seq-len`, `--max-seq-len`).
 
 
 ## Documentation
 
-This documentation provides further details on RBPBench (version 1.0.x).
+This documentation provides further details on RBPBench (version 1.1.x).
 
 ### Program modes
 
@@ -795,18 +840,16 @@ To get an overview of the currently available modes:
 ```
 $ rbpbench -h
 usage: rbpbench [-h] [-v]
-                {search,batch,compare,searchseq,searchregex,searchlong,searchrna,searchlongrna,enmo,nemo,streme,tomtom,goa,optex,dist,info}
+                {search,batch,compare,searchseq,searchregex,searchlong,searchrna,searchlongrna,enmo,nemo,con,sponge,isocomp,streme,tomtom,goa,optex,dist,info}
                 ...
 
-Evaluate CLIP-seq and other genomic region data using a comprehensive
-collection of known RBP binding motifs (RNA sequence + structure). RBPBench
-can be used for a variety of purposes, from RBP motif search in genomic
-regions, over motif enrichment and co-occurrence analysis, to benchmarking
-CLIP-seq peak callers, as well as comparisons across cell types and CLIP-seq
-protocols.
+Evaluate CLIP-seq and other genomic region data using a comprehensive collection of known RBP binding motifs (RNA sequence +
+structure). RBPBench can be used for a variety of purposes, from RBP motif search in genomic regions, over motif enrichment and co-
+occurrence analysis, in-depth comparisons over multiple datasets via sequence and genomic annotation statistics, to benchmarking
+CLIP-seq peak callers, as well as comparisons across cell types and CLIP-seq protocols.
 
 positional arguments:
-  {search,batch,compare,searchseq,searchregex,searchlong,searchrna,searchlongrna,enmo,nemo,streme,tomtom,goa,optex,dist,info}
+  {search,batch,compare,searchseq,searchregex,searchlong,searchrna,searchlongrna,enmo,nemo,con,sponge,isocomp,streme,tomtom,goa,optex,dist,info}
                         Program modes
     search              Search motifs in genomic sites
     batch               Search motifs on > 1 dataset
@@ -819,6 +862,8 @@ positional arguments:
     enmo                Check for enriched motifs in input sites
     nemo                Check for neighboring motifs in input sites
     con                 Compare conservation in genomic sites
+    sponge              Check for sponge transcripts
+    isocomp             Compare motif hits on transcript isoforms
     streme              Discover motifs in input sites using STREME
     tomtom              Compare motif(s) with database using TOMOTM
     goa                 Run GO enrichment analysis on gene list
@@ -854,10 +899,11 @@ for each possible comparison found in the input files.
 ##### Additional motif search modes
 
 Additional more specialised search modes are available as well:
-`rbpbench searchseq` allows inputting FASTA sequences to search for motifs.
-`rbpbench searchregex` allows regular expression (regex) search in genomic regions or sequences. 
-The regular expression can be a simple sequence motif string like `AATAAA`, 
-or complex ones like `[CA]CA[CT].{10,25}CGGAC`. Note that regex search is also possible in 
+`rbpbench searchseq` allows inputting FASTA sequences to search for motifs, as well as showing 
+motif hit and k-mer similarities in an HTML report over all input sequences.
+`rbpbench searchregex` allows regular expression (regex) search in genomic regions or sequences, 
+and supports single as well as multiple regexes (more details on regexes [here](#regular-expressions)).
+Note that regex search is also possible in 
 the other search modes, e.g. combined with the database sequence and structure motifs.
 `rbpbench searchlong` allows searching long genomic regions for RBP motifs and visualize 
 motif prevalences in genomic regions (e.g. whether a motif tends to occur more often in introns, 
@@ -890,6 +936,9 @@ translation regulation, and RNA stability & decay).
 
 ```rbpbench con``` be used to compare conservation scores in two sets of genomic sites. For example, 
 we can compare different sets of motif hit regions, or sets from different peak callers.
+```rbpbench sponge``` allows to search for sponge transcripts, i.e., transcripts that serve as sponges for RBPs or miRNAs.
+```rbpbench isocomp``` can be used to check whether there are differences in motif hits between transcript isoforms of a gene.
+```rbpbench optex``` allows us to investigate the optimal extension of input regions for motif search, i.e., to find the best up- and downstream extension for motif search in genomic regions.
 ```rbpbench streme``` allows to discover new motifs using STREME from MEME suite. 
 ```rbpbench goa``` enables us to run GO term enrichment analysis (GOA) on a set of genes, e.g. obtained 
 from the output tables of other modes (like genes covered by input regions from ```rbpbench search```
@@ -912,14 +961,15 @@ can again be used as input regions for the other modes, allowing for easily refi
 
 Motifs for search can be sequence motifs ([MEME motif format](https://meme-suite.org/meme/doc/meme-format.html)), 
 structure motifs (covariance models obtained through [Infernal](https://github.com/EddyRivasLab/infernal)),
-or regular expressions (e.g., a simple sequence motif string like `AATAAA` or more complex ones like `[CA]CA[CT].{10,25}CGGAC`).
+or [regular expressions](#regular-expressions) (given via `--regex` argument).
 Search motifs are selected via `--rbps`, e.g., to select PUM1 (sequence) and SLBP (structure) motifs `--rbps PUM1 SLBP`.
 To select all database motifs, set `--rbps ALL` (internal motif database can be changed via `--motif-db`, 
 a custom motif database can be supplied too). Additionally, a regular expression (regex) (e.g. `AATAAA`) can be added to 
-search by `--regex AATAAA`. To search only for a regular expression, set `--rbps REGEX --regex AATTA`. Co-occurrence 
+search via `--regex AA[AG]AA`. To search only for a regular expression, set `--rbps REGEX --regex AA[AG]AA`. Co-occurrence 
 and enrichment statistics are calculated on the RBP level in all modes, except `rbpbench enmo` and `rbpbench nemo`, 
 which enable enrichment and co-occurrence statistics on single motif level ([details](#co-occurrence-statistics)). 
-Alternatively, single motifs for search can be selected via `--motifs`, e.g. `--motifs CSTF1_1 DDX3X_1`.
+Alternatively, single motifs for search can be selected via `--motifs`, e.g. `--motifs CSTF1_1 DDX3X_1`, and sequence motifs (MEME format)
+can be filtered by their length using `--motif-min-len` and `--motif-max-len`.
 To list and visualize all selected motifs, use `--plot-motifs` (in some modes automatically output).
 RBP motifs can also be filtered by their annotated RBP functions. To only inlcude RBPs with e.g. annotated 3' end processing
 function, set `--functions TEP` (for available functions and annotations, run `rbpbench info`).
@@ -927,6 +977,17 @@ Moreover, if you have a motif of interest (or a regex), and want to know if ther
 use `rbpbench tomtom` (using MEME SUITE TOMTOM). This mode also informs us whether the reported motif hits 
 are enriched in certain RBP functions (e.g. for regex input `--in TTTTTT`, the top 3 enriched functions are:
 splicing regulation, translation regulation, and RNA stability & decay). 
+
+#### Regular expressions
+
+The `--regex` argument conveniently allows to search for user-defined sequence and structure patterns in genomic regions, transcript regions, or sequences.
+A regular expression string can be either a simple sequence motif string like `AATAAA`, but also more complex ones like `[CA]CA[CT].{10,25}CGGAC`.
+Note that the full [IUPAC nucleotide code](https://www.bioinformatics.org/sms/iupac.html) is supported, 
+i.e., one can write either `AA[ACGT][AG]TT` or `AANRTT`. Moreover, `--regex` accepts structure patterns,
+such as `AA((((ARNA))))CCC` (where `(` and `)` denote base pairs), `AA(((A[A)))CC(((C]C)))CC` (where `[` and `]` denote pseudoknot base pairs), 
+and even structure patterns with variable length and nucleotide content spacers in it, such as `AA(((AA(((.)))CC)))CC` (where `.` denotes the variable spacer part).
+Furthermore, if a structure pattern is given, a minimum GC base pair fraction (`--regex-min-gc`), a maximum GU base pair fraction (`--regex-max-gu`),
+and a minimum and maximum spacer length (`--regex-spacer-min`, `--regex-spacer-max`) can be defined to fine-tune the structure pattern search.
 
 
 #### Genomic regions
@@ -1062,10 +1123,16 @@ RF00032	SLBP	cm	human	ENSG00000163950	TEP;VRR	34086933	catRAPID_omics_v2.1	-
 or a structure motif (expected to be found in `str_motifs.cm`).
 An ID / name for the custom database can be defined as well via `--custom-db-id`.
 Alternatively, the files can be input separately via `--custom-db-info`, 
-`--custom-db-meme-xml`, and `--custom-db-cm`.
+`--custom-db-meme-xml`, and `--custom-db-cm`. For example, all human RBP motifs from [CISBP-RNA](https://cisbp-rna.ccbr.utoronto.ca) can be found in the `test/` folder, and we can simply use them as a custom database like this:
+
+```
+rbpbench search --in input_sites.bed --genome hg38.fa --out test_cisbp_rna_search_out --rbps ALL --ext 10 --custom-db-meme-xml cisbp_rna_human_rbp_motifs.meme --custom-db-info cisbp_rna_human_rbp_motifs.info.txt --motif-min-len 6 --motif-max-len 7
+```
+Here we also filter the input sequence motifs by length to allow only motifs of length 6 or 7 nt to be included in the search.
+
 
 If you have some short sequences or regular expressions (regexes), you can also quickly create a MEME format motif 
-database out of these. Only thing needed is a table file containing regexes and associated RBP/motif IDs:
+database out of these (alternatively use `rbpbench searchregex` which supports multiple regexes as input). Only thing needed is a table file containing regexes and associated RBP/motif IDs:
 
 ```
 $ cat custom_motifs.tsv
@@ -1169,6 +1236,8 @@ The RBP hit statistics file `rbp_hit_stats.tsv` contains the following columns:
 | uniq_motif_hits_cal_1000nt | Number of motif hits over 1000 nt of called region size |
 | uniq_motif_hits_eff_1000nt | Number of motif hits over 1000 nt of effective region size |
 | wc_pval | [Wilcoxon rank-sum test p-value](#input-region-score-motif-enrichment-statistics) to test whether motif hit regions tend to feature higher scores | 
+| wc_rbc_eff_size | Rank-biserial correlation effect size for Wilcoxon rank-sum test |
+| wc_cl_eff_size | Rank-biserial correlation effect size for Wilcoxon rank-sum test |
 | seq_motif_ids | Sequence motif IDs. Empty (`-`) if rbp_id has not sequence motifs  | 
 | seq_motif_hits | Sequence motif hit counts (count for each motif ID) | 
 | str_motif_ids | Structure motif IDs. Empty (`-`) if rbp_id has not structure motifs  | 
@@ -1231,6 +1300,11 @@ This means that a low test p-value for a given RBP indicates that higher-scoring
 the test thus can give clues on which RBPs preferentially bind to the provided regions.
 Note that the test is only informative if the scores are themselves informative w.r.t. RBP binding (e.g., not all the same), 
 or e.g. if not all or too many of the input regions contain motif hits. 
+For p-value interpretation, two test **effect sizes** are provided as well (RBC ES: rank-biserial correlation effect size, CL ES: common language effect size).
+RBC ES has a range from -1 to +1, where 0 means no effect, +1 means all hit region scores are greater than non-hit region scores, 
+and -1 means all hit region scores are smaller that non-hit region scores. 
+CL ES has a range 0 to +1. It denotes the probability that a random score from the hit region group exceeds one from the non-hit region group. 
+A CL ES of 0.5 means there is no effect, > 0.5 means hit region scores tend to be higher, and < 0.5 means hit region scores tend to be lower.
 
 The test results are output in the [output tables](#hit-statistics-table-files), as well as in the HTML reports.
 The test can also check for significantly lower scores (change via `--wrs-mode`). Moreover, in `rbpbench batch`, 
@@ -1269,7 +1343,7 @@ allows us to focus on co-occurrences with more dissimilar motifs.
 
 #### Input region motif enrichment statistics
 
-Not to be confused with the region score statistic [above](#input-region-score-motif_enrichment-statistics), 
+Not to be confused with the region score statistic [above](#input-region-score-motif-enrichment-statistics), 
 input region motif enrichment statistics are calculated in the modes `rbpbench enmo`, `rbpbench nemo`, 
 using the motif occurrences in the input region dataset and comparing it to their occurrences 
 in a background dataset (again via Fisher's exact test). The background set can be generated in 
@@ -1295,7 +1369,7 @@ regions (via `--add-annot-bed`, with the option `--add-annot-comp` to use the co
 can be further defined via `--prom-ext` (by default using regions 1000 nt upstream to 100 nt downstream of the transcript start positions),
 `--prom-min-tr-len` (minimum transcript length for promoter region extraction, by default all lengths), and `--prom-mrna-only` (using only mRNA transcript regions, by default all selected transcripts, details [here](#most-prominent-transcript-selection)). 
 These statistics are useful to check whether the input regions are located in the expected genomic regions.
-For example, high percentages of input regions located outside gene regions or inside promoter regions can point at dataset issues (assuming RBPs bind primarily to gene/transcript regions) or distinct protein functions (e.g., RBPs moonlighting as transcription factors).
+For example, high percentages of input regions located outside gene regions or inside promoter regions can point at dataset issues (assuming RBPs bind primarily to gene/transcript regions) or distinct protein functions (e.g., binding to nascent transcripts).
 
 
 ### Additional information
@@ -1422,6 +1496,7 @@ the same gene, to decide which one is "more prominent":
 
 This is done for all possible pairs, which leaves one transcript as MPT in the end for each gene.
 Regions that do not overlap with the selected transcript regions are assigned to "intergenic".
+Note that for lncRNA genes, MPT selection favors transcripts with the `gencode_primary` tag if present.
 Alternatively, a list of transcript IDs can be supplied `--tr-list`, bypassing the MPT selection.
 Which region annotations are to be considered can be further defined via `--tr-types`, and the 
 minimum region annotation overlap can be set via `--gtf-feat-min-overlap`.
@@ -1448,6 +1523,7 @@ Various helper scripts are included as well on the command line:
 
 ```
 batch_get_common_dataset_gene_ids.py
+bed_extend_regions.py
 bed_merge_ol_reg.py
 bed_print_first_n_pos.py
 bed_print_last_n_pos.py
@@ -1459,13 +1535,16 @@ gtf_extract_exon_intron_region_bed.py
 gtf_extract_gene_region_bed.py
 gtf_extract_mpt_region_bed.py
 gtf_extract_tr_feat_bed.py
+gtf_extract_transcript_data.py
 gtf_get_gene_region_nt_freqs.py
+gtf_get_gene_transcripts.py
 gtf_get_mpt_nt_freqs.py
 gtf_get_mpt_with_introns_nt_freqs.py
 ```
 You can call their help pages to get more infos on what they do and how to use them (e.g., `bed_merge_ol_reg.py -h`).
 To get a quick overview: 
 `batch_get_common_dataset_gene_ids.py` extracts gene IDs which occur in all datasets, given the `gene_region_occupancies.tsv` file from RBPBench batch output folder.
+`bed_extend_regions.py` extends genomic regions in a BED file by a given number of nucleotides up- and downstream.
 `bed_merge_ol_reg.py` takes a BED file and merges bookend or overlapping regions outputs the merged regions to a new BED file.
 `bed_print_first_n_pos.py` prints the first n positions of each region from the provided BED file.
 `bed_print_last_n_pos.py` prints the last n positions of each region from the provided BED file.
@@ -1479,7 +1558,9 @@ which can be used as input e.g. in `rbpbench nemo`.
 `gtf_extract_mpt_region_bed.py` extracts most prominent transcript regions from a GTF file and stores them in a BED file. 
 Additionally, mRNA regions (5'UTR, CDS, 3'UTR) can be output to a separate BED file.
 `gtf_extract_tr_feat_bed.py` extracts transcript feature regions from a GTF file and stores them in a BED file (e.g. stop_codon).
+`gtf_extract_transcript_data.py` extracts transcript data from a GTF file, such exon + intron regions, mRNA regions and transcript sequences.
 `gtf_get_gene_region_nt_freqs.py` calculates nucleotide frequencies from all gene regions extracted from a GTF and the corresponding genome FASTA.
+`gtf_get_gene_transcripts.py` extracts for a given gene list all transcripts from a GTF file and stores the transcript information in a TSV file.
 FIMO can be given this information as a nucleotide frequencies file (see options `--fimo-ntf-file`, `--fimo-ntf-mode`).
 `gtf_get_mpt_nt_freqs.py` calculates nucleotide frequencies of from all most prominent transcript (MPT) sequences (introns excluded) 
 extracted from a GTF and the corresponding genome FASTA.

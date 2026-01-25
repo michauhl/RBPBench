@@ -141,6 +141,31 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Manually set MEME's FIMO --no-pgc option (required for MEME version >= 5.5.4). Make sure that MEME >= 5.5.4 is installed! (default: False)")
+    # Custom database.
+    p.add_argument("--custom-db-id",
+                   dest="custom_db_id",
+                   type=str,
+                   metavar='str',
+                   default = "custom",
+                   help = "Set ID/name for provided custom motif database via --custom-db  (default: \"custom\")")
+    p.add_argument("--custom-db-meme-xml",
+                   dest="custom_db_meme_xml",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide custom motif database MEME/DREME XML file containing sequence motifs")
+    p.add_argument("--custom-db-cm",
+                   dest="custom_db_cm",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide custom motif database covariance model (.cm) file containing covariance model(s)")
+    p.add_argument("--custom-db-info",
+                   dest="custom_db_info",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help = "Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments")
     # Test modes.
     p.add_argument("--wrs-mode",
                    dest="wrs_mode",
@@ -176,18 +201,67 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Add RBPBench to HTML report header. Useful for HTML reports inside Galaxy (default: False)")
+    # Additional overlap annotations.
+    p.add_argument("--add-annot-bed",
+                   dest="add_annot_bed",
+                   type=str,
+                   metavar='str',
+                   default = False,
+                   help="Specify additional genomic regions in BED format for which to calculate the percentages of input regions that overlap with them")
+    p.add_argument("--add-annot-comp",
+                   dest="add_annot_comp",
+                   default = False,
+                   action = "store_true",
+                   help="Get the complement percentages, i.e., the percentages of input regions NOT overlapping with --add-annot-bed regions")
+    p.add_argument("--add-annot-id",
+                   dest="add_annot_id",
+                   type=str,
+                   metavar='str',
+                   default = "custom",
+                   help = "Label to use for additional regions in HTML report (default: \"custom\")")
     # Regex.
     p.add_argument("--regex",
                    dest="regex",
                    type=str,
                    metavar='str',
-                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', ..")
+                   default = False,
+                   help="Define regular expression (regex) DNA motif to include in search, e.g. --regex AAACC, --regex 'C[ACGT]AC[AC]', .. IUPAC code is also supported, e.g. AAARN resolves to AAA[AG][ACGT]. Alternatively, supply structure pattern, e.g. AA((((ARA))))AA or CC(((A...R)))CC with variable spacer")
     p.add_argument("--regex-search-mode",
                    dest="regex_search_mode",
                    type=int,
                    default=1,
                    choices=[1, 2],
-                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit end position, 2: when motif hit encountered, continue +1 of motif hit start position (default: 1)")
+                   help="Define regex search mode. 1: when motif hit encountered, continue +1 after motif hit start position, 2: when motif hit encountered, continue +1 after motif hit end position. NOTE that structure pattern regex currently always uses mode 1 (default: 1)")
+    p.add_argument("--regex-type",
+                   dest="regex_type",
+                   type=int,
+                   default=1,
+                   choices=[1, 2, 3],
+                   help="Set type of supplied --regex string 1: auto-detect type (standard regex or structure pattern). 2: given --regex string is standard regex, e.g. AC[AG]T. 3: given --regex string is structure pattern string, e.g. ((AA(((...)))AA)) (default: 1)")
+    p.add_argument("--regex-min-gc",
+                    dest="regex_min_gc",
+                    type=float,
+                    metavar='float',
+                    default=0.0,
+                    help="Minimum GC base pair fraction to report structure pattern regex hits (default: 0.0)")
+    p.add_argument("--regex-max-gu",
+                    dest="regex_max_gu",
+                    type=float,
+                    metavar='float',
+                    default=1.0,
+                    help="Maximum GU (GT) base pair fraction to report structure pattern regex hits (default: 1.0)")
+    p.add_argument("--regex-spacer-min",
+                   dest="regex_spacer_min",
+                   type=int,
+                   metavar='int',
+                   default=5,
+                   help="Minimum spacer length for structure pattern regex search (default: 5)")
+    p.add_argument("--regex-spacer-max",
+                   dest="regex_spacer_max",
+                   type=int,
+                   metavar='int',
+                   default=200,
+                   help="Maximum spacer length for structure pattern regex search (default: 200)")
     p.add_argument("--max-motif-dist",
                    dest="max_motif_dist",
                    type=int,
@@ -219,12 +293,12 @@ def setup_argument_parser():
                    metavar='float',
                    default=0.1,
                    help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\"). If there is overlap with several features, assign the one with highest overlap (default: 0.1)")
-    p.add_argument("--gtf-eib-min-overlap",
-                   dest="gtf_eib_min_overlap",
-                   type=float,
-                   metavar='float',
-                   default=0.9,
-                   help="Minimum amount input region has to overlap with exon (e), intron (i), i + ei borders to be counted as overlapping with these (note that the amount is reciprocal, i.e., one of the overlapping parts meeting the minimum amount is enough) (default: 0.9)")
+    # p.add_argument("--gtf-eib-min-overlap",
+    #                dest="gtf_eib_min_overlap",
+    #                type=float,
+    #                metavar='float',
+    #                default=0.9,
+    #                help="Minimum amount input region has to overlap with exon (e), intron (i), i + ei borders to be counted as overlapping with these (note that the amount is reciprocal, i.e., one of the overlapping parts meeting the minimum amount is enough) (default: 0.9)")
     p.add_argument("--gtf-intron-border-len",
                    dest="gtf_intron_border_len",
                    type=int,
@@ -291,50 +365,6 @@ def setup_argument_parser():
                    help = "Filter out GOA results labeled as purified (i.e., GO terms with significantly lower concentration) in HTML table (default: False)")
 
     return p
-
-
-################################################################################
-
-def is_valid_regex(regex):
-    """
-    Check if regex string is valid regex.
-
-    >>> is_valid_regex(".*")
-    True
-    >>> is_valid_regex(".*[")
-    False
-    >>> is_valid_regex("ACGT")
-    True
-
-    """
-
-    try:
-        re.compile(regex)
-        return True
-    except re.error:
-        return False
-
-
-################################################################################
-
-def remove_special_chars_from_str(check_str,
-                                  reg_ex='[^A-Za-z0-9_-]+'):
-    """
-    Remove special characters from string.
-
-    reg_ex:
-        Regular expression defining what to keep.
-
-    >>> check_str = "{_}[-](_)\V/"
-    >>> remove_special_chars_from_str(check_str)
-    '_-_V'
-    >>> check_str = ""
-    >>> remove_special_chars_from_str(check_str)
-    ''
-
-    """
-    clean_string = re.sub(reg_ex, '', check_str)
-    return clean_string
 
 
 ###############################################################################
@@ -479,7 +509,7 @@ if __name__ == '__main__':
             batch_call += " --tr-types %s" % (tr_types)
 
     batch_call += " --gtf-feat-min-overlap %s" % (str(args.gtf_feat_min_overlap))
-    batch_call += " --gtf-eib-min-overlap %s" % (str(args.gtf_eib_min_overlap))
+    # batch_call += " --gtf-eib-min-overlap %s" % (str(args.gtf_eib_min_overlap))
     batch_call += " --gtf-intron-border-len %i" % (args.gtf_intron_border_len)
 
     if args.report_header:
@@ -492,17 +522,31 @@ if __name__ == '__main__':
     batch_call += " --fisher-mode %i" % (args.fisher_mode)
     batch_call += " --wrs-mode %i" % (args.wrs_mode)
 
-    if args.regex:
-        # Check if given regex is valid.
-        assert is_valid_regex(args.regex), "given --regex \"%s\" is not a valid regular expression. Please provide valid expression" % (args.regex)
-        # Remove , ; from given regex, to avoid motif_id format conflicts.
-        regex = remove_special_chars_from_str(args.regex,
-                                              reg_ex="[ ;]")
-        
-        assert regex, "empty string after removing special chars ( [ ;] ) from --regex. Please provide a valid regex with DNA letters"
+    # Custom database.
+    if args.custom_db_meme_xml or args.custom_db_cm:
+        assert args.custom_db_info, "--custom-db-info needed if --custom-db-meme-xml or --custom-db-cm provided"
+        if args.custom_db_meme_xml:
+            batch_call += " --custom-db-meme-xml %s" % (args.custom_db_meme_xml)
+        if args.custom_db_cm:
+            batch_call += " --custom-db-cm %s" % (args.custom_db_cm)
+        batch_call += " --custom-db-info %s" % (args.custom_db_info)
 
-        batch_call += " --regex %s" % (regex)
+    # Additional overlap annotations.
+    if args.add_annot_bed:
+        batch_call += " --add-annot-bed %s" % (args.add_annot_bed)
+        if args.add_annot_comp:
+            batch_call += " --add-annot-comp"
+        batch_call += " --add-annot-id %s" % (args.add_annot_id)
+
+    # Regex.
+    if args.regex:
+        batch_call += " --regex %s" % (args.regex)
         batch_call += " --regex-search-mode %i" % (args.regex_search_mode)
+        batch_call += " --regex-type %i" % (args.regex_type)
+        batch_call += " --regex-min-gc %s" % (str(args.regex_min_gc))
+        batch_call += " --regex-max-gu %s" % (str(args.regex_max_gu))
+        batch_call += " --regex-spacer-min %i" % (args.regex_spacer_min)
+        batch_call += " --regex-spacer-max %i" % (args.regex_spacer_max)
         batch_call += " --max-motif-dist %i" % (args.max_motif_dist)
 
     rbp_ids = (" ").join(id_collect_dic["rbp_id"])
