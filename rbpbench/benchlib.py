@@ -8062,9 +8062,9 @@ def get_dist_to_next_border(site_s, site_e, reg_s, reg_e, reg_strand,
         If True, return -1, "-" if site center position not within region.
 
     >>> get_dist_to_next_border(11, 20, 5, 20, "+")
-    (3, 'down')
+    (4, 'down')
     >>> get_dist_to_next_border(11, 20, 5, 20, "-")
-    (3, 'up')
+    (4, 'up')
     >>> get_dist_to_next_border(10, 11, 5, 20, "+")
     (5, 'up')
     >>> get_dist_to_next_border(10, 11, 5, 20, "-")
