@@ -238,12 +238,6 @@ def setup_argument_parser():
                    metavar='int',
                    default=200,
                    help="Maximum spacer length for structure pattern regex search (default: 200)")
-
-    # p_s.add_argument("--regex-lookahead",
-    #                dest="regex_lookahead",
-    #                default = False,
-    #                action = "store_true",
-    #                help="Enable lookahead in regex search (default: False)")
     p_s.add_argument("--fimo-ntf-file",
                    dest="fimo_user_ntf_file",
                    type=str,
