@@ -986,7 +986,7 @@ Note that the full [IUPAC nucleotide code](https://www.bioinformatics.org/sms/iu
 i.e., one can write either `AA[ACGT][AG]TT` or `AANRTT`. Moreover, `--regex` accepts structure patterns,
 such as `AA((((ARNA))))CCC` (where `(` and `)` denote base pairs), `AA(((A[A)))CC(((C]C)))CC` (where `[` and `]` denote pseudoknot base pairs), 
 and even structure patterns with variable length and nucleotide content spacers in it, such as `AA(((AA(((.)))CC)))CC` (where `.` denotes the variable spacer part).
-Furthermore, in the case of a structur pattern, a minimum GC base pair fraction (`--regex-min-gc`), a maximum GU base pair fraction (`--regex-max-gu`),
+Furthermore, in the case of a structure pattern, a minimum GC base pair fraction (`--regex-min-gc`), a maximum GU base pair fraction (`--regex-max-gu`),
 and a minimum and maximum spacer length (`--regex-spacer-min`, `--regex-spacer-max`) can be defined to fine-tune the structure pattern search.
 
 
