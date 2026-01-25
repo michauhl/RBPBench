@@ -982,7 +982,7 @@ splicing regulation, translation regulation, and RNA stability & decay).
 
 The `--regex` argument conveniently allows to search for user-defined sequence and structure patterns in genomic regions, transcript regions, or sequences.
 A regular expression string can be either a simple sequence motif string like `AATAAA`, but also more complex ones like `[CA]CA[CT].{10,25}CGGAC`.
-Note that the full [IUPAC nucleotide code](www.bioinformatics.org/sms/iupac.html) is supported, 
+Note that the full [IUPAC nucleotide code](https://www.bioinformatics.org/sms/iupac.html) is supported, 
 i.e., one can write either `AA[ACGT][AG]TT` or `AANRTT`. Moreover, `--regex` accepts structure patterns,
 such as `AA((((ARNA))))CCC` (where `(` and `)` denote base pairs), `AA(((A[A)))CC(((C]C)))CC` (where `[` and `]` denote pseudoknot base pairs), 
 and even structure patterns with variable length and nucleotide content spacers in it, such as `AA(((AA(((.)))CC)))CC` (where `.` denotes the variable spacer part).
