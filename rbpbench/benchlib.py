@@ -1227,8 +1227,10 @@ def con_generate_html_report(args, stats_dic, benchlib_path,
     if os.path.exists(pp_plot_path_check):
         pp_plot = True
 
-    assert pc_pval_stats, "no pc_pval_stats given"
-    assert pp_pval_stats, "no pp_pval_stats given"
+    if pc_plot:
+        assert pc_pval_stats, "no pc_pval_stats given"
+    if pp_plot:
+        assert pp_pval_stats, "no pp_pval_stats given"
 
     if not pp_plot and not pc_plot:
         assert False, "Neither %s nor %s plot found in output folder" %(pc_plot_name, pp_plot_name)
@@ -1692,6 +1694,8 @@ def compare_conservation_scores(args,
 
     """
 
+    pc_pval, pc_rbc_es, pc_cl_es = None, None, None
+
     if pc_bw:
 
         print("Read in phastCons conservation scores ... ")
@@ -1766,7 +1770,9 @@ def compare_conservation_scores(args,
 
     """
 
-    if pp_bw is not None:
+    pp_pval, pp_rbc_es, pp_cl_es = None, None, None
+
+    if pp_bw:
 
         print("Read in phyloP conservation scores ... ")
 
@@ -1840,11 +1846,16 @@ def compare_conservation_scores(args,
     stats_dic["in_regions_stats"] = in_regions_stats
     stats_dic["ctrl_regions_stats"] = ctrl_regions_stats
 
+    pc_pval_stats = False
+    pp_pval_stats = False
+
     if pc_bw:
         in_phastcons_stats = get_val_dic_stats(in_reg_avg_phastcons_dic)
         ctrl_phastcons_stats = get_val_dic_stats(ctrl_reg_avg_phastcons_dic)
         stats_dic["in_phastcons_stats"] = in_phastcons_stats
         stats_dic["ctrl_phastcons_stats"] = ctrl_phastcons_stats
+
+        pc_pval_stats = [pc_pval, pc_rbc_es, pc_cl_es]
 
     if pp_bw:
         in_phylop_stats = get_val_dic_stats(in_reg_avg_phylop_dic)
@@ -1852,15 +1863,14 @@ def compare_conservation_scores(args,
         stats_dic["in_phylop_stats"] = in_phylop_stats
         stats_dic["ctrl_phylop_stats"] = ctrl_phylop_stats
 
+        pp_pval_stats = [pp_pval, pp_rbc_es, pp_cl_es] 
 
     """
     Create report.
 
     """
 
-    pc_pval_stats = [pc_pval, pc_rbc_es, pc_cl_es]
-    pp_pval_stats = [pp_pval, pp_rbc_es, pp_cl_es]
-
+    
     print("Create HTML report ... ")
 
     con_generate_html_report(args, stats_dic, benchlib_path,

@@ -22810,12 +22810,12 @@ def main_con(args):
     print("# --control-bed regions: %i" % (len(control_regions_dic)))
 
     # Check if conservation scores are provided.
-    if args.pc_bw is None and args.pp_bw is None:
+    if not args.pc_bw and not args.pp_bw:
         print("No conservation scores provided! Please provide --phastcons and/or --phylop files/links")
         exit(0)
 
     # If URLs are provided.
-    if args.pc_bw is not None:
+    if args.pc_bw:
         # Check if pc_bw is a link or a file.
         if args.pc_bw.startswith("http"):
             print("Downloading phastCons conservation scores to --out folder (this might take some time!) ... ")
@@ -22824,7 +22824,7 @@ def main_con(args):
 
         assert os.path.exists(args.pc_bw), "given --phastcons file \"%s\" not found" % (args.pc_bw)
 
-    if args.pp_bw is not None:
+    if args.pp_bw:
         # Check if pp_bw is a link or a file.
         if args.pp_bw.startswith("http"):
             print("Downloading phyloP conservation scores to --out folder (this might take some time!) ... ")
