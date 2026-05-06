@@ -10190,13 +10190,14 @@ def main_searchregex(args):
     """
 
     REGIONREGEXHITOUT = open(region_regex_hit_counts_out, "w")
-    REGIONREGEXHITOUT.write("region\tregex_id\thit_count\n")
+    REGIONREGEXHITOUT.write("region\tregex_id\tregex\thit_count\n")
 
     for region in region2regex_hit_c_dic:
         regex_hit_c_dic = region2regex_hit_c_dic[region]
         for regex_id in regex_hit_c_dic:
+            regex = regex_dic[regex_id]
             c_hits = regex_hit_c_dic[regex_id]
-            REGIONREGEXHITOUT.write("%s\t%s\t%i\n" %(region, regex_id, c_hits))
+            REGIONREGEXHITOUT.write("%s\t%s\t%s\t%i\n" %(region, regex_id, regex, c_hits))
 
     REGIONREGEXHITOUT.close()
 
