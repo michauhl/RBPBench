@@ -2131,6 +2131,11 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Keep only best FIMO/CMSEARCH motif hits (i.e., hit with lowest p-value / highest bit score for each motif sequence/site combination). By default, report all hits (default: False)")
+    p_scr.add_argument("--disable-all-reg-bar",
+                   dest="disable_all_reg_bar",
+                   default = False,
+                   action = "store_true",
+                   help = "Disable adding region annotations for all input regions (irrespective of motif hits) to stacked bar plot (default: False)")
     # Sequence k-mers plot.
     p_scr.add_argument("--disable-kmer-pca-plot",
                    dest="disable_kmer_pca_plot",
