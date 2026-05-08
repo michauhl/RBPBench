@@ -1227,8 +1227,10 @@ def con_generate_html_report(args, stats_dic, benchlib_path,
     if os.path.exists(pp_plot_path_check):
         pp_plot = True
 
-    assert pc_pval_stats, "no pc_pval_stats given"
-    assert pp_pval_stats, "no pp_pval_stats given"
+    if pc_plot:
+        assert pc_pval_stats, "no pc_pval_stats given"
+    if pp_plot:
+        assert pp_pval_stats, "no pp_pval_stats given"
 
     if not pp_plot and not pc_plot:
         assert False, "Neither %s nor %s plot found in output folder" %(pc_plot_name, pp_plot_name)
@@ -1692,6 +1694,8 @@ def compare_conservation_scores(args,
 
     """
 
+    pc_pval, pc_rbc_es, pc_cl_es = None, None, None
+
     if pc_bw:
 
         print("Read in phastCons conservation scores ... ")
@@ -1766,7 +1770,9 @@ def compare_conservation_scores(args,
 
     """
 
-    if pp_bw is not None:
+    pp_pval, pp_rbc_es, pp_cl_es = None, None, None
+
+    if pp_bw:
 
         print("Read in phyloP conservation scores ... ")
 
@@ -1840,11 +1846,16 @@ def compare_conservation_scores(args,
     stats_dic["in_regions_stats"] = in_regions_stats
     stats_dic["ctrl_regions_stats"] = ctrl_regions_stats
 
+    pc_pval_stats = False
+    pp_pval_stats = False
+
     if pc_bw:
         in_phastcons_stats = get_val_dic_stats(in_reg_avg_phastcons_dic)
         ctrl_phastcons_stats = get_val_dic_stats(ctrl_reg_avg_phastcons_dic)
         stats_dic["in_phastcons_stats"] = in_phastcons_stats
         stats_dic["ctrl_phastcons_stats"] = ctrl_phastcons_stats
+
+        pc_pval_stats = [pc_pval, pc_rbc_es, pc_cl_es]
 
     if pp_bw:
         in_phylop_stats = get_val_dic_stats(in_reg_avg_phylop_dic)
@@ -1852,15 +1863,14 @@ def compare_conservation_scores(args,
         stats_dic["in_phylop_stats"] = in_phylop_stats
         stats_dic["ctrl_phylop_stats"] = ctrl_phylop_stats
 
+        pp_pval_stats = [pp_pval, pp_rbc_es, pp_cl_es] 
 
     """
     Create report.
 
     """
 
-    pc_pval_stats = [pc_pval, pc_rbc_es, pc_cl_es]
-    pp_pval_stats = [pp_pval, pp_rbc_es, pp_cl_es]
-
+    
     print("Create HTML report ... ")
 
     con_generate_html_report(args, stats_dic, benchlib_path,
@@ -2308,6 +2318,7 @@ def output_target_reg_annot(target_genes_dic, gene_infos_file, target_reg_annot_
     # check if gene_infos_file file exists.
     assert os.path.exists(gene_infos_file), "gene infos file %s not found" %(gene_infos_file)
 
+    # ensembl_gene_infos.biomart.GRCh38.112.tsv.gz gene_infos_file is without version numbers.
     gene_desc_dic = get_gene_descriptions(gene_infos_file)
 
     OUTANNOT = open(target_reg_annot_file, "w")
@@ -2334,11 +2345,15 @@ def output_target_reg_annot(target_genes_dic, gene_infos_file, target_reg_annot_
         tr_id = "-"
         tr_type = "-"
         if gid2tid_dic is not None:
-            if gene_id in gid2tid_dic or gene_id_full in gid2tid_dic:
+            if gene_id in gid2tid_dic:
                 tr_id = gid2tid_dic[gene_id]
-                if tid2tio_dic is not None:
-                    if tr_id in tid2tio_dic:
-                        tr_type = tid2tio_dic[tr_id].tr_biotype
+            elif gene_id_full in gid2tid_dic:
+                tr_id = gid2tid_dic[gene_id_full]
+            # if gene_id in gid2tid_dic or gene_id_full in gid2tid_dic:
+            #     tr_id = gid2tid_dic[gene_id]
+            if tid2tio_dic is not None:
+                if tr_id in tid2tio_dic:
+                    tr_type = tid2tio_dic[tr_id].tr_biotype
 
         OUTANNOT.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\n" %(gene_id, gene_name, gene_synonyms, gene_type, gene_desc, tr_id, tr_type))
 
@@ -20766,7 +20781,7 @@ by default top and bottom are split in half), or change k (--kmer-plot-k).
 x-axis: k-mer variation, describing the variation of the k-mer over all input sequences (see coefficient of variation (CV) in hover box description).
 y-axis: site %%, i.e., percentage of sequences where k-mer is present.
 By default, the correlation (Spearman correlation coefficient) between k-mer ratios and input region scores is used for coloring 
-(alternatively use --seq-var-mode to change to k-mer %%).
+(alternatively use --kmer-var-color-mode to change to k-mer %%).
 Hover box:
 **k-mer** -> observed k-mer.
 **Variation** -> coefficient of variation (CV) of the k-mer ratios over all input site sequences. 
@@ -20913,7 +20928,6 @@ No sequence k-mers content plot generated since no k-mer contents extracted from
 &nbsp;
 
 """
-
 
 
     """
