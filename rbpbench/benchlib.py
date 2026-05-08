@@ -2318,6 +2318,7 @@ def output_target_reg_annot(target_genes_dic, gene_infos_file, target_reg_annot_
     # check if gene_infos_file file exists.
     assert os.path.exists(gene_infos_file), "gene infos file %s not found" %(gene_infos_file)
 
+    # ensembl_gene_infos.biomart.GRCh38.112.tsv.gz gene_infos_file is without version numbers.
     gene_desc_dic = get_gene_descriptions(gene_infos_file)
 
     OUTANNOT = open(target_reg_annot_file, "w")
@@ -2344,11 +2345,15 @@ def output_target_reg_annot(target_genes_dic, gene_infos_file, target_reg_annot_
         tr_id = "-"
         tr_type = "-"
         if gid2tid_dic is not None:
-            if gene_id in gid2tid_dic or gene_id_full in gid2tid_dic:
+            if gene_id in gid2tid_dic:
                 tr_id = gid2tid_dic[gene_id]
-                if tid2tio_dic is not None:
-                    if tr_id in tid2tio_dic:
-                        tr_type = tid2tio_dic[tr_id].tr_biotype
+            elif gene_id_full in gid2tid_dic:
+                tr_id = gid2tid_dic[gene_id_full]
+            # if gene_id in gid2tid_dic or gene_id_full in gid2tid_dic:
+            #     tr_id = gid2tid_dic[gene_id]
+            if tid2tio_dic is not None:
+                if tr_id in tid2tio_dic:
+                    tr_type = tid2tio_dic[tr_id].tr_biotype
 
         OUTANNOT.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\n" %(gene_id, gene_name, gene_synonyms, gene_type, gene_desc, tr_id, tr_type))
 

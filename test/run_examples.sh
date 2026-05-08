@@ -9,8 +9,6 @@
 # bash run_examples.sh 2>&1 /path/to/hg38.fa /path/to/Homo_sapiens.GRCh38.xxx.gtf.gz /path/to/hg38.phastCons100way.bw /path/to/hg38.phyloP100way.bw | tee run_examples.log
 #
 
-
-
 genome_fa_path="$1"
 gtf_path="$2"
 pc_bbw_path="$3"

@@ -6556,11 +6556,11 @@ def main_search(args):
         tr2gid_dic = {}
         tr_types_dic = {}  # Store transcript biotypes in GTF file.
         gid2gio_dic = benchlib.gtf_read_in_gene_infos(args.in_gtf,
-                                                        tr2gid_dic=tr2gid_dic,
-                                                        tr_types_dic=tr_types_dic,
-                                                        check_chr_ids_dic=chr_ids_dic,
-                                                        chr_style=chr_style,
-                                                        empty_check=False)
+                                                      tr2gid_dic=tr2gid_dic,
+                                                      tr_types_dic=tr_types_dic,
+                                                      check_chr_ids_dic=chr_ids_dic,
+                                                      chr_style=chr_style,
+                                                      empty_check=False)
         assert gid2gio_dic, "no gene infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
         c_gene_infos = len(gid2gio_dic)
         print("# gene features read in from --gtf:", c_gene_infos)
@@ -7169,7 +7169,7 @@ def main_search(args):
 
         if target_genes_dic:
 
-            gene_infos_file = benchlib_path + "/content/ensembl_gene_infos.biomart.GRCh38.112.tsv.gz"
+            gene_infos_file = benchlib_path + "/content/ensembl_gene_infos.biomart.GRCh38.p14.tsv.gz"
             if os.path.exists(gene_infos_file):
                 print("Output target region annotations ... ")
                 target_reg_annot_file = os.path.join(args.out_folder, "target_region_annotations.tsv")
@@ -7178,7 +7178,7 @@ def main_search(args):
                                                  gid2tid_dic=gid2tid_dic,
                                                  tid2tio_dic=tid2tio_dic)
 
-            local_gid2go_file = benchlib_path + "/content/ensembl_gene_id2go_ids.biomart.GRCh38.112.tsv.gz"
+            local_gid2go_file = benchlib_path + "/content/ensembl_gene_id2go_ids.biomart.GRCh38.p14.tsv.gz"
             local_obo_file = benchlib_path + "/content/go-basic.obo.gz"
 
             assert os.path.exists(local_gid2go_file), "local gene ID to GO ID file \"%s\" not found" %(local_gid2go_file)
@@ -7952,11 +7952,11 @@ def main_batch(args):
         tr2gid_dic = {}
         tr_types_dic = {}  # Store transcript biotypes in GTF file.
         gid2gio_dic = benchlib.gtf_read_in_gene_infos(args.in_gtf,
-                                                    tr2gid_dic=tr2gid_dic,
-                                                    tr_types_dic=tr_types_dic,
-                                                    check_chr_ids_dic=chr_ids_dic,
-                                                    chr_style=chr_style,
-                                                    empty_check=False)
+                                                      tr2gid_dic=tr2gid_dic,
+                                                      tr_types_dic=tr_types_dic,
+                                                      check_chr_ids_dic=chr_ids_dic,
+                                                      chr_style=chr_style,
+                                                      empty_check=False)
 
         assert gid2gio_dic, "no gene infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
         c_gene_infos = len(gid2gio_dic)
@@ -9675,7 +9675,7 @@ def main_batch(args):
         goa_stats_dic["goa_only_cooc"] = args.goa_only_cooc
 
             
-        local_gid2go_file = benchlib_path + "/content/ensembl_gene_id2go_ids.biomart.GRCh38.112.tsv.gz"
+        local_gid2go_file = benchlib_path + "/content/ensembl_gene_id2go_ids.biomart.GRCh38.p14.tsv.gz"
         local_obo_file = benchlib_path + "/content/go-basic.obo.gz"
 
         assert os.path.exists(local_gid2go_file), "local gene ID to GO ID file \"%s\" not found" %(local_gid2go_file)
@@ -14529,7 +14529,7 @@ def main_searchrna(args):
         goa_stats_dic["goa_min_depth"] = args.goa_min_depth
         goa_stats_dic["goa_cooc_mode"] = args.goa_cooc_mode
 
-        gene_infos_file = benchlib_path + "/content/ensembl_gene_infos.biomart.GRCh38.112.tsv.gz"
+        gene_infos_file = benchlib_path + "/content/ensembl_gene_infos.biomart.GRCh38.p14.tsv.gz"
         if os.path.exists(gene_infos_file):
             print("Output target region annotations ... ")
             target_reg_annot_file = args.out_folder + "/target_region_annotations.tsv"
@@ -14538,7 +14538,7 @@ def main_searchrna(args):
                                              gid2tid_dic=gid2tid_dic,
                                              tid2tio_dic=tid2tio_dic)
 
-        local_gid2go_file = benchlib_path + "/content/ensembl_gene_id2go_ids.biomart.GRCh38.112.tsv.gz"
+        local_gid2go_file = benchlib_path + "/content/ensembl_gene_id2go_ids.biomart.GRCh38.p14.tsv.gz"
         local_obo_file = benchlib_path + "/content/go-basic.obo.gz"
 
         assert os.path.exists(local_gid2go_file), "local gene ID to GO ID file \"%s\" not found" %(local_gid2go_file)
@@ -17642,7 +17642,7 @@ def main_searchlongrna(args):
             elif args.goa_rna_region == 4:
                 print("Hits in 5'UTR regions found. Running GOA on genes of transcripts with 5'UTR hits ... ")
 
-            local_gid2go_file = benchlib_path + "/content/ensembl_gene_id2go_ids.biomart.GRCh38.112.tsv.gz"
+            local_gid2go_file = benchlib_path + "/content/ensembl_gene_id2go_ids.biomart.GRCh38.p14.tsv.gz"
             local_obo_file = benchlib_path + "/content/go-basic.obo.gz"
 
             assert os.path.exists(local_gid2go_file), "local gene ID to GO ID file \"%s\" not found" %(local_gid2go_file)
@@ -18771,9 +18771,6 @@ def main_enmo(args):
     benchlib.merge_files(shuffle_list, bg_shuffle_in_bed)
 
     print("# random negative regions to sample: ", c_pos_total)
-
-
-
 
 
     """
@@ -24239,7 +24236,7 @@ def main_goa(args):
     goa_stats_dic["goa_max_child"] = args.goa_max_child
     goa_stats_dic["goa_min_depth"] = args.goa_min_depth
 
-    local_gid2go_file = benchlib_path + "/content/ensembl_gene_id2go_ids.biomart.GRCh38.112.tsv.gz"
+    local_gid2go_file = benchlib_path + "/content/ensembl_gene_id2go_ids.biomart.GRCh38.p14.tsv.gz"
     local_obo_file = benchlib_path + "/content/go-basic.obo.gz"
 
     assert os.path.exists(local_gid2go_file), "local gene ID to GO ID file \"%s\" not found" %(local_gid2go_file)
