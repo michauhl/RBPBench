@@ -20781,7 +20781,7 @@ by default top and bottom are split in half), or change k (--kmer-plot-k).
 x-axis: k-mer variation, describing the variation of the k-mer over all input sequences (see coefficient of variation (CV) in hover box description).
 y-axis: site %%, i.e., percentage of sequences where k-mer is present.
 By default, the correlation (Spearman correlation coefficient) between k-mer ratios and input region scores is used for coloring 
-(alternatively use --seq-var-mode to change to k-mer %%).
+(alternatively use --kmer-var-color-mode to change to k-mer %%).
 Hover box:
 **k-mer** -> observed k-mer.
 **Variation** -> coefficient of variation (CV) of the k-mer ratios over all input site sequences. 

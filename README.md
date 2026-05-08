@@ -1237,7 +1237,7 @@ The RBP hit statistics file `rbp_hit_stats.tsv` contains the following columns:
 | uniq_motif_hits_eff_1000nt | Number of motif hits over 1000 nt of effective region size |
 | wc_pval | [Wilcoxon rank-sum test p-value](#input-region-score-motif-enrichment-statistics) to test whether motif hit regions tend to feature higher scores | 
 | wc_rbc_eff_size | Rank-biserial correlation effect size for Wilcoxon rank-sum test |
-| wc_cl_eff_size | Rank-biserial correlation effect size for Wilcoxon rank-sum test |
+| wc_cl_eff_size | Common language effect size for Wilcoxon rank-sum test |
 | seq_motif_ids | Sequence motif IDs. Empty (`-`) if rbp_id has not sequence motifs  | 
 | seq_motif_hits | Sequence motif hit counts (count for each motif ID) | 
 | str_motif_ids | Structure motif IDs. Empty (`-`) if rbp_id has not structure motifs  | 
