@@ -17187,16 +17187,19 @@ Frequency distributions of k-mers (in percent) for the input and background data
 
         # Create 3-mer plotly scatter plot.
         create_kmer_sc_plotly_scatter_plot(pos_3mer_dic, neg_3mer_dic, 3,
-                                        plotly_3mer_plot_out,
-                                        plotly_js_path)
+                                           plotly_3mer_plot_out,
+                                           include_plotlyjs=include_plotlyjs,
+                                           full_html=plotly_full_html)
         # Create 4-mer plotly scatter plot.
         create_kmer_sc_plotly_scatter_plot(pos_4mer_dic, neg_4mer_dic, 4,
-                                        plotly_4mer_plot_out,
-                                        plotly_js_path)
+                                           plotly_4mer_plot_out,
+                                           include_plotlyjs=include_plotlyjs,
+                                           full_html=plotly_full_html)
         # Create 5-mer plotly scatter plot.
         create_kmer_sc_plotly_scatter_plot(pos_5mer_dic, neg_5mer_dic, 5,
-                                        plotly_5mer_plot_out,
-                                        plotly_js_path)
+                                           plotly_5mer_plot_out,
+                                           include_plotlyjs=include_plotlyjs,
+                                           full_html=plotly_full_html)
         # Plot paths inside html report.
         plotly_3mer_plot_path = plots_folder + "/" + plotly_3mer_plot
         plotly_4mer_plot_path = plots_folder + "/" + plotly_4mer_plot
@@ -17362,7 +17365,7 @@ def nemo_generate_html_report(args,
     """
 
     include_plotlyjs = "cdn"
-    # plotly_full_html = False
+    plotly_full_html = False
     plotly_js_html = ""
     plotly_js_path = benchlib_path + "/content/plotly-2.20.0.min.js"
     assert os.path.exists(plotly_js_path), "plotly .js %s not found" %(plotly_js_path)
@@ -18159,16 +18162,19 @@ Frequency distributions of k-mers (in percent) for the input and background data
 
         # Create 3-mer plotly scatter plot.
         create_kmer_sc_plotly_scatter_plot(pos_3mer_dic, neg_3mer_dic, 3,
-                                        plotly_3mer_plot_out,
-                                        plotly_js_path)
+                                           plotly_3mer_plot_out,
+                                           include_plotlyjs=include_plotlyjs,
+                                           full_html=plotly_full_html)
         # Create 4-mer plotly scatter plot.
         create_kmer_sc_plotly_scatter_plot(pos_4mer_dic, neg_4mer_dic, 4,
-                                        plotly_4mer_plot_out,
-                                        plotly_js_path)
+                                           plotly_4mer_plot_out,
+                                           include_plotlyjs=include_plotlyjs,
+                                           full_html=plotly_full_html)
         # Create 5-mer plotly scatter plot.
         create_kmer_sc_plotly_scatter_plot(pos_5mer_dic, neg_5mer_dic, 5,
-                                        plotly_5mer_plot_out,
-                                        plotly_js_path)
+                                           plotly_5mer_plot_out,
+                                           include_plotlyjs=include_plotlyjs,
+                                           full_html=plotly_full_html)
         # Plot paths inside html report.
         plotly_3mer_plot_path = plots_folder + "/" + plotly_3mer_plot
         plotly_4mer_plot_path = plots_folder + "/" + plotly_4mer_plot
@@ -18269,10 +18275,12 @@ percentage = 0.09765625. R2 = %.6f.
 ################################################################################
 
 def create_kmer_sc_plotly_scatter_plot(pos_mer_dic, neg_mer_dic, k,
-                                       out_html, plotly_js,
+                                       out_html,
                                        pos_label="k-mer % input",
                                        neg_label="k-mer % background",
-                                       kmer_label="k-mer"):
+                                       kmer_label="k-mer",
+                                       include_plotlyjs="cdn",
+                                       full_html=False):
     """
     Create plotly graph plot, containing k-mer scores of positive
     and negative set, and store in .html file.
@@ -18285,8 +18293,6 @@ def create_kmer_sc_plotly_scatter_plot(pos_mer_dic, neg_mer_dic, k,
         k in k-mer.
     out_html:
         Output .html path to store interactive (!) plotly graph.
-    plotly_js:
-        Path to plotly js plotly-latest.min.js.
 
     """
     assert pos_mer_dic, "given pos_mer_dic empty"
@@ -18358,8 +18364,8 @@ def create_kmer_sc_plotly_scatter_plot(pos_mer_dic, neg_mer_dic, k,
     plot.update_layout(xaxis_range=[min_perc, max_perc])
 
     plot.write_html(out_html,
-                    full_html=False,
-                    include_plotlyjs=plotly_js)
+                    full_html=full_html,
+                    include_plotlyjs=include_plotlyjs)
 
 
 ################################################################################
@@ -20689,10 +20695,12 @@ Change k via --kmer-plot-k.
 
         # Create k-mer plotly scatter plot.
         create_kmer_sc_plotly_scatter_plot(top_kmer_dic, bottom_kmer_dic, args.kmer_plot_k,
-                                           plotly_kmer_plot_out, plotly_js_path,
+                                           plotly_kmer_plot_out,
                                            pos_label=f"{args.kmer_plot_k}-mer % top scoring sites",
                                            neg_label=f"{args.kmer_plot_k}-mer % bottom scoring sites",
-                                           kmer_label=f"{args.kmer_plot_k}-mer")
+                                           kmer_label=f"{args.kmer_plot_k}-mer",
+                                           include_plotlyjs=include_plotlyjs,
+                                           full_html=plotly_full_html)
 
         # Plot paths inside html report.
         plotly_kmer_plot_path = plots_folder + "/" + plotly_kmer_plot
