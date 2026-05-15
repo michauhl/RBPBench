@@ -3735,7 +3735,7 @@ def run_cmsearch(in_fa, in_cm, out_tab,
 
 ################################################################################
 
-def run_fast_fimo(in_fa, in_meme_xml, out_tsv,
+def run_fast_fimo(in_fa, in_meme_txt, out_tsv,
                   pval_thr=0.001,
                   params="--norc --verbosity 1 --skip-matched-sequence --text",
                   nt_freqs_file=False,
@@ -3755,12 +3755,12 @@ def run_fast_fimo(in_fa, in_meme_xml, out_tsv,
     """
     assert is_tool("fimo"), "fimo not in PATH"
     assert os.path.exists(in_fa), "in_fa %s does not exist" %(in_fa)
-    assert os.path.exists(in_meme_xml), "in_meme_xml %s does not exist" %(in_meme_xml)
+    assert os.path.exists(in_meme_txt), "in_meme_txt %s does not exist" %(in_meme_txt)
     
     if nt_freqs_file:
         params += " --bfile %s " %(nt_freqs_file)
 
-    check_cmd = "fimo " + params + " --thresh " + str(pval_thr) + " " + in_meme_xml + " " + in_fa + " > " + out_tsv
+    check_cmd = "fimo " + params + " --thresh " + str(pval_thr) + " " + in_meme_txt + " " + in_fa + " > " + out_tsv
     output = subprocess.getoutput(check_cmd)
 
     if call_dic is not None:
@@ -3775,7 +3775,7 @@ def run_fast_fimo(in_fa, in_meme_xml, out_tsv,
 
 ################################################################################
 
-def run_fimo(in_fa, in_meme_xml, out_folder,
+def run_fimo(in_fa, in_meme_txt, out_folder,
              pval_thr=0.001,
              nt_freqs_file=False,
              params="--norc --verbosity 1"):
@@ -3806,12 +3806,12 @@ def run_fimo(in_fa, in_meme_xml, out_folder,
     """
     assert is_tool("fimo"), "fimo not in PATH"
     assert os.path.exists(in_fa), "in_fa %s does not exist" %(in_fa)
-    assert os.path.exists(in_meme_xml), "in_meme_xml %s does not exist" %(in_meme_xml)
+    assert os.path.exists(in_meme_txt), "in_meme_txt %s does not exist" %(in_meme_txt)
 
     if nt_freqs_file:
         params += " --bfile %s " %(nt_freqs_file)
 
-    check_cmd = "fimo " + params + " --thresh " + str(pval_thr) + " -oc " + out_folder + " " + in_meme_xml + " " + in_fa
+    check_cmd = "fimo " + params + " --thresh " + str(pval_thr) + " -oc " + out_folder + " " + in_meme_txt + " " + in_fa
     output = subprocess.getoutput(check_cmd)
     error = False
     if output:
@@ -4745,10 +4745,10 @@ def fasta_output_dic(fasta_dic, fasta_out,
 
 ################################################################################
 
-def read_in_xml_motifs(meme_xml_file, 
-                       empty_check=True):
+def read_in_meme_motifs(meme_txt_file, 
+                        empty_check=True):
     """
-    Read in XML motifs, store in blocks dictionary.
+    Read in MEME motifs, store in blocks dictionary.
 
     motif_blocks_dic entry:
     ['letter-probability matrix: alength= 4 w= 10 nsites= 20 E= 0', 
@@ -4765,18 +4765,18 @@ def read_in_xml_motifs(meme_xml_file,
 
     """
 
-    assert os.path.exists(meme_xml_file), "meme_xml_file %s not found" % (meme_xml_file)
+    assert os.path.exists(meme_txt_file), "meme_txt_file %s not found" % (meme_txt_file)
 
     raw_text = ""
-    with open(meme_xml_file, "r") as f:
+    with open(meme_txt_file, "r") as f:
         raw_text = f.read()
-    assert raw_text, "nothing read in from MEME XML file %s. Please provide valid MEME/DREME XML sequence motifs file" %(meme_xml_file)
+    assert raw_text, "nothing read in from MEME motifs file %s. Please provide valid MEME/DREME sequence motifs file (plain text format, not XML)" %(meme_txt_file)
 
     # Get motif blocks.
     motif_blocks_dic = extract_motif_blocks(raw_text)
 
     if empty_check:
-        assert motif_blocks_dic, "motif_blocks_dic empty (malformatted MEME/DREME XML file provided?)"
+        assert motif_blocks_dic, "motif_blocks_dic empty (malformatted MEME/DREME motifs file provided?)"
 
     return motif_blocks_dic
 
@@ -4927,7 +4927,7 @@ def get_consensus_motif_from_seq_block(seq_block):
 
 def extract_motif_blocks(raw_text):
     """
-    Extract MEME XML motif blocks, store in dictionary:
+    Extract MEME motif blocks, store in dictionary:
     motif_id -> motif text block, as list of lines
 
     """
@@ -4942,10 +4942,10 @@ def extract_motif_blocks(raw_text):
             motif_id = m.group(1)
             # new_motif_id = remove_special_chars_from_str(motif_id)
             # Default: reg_ex=r'[^A-Za-z0-9_-]+', i.e. only allow A-Z a-z 0-9 _ -
-            # Now allow all characters in motif IDs, as MEME XML allows that.
+            # Now allow all characters in motif IDs, as MEME allows that.
             new_motif_id = remove_special_chars_from_str(motif_id, reg_ex=r'\s+')  # Only remove whitespace characters.
 
-            assert new_motif_id, "no characters left after removal of special characters from motif ID \"%s\". Please use valid MEME XML motif IDs (i.e., modify MOTIF column strings in motifs xml file)" %(motif_id)
+            assert new_motif_id, "no characters left after removal of special characters from motif ID \"%s\". Please use valid MEME motifs file (plain text format, not XML)" %(motif_id)
             motif_id = new_motif_id
         else:
             if motif_id and l:
@@ -4963,16 +4963,16 @@ def extract_motif_blocks(raw_text):
 
 ################################################################################
 
-def blocks_to_xml_string(motif_blocks_dic, motif_ids_dic,
-                         mid2rid_dic=None,
-                         out_xml=False):
+def blocks_to_meme_txt_string(motif_blocks_dic, motif_ids_dic,
+                              mid2rid_dic=None,
+                              out_meme_txt=False):
     """
-    Return MEME XML string based on given motif IDs dictionary and available
-    motif blocks dictionary.
+    Return MEME motifs text string based on given motif IDs dictionary and 
+    available motif blocks dictionary.
 
     mid2rid_dic:
         motif ID -> RBP ID mapping dictionary.
-        Adds RBP ID to motif ID in MEME XML output.
+        Adds RBP ID to motif ID in MEME motif output.
 
     """
 
@@ -4986,10 +4986,10 @@ Background letter frequencies
 A 0.250000 C 0.250000 G 0.250000 T 0.250000
 
 """
-    if out_xml:
-        OUTXML = open(out_xml, "w")
+    if out_meme_txt:
+        OUTMEME = open(out_meme_txt, "w")
 
-    xml_str = header
+    meme_txt_str = header
     c_added_motifs = 0
     for motif_id in motif_ids_dic:
         if motif_id in motif_blocks_dic: # Only for sequence motifs.
@@ -5000,13 +5000,13 @@ A 0.250000 C 0.250000 G 0.250000 T 0.250000
                 if motif_id in mid2rid_dic:
                     motif_str = motif_id + " " + mid2rid_dic[motif_id]
             block_str_final = "MOTIF " + motif_str + " \n" + block_str + "\n\n"
-            xml_str += block_str_final
+            meme_txt_str += block_str_final
             c_added_motifs += 1
-            if out_xml:
-                OUTXML.write(block_str_final)
-    if out_xml:
-        OUTXML.close()
-    return xml_str, c_added_motifs
+            if out_meme_txt:
+                OUTMEME.write(block_str_final)
+    if out_meme_txt:
+        OUTMEME.close()
+    return meme_txt_str, c_added_motifs
 
 
 ################################################################################
@@ -9226,7 +9226,7 @@ def get_fid_db_counts(name2ids_dic, name2fids_dic,
 ################################################################################
 
 def get_rbp_id_mappings(rbp2ids_file,
-                        only_meme_xml=False):
+                        only_meme=False):
     """
     Read in file mapping RBP names to motif IDs and motif types.
     Return dictionaries with:
@@ -9236,11 +9236,11 @@ def get_rbp_id_mappings(rbp2ids_file,
     FILE FORMAT:
 
     RBP_motif_ID	RBP_name	Motif_type	Organism
-    AGGF1_1	AGGF1	meme_xml	human
-    AGGF1_2	AGGF1	meme_xml	human
-    AKAP1_1	AKAP1	meme_xml	human
-    BCCIP_1	BCCIP	meme_xml	human
-    BUD13_1	BUD13	meme_xml	human
+    AGGF1_1	AGGF1	meme	human
+    AGGF1_2	AGGF1	meme	human
+    AKAP1_1	AKAP1	meme	human
+    BCCIP_1	BCCIP	meme	human
+    BUD13_1	BUD13	meme	human
     ...
     RF00032	SLBP	cm	human
 
@@ -9249,16 +9249,16 @@ def get_rbp_id_mappings(rbp2ids_file,
 
     RBPBench v1.0 updated:
     RBP_motif_ID	RBP_name	Motif_type	Organism	Gene_ID	Function_IDs	Reference	Experiment	Comments
-    A1CF_1	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	34086933	-	-
-    A1CF_2	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	34086933	-	-
-    ACIN1_1	ACIN1	meme_xml	human	-	-	34086933	-	-
+    A1CF_1	A1CF	meme	human	ENSG00000148584	RM;RSD;RE	34086933	-	-
+    A1CF_2	A1CF	meme	human	ENSG00000148584	RM;RSD;RE	34086933	-	-
+    ACIN1_1	ACIN1	meme	human	-	-	34086933	-	-
 
     RBPBench v1.01 updated (more pubmed IDs + experiment infos):
     RBP_motif_ID	RBP_name	Motif_type	Organism	Gene_ID	Function_IDs	Reference	Experiment	Comments
-    A1CF_1	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	31724725;10669759	RBNS_ENCODE;RBPDB	-
-    A1CF_2	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	31724725	RBNS_ENCODE	-
-    ACIN1_1	ACIN1	meme_xml	human	ENSG00000100813	-	27365209	iCLIP	-
-    ACIN1_2	ACIN1	meme_xml	human	ENSG00000100813	-	27365209	iCLIP	-
+    A1CF_1	A1CF	meme	human	ENSG00000148584	RM;RSD;RE	31724725;10669759	RBNS_ENCODE;RBPDB	-
+    A1CF_2	A1CF	meme	human	ENSG00000148584	RM;RSD;RE	31724725	RBNS_ENCODE	-
+    ACIN1_1	ACIN1	meme	human	ENSG00000100813	-	27365209	iCLIP	-
+    ACIN1_2	ACIN1	meme	human	ENSG00000100813	-	27365209	iCLIP	-
         
     """
     name2ids_dic = {}
@@ -9280,8 +9280,8 @@ def get_rbp_id_mappings(rbp2ids_file,
             motif_type = cols[2]
 
             id2type_dic[motif_id] = motif_type
-            if only_meme_xml:
-                if motif_type != "meme_xml":
+            if only_meme:
+                if motif_type != "meme":
                     continue
 
             if rbp_name in name2ids_dic:
@@ -10518,7 +10518,7 @@ class EnmoStats:
                  fisher_pval_corr = 1.0,
                  fisher_corr_mode = 1,  # 1: BH, 2: Bonferroni, 3: no correction
                  fisher_alt_hyp_mode = 1,  # Alternative hypothesis mode, 1: greater, 2: two-sided, 3: less
-                 motif_type="meme_xml",
+                 motif_type="meme",
                  consensus_seq="-",  # Consensus sequence of sequence motif (for structure motif "-", for regex "regex_string").
                  logo_png_file = False) -> None:
         self.motif_id = motif_id
@@ -10561,7 +10561,7 @@ class NemoStats:
                  fisher_pval_corr = 1.0,
                  fisher_corr_mode = 1,  # 1: BH, 2: Bonferroni, 3: no correction
                  fisher_alt_hyp_mode = 1,  # Alternative hypothesis mode, 1: greater, 2: two-sided, 3: less
-                 motif_type="meme_xml",
+                 motif_type="meme",
                  consensus_seq="-",  # Consensus sequence of sequence motif (for structure motif "-", for regex "regex_string").
                  pos_set_avg_center_dist="-",
                  neg_set_avg_center_dist="-",
@@ -16754,7 +16754,7 @@ by RBPBench (%s, rbpbench %s):
         pval_dic[motif_id] = pval
         if pval <= args.enmo_pval_thr:
             c_sig_motifs += 1
-            if motif_enrich_stats_dic[motif_id].motif_type == "meme_xml":
+            if motif_enrich_stats_dic[motif_id].motif_type == "meme":
                 sig_seq_motif_ids_list.append(motif_id)
 
     sig_seq_motif_ids_list.sort()
@@ -17539,7 +17539,7 @@ by RBPBench (%s, rbpbench %s):
         pval_dic[motif_id] = pval
         if pval <= args.nemo_pval_thr:
             c_sig_motifs += 1
-            if motif_enrich_stats_dic[motif_id].motif_type == "meme_xml":
+            if motif_enrich_stats_dic[motif_id].motif_type == "meme":
                 sig_seq_motif_ids_list.append(motif_id)
 
     sig_seq_motif_ids_list.sort()
@@ -24658,7 +24658,7 @@ def create_motif_plot(motif_id,
                       plot_pdf=False,
                       plot_png=True):
     """
-    Create sequence motif plot from MEME XML motif block.
+    Create sequence motif plot from MEME motif block.
 
     Block format:
     block = ['letter-probability matrix: alength= 4 w= 9 nsites= 20 E= 0', 

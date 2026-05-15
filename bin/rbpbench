@@ -67,7 +67,7 @@ def setup_argument_parser():
                    metavar='str',
                    nargs='+',
                    required=True,
-                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme-xml and/or --user-cm. To search only for --regex, set --rbps REGEX")
+                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme and/or --user-cm. To search only for --regex, set --rbps REGEX")
     p_sm.add_argument("--genome",
                    dest="in_genome",
                    type=str,
@@ -105,12 +105,12 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide RBP ID belonging to provided sequence or structure motif(s) (mandatory for --rbps USER)")
-    p_s.add_argument("--user-meme-xml",
-                   dest="user_meme_xml",
+    p_s.add_argument("--user-meme",
+                   dest="user_meme",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide MEME/DREME XML file containing sequence motif(s) to be used for the run (needs --rbps USER)")
+                   help = "Provide MEME/DREME motif format file (plain text format, not XML) containing sequence motif(s) to be used for the run (needs --rbps USER)")
     p_s.add_argument("--user-cm",
                    dest="user_cm",
                    type=str,
@@ -134,19 +134,19 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme-xml, --custom-db-cm, --custom-db-info")
+                   help = "Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme, --custom-db-cm, --custom-db-info")
     p_s.add_argument("--custom-db-id",
                    dest="custom_db_id",
                    type=str,
                    metavar='str',
                    default = "custom",
-                   help = "Set ID/name for provided custom motif database via --custom-db  (default: \"custom\")")
-    p_s.add_argument("--custom-db-meme-xml",
-                   dest="custom_db_meme_xml",
+                   help = "Set ID/name for provided custom motif database via --custom-db (default: \"custom\")")
+    p_s.add_argument("--custom-db-meme",
+                   dest="custom_db_meme",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide custom motif database MEME/DREME XML file containing sequence motifs")
+                   help = "Provide custom motif database MEME/DREME motif format file (plain text format, not XML) containing sequence motifs")
     p_s.add_argument("--custom-db-cm",
                    dest="custom_db_cm",
                    type=str,
@@ -779,13 +779,13 @@ def setup_argument_parser():
                    metavar='str',
                    default = "custom",
                    help = "Set ID/name for provided custom motif database via --custom-db  (default: \"custom\")")
-    p_b.add_argument("--custom-db-meme-xml",
-                   dest="custom_db_meme_xml",
+    p_b.add_argument("--custom-db-meme",
+                   dest="custom_db_meme",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide custom motif database MEME/DREME XML file containing sequence motifs")
-    p_b.add_argument("--custom-db-cm",
+                   help = "Provide custom motif database MEME/DREME motif format file (plain text format, not XML) containing sequence motifs")
+    p_b.add_argument("--custom-db-cm",  
                    dest="custom_db_cm",
                    type=str,
                    metavar='str',
@@ -1192,7 +1192,7 @@ def setup_argument_parser():
                    metavar='str',
                    nargs='+',
                    required=True,
-                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme-xml and/or --user-cm")
+                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme and/or --user-cm")
     p_ssm.add_argument("--out",
                    dest="out_folder",
                    type=str,
@@ -1218,12 +1218,12 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide RBP ID belonging to provided sequence or structure motif(s) (mandatory for --rbps USER)")
-    p_ss.add_argument("--user-meme-xml",
-                   dest="user_meme_xml",
+    p_ss.add_argument("--user-meme",
+                   dest="user_meme",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide MEME/DREME XML file containing sequence motif(s) to be used for the run (needs --rbps USER)")
+                   help = "Provide MEME/DREME motif format file (plain text format, not XML) containing sequence motif(s) to be used for the run (needs --rbps USER)")
     p_ss.add_argument("--user-cm",
                    dest="user_cm",
                    type=str,
@@ -1241,19 +1241,19 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme-xml, --custom-db-cm, --custom-db-info")
+                   help = "Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme, --custom-db-cm, --custom-db-info")
     p_ss.add_argument("--custom-db-id",
                    dest="custom_db_id",
                    type=str,
                    metavar='str',
                    default = "custom",
                    help = "Set ID/name for provided custom motif database via --custom-db  (default: \"custom\")")
-    p_ss.add_argument("--custom-db-meme-xml",
-                   dest="custom_db_meme_xml",
+    p_ss.add_argument("--custom-db-meme",
+                   dest="custom_db_meme",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide custom motif database MEME/DREME XML file containing sequence motifs")
+                   help = "Provide custom motif database MEME/DREME motif format file (plain text format, not XML) containing sequence motifs")
     p_ss.add_argument("--custom-db-cm",
                    dest="custom_db_cm",
                    type=str,
@@ -1593,7 +1593,7 @@ def setup_argument_parser():
                    metavar='str',
                    nargs='+',
                    required=True,
-                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme-xml and/or --user-cm. To search only for --regex, set --rbps REGEX")
+                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme and/or --user-cm. To search only for --regex, set --rbps REGEX")
     p_slm.add_argument("--genome",
                    dest="in_genome",
                    type=str,
@@ -1631,12 +1631,12 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide RBP ID belonging to provided sequence or structure motif(s) (mandatory for --rbps USER)")
-    p_sl.add_argument("--user-meme-xml",
-                   dest="user_meme_xml",
+    p_sl.add_argument("--user-meme",
+                   dest="user_meme",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide MEME/DREME XML file containing sequence motif(s) to be used for the run (needs --rbps USER)")
+                   help = "Provide MEME/DREME motif format file (plain text format, not XML) containing sequence motif(s) to be used for the run (needs --rbps USER)")
     p_sl.add_argument("--user-cm",
                    dest="user_cm",
                    type=str,
@@ -1654,19 +1654,19 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme-xml, --custom-db-cm, --custom-db-info")
+                   help = "Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme, --custom-db-cm, --custom-db-info")
     p_sl.add_argument("--custom-db-id",
                    dest="custom_db_id",
                    type=str,
                    metavar='str',
                    default = "custom",
                    help = "Set ID/name for provided custom motif database via --custom-db  (default: \"custom\")")
-    p_sl.add_argument("--custom-db-meme-xml",
-                   dest="custom_db_meme_xml",
+    p_sl.add_argument("--custom-db-meme",
+                   dest="custom_db_meme",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide custom motif database MEME/DREME XML file containing sequence motifs")
+                   help = "Provide custom motif database MEME/DREME motif format file (plain text format, not XML) containing sequence motifs")
     p_sl.add_argument("--custom-db-cm",
                    dest="custom_db_cm",
                    type=str,
@@ -1872,7 +1872,7 @@ def setup_argument_parser():
                    metavar='str',
                    nargs='+',
                    required=True,
-                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme-xml and/or --user-cm. To search only for --regex, set --rbps REGEX")
+                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme and/or --user-cm. To search only for --regex, set --rbps REGEX")
     p_scrm.add_argument("--gtf",
                    dest="in_gtf",
                    type=str,
@@ -1952,12 +1952,12 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide RBP ID belonging to provided sequence or structure motif(s) (mandatory for --rbps USER)")
-    p_scr.add_argument("--user-meme-xml",
-                   dest="user_meme_xml",
+    p_scr.add_argument("--user-meme",
+                   dest="user_meme",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide MEME/DREME XML file containing sequence motif(s) to be used for the run (needs --rbps USER)")
+                   help = "Provide MEME/DREME motif format file (plain text format, not XML) containing sequence motif(s) to be used for the run (needs --rbps USER)")
     p_scr.add_argument("--user-cm",
                    dest="user_cm",
                    type=str,
@@ -1975,19 +1975,19 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme-xml, --custom-db-cm, --custom-db-info")
+                   help = "Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme, --custom-db-cm, --custom-db-info")
     p_scr.add_argument("--custom-db-id",
                    dest="custom_db_id",
                    type=str,
                    metavar='str',
                    default = "custom",
                    help = "Set ID/name for provided custom motif database via --custom-db  (default: \"custom\")")
-    p_scr.add_argument("--custom-db-meme-xml",
-                   dest="custom_db_meme_xml",
+    p_scr.add_argument("--custom-db-meme",
+                   dest="custom_db_meme",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide custom motif database MEME/DREME XML file containing sequence motifs")
+                   help = "Provide custom motif database MEME/DREME motif format file (plain text format, not XML) containing sequence motifs")
     p_scr.add_argument("--custom-db-cm",
                    dest="custom_db_cm",
                    type=str,
@@ -2358,7 +2358,7 @@ def setup_argument_parser():
                    metavar='str',
                    nargs='+',
                    required=True,
-                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme-xml and/or --user-cm. To search only for --regex, set --rbps REGEX")
+                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme and/or --user-cm. To search only for --regex, set --rbps REGEX")
     p_smrm.add_argument("--gtf",
                    dest="in_gtf",
                    type=str,
@@ -2402,12 +2402,12 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide RBP ID belonging to provided sequence or structure motif(s) (mandatory for --rbps USER)")
-    p_smr.add_argument("--user-meme-xml",
-                   dest="user_meme_xml",
+    p_smr.add_argument("--user-meme",
+                   dest="user_meme",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide MEME/DREME XML file containing sequence motif(s) to be used for the run (needs --rbps USER)")
+                   help = "Provide MEME/DREME motif format file (plain text format, not XML) containing sequence motif(s) to be used for the run (needs --rbps USER)")
     p_smr.add_argument("--user-cm",
                    dest="user_cm",
                    type=str,
@@ -2425,19 +2425,19 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme-xml, --custom-db-cm, --custom-db-info")
+                   help = "Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme, --custom-db-cm, --custom-db-info")
     p_smr.add_argument("--custom-db-id",
                    dest="custom_db_id",
                    type=str,
                    metavar='str',
                    default = "custom",
                    help = "Set ID/name for provided custom motif database via --custom-db  (default: \"custom\")")
-    p_smr.add_argument("--custom-db-meme-xml",
-                   dest="custom_db_meme_xml",
+    p_smr.add_argument("--custom-db-meme",
+                   dest="custom_db_meme",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide custom motif database MEME/DREME XML file containing sequence motifs")
+                   help = "Provide custom motif database MEME/DREME motif format file (plain text format, not XML) containing sequence motifs")
     p_smr.add_argument("--custom-db-cm",
                    dest="custom_db_cm",
                    type=str,
@@ -2699,7 +2699,7 @@ def setup_argument_parser():
                    metavar='str',
                    nargs='+',
                    required=True,
-                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme-xml and/or --user-cm. To search only for --regex, set --rbps REGEX")
+                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme and/or --user-cm. To search only for --regex, set --rbps REGEX")
     p_emm.add_argument("--gtf",
                    dest="in_gtf",
                    type=str,
@@ -2725,12 +2725,12 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide RBP ID belonging to provided sequence or structure motif(s) (mandatory for --rbps USER)")
-    p_em.add_argument("--user-meme-xml",
-                   dest="user_meme_xml",
+    p_em.add_argument("--user-meme",
+                   dest="user_meme",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide MEME/DREME XML file containing sequence motif(s) to be used for the run (needs --rbps USER)")
+                   help = "Provide MEME/DREME motif format file (plain text format, not XML) containing sequence motif(s) to be used for the run (needs --rbps USER)")
     p_em.add_argument("--user-cm",
                    dest="user_cm",
                    type=str,
@@ -2754,19 +2754,19 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme-xml, --custom-db-cm, --custom-db-info")
+                   help = "Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme, --custom-db-cm, --custom-db-info")
     p_em.add_argument("--custom-db-id",
                    dest="custom_db_id",
                    type=str,
                    metavar='str',
                    default = "custom",
                    help = "Set ID/name for provided custom motif database via --custom-db  (default: \"custom\")")
-    p_em.add_argument("--custom-db-meme-xml",
-                   dest="custom_db_meme_xml",
+    p_em.add_argument("--custom-db-meme",
+                   dest="custom_db_meme",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide custom motif database MEME/DREME XML file containing sequence motifs")
+                   help = "Provide custom motif database MEME/DREME motif format file (plain text format, not XML) containing sequence motifs")
     p_em.add_argument("--custom-db-cm",
                    dest="custom_db_cm",
                    type=str,
@@ -3088,7 +3088,7 @@ def setup_argument_parser():
                    metavar='str',
                    nargs='+',
                    required=True,
-                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme-xml and/or --user-cm. To search only for --regex, set --rbps REGEX")
+                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme and/or --user-cm. To search only for --regex, set --rbps REGEX")
     p_nmm.add_argument("--gtf",
                    dest="in_gtf",
                    type=str,
@@ -3114,12 +3114,12 @@ def setup_argument_parser():
                    metavar='str',
                    default = False,
                    help = "Provide RBP ID belonging to provided sequence or structure motif(s) (mandatory for --rbps USER)")
-    p_nm.add_argument("--user-meme-xml",
-                   dest="user_meme_xml",
+    p_nm.add_argument("--user-meme",
+                   dest="user_meme",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide MEME/DREME XML file containing sequence motif(s) to be used for the run (needs --rbps USER)")
+                   help = "Provide MEME/DREME motif format file (plain text format, not XML) containing sequence motif(s) to be used for the run (needs --rbps USER)")
     p_nm.add_argument("--user-cm",
                    dest="user_cm",
                    type=str,
@@ -3143,19 +3143,19 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme-xml, --custom-db-cm, --custom-db-info")
+                   help = "Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme, --custom-db-cm, --custom-db-info")
     p_nm.add_argument("--custom-db-id",
                    dest="custom_db_id",
                    type=str,
                    metavar='str',
                    default = "custom",
                    help = "Set ID/name for provided custom motif database via --custom-db  (default: \"custom\")")
-    p_nm.add_argument("--custom-db-meme-xml",
-                   dest="custom_db_meme_xml",
+    p_nm.add_argument("--custom-db-meme",
+                   dest="custom_db_meme",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide custom motif database MEME/DREME XML file containing sequence motifs")
+                   help = "Provide custom motif database MEME/DREME motif format file (plain text format, not XML) containing sequence motifs")
     p_nm.add_argument("--custom-db-cm",
                    dest="custom_db_cm",
                    type=str,
@@ -3828,7 +3828,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    required=True,
-                   help="Provide MEME XML style file path or (regular expression) sequence to search for similar motifs in database. Currently only square bracket containing regexes are supported")
+                   help="Provide MEME motif format text file path or (regular expression) sequence to search for similar motifs in database. Currently only square bracket containing regexes are supported")
     p_tom.add_argument("--out",
                    dest="out_folder",
                    type=str,
@@ -3843,11 +3843,11 @@ def setup_argument_parser():
                    choices=[1, 2, 3],
                    help="Built-in motif database used so search for motifs similar to --in. 1: human RBP motifs (257 RBPs, 599 motifs, \"catrapid_omics_v2.1_human_6plus_ext\"), 2: human RBP motifs + 23 ucRBP motifs (277 RBPs, 622 motifs, \"catrapid_omics_v2.1_human_6plus_ext_ucrbps\"), 3: human RBP motifs from Ray et al. 2013 (80 RBPs, 102 motifs, \"ray2013_human_rbps_rnacompete\") (default: 1)")
     p_to.add_argument("--custom-db",
-                   dest="custom_db_meme_xml",
+                   dest="custom_db_meme",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide custom motif database MEME/DREME XML file containing sequence motifs to search against. By default internal database is used, define which with --motif-db")
+                   help = "Provide custom motif database MEME/DREME motif format file (plain text format, not XML) containing sequence motifs to search against. By default internal database is used, define which with --motif-db")
     # p_to.add_argument("--custom-db-id",
     #                dest="custom_db_id",
     #                type=str,
@@ -4027,12 +4027,12 @@ def setup_argument_parser():
                    required = True,
                    help = "Genomic sequences file (currently supported formats: FASTA)")
     # Optional arguments.
-    p_oe.add_argument("--user-meme-xml",
-                   dest="user_meme_xml",
+    p_oe.add_argument("--user-meme",
+                   dest="user_meme",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide MEME/DREME XML file containing sequence motif(s) to be used as search motifs")
+                   help = "Provide MEME/DREME motif format file (plain text format, not XML) containing sequence motif(s) to be used as search motifs")
     p_oe.add_argument("--user-cm",
                    dest="user_cm",
                    type=str,
@@ -4255,8 +4255,8 @@ def specify_custom_motif_db(motif_db_path):
     the following files:
     info.txt
         with columns motif_id, rbp_id, motif_type, organism
-        ZRANB2_1	ZRANB2	meme_xml	human
-        ZRANB2_2	ZRANB2	meme_xml	human
+        ZRANB2_1	ZRANB2	meme	human
+        ZRANB2_2	ZRANB2	meme	human
         RF00032	SLBP	cm	human
 
         organism column optional for now ...
@@ -4399,7 +4399,7 @@ def main_search(args):
                                                                             db_path=db_path)
     # Custom motif database: folder given.
     if args.custom_db:
-        assert not args.custom_db_meme_xml, "--custom-db folder set incompatible with --custom-db-meme-xml. Provide custom motif database either via folder (--custom-db) or as single files"
+        assert not args.custom_db_meme, "--custom-db folder set incompatible with --custom-db-meme. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_cm, "--custom-db folder set incompatible with --custom-db-cm. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_info, "--custom-db folder set incompatible with --custom-db-info. Provide custom motif database either via folder (--custom-db) or as single files"
         seq_motifs_db_file, str_motifs_db_file, rbp2ids_file = specify_custom_motif_db(args.custom_db)
@@ -4407,16 +4407,16 @@ def main_search(args):
         assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
     # Custom motif database: single files given.
-    if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
+    if args.custom_db_meme or args.custom_db_cm or args.custom_db_info:
         args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
         assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
         assert not args.custom_db, "single custom motif database files provided not compatible with --custom-db. Provide custom motif database either via folder (--custom-db) or as single files"
         assert args.custom_db_info, "--custom-db-info needed to define custom motif database"
         rbp2ids_file = args.custom_db_info
-        assert args.custom_db_meme_xml or args.custom_db_cm, "--custom-db-meme-xml and/or --custom-db-cm needed to define custom motif database"
-        if args.custom_db_meme_xml:
-            seq_motifs_db_file = args.custom_db_meme_xml
+        assert args.custom_db_meme or args.custom_db_cm, "--custom-db-meme and/or --custom-db-cm needed to define custom motif database"
+        if args.custom_db_meme:
+            seq_motifs_db_file = args.custom_db_meme
         else:
             seq_motifs_db_file = ""  # setting to empty string results in os.path.exists -> False.
         if args.custom_db_cm:
@@ -4432,7 +4432,7 @@ def main_search(args):
     name2ids_dic:
     RBP name -> motif IDs mapping
     id2type_dic:
-    motif ID -> motif type (cm, meme_xml)
+    motif ID -> motif type (cm, meme)
     id2org_dic (ignore for now):
     motif ID -> organism ID (so far only "human")
     name2fids_dic:
@@ -4449,15 +4449,15 @@ def main_search(args):
             id2name_dic[motif_id] = rbp_id
 
     """
-    Get MEME XML database motif blocks dictionary.
+    Get MEME database motif blocks dictionary.
 
     """
     seq_motif_blocks_dic = {}
     if os.path.exists(seq_motifs_db_file):
-        seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
+        seq_motif_blocks_dic = benchlib.read_in_meme_motifs(seq_motifs_db_file,
                                                            empty_check=True)
     for motif_id in seq_motif_blocks_dic:
-        assert motif_id in id2name_dic, "MEME XML motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
+        assert motif_id in id2name_dic, "MEME motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     """
     Get covariance model database motif blocks dictionary.
@@ -4500,7 +4500,7 @@ def main_search(args):
 
     filtered_sites_bed = os.path.join(args.out_folder, 'in_sites.filtered.bed')
     filtered_sites_fa = os.path.join(args.out_folder, 'in_sites.filtered.fa')
-    seq_motifs_xml = os.path.join(args.out_folder, 'seq_motifs.xml')
+    seq_motifs_meme = os.path.join(args.out_folder, 'seq_motifs.meme')
     str_motifs_cm = os.path.join(args.out_folder, 'str_motifs.cm')
     fimo_res_tsv = os.path.join(args.out_folder, 'fimo_results.tsv')
     cmsearch_res_txt = os.path.join(args.out_folder, 'cmsearch_results.txt')
@@ -4556,7 +4556,7 @@ def main_search(args):
     if "USER" in rbp_in_dic:
         user_motifs = True
     else:
-        assert not args.user_meme_xml, "--user-meme-xml provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
+        assert not args.user_meme, "--user-meme provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
         assert not args.user_cm, "--user-cm provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
         assert not args.user_rbp_id, "--user-rbp-id set but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
 
@@ -4613,7 +4613,7 @@ def main_search(args):
     if user_motifs:
         print("--rbps USER selected. Check + load provided USER motifs ... ")
         assert args.user_rbp_id, "--rbps USER demands --user-rbp-id to be set to connect the supplied motif(s) with an RBP ID"
-        assert args.user_meme_xml or args.user_cm, "--rbps USER requires a provided sequence or structure motif file (via --user-meme-xml AND/OR --user-cm)"
+        assert args.user_meme or args.user_cm, "--rbps USER requires a provided sequence or structure motif file (via --user-meme AND/OR --user-cm)"
 
         # Reformat user_rbp_id. 
         user_rbp_id = benchlib.remove_special_chars_from_str(args.user_rbp_id)
@@ -4626,18 +4626,18 @@ def main_search(args):
         print("RBP ID for user-supplied motifs:", user_rbp_id)
 
         user_seq_motif_blocks_dic = {}
-        if args.user_meme_xml:
-            assert os.path.exists(args.user_meme_xml), "--user-meme-xml file \"%s\" not found" % (args.user_meme_xml)
-            user_seq_motif_blocks_dic = benchlib.read_in_xml_motifs(args.user_meme_xml, empty_check=False)
-            assert user_seq_motif_blocks_dic, "no motifs read in from provided --user-meme-xml. Make sure to supply sequence motifs in MEME XML format!"
+        if args.user_meme:
+            assert os.path.exists(args.user_meme), "--user-meme file \"%s\" not found" % (args.user_meme)
+            user_seq_motif_blocks_dic = benchlib.read_in_meme_motifs(args.user_meme, empty_check=False)
+            assert user_seq_motif_blocks_dic, "no motifs read in from provided --user-meme. Make sure to supply sequence motifs in MEME motif format!"
             # Check if motif ID already loaded.
             for acc_id in user_seq_motif_blocks_dic:
-                assert acc_id not in loaded_motif_ids_dic, "user-supplied MEME XML motif ID %s already selected, i.e., ID is already associated with selected database RBP %s. Please change user motif ID to a unique motif ID or deselect the respective RBP" %(acc_id, id2name_dic[acc_id])
+                assert acc_id not in loaded_motif_ids_dic, "user-supplied MEME motif ID %s already selected, i.e., ID is already associated with selected database RBP %s. Please change user motif ID to a unique motif ID or deselect the respective RBP" %(acc_id, id2name_dic[acc_id])
                 loaded_motif_ids_dic[acc_id] = "user"
                 # Add user to database blocks (overwrite if same ID encountered).
                 seq_motif_blocks_dic[acc_id] = user_seq_motif_blocks_dic[acc_id]
                 name2ids_dic[user_rbp_id].append(acc_id)
-                id2type_dic[acc_id] = "meme_xml"
+                id2type_dic[acc_id] = "meme"
                 id2name_dic[acc_id] = user_rbp_id
 
         user_str_motif_blocks_dic = {}
@@ -4744,7 +4744,7 @@ def main_search(args):
             assert regex_id not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or --regex-id" %(regex_id)
 
             id2name_dic[regex_id] = regex_id    # motif_id -> rbp_id
-            id2type_dic[regex_id] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme_xml
+            id2type_dic[regex_id] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme
             loaded_motif_ids_dic[regex_id] = regex_id  # motif_id -> motif_db_str
             name2ids_dic[regex_id] = [regex_id]  # rbp_id -> motif_ids
 
@@ -4752,7 +4752,7 @@ def main_search(args):
             assert regex not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or use --motif-regex-id" %(regex_id)
 
             id2name_dic[regex] = regex_id    # motif_id -> rbp_id
-            id2type_dic[regex] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme_xml
+            id2type_dic[regex] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme
             loaded_motif_ids_dic[regex] = regex_id  # motif_id -> motif_db_str
             name2ids_dic[regex_id] = [regex]  # rbp_id -> motif_ids
 
@@ -4991,7 +4991,7 @@ def main_search(args):
         
             assert motif_id in loaded_motif_ids_dic, "motif_id %s not in loaded_motif_ids_dic" %(motif_id)
 
-            if id2type_dic[motif_id] == "meme_xml":
+            if id2type_dic[motif_id] == "meme":
                 rbp.seq_motif_ids.append(motif_id)
                 motif_id2idx_dic[motif_id] = len(rbp.seq_motif_ids) - 1
                 rbp.seq_motif_hits.append(0)
@@ -5232,10 +5232,10 @@ def main_search(args):
 
         """
 
-        print("Output motifs to XML ... ")
-        out_str, c_added_motifs = benchlib.blocks_to_xml_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
+        print("Output motifs to MEME TXT ... ")
+        out_str, c_added_motifs = benchlib.blocks_to_meme_txt_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
 
-        benchlib.output_string_to_file(out_str, seq_motifs_xml)
+        benchlib.output_string_to_file(out_str, seq_motifs_meme)
 
 
         """
@@ -5244,7 +5244,7 @@ def main_search(args):
         """
 
         print("Run FIMO ... ")
-        benchlib.run_fast_fimo(filtered_sites_fa, seq_motifs_xml, fimo_res_tsv,
+        benchlib.run_fast_fimo(filtered_sites_fa, seq_motifs_meme, fimo_res_tsv,
                     pval_thr=args.fimo_pval,
                     nt_freqs_file=fimo_freqs_file,
                     call_dic=call_dic,
@@ -5256,7 +5256,7 @@ def main_search(args):
 
         """
 
-        assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
+        assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid motif file provided?)" %(fimo_res_tsv)
 
         print("Read in FIMO results ... ")
         fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
@@ -5474,7 +5474,7 @@ def main_search(args):
         for motif_str_repr in unique_motifs_dic[rbp_id]:
             motif_id = benchlib.get_motif_id_from_str_repr(motif_str_repr)
             idx = motif_id2idx_dic[motif_id]
-            if id2type_dic[motif_id] == "meme_xml":
+            if id2type_dic[motif_id] == "meme":
                 search_rbps_dic[rbp_id].seq_motif_hits[idx] += 1
             elif id2type_dic[motif_id] == "regex":
                 search_rbps_dic[rbp_id].seq_motif_hits[idx] += 1
@@ -7728,7 +7728,7 @@ def main_batch(args):
 
     # Custom motif database: folder given.
     if args.custom_db:
-        assert not args.custom_db_meme_xml, "--custom-db folder set incompatible with --custom-db-meme-xml. Provide custom motif database either via folder (--custom-db) or as single files"
+        assert not args.custom_db_meme, "--custom-db folder set incompatible with --custom-db-meme. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_cm, "--custom-db folder set incompatible with --custom-db-cm. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_info, "--custom-db folder set incompatible with --custom-db-info. Provide custom motif database either via folder (--custom-db) or as single files"
         seq_motifs_db_file, str_motifs_db_file, rbp2ids_file = specify_custom_motif_db(args.custom_db)
@@ -7736,16 +7736,16 @@ def main_batch(args):
         assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
     # Custom motif database: single files given.
-    if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
+    if args.custom_db_meme or args.custom_db_cm or args.custom_db_info:
         args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
         assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
         assert not args.custom_db, "single custom motif database files provided not compatible with --custom-db. Provide custom motif database either via folder (--custom-db) or as single files"
         assert args.custom_db_info, "--custom-db-info needed to define custom motif database"
         rbp2ids_file = args.custom_db_info
-        assert args.custom_db_meme_xml or args.custom_db_cm, "--custom-db-meme-xml and/or --custom-db-cm needed to define custom motif database"
-        if args.custom_db_meme_xml:
-            seq_motifs_db_file = args.custom_db_meme_xml
+        assert args.custom_db_meme or args.custom_db_cm, "--custom-db-meme and/or --custom-db-cm needed to define custom motif database"
+        if args.custom_db_meme:
+            seq_motifs_db_file = args.custom_db_meme
         else:
             seq_motifs_db_file = ""  # setting to empty string results in os.path.exists -> False.
         if args.custom_db_cm:
@@ -7761,7 +7761,7 @@ def main_batch(args):
     name2ids_dic:
     RBP name -> motif IDs mapping
     id2type_dic:
-    motif ID -> motif type (cm, meme_xml)
+    motif ID -> motif type (cm, meme)
     id2org_dic (ignore for now):
     motif ID -> organism ID (so far only "human")
 
@@ -7776,15 +7776,15 @@ def main_batch(args):
 
 
     """
-    Get MEME XML database motif blocks dictionary.
+    Get MEME database motif blocks dictionary.
 
     """
     seq_motif_blocks_dic = {}
     if os.path.exists(seq_motifs_db_file):
-        seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
+        seq_motif_blocks_dic = benchlib.read_in_meme_motifs(seq_motifs_db_file,
                                                            empty_check=True)
     for motif_id in seq_motif_blocks_dic:
-        assert motif_id in id2name_dic, "MEME XML motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
+        assert motif_id in id2name_dic, "MEME motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     """
     Get covariance model database motif blocks dictionary.
@@ -7842,7 +7842,7 @@ def main_batch(args):
 
     filtered_sites_bed = os.path.join(args.out_folder, "in_sites.filtered.bed")
     filtered_sites_fa = os.path.join(args.out_folder, "in_sites.filtered.fa")
-    seq_motifs_xml = os.path.join(args.out_folder, "seq_motifs.xml")
+    seq_motifs_meme = os.path.join(args.out_folder, "seq_motifs.meme")
     str_motifs_cm = os.path.join(args.out_folder, "str_motifs.cm")
     fimo_res_tsv = os.path.join(args.out_folder, "fimo_results.tsv")
     cmsearch_res_txt = os.path.join(args.out_folder, "cmsearch_results.txt")
@@ -8261,7 +8261,7 @@ def main_batch(args):
         rbp = benchlib.RBP(rbp_id, internal_id)
 
         for motif_id in name2ids_dic[rbp_id]:
-            if id2type_dic[motif_id] == "meme_xml":
+            if id2type_dic[motif_id] == "meme":
                 rbp.seq_motif_ids.append(motif_id)
                 motif_id2idx_dic[motif_id] = len(rbp.seq_motif_ids) - 1
                 rbp.seq_motif_hits.append(0)
@@ -8367,10 +8367,10 @@ def main_batch(args):
 
             """
 
-            print("Output motifs to XML ... ")
-            out_str, c_added_motifs = benchlib.blocks_to_xml_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
+            print("Output motifs to MEME TXT ... ")
+            out_str, c_added_motifs = benchlib.blocks_to_meme_txt_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
 
-            benchlib.output_string_to_file(out_str, seq_motifs_xml)
+            benchlib.output_string_to_file(out_str, seq_motifs_meme)
 
             """
             Run FIMO on sequences + motifs.
@@ -8378,7 +8378,7 @@ def main_batch(args):
             """
 
             print("Run FIMO ... ")
-            benchlib.run_fast_fimo(filtered_sites_fa, seq_motifs_xml, fimo_res_tsv,
+            benchlib.run_fast_fimo(filtered_sites_fa, seq_motifs_meme, fimo_res_tsv,
                         pval_thr=args.fimo_pval,
                         nt_freqs_file=fimo_freqs_file,
                         call_dic=call_dic,
@@ -8390,7 +8390,7 @@ def main_batch(args):
 
             """
 
-            assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
+            assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid motif file provided?)" %(fimo_res_tsv)
 
             print("Read in FIMO results ... ")
             fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
@@ -8671,7 +8671,7 @@ def main_batch(args):
         for motif_str_repr in unique_motifs_dic:
             motif_id = benchlib.get_motif_id_from_str_repr(motif_str_repr)
             idx = motif_id2idx_dic[motif_id]
-            if id2type_dic[motif_id] == "meme_xml":
+            if id2type_dic[motif_id] == "meme":
                 rbp.seq_motif_hits[idx] += 1
             else:
                 rbp.str_motif_hits[idx] += 1
@@ -10348,7 +10348,7 @@ def main_searchseq(args):
                                                                                           db_path=db_path)
     # Custom motif database: folder given.
     if args.custom_db:
-        assert not args.custom_db_meme_xml, "--custom-db folder set incompatible with --custom-db-meme-xml. Provide custom motif database either via folder (--custom-db) or as single files"
+        assert not args.custom_db_meme, "--custom-db folder set incompatible with --custom-db-meme. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_cm, "--custom-db folder set incompatible with --custom-db-cm. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_info, "--custom-db folder set incompatible with --custom-db-info. Provide custom motif database either via folder (--custom-db) or as single files"
         seq_motifs_db_file, str_motifs_db_file, rbp2ids_file = specify_custom_motif_db(args.custom_db)
@@ -10356,16 +10356,16 @@ def main_searchseq(args):
         assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
     # Custom motif database: single files given.
-    if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
+    if args.custom_db_meme or args.custom_db_cm or args.custom_db_info:
         args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
         assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
         assert not args.custom_db, "single custom motif database files provided not compatible with --custom-db. Provide custom motif database either via folder (--custom-db) or as single files"
         assert args.custom_db_info, "--custom-db-info needed to define custom motif database"
         rbp2ids_file = args.custom_db_info
-        assert args.custom_db_meme_xml or args.custom_db_cm, "--custom-db-meme-xml and/or --custom-db-cm needed to define custom motif database"
-        if args.custom_db_meme_xml:
-            seq_motifs_db_file = args.custom_db_meme_xml
+        assert args.custom_db_meme or args.custom_db_cm, "--custom-db-meme and/or --custom-db-cm needed to define custom motif database"
+        if args.custom_db_meme:
+            seq_motifs_db_file = args.custom_db_meme
         else:
             seq_motifs_db_file = ""  # setting to empty string results in os.path.exists -> False.
         if args.custom_db_cm:
@@ -10381,7 +10381,7 @@ def main_searchseq(args):
     name2ids_dic:
     RBP name -> motif IDs mapping
     id2type_dic:
-    motif ID -> motif type (cm, meme_xml)
+    motif ID -> motif type (cm, meme)
     id2org_dic (ignore for now):
     motif ID -> organism ID (so far only "human")
 
@@ -10395,15 +10395,15 @@ def main_searchseq(args):
             id2name_dic[motif_id] = rbp_id
 
     """
-    Get MEME XML database motif blocks dictionary.
+    Get MEME database motif blocks dictionary.
 
     """
     seq_motif_blocks_dic = {}
     if os.path.exists(seq_motifs_db_file):
-        seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
+        seq_motif_blocks_dic = benchlib.read_in_meme_motifs(seq_motifs_db_file,
                                                            empty_check=True)
     for motif_id in seq_motif_blocks_dic:
-        assert motif_id in id2name_dic, "MEME XML motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
+        assert motif_id in id2name_dic, "MEME motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     """
     Get covariance model database motif blocks dictionary.
@@ -10446,7 +10446,7 @@ def main_searchseq(args):
 
     # filtered_sites_bed = args.out_folder + "/in_sites.filtered.bed"
     filtered_seqs_fa = args.out_folder + "/in_sequences.filtered.fa"
-    seq_motifs_xml = args.out_folder + "/seq_motifs.xml"
+    seq_motifs_meme = args.out_folder + "/seq_motifs.meme"
     str_motifs_cm = args.out_folder + "/str_motifs.cm"
     fimo_res_tsv = args.out_folder + "/fimo_results.tsv"
     cmsearch_res_txt = args.out_folder + "/cmsearch_results.txt"
@@ -10496,7 +10496,7 @@ def main_searchseq(args):
     if "USER" in rbp_in_dic:
         user_motifs = True
     else:
-        assert not args.user_meme_xml, "--user-meme-xml provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
+        assert not args.user_meme, "--user-meme provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
         assert not args.user_cm, "--user-cm provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
         assert not args.user_rbp_id, "--user-rbp-id set but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
 
@@ -10553,7 +10553,7 @@ def main_searchseq(args):
     if user_motifs:
         print("--rbps USER selected. Check + load provided USER motifs ... ")
         assert args.user_rbp_id, "--rbps USER demands --user-rbp-id to be set to connect the supplied motif(s) with an RBP ID"
-        assert args.user_meme_xml or args.user_cm, "--rbps USER requires a provided sequence or structure motif file (via --user-meme-xml AND/OR --user-cm)"
+        assert args.user_meme or args.user_cm, "--rbps USER requires a provided sequence or structure motif file (via --user-meme AND/OR --user-cm)"
 
         # Reformat user_rbp_id. 
         user_rbp_id = benchlib.remove_special_chars_from_str(args.user_rbp_id)
@@ -10566,18 +10566,18 @@ def main_searchseq(args):
         print("RBP ID for user-supplied motifs:", user_rbp_id)
 
         user_seq_motif_blocks_dic = {}
-        if args.user_meme_xml:
-            assert os.path.exists(args.user_meme_xml), "--user-meme-xml file \"%s\" not found" % (args.user_meme_xml)
-            user_seq_motif_blocks_dic = benchlib.read_in_xml_motifs(args.user_meme_xml, empty_check=False)
-            assert user_seq_motif_blocks_dic, "no motifs read in from provided --user-meme-xml. Make sure to supply sequence motifs in MEME XML format!"
+        if args.user_meme:
+            assert os.path.exists(args.user_meme), "--user-meme file \"%s\" not found" % (args.user_meme)
+            user_seq_motif_blocks_dic = benchlib.read_in_meme_motifs(args.user_meme, empty_check=False)
+            assert user_seq_motif_blocks_dic, "no motifs read in from provided --user-meme. Make sure to supply sequence motifs in MEME motif format!"
             # Check if motif ID already loaded.
             for acc_id in user_seq_motif_blocks_dic:
-                assert acc_id not in loaded_motif_ids_dic, "user-supplied MEME XML motif ID %s already selected, i.e., ID is already associated with selected database RBP %s. Please change user motif ID to a unique motif ID or deselect the respective RBP" %(acc_id, id2name_dic[acc_id])
+                assert acc_id not in loaded_motif_ids_dic, "user-supplied MEME motif ID %s already selected, i.e., ID is already associated with selected database RBP %s. Please change user motif ID to a unique motif ID or deselect the respective RBP" %(acc_id, id2name_dic[acc_id])
                 loaded_motif_ids_dic[acc_id] = "user"
                 # Add user to database blocks (overwrite if same ID encountered).
                 seq_motif_blocks_dic[acc_id] = user_seq_motif_blocks_dic[acc_id]
                 name2ids_dic[user_rbp_id].append(acc_id)
-                id2type_dic[acc_id] = "meme_xml"
+                id2type_dic[acc_id] = "meme"
                 id2name_dic[acc_id] = user_rbp_id
 
         user_str_motif_blocks_dic = {}
@@ -10685,7 +10685,7 @@ def main_searchseq(args):
             assert regex_id not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or --regex-id" %(regex_id)
 
             id2name_dic[regex_id] = regex_id    # motif_id -> rbp_id
-            id2type_dic[regex_id] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme_xml
+            id2type_dic[regex_id] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme
             loaded_motif_ids_dic[regex_id] = regex_id  # motif_id -> motif_db_str
             name2ids_dic[regex_id] = [regex_id]  # rbp_id -> motif_ids
 
@@ -10693,7 +10693,7 @@ def main_searchseq(args):
             assert regex not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or use --motif-regex-id" %(regex_id)
 
             id2name_dic[regex] = regex_id    # motif_id -> rbp_id
-            id2type_dic[regex] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme_xml
+            id2type_dic[regex] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme
             loaded_motif_ids_dic[regex] = regex_id  # motif_id -> motif_db_str
             name2ids_dic[regex_id] = [regex]  # rbp_id -> motif_ids
 
@@ -10864,7 +10864,7 @@ def main_searchseq(args):
         
             assert motif_id in loaded_motif_ids_dic, "motif_id %s not in loaded_motif_ids_dic" %(motif_id)
 
-            if id2type_dic[motif_id] == "meme_xml":
+            if id2type_dic[motif_id] == "meme":
                 rbp.seq_motif_ids.append(motif_id)
                 motif_id2idx_dic[motif_id] = len(rbp.seq_motif_ids) - 1
                 rbp.seq_motif_hits.append(0)
@@ -10986,10 +10986,10 @@ def main_searchseq(args):
 
         """
 
-        print("Output motifs to XML ... ")
-        out_str, c_added_motifs = benchlib.blocks_to_xml_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
+        print("Output motifs to MEME TXT ... ")
+        out_str, c_added_motifs = benchlib.blocks_to_meme_txt_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
 
-        benchlib.output_string_to_file(out_str, seq_motifs_xml)
+        benchlib.output_string_to_file(out_str, seq_motifs_meme)
 
 
         """
@@ -10998,7 +10998,7 @@ def main_searchseq(args):
         """
 
         print("Run FIMO ... ")
-        benchlib.run_fast_fimo(filtered_seqs_fa, seq_motifs_xml, fimo_res_tsv,
+        benchlib.run_fast_fimo(filtered_seqs_fa, seq_motifs_meme, fimo_res_tsv,
                     pval_thr=args.fimo_pval,
                     nt_freqs_file=fimo_freqs_file,
                     call_dic=call_dic,
@@ -11010,7 +11010,7 @@ def main_searchseq(args):
 
         """
 
-        assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
+        assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid motif file provided?)" %(fimo_res_tsv)
 
         print("Read in FIMO results ... ")
         fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
@@ -11226,7 +11226,7 @@ def main_searchseq(args):
         for motif_str_repr in unique_motifs_dic[rbp_id]:
             motif_id = benchlib.get_motif_id_from_str_repr(motif_str_repr)
             idx = motif_id2idx_dic[motif_id]
-            if id2type_dic[motif_id] == "meme_xml":
+            if id2type_dic[motif_id] == "meme":
                 search_rbps_dic[rbp_id].seq_motif_hits[idx] += 1
             elif id2type_dic[motif_id] == "regex":
                 search_rbps_dic[rbp_id].seq_motif_hits[idx] += 1
@@ -12114,7 +12114,7 @@ def main_searchlong(args):
                                                                             db_path=db_path)
     # Custom motif database: folder given.
     if args.custom_db:
-        assert not args.custom_db_meme_xml, "--custom-db folder set incompatible with --custom-db-meme-xml. Provide custom motif database either via folder (--custom-db) or as single files"
+        assert not args.custom_db_meme, "--custom-db folder set incompatible with --custom-db-meme. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_cm, "--custom-db folder set incompatible with --custom-db-cm. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_info, "--custom-db folder set incompatible with --custom-db-info. Provide custom motif database either via folder (--custom-db) or as single files"
         seq_motifs_db_file, str_motifs_db_file, rbp2ids_file = specify_custom_motif_db(args.custom_db)
@@ -12122,16 +12122,16 @@ def main_searchlong(args):
         assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
     # Custom motif database: single files given.
-    if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
+    if args.custom_db_meme or args.custom_db_cm or args.custom_db_info:
         args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
         assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
         assert not args.custom_db, "single custom motif database files provided not compatible with --custom-db. Provide custom motif database either via folder (--custom-db) or as single files"
         assert args.custom_db_info, "--custom-db-info needed to define custom motif database"
         rbp2ids_file = args.custom_db_info
-        assert args.custom_db_meme_xml or args.custom_db_cm, "--custom-db-meme-xml and/or --custom-db-cm needed to define custom motif database"
-        if args.custom_db_meme_xml:
-            seq_motifs_db_file = args.custom_db_meme_xml
+        assert args.custom_db_meme or args.custom_db_cm, "--custom-db-meme and/or --custom-db-cm needed to define custom motif database"
+        if args.custom_db_meme:
+            seq_motifs_db_file = args.custom_db_meme
         else:
             seq_motifs_db_file = ""  # setting to empty string results in os.path.exists -> False.
         if args.custom_db_cm:
@@ -12147,7 +12147,7 @@ def main_searchlong(args):
     name2ids_dic:
     RBP name -> motif IDs mapping
     id2type_dic:
-    motif ID -> motif type (cm, meme_xml)
+    motif ID -> motif type (cm, meme)
     id2org_dic (ignore for now):
     motif ID -> organism ID (so far only "human")
 
@@ -12161,15 +12161,15 @@ def main_searchlong(args):
             id2name_dic[motif_id] = rbp_id
 
     """
-    Get MEME XML database motif blocks dictionary.
+    Get MEME database motif blocks dictionary.
 
     """
     seq_motif_blocks_dic = {}
     if os.path.exists(seq_motifs_db_file):
-        seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
+        seq_motif_blocks_dic = benchlib.read_in_meme_motifs(seq_motifs_db_file,
                                                            empty_check=True)
     for motif_id in seq_motif_blocks_dic:
-        assert motif_id in id2name_dic, "MEME XML motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
+        assert motif_id in id2name_dic, "MEME motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     """
     Get covariance model database motif blocks dictionary.
@@ -12207,7 +12207,7 @@ def main_searchlong(args):
 
     filtered_sites_bed = args.out_folder + "/in_sites.filtered.bed"
     filtered_sites_fa = args.out_folder + "/in_sites.filtered.fa"
-    seq_motifs_xml = args.out_folder + "/seq_motifs.xml"
+    seq_motifs_meme = args.out_folder + "/seq_motifs.meme"
     str_motifs_cm = args.out_folder + "/str_motifs.cm"
     fimo_res_tsv = args.out_folder + "/fimo_results.tsv"
     cmsearch_res_txt = args.out_folder + "/cmsearch_results.txt"
@@ -12251,7 +12251,7 @@ def main_searchlong(args):
     if "USER" in rbp_in_dic:
         user_motifs = True
     else:
-        assert not args.user_meme_xml, "--user-meme-xml provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
+        assert not args.user_meme, "--user-meme provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
         assert not args.user_cm, "--user-cm provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
         assert not args.user_rbp_id, "--user-rbp-id set but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
 
@@ -12308,7 +12308,7 @@ def main_searchlong(args):
     if user_motifs:
         print("--rbps USER selected. Check + load provided USER motifs ... ")
         assert args.user_rbp_id, "--rbps USER demands --user-rbp-id to be set to connect the supplied motif(s) with an RBP ID"
-        assert args.user_meme_xml or args.user_cm, "--rbps USER requires a provided sequence or structure motif file (via --user-meme-xml AND/OR --user-cm)"
+        assert args.user_meme or args.user_cm, "--rbps USER requires a provided sequence or structure motif file (via --user-meme AND/OR --user-cm)"
 
         # Reformat user_rbp_id. 
         user_rbp_id = benchlib.remove_special_chars_from_str(args.user_rbp_id)
@@ -12321,18 +12321,18 @@ def main_searchlong(args):
         print("RBP ID for user-supplied motifs:", user_rbp_id)
 
         user_seq_motif_blocks_dic = {}
-        if args.user_meme_xml:
-            assert os.path.exists(args.user_meme_xml), "--user-meme-xml file \"%s\" not found" % (args.user_meme_xml)
-            user_seq_motif_blocks_dic = benchlib.read_in_xml_motifs(args.user_meme_xml, empty_check=False)
-            assert user_seq_motif_blocks_dic, "no motifs read in from provided --user-meme-xml. Make sure to supply sequence motifs in MEME XML format!"
+        if args.user_meme:
+            assert os.path.exists(args.user_meme), "--user-meme-txt file \"%s\" not found" % (args.user_meme)
+            user_seq_motif_blocks_dic = benchlib.read_in_txt_motifs(args.user_meme, empty_check=False)
+            assert user_seq_motif_blocks_dic, "no motifs read in from provided --user-meme-txt. Make sure to supply sequence motifs in MEME motif format!"
             # Check if motif ID already loaded.
             for acc_id in user_seq_motif_blocks_dic:
-                assert acc_id not in loaded_motif_ids_dic, "user-supplied MEME XML motif ID %s already selected, i.e., ID is already associated with selected database RBP %s. Please change user motif ID to a unique motif ID or deselect the respective RBP" %(acc_id, id2name_dic[acc_id])
+                assert acc_id not in loaded_motif_ids_dic, "user-supplied MEME motif ID %s already selected, i.e., ID is already associated with selected database RBP %s. Please change user motif ID to a unique motif ID or deselect the respective RBP" %(acc_id, id2name_dic[acc_id])
                 loaded_motif_ids_dic[acc_id] = "user"
                 # Add user to database blocks (overwrite if same ID encountered).
                 seq_motif_blocks_dic[acc_id] = user_seq_motif_blocks_dic[acc_id]
                 name2ids_dic[user_rbp_id].append(acc_id)
-                id2type_dic[acc_id] = "meme_xml"
+                id2type_dic[acc_id] = "meme"
                 id2name_dic[acc_id] = user_rbp_id
 
         user_str_motif_blocks_dic = {}
@@ -12440,7 +12440,7 @@ def main_searchlong(args):
             assert regex_id not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or --regex-id" %(regex_id)
 
             id2name_dic[regex_id] = regex_id    # motif_id -> rbp_id
-            id2type_dic[regex_id] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme_xml
+            id2type_dic[regex_id] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme
             loaded_motif_ids_dic[regex_id] = regex_id  # motif_id -> motif_db_str
             name2ids_dic[regex_id] = [regex_id]  # rbp_id -> motif_ids
 
@@ -12448,7 +12448,7 @@ def main_searchlong(args):
             assert regex not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or use --motif-regex-id" %(regex_id)
 
             id2name_dic[regex] = regex_id    # motif_id -> rbp_id
-            id2type_dic[regex] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme_xml
+            id2type_dic[regex] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme
             loaded_motif_ids_dic[regex] = regex_id  # motif_id -> motif_db_str
             name2ids_dic[regex_id] = [regex]  # rbp_id -> motif_ids
 
@@ -12608,7 +12608,7 @@ def main_searchlong(args):
         
             assert motif_id in loaded_motif_ids_dic, "motif_id %s not in loaded_motif_ids_dic" %(motif_id)
 
-            if id2type_dic[motif_id] == "meme_xml":
+            if id2type_dic[motif_id] == "meme":
                 rbp.seq_motif_ids.append(motif_id)
                 motif_id2idx_dic[motif_id] = len(rbp.seq_motif_ids) - 1
                 rbp.seq_motif_hits.append(0)
@@ -12876,10 +12876,10 @@ def main_searchlong(args):
 
         """
 
-        print("Output motifs to XML ... ")
-        out_str, c_added_motifs = benchlib.blocks_to_xml_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
+        print("Output motifs to MEME TXT ... ")
+        out_str, c_added_motifs = benchlib.blocks_to_meme_txt_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
 
-        benchlib.output_string_to_file(out_str, seq_motifs_xml)
+        benchlib.output_string_to_file(out_str, seq_motifs_meme)
 
 
         """
@@ -12888,7 +12888,7 @@ def main_searchlong(args):
         """
 
         print("Run FIMO ... ")
-        benchlib.run_fast_fimo(filtered_sites_fa, seq_motifs_xml, fimo_res_tsv,
+        benchlib.run_fast_fimo(filtered_sites_fa, seq_motifs_meme, fimo_res_tsv,
                     pval_thr=args.fimo_pval,
                     nt_freqs_file=fimo_freqs_file,
                     call_dic=call_dic,
@@ -12900,7 +12900,7 @@ def main_searchlong(args):
 
         """
 
-        assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
+        assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid motif file provided?)" %(fimo_res_tsv)
 
         print("Read in FIMO results ... ")
         fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
@@ -13110,7 +13110,7 @@ def main_searchlong(args):
         for motif_str_repr in unique_motifs_dic[rbp_id]:
             motif_id = benchlib.get_motif_id_from_str_repr(motif_str_repr)
             idx = motif_id2idx_dic[motif_id]
-            if id2type_dic[motif_id] == "meme_xml":
+            if id2type_dic[motif_id] == "meme":
                 search_rbps_dic[rbp_id].seq_motif_hits[idx] += 1
             elif id2type_dic[motif_id] == "regex":
                 search_rbps_dic[rbp_id].seq_motif_hits[idx] += 1
@@ -13785,7 +13785,7 @@ def main_searchrna(args):
                                                                             db_path=db_path)
     # Custom motif database: folder given.
     if args.custom_db:
-        assert not args.custom_db_meme_xml, "--custom-db folder set incompatible with --custom-db-meme-xml. Provide custom motif database either via folder (--custom-db) or as single files"
+        assert not args.custom_db_meme, "--custom-db folder set incompatible with --custom-db-meme. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_cm, "--custom-db folder set incompatible with --custom-db-cm. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_info, "--custom-db folder set incompatible with --custom-db-info. Provide custom motif database either via folder (--custom-db) or as single files"
         seq_motifs_db_file, str_motifs_db_file, rbp2ids_file = specify_custom_motif_db(args.custom_db)
@@ -13793,16 +13793,16 @@ def main_searchrna(args):
         assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
     # Custom motif database: single files given.
-    if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
+    if args.custom_db_meme or args.custom_db_cm or args.custom_db_info:
         args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
         assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
         assert not args.custom_db, "single custom motif database files provided not compatible with --custom-db. Provide custom motif database either via folder (--custom-db) or as single files"
         assert args.custom_db_info, "--custom-db-info needed to define custom motif database"
         rbp2ids_file = args.custom_db_info
-        assert args.custom_db_meme_xml or args.custom_db_cm, "--custom-db-meme-xml and/or --custom-db-cm needed to define custom motif database"
-        if args.custom_db_meme_xml:
-            seq_motifs_db_file = args.custom_db_meme_xml
+        assert args.custom_db_meme or args.custom_db_cm, "--custom-db-meme and/or --custom-db-cm needed to define custom motif database"
+        if args.custom_db_meme:
+            seq_motifs_db_file = args.custom_db_meme
         else:
             seq_motifs_db_file = ""  # setting to empty string results in os.path.exists -> False.
         if args.custom_db_cm:
@@ -13818,7 +13818,7 @@ def main_searchrna(args):
     name2ids_dic:
     RBP name -> motif IDs mapping
     id2type_dic:
-    motif ID -> motif type (cm, meme_xml)
+    motif ID -> motif type (cm, meme)
     id2org_dic (ignore for now):
     motif ID -> organism ID (so far only "human")
 
@@ -13832,15 +13832,15 @@ def main_searchrna(args):
             id2name_dic[motif_id] = rbp_id
 
     """
-    Get MEME XML database motif blocks dictionary.
+    Get MEME database motif blocks dictionary.
 
     """
     seq_motif_blocks_dic = {}
     if os.path.exists(seq_motifs_db_file):
-        seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
+        seq_motif_blocks_dic = benchlib.read_in_meme_motifs(seq_motifs_db_file,
                                                            empty_check=True)
     for motif_id in seq_motif_blocks_dic:
-        assert motif_id in id2name_dic, "MEME XML motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
+        assert motif_id in id2name_dic, "MEME motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     """
     Get covariance model database motif blocks dictionary.
@@ -13884,7 +13884,7 @@ def main_searchrna(args):
     tr_seqs_fa = args.out_folder + "/transcript_sequences.fa"
     filtered_sites_bed = args.out_folder + "/in_sites.filtered.bed"
     filtered_sites_fa = args.out_folder + "/in_sites.filtered.fa"
-    seq_motifs_xml = args.out_folder + "/seq_motifs.xml"
+    seq_motifs_meme = args.out_folder + "/seq_motifs.meme"
     str_motifs_cm = args.out_folder + "/str_motifs.cm"
     fimo_res_tsv = args.out_folder + "/fimo_results.tsv"
     cmsearch_res_txt = args.out_folder + "/cmsearch_results.txt"
@@ -13936,7 +13936,7 @@ def main_searchrna(args):
     if "USER" in rbp_in_dic:
         user_motifs = True
     else:
-        assert not args.user_meme_xml, "--user-meme-xml provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
+        assert not args.user_meme, "--user-meme provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
         assert not args.user_cm, "--user-cm provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
         assert not args.user_rbp_id, "--user-rbp-id set but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
 
@@ -13993,7 +13993,7 @@ def main_searchrna(args):
     if user_motifs:
         print("--rbps USER selected. Check + load provided USER motifs ... ")
         assert args.user_rbp_id, "--rbps USER demands --user-rbp-id to be set to connect the supplied motif(s) with an RBP ID"
-        assert args.user_meme_xml or args.user_cm, "--rbps USER requires a provided sequence or structure motif file (via --user-meme-xml AND/OR --user-cm)"
+        assert args.user_meme or args.user_cm, "--rbps USER requires a provided sequence or structure motif file (via --user-meme AND/OR --user-cm)"
 
         # Reformat user_rbp_id. 
         user_rbp_id = benchlib.remove_special_chars_from_str(args.user_rbp_id)
@@ -14006,18 +14006,18 @@ def main_searchrna(args):
         print("RBP ID for user-supplied motifs:", user_rbp_id)
 
         user_seq_motif_blocks_dic = {}
-        if args.user_meme_xml:
-            assert os.path.exists(args.user_meme_xml), "--user-meme-xml file \"%s\" not found" % (args.user_meme_xml)
-            user_seq_motif_blocks_dic = benchlib.read_in_xml_motifs(args.user_meme_xml, empty_check=False)
-            assert user_seq_motif_blocks_dic, "no motifs read in from provided --user-meme-xml. Make sure to supply sequence motifs in MEME XML format!"
+        if args.user_meme:
+            assert os.path.exists(args.user_meme), "--user-meme file \"%s\" not found" % (args.user_meme)
+            user_seq_motif_blocks_dic = benchlib.read_in_meme_motifs(args.user_meme, empty_check=False)
+            assert user_seq_motif_blocks_dic, "no motifs read in from provided --user-meme. Make sure to supply sequence motifs in MEME motif format!"
             # Check if motif ID already loaded.
             for acc_id in user_seq_motif_blocks_dic:
-                assert acc_id not in loaded_motif_ids_dic, "user-supplied MEME XML motif ID %s already selected, i.e., ID is already associated with selected database RBP %s. Please change user motif ID to a unique motif ID or deselect the respective RBP" %(acc_id, id2name_dic[acc_id])
+                assert acc_id not in loaded_motif_ids_dic, "user-supplied MEME motif ID %s already selected, i.e., ID is already associated with selected database RBP %s. Please change user motif ID to a unique motif ID or deselect the respective RBP" %(acc_id, id2name_dic[acc_id])
                 loaded_motif_ids_dic[acc_id] = "user"
                 # Add user to database blocks (overwrite if same ID encountered).
                 seq_motif_blocks_dic[acc_id] = user_seq_motif_blocks_dic[acc_id]
                 name2ids_dic[user_rbp_id].append(acc_id)
-                id2type_dic[acc_id] = "meme_xml"
+                id2type_dic[acc_id] = "meme"
                 id2name_dic[acc_id] = user_rbp_id
 
         user_str_motif_blocks_dic = {}
@@ -14125,7 +14125,7 @@ def main_searchrna(args):
             assert regex_id not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or --regex-id" %(regex_id)
 
             id2name_dic[regex_id] = regex_id    # motif_id -> rbp_id
-            id2type_dic[regex_id] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme_xml
+            id2type_dic[regex_id] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme
             loaded_motif_ids_dic[regex_id] = regex_id  # motif_id -> motif_db_str
             name2ids_dic[regex_id] = [regex_id]  # rbp_id -> motif_ids
 
@@ -14133,7 +14133,7 @@ def main_searchrna(args):
             assert regex not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or use --motif-regex-id" %(regex_id)
 
             id2name_dic[regex] = regex_id    # motif_id -> rbp_id
-            id2type_dic[regex] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme_xml
+            id2type_dic[regex] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme
             loaded_motif_ids_dic[regex] = regex_id  # motif_id -> motif_db_str
             name2ids_dic[regex_id] = [regex]  # rbp_id -> motif_ids
 
@@ -14311,7 +14311,7 @@ def main_searchrna(args):
         
             assert motif_id in loaded_motif_ids_dic, "motif_id %s not in loaded_motif_ids_dic" %(motif_id)
 
-            if id2type_dic[motif_id] == "meme_xml":
+            if id2type_dic[motif_id] == "meme":
                 rbp.seq_motif_ids.append(motif_id)
                 motif_id2idx_dic[motif_id] = len(rbp.seq_motif_ids) - 1
                 rbp.seq_motif_hits.append(0)
@@ -14713,10 +14713,10 @@ def main_searchrna(args):
 
         """
 
-        print("Output motifs to XML ... ")
-        out_str, c_added_motifs = benchlib.blocks_to_xml_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
+        print("Output motifs to MEME TXT ... ")
+        out_str, c_added_motifs = benchlib.blocks_to_meme_txt_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
 
-        benchlib.output_string_to_file(out_str, seq_motifs_xml)
+        benchlib.output_string_to_file(out_str, seq_motifs_meme)
 
 
         """
@@ -14725,7 +14725,7 @@ def main_searchrna(args):
         """
 
         print("Run FIMO ... ")
-        benchlib.run_fast_fimo(filtered_sites_fa, seq_motifs_xml, fimo_res_tsv,
+        benchlib.run_fast_fimo(filtered_sites_fa, seq_motifs_meme, fimo_res_tsv,
                     pval_thr=args.fimo_pval,
                     nt_freqs_file=fimo_freqs_file,
                     call_dic=call_dic,
@@ -14737,7 +14737,7 @@ def main_searchrna(args):
 
         """
 
-        assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
+        assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid motif file provided?)" %(fimo_res_tsv)
 
         print("Read in FIMO results ... ")
         fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
@@ -14946,7 +14946,7 @@ def main_searchrna(args):
         for motif_str_repr in unique_motifs_dic[rbp_id]:
             motif_id = benchlib.get_motif_id_from_str_repr(motif_str_repr)
             idx = motif_id2idx_dic[motif_id]
-            if id2type_dic[motif_id] == "meme_xml":
+            if id2type_dic[motif_id] == "meme":
                 search_rbps_dic[rbp_id].seq_motif_hits[idx] += 1
             elif id2type_dic[motif_id] == "regex":
                 search_rbps_dic[rbp_id].seq_motif_hits[idx] += 1
@@ -16021,7 +16021,7 @@ def main_searchlongrna(args):
                                                                             db_path=db_path)
     # Custom motif database: folder given.
     if args.custom_db:
-        assert not args.custom_db_meme_xml, "--custom-db folder set incompatible with --custom-db-meme-xml. Provide custom motif database either via folder (--custom-db) or as single files"
+        assert not args.custom_db_meme, "--custom-db folder set incompatible with --custom-db-meme. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_cm, "--custom-db folder set incompatible with --custom-db-cm. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_info, "--custom-db folder set incompatible with --custom-db-info. Provide custom motif database either via folder (--custom-db) or as single files"
         seq_motifs_db_file, str_motifs_db_file, rbp2ids_file = specify_custom_motif_db(args.custom_db)
@@ -16029,16 +16029,16 @@ def main_searchlongrna(args):
         assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
     # Custom motif database: single files given.
-    if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
+    if args.custom_db_meme or args.custom_db_cm or args.custom_db_info:
         args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
         assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
         assert not args.custom_db, "single custom motif database files provided not compatible with --custom-db. Provide custom motif database either via folder (--custom-db) or as single files"
         assert args.custom_db_info, "--custom-db-info needed to define custom motif database"
         rbp2ids_file = args.custom_db_info
-        assert args.custom_db_meme_xml or args.custom_db_cm, "--custom-db-meme-xml and/or --custom-db-cm needed to define custom motif database"
-        if args.custom_db_meme_xml:
-            seq_motifs_db_file = args.custom_db_meme_xml
+        assert args.custom_db_meme or args.custom_db_cm, "--custom-db-meme and/or --custom-db-cm needed to define custom motif database"
+        if args.custom_db_meme:
+            seq_motifs_db_file = args.custom_db_meme
         else:
             seq_motifs_db_file = ""  # setting to empty string results in os.path.exists -> False.
         if args.custom_db_cm:
@@ -16054,7 +16054,7 @@ def main_searchlongrna(args):
     name2ids_dic:
     RBP name -> motif IDs mapping
     id2type_dic:
-    motif ID -> motif type (cm, meme_xml)
+    motif ID -> motif type (cm, meme)
     id2org_dic (ignore for now):
     motif ID -> organism ID (so far only "human")
 
@@ -16068,15 +16068,15 @@ def main_searchlongrna(args):
             id2name_dic[motif_id] = rbp_id
 
     """
-    Get MEME XML database motif blocks dictionary.
+    Get MEME database motif blocks dictionary.
 
     """
     seq_motif_blocks_dic = {}
     if os.path.exists(seq_motifs_db_file):
-        seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
+        seq_motif_blocks_dic = benchlib.read_in_meme_motifs(seq_motifs_db_file,
                                                            empty_check=True)
     for motif_id in seq_motif_blocks_dic:
-        assert motif_id in id2name_dic, "MEME XML motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
+        assert motif_id in id2name_dic, "MEME motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     """
     Get covariance model database motif blocks dictionary.
@@ -16114,7 +16114,7 @@ def main_searchlongrna(args):
 
     tr_seqs_fa = args.out_folder + "/transcript_sequences.fa"
     mrna_regions_bed = args.out_folder + "/mrna_regions.bed"  # UTR CDS regions on mRNAs (i.e. transcript context).
-    seq_motifs_xml = args.out_folder + "/seq_motifs.xml"
+    seq_motifs_meme = args.out_folder + "/seq_motifs.meme"
     str_motifs_cm = args.out_folder + "/str_motifs.cm"
     fimo_res_tsv = args.out_folder + "/fimo_results.tsv"
     cmsearch_res_txt = args.out_folder + "/cmsearch_results.txt"
@@ -16161,7 +16161,7 @@ def main_searchlongrna(args):
     if "USER" in rbp_in_dic:
         user_motifs = True
     else:
-        assert not args.user_meme_xml, "--user-meme-xml provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
+        assert not args.user_meme, "--user-meme provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
         assert not args.user_cm, "--user-cm provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
         assert not args.user_rbp_id, "--user-rbp-id set but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
 
@@ -16218,7 +16218,7 @@ def main_searchlongrna(args):
     if user_motifs:
         print("--rbps USER selected. Check + load provided USER motifs ... ")
         assert args.user_rbp_id, "--rbps USER demands --user-rbp-id to be set to connect the supplied motif(s) with an RBP ID"
-        assert args.user_meme_xml or args.user_cm, "--rbps USER requires a provided sequence or structure motif file (via --user-meme-xml AND/OR --user-cm)"
+        assert args.user_meme or args.user_cm, "--rbps USER requires a provided sequence or structure motif file (via --user-meme AND/OR --user-cm)"
 
         # Reformat user_rbp_id. 
         user_rbp_id = benchlib.remove_special_chars_from_str(args.user_rbp_id)
@@ -16231,18 +16231,18 @@ def main_searchlongrna(args):
         print("RBP ID for user-supplied motifs:", user_rbp_id)
 
         user_seq_motif_blocks_dic = {}
-        if args.user_meme_xml:
-            assert os.path.exists(args.user_meme_xml), "--user-meme-xml file \"%s\" not found" % (args.user_meme_xml)
-            user_seq_motif_blocks_dic = benchlib.read_in_xml_motifs(args.user_meme_xml, empty_check=False)
-            assert user_seq_motif_blocks_dic, "no motifs read in from provided --user-meme-xml. Make sure to supply sequence motifs in MEME XML format!"
+        if args.user_meme:
+            assert os.path.exists(args.user_meme), "--user-meme file \"%s\" not found" % (args.user_meme)
+            user_seq_motif_blocks_dic = benchlib.read_in_meme_motifs(args.user_meme, empty_check=False)
+            assert user_seq_motif_blocks_dic, "no motifs read in from provided --user-meme. Make sure to supply sequence motifs in MEME motif format!"
             # Check if motif ID already loaded.
             for acc_id in user_seq_motif_blocks_dic:
-                assert acc_id not in loaded_motif_ids_dic, "user-supplied MEME XML motif ID %s already selected, i.e., ID is already associated with selected database RBP %s. Please change user motif ID to a unique motif ID or deselect the respective RBP" %(acc_id, id2name_dic[acc_id])
+                assert acc_id not in loaded_motif_ids_dic, "user-supplied MEME motif ID %s already selected, i.e., ID is already associated with selected database RBP %s. Please change user motif ID to a unique motif ID or deselect the respective RBP" %(acc_id, id2name_dic[acc_id])
                 loaded_motif_ids_dic[acc_id] = "user"
                 # Add user to database blocks (overwrite if same ID encountered).
                 seq_motif_blocks_dic[acc_id] = user_seq_motif_blocks_dic[acc_id]
                 name2ids_dic[user_rbp_id].append(acc_id)
-                id2type_dic[acc_id] = "meme_xml"
+                id2type_dic[acc_id] = "meme"
                 id2name_dic[acc_id] = user_rbp_id
 
         user_str_motif_blocks_dic = {}
@@ -16350,7 +16350,7 @@ def main_searchlongrna(args):
             assert regex_id not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or --regex-id" %(regex_id)
 
             id2name_dic[regex_id] = regex_id    # motif_id -> rbp_id
-            id2type_dic[regex_id] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme_xml
+            id2type_dic[regex_id] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme
             loaded_motif_ids_dic[regex_id] = regex_id  # motif_id -> motif_db_str
             name2ids_dic[regex_id] = [regex_id]  # rbp_id -> motif_ids
 
@@ -16358,7 +16358,7 @@ def main_searchlongrna(args):
             assert regex not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or use --motif-regex-id" %(regex_id)
 
             id2name_dic[regex] = regex_id    # motif_id -> rbp_id
-            id2type_dic[regex] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme_xml
+            id2type_dic[regex] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme
             loaded_motif_ids_dic[regex] = regex_id  # motif_id -> motif_db_str
             name2ids_dic[regex_id] = [regex]  # rbp_id -> motif_ids
 
@@ -16517,7 +16517,7 @@ def main_searchlongrna(args):
         
             assert motif_id in loaded_motif_ids_dic, "motif_id %s not in loaded_motif_ids_dic" %(motif_id)
 
-            if id2type_dic[motif_id] == "meme_xml":
+            if id2type_dic[motif_id] == "meme":
                 rbp.seq_motif_ids.append(motif_id)
                 motif_id2idx_dic[motif_id] = len(rbp.seq_motif_ids) - 1
                 rbp.seq_motif_hits.append(0)
@@ -16749,10 +16749,10 @@ def main_searchlongrna(args):
 
         """
 
-        print("Output motifs to XML ... ")
-        out_str, c_added_motifs = benchlib.blocks_to_xml_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
+        print("Output motifs to MEME TXT ... ")
+        out_str, c_added_motifs = benchlib.blocks_to_meme_txt_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
 
-        benchlib.output_string_to_file(out_str, seq_motifs_xml)
+        benchlib.output_string_to_file(out_str, seq_motifs_meme)
 
 
         """
@@ -16761,7 +16761,7 @@ def main_searchlongrna(args):
         """
 
         print("Run FIMO ... ")
-        benchlib.run_fast_fimo(tr_seqs_fa, seq_motifs_xml, fimo_res_tsv,
+        benchlib.run_fast_fimo(tr_seqs_fa, seq_motifs_meme, fimo_res_tsv,
                     pval_thr=args.fimo_pval,
                     nt_freqs_file=fimo_freqs_file,
                     call_dic=call_dic,
@@ -16773,7 +16773,7 @@ def main_searchlongrna(args):
 
         """
 
-        assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
+        assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid motif file provided?)" %(fimo_res_tsv)
 
         print("Read in FIMO results ... ")
         fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
@@ -16985,7 +16985,7 @@ def main_searchlongrna(args):
         for motif_str_repr in unique_motifs_dic[rbp_id]:
             motif_id = benchlib.get_motif_id_from_str_repr(motif_str_repr)
             idx = motif_id2idx_dic[motif_id]
-            if id2type_dic[motif_id] == "meme_xml":
+            if id2type_dic[motif_id] == "meme":
                 search_rbps_dic[rbp_id].seq_motif_hits[idx] += 1
             elif id2type_dic[motif_id] == "regex":
                 search_rbps_dic[rbp_id].seq_motif_hits[idx] += 1
@@ -17947,7 +17947,7 @@ def main_enmo(args):
 
     # Custom motif database: folder given.
     if args.custom_db:
-        assert not args.custom_db_meme_xml, "--custom-db folder set incompatible with --custom-db-meme-xml. Provide custom motif database either via folder (--custom-db) or as single files"
+        assert not args.custom_db_meme, "--custom-db folder set incompatible with --custom-db-meme. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_cm, "--custom-db folder set incompatible with --custom-db-cm. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_info, "--custom-db folder set incompatible with --custom-db-info. Provide custom motif database either via folder (--custom-db) or as single files"
         seq_motifs_db_file, str_motifs_db_file, rbp2ids_file = specify_custom_motif_db(args.custom_db)
@@ -17959,16 +17959,16 @@ def main_enmo(args):
         assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
     # Custom motif database: single files given.
-    if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
+    if args.custom_db_meme or args.custom_db_cm or args.custom_db_info:
         args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
         assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
         assert not args.custom_db, "single custom motif database files provided not compatible with --custom-db. Provide custom motif database either via folder (--custom-db) or as single files"
         assert args.custom_db_info, "--custom-db-info needed to define custom motif database"
         rbp2ids_file = args.custom_db_info
-        assert args.custom_db_meme_xml or args.custom_db_cm, "--custom-db-meme-xml and/or --custom-db-cm needed to define custom motif database"
-        if args.custom_db_meme_xml:
-            seq_motifs_db_file = args.custom_db_meme_xml
+        assert args.custom_db_meme or args.custom_db_cm, "--custom-db-meme and/or --custom-db-cm needed to define custom motif database"
+        if args.custom_db_meme:
+            seq_motifs_db_file = args.custom_db_meme
             if os.path.exists(seq_motifs_db_file):
                 print("Calculate motif similarities for supplied custom motif database ... ")
                 motif_pair2sim_dic = benchlib.calc_tomtom_sim(seq_motifs_db_file, args.out_folder,
@@ -17988,7 +17988,7 @@ def main_enmo(args):
     name2ids_dic:
     RBP name -> motif IDs mapping
     id2type_dic:
-    motif ID -> motif type (cm, meme_xml)
+    motif ID -> motif type (cm, meme)
     id2org_dic (ignore for now):
     motif ID -> organism ID (so far only "human")
 
@@ -18002,15 +18002,15 @@ def main_enmo(args):
             id2name_dic[motif_id] = rbp_id
 
     """
-    Get MEME XML database motif blocks dictionary.
+    Get MEME database motif blocks dictionary.
 
     """
     seq_motif_blocks_dic = {}
     if os.path.exists(seq_motifs_db_file):
-        seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
+        seq_motif_blocks_dic = benchlib.read_in_meme_motifs(seq_motifs_db_file,
                                                            empty_check=True)
     for motif_id in seq_motif_blocks_dic:
-        assert motif_id in id2name_dic, "MEME XML motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
+        assert motif_id in id2name_dic, "MEME motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     motif2conseq_dic = {}
     if seq_motif_blocks_dic:
@@ -18040,7 +18040,7 @@ def main_enmo(args):
     f1_sites_bed = args.out_folder + "/in_sites.filtered.tmp.bed"
     filtered_sites_bed = args.out_folder + "/in_sites.filtered.bed"
     filtered_sites_fa = args.out_folder + "/in_sites.filtered.fa"
-    seq_motifs_xml = args.out_folder + "/seq_motifs.xml"
+    seq_motifs_meme = args.out_folder + "/seq_motifs.meme"
     str_motifs_cm = args.out_folder + "/str_motifs.cm"
     fimo_res_tsv = args.out_folder + "/fimo_results.tsv"
     cmsearch_res_txt = args.out_folder + "/cmsearch_results.txt"
@@ -18092,7 +18092,7 @@ def main_enmo(args):
     if "USER" in rbp_in_dic:
         user_motifs = True
     else:
-        assert not args.user_meme_xml, "--user-meme-xml provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
+        assert not args.user_meme, "--user-meme provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
         assert not args.user_cm, "--user-cm provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
         assert not args.user_rbp_id, "--user-rbp-id set but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
 
@@ -18149,7 +18149,7 @@ def main_enmo(args):
     if user_motifs:
         print("--rbps USER selected. Check + load provided USER motifs ... ")
         assert args.user_rbp_id, "--rbps USER demands --user-rbp-id to be set to connect the supplied motif(s) with an RBP ID"
-        assert args.user_meme_xml or args.user_cm, "--rbps USER requires a provided sequence or structure motif file (via --user-meme-xml AND/OR --user-cm)"
+        assert args.user_meme or args.user_cm, "--rbps USER requires a provided sequence or structure motif file (via --user-meme AND/OR --user-cm)"
 
         # Reformat user_rbp_id. 
         user_rbp_id = benchlib.remove_special_chars_from_str(args.user_rbp_id)
@@ -18162,18 +18162,18 @@ def main_enmo(args):
         print("RBP ID for user-supplied motifs:", user_rbp_id)
 
         user_seq_motif_blocks_dic = {}
-        if args.user_meme_xml:
-            assert os.path.exists(args.user_meme_xml), "--user-meme-xml file \"%s\" not found" % (args.user_meme_xml)
-            user_seq_motif_blocks_dic = benchlib.read_in_xml_motifs(args.user_meme_xml, empty_check=False)
-            assert user_seq_motif_blocks_dic, "no motifs read in from provided --user-meme-xml. Make sure to supply sequence motifs in MEME XML format!"
+        if args.user_meme:
+            assert os.path.exists(args.user_meme), "--user-meme file \"%s\" not found" % (args.user_meme)
+            user_seq_motif_blocks_dic = benchlib.read_in_meme_motifs(args.user_meme, empty_check=False)
+            assert user_seq_motif_blocks_dic, "no motifs read in from provided --user-meme. Make sure to supply sequence motifs in MEME motif format!"
             # Check if motif ID already loaded.
             for acc_id in user_seq_motif_blocks_dic:
-                assert acc_id not in loaded_motif_ids_dic, "user-supplied MEME XML motif ID %s already selected, i.e., ID is already associated with selected database RBP %s. Please change user motif ID to a unique motif ID or deselect the respective RBP" %(acc_id, id2name_dic[acc_id])
+                assert acc_id not in loaded_motif_ids_dic, "user-supplied MEME motif ID %s already selected, i.e., ID is already associated with selected database RBP %s. Please change user motif ID to a unique motif ID or deselect the respective RBP" %(acc_id, id2name_dic[acc_id])
                 loaded_motif_ids_dic[acc_id] = "user"
                 # Add user to database blocks (overwrite if same ID encountered).
                 seq_motif_blocks_dic[acc_id] = user_seq_motif_blocks_dic[acc_id]
                 name2ids_dic[user_rbp_id].append(acc_id)
-                id2type_dic[acc_id] = "meme_xml"
+                id2type_dic[acc_id] = "meme"
                 id2name_dic[acc_id] = user_rbp_id
 
         user_str_motif_blocks_dic = {}
@@ -18281,7 +18281,7 @@ def main_enmo(args):
             assert regex_id not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or --regex-id" %(regex_id)
 
             id2name_dic[regex_id] = regex_id    # motif_id -> rbp_id
-            id2type_dic[regex_id] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme_xml
+            id2type_dic[regex_id] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme
             loaded_motif_ids_dic[regex_id] = regex_id  # motif_id -> motif_db_str
             name2ids_dic[regex_id] = [regex_id]  # rbp_id -> motif_ids
 
@@ -18289,7 +18289,7 @@ def main_enmo(args):
             assert regex not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or use --motif-regex-id" %(regex_id)
 
             id2name_dic[regex] = regex_id    # motif_id -> rbp_id
-            id2type_dic[regex] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme_xml
+            id2type_dic[regex] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme
             loaded_motif_ids_dic[regex] = regex_id  # motif_id -> motif_db_str
             name2ids_dic[regex_id] = [regex]  # rbp_id -> motif_ids
 
@@ -18457,7 +18457,7 @@ def main_enmo(args):
         
             assert motif_id in loaded_motif_ids_dic, "motif_id %s not in loaded_motif_ids_dic" %(motif_id)
 
-            if id2type_dic[motif_id] == "meme_xml":
+            if id2type_dic[motif_id] == "meme":
                 rbp.seq_motif_ids.append(motif_id)
                 motif_id2idx_dic[motif_id] = len(rbp.seq_motif_ids) - 1
                 rbp.seq_motif_hits.append(0)
@@ -19241,18 +19241,18 @@ def main_enmo(args):
 
     if seq_rbps_dic:
 
-        out_str, c_added_motifs = benchlib.blocks_to_xml_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
-        benchlib.output_string_to_file(out_str, seq_motifs_xml)
+        out_str, c_added_motifs = benchlib.blocks_to_meme_txt_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
+        benchlib.output_string_to_file(out_str, seq_motifs_meme)
 
         print("Run FIMO on input regions ... ")
-        benchlib.run_fast_fimo(filtered_sites_fa, seq_motifs_xml, fimo_res_tsv,
+        benchlib.run_fast_fimo(filtered_sites_fa, seq_motifs_meme, fimo_res_tsv,
                                pval_thr=args.fimo_pval,
                                nt_freqs_file=fimo_freqs_file,
                                call_dic=call_dic,
                                params=fimo_params,
                                error_check=False)
 
-        assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
+        assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid motif file provided?)" %(fimo_res_tsv)
 
         pos_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
                                                            only_best_hits=args.greatest_hits)
@@ -19261,13 +19261,13 @@ def main_enmo(args):
         print("# of FIMO motif hits in input regions:", c_pos_fimo_hits)
 
         print("Run FIMO on background regions ... ")
-        benchlib.run_fast_fimo(neg_seqs_fa, seq_motifs_xml, fimo_res_tsv,
+        benchlib.run_fast_fimo(neg_seqs_fa, seq_motifs_meme, fimo_res_tsv,
                                pval_thr=args.fimo_pval,
                                nt_freqs_file=fimo_freqs_file,
                                params=fimo_params,
                                error_check=False)
 
-        assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
+        assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid motif file provided?)" %(fimo_res_tsv)
 
         neg_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv, 
                                                            seq_based=seq_based,
@@ -19548,7 +19548,7 @@ def main_enmo(args):
 
         # Set consensus sequence.
         conseq = "-"
-        if id2type_dic[motif_id] == "meme_xml":
+        if id2type_dic[motif_id] == "meme":
             conseq = motif2conseq_dic[motif_id]
         elif id2type_dic[motif_id] == "cm":
             conseq = "-"
@@ -19951,7 +19951,7 @@ def main_enmo(args):
 
             # Get sequence motif consensus sequences.
             conseq1 = "-"
-            if id2type_dic[pair[0]] == "meme_xml":
+            if id2type_dic[pair[0]] == "meme":
                 conseq1 = "Consensus: " + motif2conseq_dic[pair[0]]
             elif id2type_dic[pair[0]] == "cm":
                 conseq1 = "Structure motif"
@@ -19960,7 +19960,7 @@ def main_enmo(args):
             else:
                 assert False, "Invalid motif type: %s" %(id2type_dic[pair[0]])
             conseq2 = "-"
-            if id2type_dic[pair[1]] == "meme_xml":
+            if id2type_dic[pair[1]] == "meme":
                 conseq2 = "Consensus: " + motif2conseq_dic[pair[1]]
             elif id2type_dic[pair[1]] == "cm":
                 conseq2 = "Structure motif"
@@ -19978,7 +19978,7 @@ def main_enmo(args):
                 pval_cont_lll[idx2][idx1][7] = "(Filter: mean minimum motif distance < %i)<br>" %(args.min_motif_dist)
 
             if args.motif_sim_thr is not None:
-                if id2type_dic[pair[0]] == "meme_xml" and id2type_dic[pair[1]] == "meme_xml":
+                if id2type_dic[pair[0]] == "meme" and id2type_dic[pair[1]] == "meme":
                     assert pair_str in motif_pair2sim_dic, "No similarity score found for motif pair \"%s\"" %(pair_str)
                     sim_score = motif_pair2sim_dic[pair_str]
                     if sim_score > args.motif_sim_thr:
@@ -20292,7 +20292,7 @@ def main_nemo(args):
 
     # Custom motif database: folder given.
     if args.custom_db:
-        assert not args.custom_db_meme_xml, "--custom-db folder set incompatible with --custom-db-meme-xml. Provide custom motif database either via folder (--custom-db) or as single files"
+        assert not args.custom_db_meme, "--custom-db folder set incompatible with --custom-db-meme. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_cm, "--custom-db folder set incompatible with --custom-db-cm. Provide custom motif database either via folder (--custom-db) or as single files"
         assert not args.custom_db_info, "--custom-db folder set incompatible with --custom-db-info. Provide custom motif database either via folder (--custom-db) or as single files"
         seq_motifs_db_file, str_motifs_db_file, rbp2ids_file = specify_custom_motif_db(args.custom_db)
@@ -20304,16 +20304,16 @@ def main_nemo(args):
         assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
     # Custom motif database: single files given.
-    if args.custom_db_meme_xml or args.custom_db_cm or args.custom_db_info:
+    if args.custom_db_meme or args.custom_db_cm or args.custom_db_info:
         args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
         assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
         assert not args.custom_db, "single custom motif database files provided not compatible with --custom-db. Provide custom motif database either via folder (--custom-db) or as single files"
         assert args.custom_db_info, "--custom-db-info needed to define custom motif database"
         rbp2ids_file = args.custom_db_info
-        assert args.custom_db_meme_xml or args.custom_db_cm, "--custom-db-meme-xml and/or --custom-db-cm needed to define custom motif database"
-        if args.custom_db_meme_xml:
-            seq_motifs_db_file = args.custom_db_meme_xml
+        assert args.custom_db_meme or args.custom_db_cm, "--custom-db-meme and/or --custom-db-cm needed to define custom motif database"
+        if args.custom_db_meme:
+            seq_motifs_db_file = args.custom_db_meme
             if os.path.exists(seq_motifs_db_file):
                 print("Calculate motif similarities for supplied custom motif database ... ")
                 motif_pair2sim_dic = benchlib.calc_tomtom_sim(seq_motifs_db_file, args.out_folder,
@@ -20333,7 +20333,7 @@ def main_nemo(args):
     name2ids_dic:
     RBP name -> motif IDs mapping
     id2type_dic:
-    motif ID -> motif type (cm, meme_xml)
+    motif ID -> motif type (cm, meme)
     id2org_dic (ignore for now):
     motif ID -> organism ID (so far only "human")
 
@@ -20347,15 +20347,15 @@ def main_nemo(args):
             id2name_dic[motif_id] = rbp_id
 
     """
-    Get MEME XML database motif blocks dictionary.
+    Get MEME database motif blocks dictionary.
 
     """
     seq_motif_blocks_dic = {}
     if os.path.exists(seq_motifs_db_file):
-        seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
+        seq_motif_blocks_dic = benchlib.read_in_meme_motifs(seq_motifs_db_file,
                                                            empty_check=True)
     for motif_id in seq_motif_blocks_dic:
-        assert motif_id in id2name_dic, "MEME XML motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
+        assert motif_id in id2name_dic, "MEME motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
     motif2conseq_dic = {}
     if seq_motif_blocks_dic:
@@ -20385,7 +20385,7 @@ def main_nemo(args):
     f1_sites_bed = args.out_folder + "/in_sites.filtered.tmp.bed"
     filtered_sites_bed = args.out_folder + "/in_sites.filtered.bed"
     filtered_sites_fa = args.out_folder + "/in_sites.filtered.fa"
-    seq_motifs_xml = args.out_folder + "/seq_motifs.xml"
+    seq_motifs_meme = args.out_folder + "/seq_motifs.meme"
     str_motifs_cm = args.out_folder + "/str_motifs.cm"
     fimo_res_tsv = args.out_folder + "/fimo_results.tsv"
     cmsearch_res_txt = args.out_folder + "/cmsearch_results.txt"
@@ -20432,7 +20432,7 @@ def main_nemo(args):
     if "USER" in rbp_in_dic:
         user_motifs = True
     else:
-        assert not args.user_meme_xml, "--user-meme-xml provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
+        assert not args.user_meme, "--user-meme provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
         assert not args.user_cm, "--user-cm provided but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
         assert not args.user_rbp_id, "--user-rbp-id set but --rbps USER not set. Please add USER to --rbps list to search for user-supplied motifs"
 
@@ -20489,7 +20489,7 @@ def main_nemo(args):
     if user_motifs:
         print("--rbps USER selected. Check + load provided USER motifs ... ")
         assert args.user_rbp_id, "--rbps USER demands --user-rbp-id to be set to connect the supplied motif(s) with an RBP ID"
-        assert args.user_meme_xml or args.user_cm, "--rbps USER requires a provided sequence or structure motif file (via --user-meme-xml AND/OR --user-cm)"
+        assert args.user_meme or args.user_cm, "--rbps USER requires a provided sequence or structure motif file (via --user-meme AND/OR --user-cm)"
 
         # Reformat user_rbp_id. 
         user_rbp_id = benchlib.remove_special_chars_from_str(args.user_rbp_id)
@@ -20502,18 +20502,18 @@ def main_nemo(args):
         print("RBP ID for user-supplied motifs:", user_rbp_id)
 
         user_seq_motif_blocks_dic = {}
-        if args.user_meme_xml:
-            assert os.path.exists(args.user_meme_xml), "--user-meme-xml file \"%s\" not found" % (args.user_meme_xml)
-            user_seq_motif_blocks_dic = benchlib.read_in_xml_motifs(args.user_meme_xml, empty_check=False)
-            assert user_seq_motif_blocks_dic, "no motifs read in from provided --user-meme-xml. Make sure to supply sequence motifs in MEME XML format!"
+        if args.user_meme:
+            assert os.path.exists(args.user_meme), "--user-meme file \"%s\" not found" % (args.user_meme)
+            user_seq_motif_blocks_dic = benchlib.read_in_meme_motifs(args.user_meme, empty_check=False)
+            assert user_seq_motif_blocks_dic, "no motifs read in from provided --user-meme. Make sure to supply sequence motifs in MEME motif format!"
             # Check if motif ID already loaded.
             for acc_id in user_seq_motif_blocks_dic:
-                assert acc_id not in loaded_motif_ids_dic, "user-supplied MEME XML motif ID %s already selected, i.e., ID is already associated with selected database RBP %s. Please change user motif ID to a unique motif ID or deselect the respective RBP" %(acc_id, id2name_dic[acc_id])
+                assert acc_id not in loaded_motif_ids_dic, "user-supplied MEME motif ID %s already selected, i.e., ID is already associated with selected database RBP %s. Please change user motif ID to a unique motif ID or deselect the respective RBP" %(acc_id, id2name_dic[acc_id])
                 loaded_motif_ids_dic[acc_id] = "user"
                 # Add user to database blocks (overwrite if same ID encountered).
                 seq_motif_blocks_dic[acc_id] = user_seq_motif_blocks_dic[acc_id]
                 name2ids_dic[user_rbp_id].append(acc_id)
-                id2type_dic[acc_id] = "meme_xml"
+                id2type_dic[acc_id] = "meme"
                 id2name_dic[acc_id] = user_rbp_id
 
         user_str_motif_blocks_dic = {}
@@ -20621,7 +20621,7 @@ def main_nemo(args):
             assert regex_id not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or --regex-id" %(regex_id)
 
             id2name_dic[regex_id] = regex_id    # motif_id -> rbp_id
-            id2type_dic[regex_id] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme_xml
+            id2type_dic[regex_id] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme
             loaded_motif_ids_dic[regex_id] = regex_id  # motif_id -> motif_db_str
             name2ids_dic[regex_id] = [regex_id]  # rbp_id -> motif_ids
 
@@ -20629,7 +20629,7 @@ def main_nemo(args):
             assert regex not in id2type_dic, "--regex set but a different motif ID with name \"%s\" was found. Please provide a different motif ID or use --motif-regex-id" %(regex_id)
 
             id2name_dic[regex] = regex_id    # motif_id -> rbp_id
-            id2type_dic[regex] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme_xml
+            id2type_dic[regex] = "regex"  # motif_id -> motif type string; motif type string can be regex, cm, meme
             loaded_motif_ids_dic[regex] = regex_id  # motif_id -> motif_db_str
             name2ids_dic[regex_id] = [regex]  # rbp_id -> motif_ids
 
@@ -20798,7 +20798,7 @@ def main_nemo(args):
         
             assert motif_id in loaded_motif_ids_dic, "motif_id %s not in loaded_motif_ids_dic" %(motif_id)
 
-            if id2type_dic[motif_id] == "meme_xml":
+            if id2type_dic[motif_id] == "meme":
                 rbp.seq_motif_ids.append(motif_id)
                 motif_id2idx_dic[motif_id] = len(rbp.seq_motif_ids) - 1
                 rbp.seq_motif_hits.append(0)
@@ -21695,18 +21695,18 @@ def main_nemo(args):
 
     if seq_rbps_dic:
 
-        out_str, c_added_motifs = benchlib.blocks_to_xml_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
-        benchlib.output_string_to_file(out_str, seq_motifs_xml)
+        out_str, c_added_motifs = benchlib.blocks_to_meme_txt_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
+        benchlib.output_string_to_file(out_str, seq_motifs_meme)
 
         print("Run FIMO on input regions ... ")
-        benchlib.run_fast_fimo(filtered_sites_fa, seq_motifs_xml, fimo_res_tsv,
+        benchlib.run_fast_fimo(filtered_sites_fa, seq_motifs_meme, fimo_res_tsv,
                                pval_thr=args.fimo_pval,
                                nt_freqs_file=fimo_freqs_file,
                                call_dic=call_dic,
                                params=fimo_params,
                                error_check=False)
 
-        assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
+        assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid motif file provided?)" %(fimo_res_tsv)
 
         pos_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
                                                            only_best_hits=args.greatest_hits,
@@ -21716,13 +21716,13 @@ def main_nemo(args):
         print("# of FIMO motif hits in input regions:", c_pos_fimo_hits)
 
         print("Run FIMO on background regions ... ")
-        benchlib.run_fast_fimo(neg_seqs_fa, seq_motifs_xml, fimo_res_tsv,
+        benchlib.run_fast_fimo(neg_seqs_fa, seq_motifs_meme, fimo_res_tsv,
                                pval_thr=args.fimo_pval,
                                nt_freqs_file=fimo_freqs_file,
                                params=fimo_params,
                                error_check=False)
 
-        assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
+        assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid motif file provided?)" %(fimo_res_tsv)
 
         neg_fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
                                                            reg_dic=neg_reg_dic,  # only applies if seq_based False.
@@ -22088,7 +22088,7 @@ def main_nemo(args):
 
         # Set consensus sequence.
         conseq = "-"
-        if id2type_dic[motif_id] == "meme_xml":
+        if id2type_dic[motif_id] == "meme":
             conseq = motif2conseq_dic[motif_id]
         elif id2type_dic[motif_id] == "cm":
             conseq = "-"
@@ -22550,7 +22550,7 @@ def main_nemo(args):
 
             # Get sequence motif consensus sequences.
             conseq1 = "-"
-            if id2type_dic[pair[0]] == "meme_xml":
+            if id2type_dic[pair[0]] == "meme":
                 conseq1 = "Consensus: " + motif2conseq_dic[pair[0]]
             elif id2type_dic[pair[0]] == "cm":
                 conseq1 = "Structure motif"
@@ -22559,7 +22559,7 @@ def main_nemo(args):
             else:
                 assert False, "Invalid motif type: %s" %(id2type_dic[pair[0]])
             conseq2 = "-"
-            if id2type_dic[pair[1]] == "meme_xml":
+            if id2type_dic[pair[1]] == "meme":
                 conseq2 = "Consensus: " + motif2conseq_dic[pair[1]]
             elif id2type_dic[pair[1]] == "cm":
                 conseq2 = "Structure motif"
@@ -22577,7 +22577,7 @@ def main_nemo(args):
                 pval_cont_lll[idx2][idx1][7] = "(Filter: mean minimum motif distance < %i)<br>" %(args.min_motif_dist)
 
             if args.motif_sim_thr is not None:
-                if id2type_dic[pair[0]] == "meme_xml" and id2type_dic[pair[1]] == "meme_xml":
+                if id2type_dic[pair[0]] == "meme" and id2type_dic[pair[1]] == "meme":
                     assert pair_str in motif_pair2sim_dic, "No similarity score found for motif pair \"%s\"" %(pair_str)
                     sim_score = motif_pair2sim_dic[pair_str]
                     if sim_score > args.motif_sim_thr:
@@ -23662,8 +23662,8 @@ def main_tomtom(args):
 
     print("Running TOMTOM for you ... ")
 
-    if args.custom_db_meme_xml:
-        assert os.path.exists(args.custom_db_meme_xml), "--custom-db \"%s\" not found" % (args.custom_db_meme_xml)
+    if args.custom_db_meme:
+        assert os.path.exists(args.custom_db_meme), "--custom-db \"%s\" not found" % (args.custom_db_meme)
 
     """
     Library path.
@@ -23707,8 +23707,8 @@ def main_tomtom(args):
     seq_motifs_db_file, str_motifs_db_file, rbp2ids_file, motif_db_str = specify_motif_db(args.motif_db, 
                                                                             db_path=db_path)
 
-    if args.custom_db_meme_xml:
-        seq_motifs_db_file = args.custom_db_meme_xml
+    if args.custom_db_meme:
+        seq_motifs_db_file = args.custom_db_meme
         motif_db_str = "custom"
         rbp2ids_file = False
 
@@ -23720,7 +23720,7 @@ def main_tomtom(args):
     name2ids_dic:
     RBP name -> motif IDs mapping
     id2type_dic:
-    motif ID -> motif type (cm, meme_xml)
+    motif ID -> motif type (cm, meme)
     id2org_dic (ignore for now):
     motif ID -> organism ID (so far only "human")
     name2fids_dic:
@@ -23739,7 +23739,7 @@ def main_tomtom(args):
 
     if rbp2ids_file:
         name2ids_dic, id2type_dic, name2gid_dic, name2fids_dic, id2pids_dic, id2exp_dic = benchlib.get_rbp_id_mappings(rbp2ids_file,
-                                                                                                                       only_meme_xml=True)
+                                                                                                                       only_meme=True)
 
         # Motif ID -> RBP name (== RBP ID) mapping.
         for rbp_id in name2ids_dic:
@@ -23759,9 +23759,9 @@ def main_tomtom(args):
 
     """
 
-    seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
+    seq_motif_blocks_dic = benchlib.read_in_meme_motifs(seq_motifs_db_file,
                                                        empty_check=True)
-    assert seq_motif_blocks_dic, "No motifs found in MEME XML file \"%s\". Please provide motifs file in MEME motif format" % (seq_motifs_db_file)
+    assert seq_motif_blocks_dic, "No motifs found in MEME motif file \"%s\". Please provide motifs file in MEME motif format" % (seq_motifs_db_file)
 
 
     """
@@ -23779,9 +23779,9 @@ def main_tomtom(args):
 
         shutil.copy(args.motif_in, query_motif_file)
 
-        query_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file,
+        query_motif_blocks_dic = benchlib.read_in_meme_motifs(seq_motifs_db_file,
                                                              empty_check=True)
-        assert query_motif_blocks_dic, "No motifs found in --in MEME XML file \"%s\". Please provide motifs file in MEME motif format" % (args.motif_in)
+        assert query_motif_blocks_dic, "No motifs found in --in MEME motif file \"%s\". Please provide motifs file in MEME motif format" % (args.motif_in)
 
     else:
 
@@ -23829,7 +23829,7 @@ def main_tomtom(args):
 
                 query_motif_blocks_dic[seq_id] = seq_motif_block
 
-        out_str, c_added_motifs = benchlib.blocks_to_xml_string(query_motif_blocks_dic, query_motif_blocks_dic)
+        out_str, c_added_motifs = benchlib.blocks_to_meme_txt_string(query_motif_blocks_dic, query_motif_blocks_dic)
         benchlib.output_string_to_file(out_str, query_motif_file)
         print("# of added query motifs from --in string:", c_added_motifs)
 
@@ -24385,7 +24385,7 @@ def main_optex(args):
 
     filtered_sites_bed = tmp_out_folder + "/in_sites.filtered.bed"
     filtered_sites_fa = tmp_out_folder + "/in_sites.filtered.fa"
-    seq_motifs_xml = tmp_out_folder + "/seq_motifs.xml"
+    seq_motifs_meme = tmp_out_folder + "/seq_motifs.meme"
     str_motifs_cm = tmp_out_folder + "/str_motifs.cm"
     fimo_res_tsv = tmp_out_folder + "/fimo_results.tsv"
     cmsearch_res_txt = tmp_out_folder + "/cmsearch_results.txt"
@@ -24405,7 +24405,7 @@ def main_optex(args):
     name2ids_dic:
     RBP name -> motif IDs mapping
     id2type_dic:
-    motif ID -> motif type (cm, meme_xml)
+    motif ID -> motif type (cm, meme)
     id2org_dic (ignore for now):
     motif ID -> organism ID (so far only "human")
 
@@ -24432,16 +24432,16 @@ def main_optex(args):
 
         print("RBP ID %s in database ... " %(rbp_id))
 
-        assert not args.user_meme_xml, "provided RBP ID in motif database, but --user-meme-xml provided. Please provide RBP ID not in motif database to search with --user-meme-xml motif(s)"
+        assert not args.user_meme, "provided RBP ID in motif database, but --user-meme provided. Please provide RBP ID not in motif database to search with --user-meme motif(s)"
         assert not args.user_cm, "provided RBP ID in motif database, but --user-cm provided. Please provide RBP ID not in motif database to search with --user-cm motif(s)"
 
         """
-        Get MEME XML database motif blocks dictionary.
+        Get MEME database motif blocks dictionary.
 
         """
-        seq_motif_blocks_dic = benchlib.read_in_xml_motifs(seq_motifs_db_file)
+        seq_motif_blocks_dic = benchlib.read_in_meme_motifs(seq_motifs_db_file)
         for motif_id in seq_motif_blocks_dic:
-            assert motif_id in id2name_dic, "MEME XML motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
+            assert motif_id in id2name_dic, "MEME motif ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
 
         """
         Get covariance model database motif blocks dictionary.
@@ -24458,21 +24458,21 @@ def main_optex(args):
 
         print("RBP ID %s NOT in database ... " %(rbp_id))
 
-        assert args.user_meme_xml or args.user_cm, "--rbp-id not in database. Please provide user motif(s) (via --user-meme-xml OR --user-cm), set different motif database or supply RBP ID present in set database"
+        assert args.user_meme or args.user_cm, "--rbp-id not in database. Please provide user motif(s) (via --user-meme OR --user-cm), set different motif database or supply RBP ID present in set database"
 
-        if args.user_meme_xml:
-            assert not args.user_cm, "either supply --user-meme-xml or --user-cm"
-            assert os.path.exists(args.user_meme_xml), "--user-meme-xml file \"%s\" not found" % (args.user_meme_xml)
-            seq_motif_blocks_dic = benchlib.read_in_xml_motifs(args.user_meme_xml, empty_check=False)
-            assert seq_motif_blocks_dic, "no motifs read in from provided --user-meme-xml. Make sure to supply sequence motifs in MEME XML format!"
+        if args.user_meme:
+            assert not args.user_cm, "either supply --user-meme or --user-cm"
+            assert os.path.exists(args.user_meme), "--user-meme file \"%s\" not found" % (args.user_meme)
+            seq_motif_blocks_dic = benchlib.read_in_meme_motifs(args.user_meme, empty_check=False)
+            assert seq_motif_blocks_dic, "no motifs read in from provided --user-meme. Make sure to supply sequence motifs in MEME motif format!"
             for acc_id in seq_motif_blocks_dic:
                 name2ids_dic[rbp_id] = [acc_id]
-                id2type_dic[acc_id] = "meme_xml"
+                id2type_dic[acc_id] = "meme"
                 id2name_dic[acc_id] = rbp_id
                 loaded_motif_ids_dic[acc_id] = 1
 
         if args.user_cm:
-            assert not args.user_meme_xml, "either supply --user-meme-xml or --user-cm"
+            assert not args.user_meme, "either supply --user-meme or --user-cm"
             assert os.path.exists(args.user_cm), "--user-cm file \"%s\" not found" % (args.user_cm)
             # Check for valid format.
             acc_ids_dic = benchlib.check_cm_file(args.user_cm, cmstat_tmp_out, empty_check=True)
@@ -24500,7 +24500,7 @@ def main_optex(args):
 
     for motif_id in loaded_motif_ids_dic:
 
-        if id2type_dic[motif_id] == "meme_xml":
+        if id2type_dic[motif_id] == "meme":
             rbp.seq_motif_ids.append(motif_id)
             motif_id2idx_dic[motif_id] = len(rbp.seq_motif_ids) - 1
             rbp.seq_motif_hits.append(0)
@@ -24643,10 +24643,10 @@ def main_optex(args):
 
             """
 
-            # print("Output motifs to XML ... ")
-            out_str, c_added_motifs = benchlib.blocks_to_xml_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
+            # print("Output motifs to MEME TXT ... ")
+            out_str, c_added_motifs = benchlib.blocks_to_meme_txt_string(seq_motif_blocks_dic, loaded_motif_ids_dic)
 
-            benchlib.output_string_to_file(out_str, seq_motifs_xml)
+            benchlib.output_string_to_file(out_str, seq_motifs_meme)
 
 
             """
@@ -24655,7 +24655,7 @@ def main_optex(args):
             """
 
             # print("Run FIMO ... ")
-            benchlib.run_fast_fimo(filtered_sites_fa, seq_motifs_xml, fimo_res_tsv,
+            benchlib.run_fast_fimo(filtered_sites_fa, seq_motifs_meme, fimo_res_tsv,
                         pval_thr=args.fimo_pval,
                         nt_freqs_file=fimo_freqs_file,
                         call_dic=call_dic,
@@ -24667,7 +24667,7 @@ def main_optex(args):
 
             """
 
-            assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid xml file provided?)" %(fimo_res_tsv)
+            assert os.path.exists(fimo_res_tsv), "FIMO output file fimo.tsv %s does not exist! There must have been an error while running FIMO (invalid motif file provided?)" %(fimo_res_tsv)
 
             # print("Read in FIMO results ... ")
             fimo_hits_list = benchlib.read_in_fimo_results(fimo_res_tsv,
@@ -24781,7 +24781,7 @@ def main_optex(args):
         for motif_str_repr in unique_motifs_dic:
             motif_id = benchlib.get_motif_id_from_str_repr(motif_str_repr)
             idx = motif_id2idx_dic[motif_id]
-            if id2type_dic[motif_id] == "meme_xml":
+            if id2type_dic[motif_id] == "meme":
                 rbp.seq_motif_hits[idx] += 1
             else:
                 rbp.str_motif_hits[idx] += 1
@@ -24944,7 +24944,7 @@ def main_info(args):
     name2ids_dic:
     RBP name -> motif IDs mapping
     id2type_dic:
-    motif ID -> motif type (cm, meme_xml)
+    motif ID -> motif type (cm, meme)
     id2org_dic (ignore for now):
     motif ID -> organism ID (so far only "human")
 
