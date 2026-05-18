@@ -11493,8 +11493,6 @@ def main_searchseq(args):
     Init hit profiles for each sequence ID.
     I.e., for each sequence ID, store motif hit (or RBP hit) occurrences (0 if not hit).
 
-    AALAMO
-
     """
 
     pid_list = []  # profile IDs == motif IDs (on motif level or RBP level).
@@ -11560,7 +11558,7 @@ def main_searchseq(args):
         # seqfeats = []
 
         # for seq_id in in_seqs_dic:
-        for idx, seq_id in enumerate(sorted(in_seqs_dic)):  # alamo
+        for idx, seq_id in enumerate(sorted(in_seqs_dic)):
             seq = in_seqs_dic[seq_id]  # .upper()   # in_seqs_dic seqs already upper().
             seq_len = len(seq)
 

@@ -19853,7 +19853,7 @@ No motif hit profiles plot generated since < 4 input sequences have motif hits o
             mdtext += """
 **Table:** List of sequences (top %i) most similar to set sequence \"%s\" (via --profiles-seq-id) based on their motif hit profiles.
 **Cosine similarity** of motif hit vectors is used as similarity measure. Note that sequences with no hits cannot appear in this list.
-Also note that similarity statistics become uninformative if only one or a few motifs are selected for search (since many sequences might have zero or one hit).
+Also note that similarity statistics become uninformative if the set sequence is rather short, and/or if only one or a few motifs are selected for search (since many sequences might have zero or one hit).
 """ %(args.profiles_top_n, args.profiles_seq_id)
 
             # Top cosine similarities list.
@@ -19897,7 +19897,7 @@ Also note that similarity statistics become uninformative if only one or a few m
             mdtext += """
 **Table:** List of sequences (top %i) closest to set sequence \"%s\" (via --profiles-seq-id) based on their motif hit profiles.
 **Euclidean distance** of motif hit vectors is used as distance measure. Note that sequences with no hits cannot appear in this list.
-Also note that similarity statistics become uninformative if only one or a few motifs are selected for search (since many sequences might have zero or one hit).
+Also note that similarity statistics become uninformative if the set sequence is rather short, and/or if only one or a few motifs are selected for search (since many sequences might have zero or one hit).
 """ %(args.profiles_top_n, args.profiles_seq_id)
             
             # Top euclidean distances list.
