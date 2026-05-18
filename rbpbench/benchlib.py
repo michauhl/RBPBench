@@ -4044,6 +4044,9 @@ def read_fasta_into_dic_fast(fasta_file,
     >>> test_fasta = "test_data/test_bed.fa"
     >>> read_fasta_into_dic_fast(test_fasta, name_bed=True)
     {'bed_id1': 'ACGUU', 'bed_id2': 'UNGCAA'}
+    >>> test_fasta = "test_data/test_empty_seq.fa"
+    >>> read_fasta_into_dic_fast(test_fasta)
+    {'seq1': '', 'seq2': ''}
 
     """
 
