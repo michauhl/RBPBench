@@ -19774,15 +19774,17 @@ Sequence length statistics in nt.
     if args.profiles_norm == 2:
         profiles_norm_info = "The profile for each sequence is the vector of motif hit counts, normalized by setting motifs with hits to 1 and motifs with no hits to 0."
 
+    c_hit_feat = c_search_rbps
     profiles_level_info = "Motif hits are counted on the RBP level, i.e., the profile includes one hit count value per RBP."
     if args.profiles_level == 2:
+        c_hit_feat = c_search_motifs
         profiles_level_info = "Motif hits are counted on the individual motif level, i.e., the profile includes one count value for every motif, i.e., an RBP is represented by the hit count values of its individual motifs."
 
     profiles_seq_id_info = ""
     if args.profiles_seq_id:
         profiles_seq_id_info = "Selected sequence ID \"%s\" is highlighted in orange (click *Focus highlight* to zoom in on highlighted sequence point, or *Show all* to zoom out on all points)." %(args.profiles_seq_id)
 
-    if c_seqs_with_hits > 3:
+    if c_seqs_with_hits > 3 and c_hit_feat > 1:
 
         hit_prof_plot_plotly =  "motif_hit_profiles.plotly.html"
         hit_prof_plot_plotly_out = plots_out_folder + "/" + hit_prof_plot_plotly
@@ -19827,7 +19829,7 @@ Note that only sequences with motif hits are included in the plot (# of sequence
     else:
         mdtext += """
 
-No motif hit profiles plot generated since < 4 input sequences have motif hits.
+No motif hit profiles plot generated since < 4 input sequences have motif hits or only 1 motif hit feature (RBP or motif level, or only regex) was included in the search.
 
 &nbsp;
 
@@ -19851,6 +19853,7 @@ No motif hit profiles plot generated since < 4 input sequences have motif hits.
             mdtext += """
 **Table:** List of sequences (top %i) most similar to set sequence \"%s\" (via --profiles-seq-id) based on their motif hit profiles.
 **Cosine similarity** of motif hit vectors is used as similarity measure. Note that sequences with no hits cannot appear in this list.
+Also note that similarity statistics become uninformative if only one or a few motifs are selected for search (since many sequences might have zero or one hit).
 """ %(args.profiles_top_n, args.profiles_seq_id)
 
             # Top cosine similarities list.
@@ -19894,6 +19897,7 @@ No motif hit profiles plot generated since < 4 input sequences have motif hits.
             mdtext += """
 **Table:** List of sequences (top %i) closest to set sequence \"%s\" (via --profiles-seq-id) based on their motif hit profiles.
 **Euclidean distance** of motif hit vectors is used as distance measure. Note that sequences with no hits cannot appear in this list.
+Also note that similarity statistics become uninformative if only one or a few motifs are selected for search (since many sequences might have zero or one hit).
 """ %(args.profiles_top_n, args.profiles_seq_id)
             
             # Top euclidean distances list.

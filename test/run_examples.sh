@@ -83,3 +83,64 @@ rbpbench sponge --regex 'TGTA[ACGT]ATA' --out test_sponge_search_gtf_out --genom
 rbpbench isocomp --regex "TGTA[ACGT]ATA" --out test_isocomp_gtf_out --genome $genome_fa_path --gtf $gtf_path --select-mode 1
 
 
+
+# Additional modes.
+rbpbench searchregex --regex test_regexes.txt --in eclip_clipper_idr/PUM2_K562_IDR_peaks.bed --out test_searchregex_out --ext 40 --genome $genome_fa_path --make-uniq-headers --regex-spacer-max 50 --regex-min-gc 0.1 --regex-max-gu 0.2
+
+
+Get RBP region occupancies
+get_fasta_headers
+
+rbpbench searchseq --in /home/uhlm/Data/Genomes/hg38.fa --regex 'TGTA[ACGT]ATA' --out test_searchseq_out --rbps REGEX
+
+
+rbpbench searchseq --in /home/uhlm/Repos/galaxytools/tools/rna_tools/rbpbench/dev/hg38.chr21.fa --regex 'TGTA[ACGT]ATA' --out test_searchseq_out --rbps REGEX
+
+
+rbpbench searchseq --in /home/uhlm/Repos/galaxytools/tools/rna_tools/rbpbench/dev/hg38.chr21.fa --regex 'TGTA[ACGT]ATA' --out test_searchseq_out --rbps REGEX
+
+rbpbench searchseq --in /home/uhlm/Repos/RBPBench/test/mpt_transcript_data_GRCh38_112_out/transcript_seqs.utr3.fa --regex 'TGTA[ACGT]ATA' --out test_searchseq_utr3_regex_out --rbps REGEX --profiles --plot-motifs --profiles-seq-id 'ENST00000270722,ENSG00000142611,PRDM16,utr3'
+
+                                   c_search_rbps=0,
+                                   c_search_motifs=0,
+
+rbpbench searchseq --in transcript_seqs.utr5.fa --regex 'TGTA[ACGT]ATA' --out test_searchseq_utr5_regex_out --rbps REGEX --profiles --plot-motifs --profiles-seq-id 'ENST00000270722,ENSG00000142611,PRDM16,utr5'
+
+
+--profiles-k
+
+
+From this point on it is slow:
+Get RBP region occupancies ...
+
+Do not output in_sequences.filtered.fa by default?
+
+
+region_rbp_motif_pos_dic
+needed?
+
+    seqid2feat_dic = {}
+    seqid2idx_dic = {}  # seq_id to matrix index.
+needed if profiles off ???
+This leads to calculation of kmers and mono nt, which takes long time!
+
+get_kmer_counts_dic takes loong time!
+
+
+profiles_seq_id
+
+rbpbench searchseq --in input_seqs.fa --out searchseq_profiles_test_out --rbps ALL --profiles --profiles-level 1 --profiles-k 5 --profiles-top-n 20 --min-seq-len 100 --max-seq-len 5000 --profiles-seq-id 'ENST00000270722'
+
+
+
+
+
+
+
+
+
+
+
+
+
+

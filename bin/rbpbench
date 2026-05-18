@@ -1192,7 +1192,7 @@ def setup_argument_parser():
                    metavar='str',
                    nargs='+',
                    required=True,
-                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme and/or --user-cm")
+                   help="List of RBP names to define RBP motifs used for search (--rbps rbp1 rbp2 .. ). To search with all available motifs, use --rbps ALL. NOTE: to search with user-provided motifs, set --rbps USER and provide --user-meme and/or --user-cm. To search only for --regex, set --rbps REGEX")
     p_ssm.add_argument("--out",
                    dest="out_folder",
                    type=str,
@@ -4302,7 +4302,6 @@ def main_search(args):
     assert benchlib.boundary_check(args.min_motif_dist, 0, 1000), "set --min-motif-dist expected to be >= 0 and <= 1000"
     assert benchlib.boundary_check(args.kmer_plot_k, 1, 7), "set --kmer-plot-k expected to be >= 1 and <= 7"
     assert benchlib.boundary_check(args.kmer_pca_plot_k, 1, 7), "set --kmer-pca-plot-k expected to be >= 1 and <= 7"
-
 
     # if args.in_gtf:
     #     assert args.report, "set --gtf requires --report to be effective"
@@ -10931,7 +10930,7 @@ def main_searchseq(args):
     #                                    remove_regex=r"[ :\(\)]",
     #                                    skip_n_seqs=False)
 
-    in_seqs_dic = benchlib.read_fasta_into_dic_fast(args.in_seqs,
+    in_seqs_dic = benchlib.read_fasta_into_dic_fast(args.in_seqs,  # automatically uppercases sequences.
                                        convert_seq_mode=2,  # convert to DNA.
                                        id_check=id_check,
                                        new_header_id=args.header_id,
@@ -10966,7 +10965,6 @@ def main_searchseq(args):
         assert filtered_seqs_dic, "no sequences remaining after filtering by set min/max lengths ... "
         print("# of remaining sequences: ", len(filtered_seqs_dic))
         in_seqs_dic = filtered_seqs_dic
-
 
 
     if args.profiles_seq_id:
@@ -11483,137 +11481,145 @@ def main_searchseq(args):
     region_rbp_motif_pos_dic["reg1"] = ["rbp1_m1:98:102:0.01", "rbp1_m1:110:115:0.1", "rbp1_m2:110:115:0.05"]
 
     """
-    region_rbp_binds_dic = {}
-    region_rbp_motif_pos_dic = {}
+    # region_rbp_binds_dic = {}
+    # region_rbp_motif_pos_dic = {}
 
-    for reg_id in in_seqs_dic:
+    # for reg_id in in_seqs_dic:
         # assert reg_id in reg2sc_dic, "region ID \"%s\" from in_seqs_dic not found in reg2sc_dic" %(reg_id)
-        region_rbp_binds_dic[reg_id] = [False]*len_rbp_list
-        region_rbp_motif_pos_dic[reg_id] = []
+        # region_rbp_binds_dic[reg_id] = [False]*len_rbp_list
+        # region_rbp_motif_pos_dic[reg_id] = []
 
     """
     Init hit profiles for each sequence ID.
     I.e., for each sequence ID, store motif hit (or RBP hit) occurrences (0 if not hit).
+
+    AALAMO
 
     """
 
     pid_list = []  # profile IDs == motif IDs (on motif level or RBP level).
     pid2idx_dic = {}  # profile ID -> idx dictionary.
     # profile_kmer_ids_list = []
-
-    idx = 0
-    for rbp_id in search_rbps_dic:
-        if args.profiles_level == 1:  # on RBP hit level.
-            pid_list.append(rbp_id)
-            pid2idx_dic[rbp_id] = idx
-            idx += 1
-        elif args.profiles_level == 2:  # on individual motif hit level.
-            for motif_id in search_rbps_dic[rbp_id].seq_motif_ids:
-                rbp_motif_id = rbp_id + ";" + motif_id
-                pid_list.append(rbp_motif_id)
-                pid2idx_dic[rbp_motif_id] = idx
-                idx += 1
-            for motif_id in search_rbps_dic[rbp_id].str_motif_ids:
-                rbp_motif_id = rbp_id + ";" + motif_id
-                pid_list.append(rbp_motif_id)
-                pid2idx_dic[rbp_motif_id] = idx
-                idx += 1
-        else:
-            assert False, "invalid hit profile level %i set. Please set --profiles-level to 1 or 2" %(args.profiles_level)
-
-    # seqid2feat_dic = {}
-
-    # for seq_id in in_seqs_dic:
-    #     seq_feat = benchlib.SeqFeat(seq_id, in_seqs_dic[seq_id], k=args.profiles_k)
-    #     for profile_id in profile_ids_list:
-    #         seq_feat.hit_profile.append(0)
-    #     seqid2feat_dic[seq_id] = seq_feat
-    #     if not profile_kmer_ids_list:
-    #         for kmer in seq_feat.kmer_perc:
-    #             profile_kmer_ids_list.append(kmer)
-
-    # get_kmer_counts_dic(self.seq, 1, rna=False, count_norm_mode=2, empty_check=False)  # get percentages.
-
-    nr_motifs = len(pid_list)  # number of search motifs / rbps == number of hit counts.
-    nr_kmers = 4 ** args.profiles_k
-    nr_seqs = len(in_seqs_dic)
-
-    # Dense k-mer percentage matrix (float32).
-    kmer_mat = np.zeros((nr_seqs, nr_kmers), dtype=np.float32)
-
-    # Dense motif hit matrix (fill later).
-    motif_mat = np.zeros((nr_seqs, nr_motifs), dtype=np.float32)
-
-    # Get kmer to index dictionary.
-    from itertools import product
-    # Dictionary format: {'AA': 0, 'AC': 1, 'AG': 2, ... }
-    kmer2idx_dic = {"".join(p): idx for idx, p in enumerate(product("ACGT", repeat=args.profiles_k))}
-
-    # seqfeats = []
+    kmer_mat = None
+    motif_mat = None
     seqid2feat_dic = {}
     seqid2idx_dic = {}  # seq_id to matrix index.
+    kmer2idx_dic = {}
 
-    # for seq_id in in_seqs_dic:
-    for idx, seq_id in enumerate(sorted(in_seqs_dic)):
-        seq = in_seqs_dic[seq_id].upper()
-        seq_len = len(seq)
+    idx = 0
 
-        # Mono-nt percentages.
-        mono_nt_perc = benchlib.get_kmer_counts_dic(seq, 1,   # get mono-nt percentages.
-                                                    rna=False,
-                                                    count_norm_mode=2,
-                                                    empty_check=False)
-        
-        a_perc = mono_nt_perc.get("A", 0.0)
-        c_perc = mono_nt_perc.get("C", 0.0)
-        g_perc = mono_nt_perc.get("G", 0.0)
-        t_perc = mono_nt_perc.get("T", 0.0)
+    if args.profiles:
 
-        # Mono-nt percentage string.
-        mono_nt_perc_str = benchlib.get_kmer_perc_str(mono_nt_perc)
+        for rbp_id in search_rbps_dic:
+            if args.profiles_level == 1:  # on RBP hit level.
+                pid_list.append(rbp_id)
+                pid2idx_dic[rbp_id] = idx
+                idx += 1
+            elif args.profiles_level == 2:  # on individual motif hit level.
+                for motif_id in search_rbps_dic[rbp_id].seq_motif_ids:
+                    rbp_motif_id = rbp_id + ";" + motif_id
+                    pid_list.append(rbp_motif_id)
+                    pid2idx_dic[rbp_motif_id] = idx
+                    idx += 1
+                for motif_id in search_rbps_dic[rbp_id].str_motif_ids:
+                    rbp_motif_id = rbp_id + ";" + motif_id
+                    pid_list.append(rbp_motif_id)
+                    pid2idx_dic[rbp_motif_id] = idx
+                    idx += 1
+            else:
+                assert False, "invalid hit profile level %i set. Please set --profiles-level to 1 or 2" %(args.profiles_level)
 
-        # Mono-nt counts.
-        mono_nt_c = benchlib.get_kmer_counts_dic(seq, 1, 
-                                        rna=False, 
-                                        count_norm_mode=1, 
-                                        empty_check=False)
-        # GC percentage.
-        gc_perc = benchlib.calc_seq_gc_cont(mono_nt_c, get_perc=True)
+        # seqid2feat_dic = {}
 
-        # Entropy.
-        entropy = benchlib.seq_calc_entropy(seq, rna=False, k=1) if seq else 0.0
-        entropy = round(entropy, 6)
+        # for seq_id in in_seqs_dic:
+        #     seq_feat = benchlib.SeqFeat(seq_id, in_seqs_dic[seq_id], k=args.profiles_k)
+        #     for profile_id in profile_ids_list:
+        #         seq_feat.hit_profile.append(0)
+        #     seqid2feat_dic[seq_id] = seq_feat
+        #     if not profile_kmer_ids_list:
+        #         for kmer in seq_feat.kmer_perc:
+        #             profile_kmer_ids_list.append(kmer)
 
-        # Get k-mer percentages dictionary from sequence.
-        kmer_perc_dic = benchlib.get_kmer_counts_dic(seq, 
-                                                     args.profiles_k, 
-                                                     rna=False, 
-                                                     count_norm_mode=2, 
-                                                     empty_check=False)
+        # get_kmer_counts_dic(self.seq, 1, rna=False, count_norm_mode=2, empty_check=False)  # get percentages.
 
-        row = kmer_mat[idx]  # Gets view into row i (not a copy!).
-        non_zero = 0
-        for kmer, val in kmer_perc_dic.items():
-            if val:
-                row[kmer2idx_dic[kmer]] = float(val)
-                non_zero += 1
+        nr_motifs = len(pid_list)  # number of search motifs / rbps == number of hit counts.
+        nr_kmers = 4 ** args.profiles_k
+        nr_seqs = len(in_seqs_dic)
 
-        seq_feat = benchlib.SeqFeat(
-            seq_id=seq_id,
-            seq_len=seq_len,
-            gc_perc=gc_perc,
-            a_perc=a_perc,
-            c_perc=c_perc,
-            g_perc=g_perc,
-            t_perc=t_perc,
-            entropy=entropy,
-            c_hits=0,  # Add motif hit counts later.
-            c_non_zero_k=non_zero,  # Number of appearing k-mers (== non-zero percentage k-mers).
-            mono_nt_perc_str=mono_nt_perc_str,
-        )
+        # Dense k-mer percentage matrix (float32).
+        kmer_mat = np.zeros((nr_seqs, nr_kmers), dtype=np.float32)
 
-        seqid2feat_dic[seq_id] = seq_feat
-        seqid2idx_dic[seq_id] = idx
+        # Dense motif hit matrix (fill later).
+        motif_mat = np.zeros((nr_seqs, nr_motifs), dtype=np.float32)
+
+        # Get kmer to index dictionary.
+        from itertools import product
+        # Dictionary format: {'AA': 0, 'AC': 1, 'AG': 2, ... }
+        kmer2idx_dic = {"".join(p): idx for idx, p in enumerate(product("ACGT", repeat=args.profiles_k))}
+
+        # seqfeats = []
+
+        # for seq_id in in_seqs_dic:
+        for idx, seq_id in enumerate(sorted(in_seqs_dic)):  # alamo
+            seq = in_seqs_dic[seq_id]  # .upper()   # in_seqs_dic seqs already upper().
+            seq_len = len(seq)
+
+            # Mono-nt percentages.
+            mono_nt_perc = benchlib.get_kmer_counts_dic(seq, 1,   # get mono-nt percentages.
+                                                        rna=False,
+                                                        count_norm_mode=2,
+                                                        empty_check=False)
+            
+            a_perc = mono_nt_perc.get("A", 0.0)
+            c_perc = mono_nt_perc.get("C", 0.0)
+            g_perc = mono_nt_perc.get("G", 0.0)
+            t_perc = mono_nt_perc.get("T", 0.0)
+
+            # Mono-nt percentage string.
+            mono_nt_perc_str = benchlib.get_kmer_perc_str(mono_nt_perc)
+
+            # Mono-nt counts.
+            mono_nt_c = benchlib.get_kmer_counts_dic(seq, 1, 
+                                            rna=False, 
+                                            count_norm_mode=1, 
+                                            empty_check=False)
+            # GC percentage.
+            gc_perc = benchlib.calc_seq_gc_cont(mono_nt_c, get_perc=True)
+
+            # Entropy.
+            entropy = benchlib.seq_calc_entropy(seq, rna=False, k=1) if seq else 0.0
+            entropy = round(entropy, 6)
+
+            # Get k-mer percentages dictionary from sequence.
+            kmer_perc_dic = benchlib.get_kmer_counts_dic(seq, 
+                                                        args.profiles_k, 
+                                                        rna=False, 
+                                                        count_norm_mode=2, 
+                                                        empty_check=False)
+
+            row = kmer_mat[idx]  # Gets view into row i (not a copy!).
+            non_zero = 0
+            for kmer, val in kmer_perc_dic.items():
+                if val:
+                    row[kmer2idx_dic[kmer]] = float(val)
+                    non_zero += 1
+
+            seq_feat = benchlib.SeqFeat(
+                seq_id=seq_id,
+                seq_len=seq_len,
+                gc_perc=gc_perc,
+                a_perc=a_perc,
+                c_perc=c_perc,
+                g_perc=g_perc,
+                t_perc=t_perc,
+                entropy=entropy,
+                c_hits=0,  # Add motif hit counts later.
+                c_non_zero_k=non_zero,  # Number of appearing k-mers (== non-zero percentage k-mers).
+                mono_nt_perc_str=mono_nt_perc_str,
+            )
+
+            seqid2feat_dic[seq_id] = seq_feat
+            seqid2idx_dic[seq_id] = idx
 
     """
     Output motif region stats (1 row for each motif hit).
@@ -11659,8 +11665,8 @@ def main_searchseq(args):
         # motif_hit_e = fh.end
         # center_pos = benchlib.get_center_position(motif_hit_s, motif_hit_e)        
 
-        region_rbp_binds_dic[region_id][rbp_idx] = True
-        region_rbp_motif_pos_dic[region_id].append(motif_str)
+        # region_rbp_binds_dic[region_id][rbp_idx] = True
+        # region_rbp_motif_pos_dic[region_id].append(motif_str)
 
         motif_db_out = loaded_motif_ids_dic[fh.motif_id]
 
@@ -11689,16 +11695,18 @@ def main_searchseq(args):
             if matched_seq not in match_c_dic[rbp_id][fh.motif_id]:
                 match_c_dic[rbp_id][fh.motif_id][matched_seq] = 0
             match_c_dic[rbp_id][fh.motif_id][matched_seq] += 1
-            # Record motif hit counts in matrix.
-            if args.profiles_level == 1:
-                # motif_mat = np.zeros((nr_seqs, nr_motifs), dtype=np.float32)
-                motif_mat[seqid2idx_dic[region_id], pid2idx_dic[rbp_id]] += 1
-                # seqid2feat_dic[region_id].hit_profile[pid2idx_dic[rbp_id]] += 1
-            elif args.profiles_level == 2:
-                motif_mat[seqid2idx_dic[region_id], pid2idx_dic[rbp_motif_id]] += 1
-                # seqid2feat_dic[region_id].hit_profile[pid2idx_dic[rbp_motif_id]] += 1
-            # Increment total hit count.
-            seqid2feat_dic[region_id].c_hits += 1
+
+            if args.profiles:
+                # Record motif hit counts in matrix.
+                if args.profiles_level == 1:
+                    # motif_mat = np.zeros((nr_seqs, nr_motifs), dtype=np.float32)
+                    motif_mat[seqid2idx_dic[region_id], pid2idx_dic[rbp_id]] += 1
+                    # seqid2feat_dic[region_id].hit_profile[pid2idx_dic[rbp_id]] += 1
+                elif args.profiles_level == 2:
+                    motif_mat[seqid2idx_dic[region_id], pid2idx_dic[rbp_motif_id]] += 1
+                    # seqid2feat_dic[region_id].hit_profile[pid2idx_dic[rbp_motif_id]] += 1
+                # Increment total hit count.
+                seqid2feat_dic[region_id].c_hits += 1
 
         row_str = args.data_id + "\t"
         row_str += args.method_id + "\t"
@@ -11742,8 +11750,8 @@ def main_searchseq(args):
         # motif_hit_e = cmsh.end
         # center_pos = benchlib.get_center_position(motif_hit_s, motif_hit_e)
         
-        region_rbp_binds_dic[region_id][rbp_idx] = True
-        region_rbp_motif_pos_dic[region_id].append(motif_str)
+        # region_rbp_binds_dic[region_id][rbp_idx] = True
+        # region_rbp_motif_pos_dic[region_id].append(motif_str)
 
         motif_db_out = loaded_motif_ids_dic[cmsh.motif_id]
 
@@ -11768,13 +11776,15 @@ def main_searchseq(args):
             if matched_seq not in match_c_dic[rbp_id][cmsh.motif_id]:
                 match_c_dic[rbp_id][cmsh.motif_id][matched_seq] = 0
             match_c_dic[rbp_id][cmsh.motif_id][matched_seq] += 1
-            # Record motif hit counts in matrix.
-            if args.profiles_level == 1:
-                motif_mat[seqid2idx_dic[region_id], pid2idx_dic[rbp_id]] += 1
-            elif args.profiles_level == 2:
-                motif_mat[seqid2idx_dic[region_id], pid2idx_dic[rbp_motif_id]] += 1
-            # Increment total hit count.
-            seqid2feat_dic[region_id].c_hits += 1
+
+            if args.profiles:
+                # Record motif hit counts in matrix.
+                if args.profiles_level == 1:
+                    motif_mat[seqid2idx_dic[region_id], pid2idx_dic[rbp_id]] += 1
+                elif args.profiles_level == 2:
+                    motif_mat[seqid2idx_dic[region_id], pid2idx_dic[rbp_motif_id]] += 1
+                # Increment total hit count.
+                seqid2feat_dic[region_id].c_hits += 1
 
         row_str = args.data_id + "\t"
         row_str += args.method_id + "\t"
@@ -11822,97 +11832,100 @@ def main_searchseq(args):
 
     """
 
-    for seq_id in seqid2feat_dic:
-        # profile_list = seqid2feat_dic[seq_id].hit_profile
-        seq_len = seqid2feat_dic[seq_id].seq_len
-        row = motif_mat[seqid2idx_dic[seq_id]]  # Fix hit counts row for specific sequence.
+    if args.profiles:
 
-        for j in range(nr_motifs):
-                
-                hit_c = row[j]
+        for seq_id in seqid2feat_dic:
+            # profile_list = seqid2feat_dic[seq_id].hit_profile
+            seq_len = seqid2feat_dic[seq_id].seq_len
+            row = motif_mat[seqid2idx_dic[seq_id]]  # Fix hit counts row for specific sequence.
 
-                if args.profiles_norm == 1:  # Normalize to hits per 1000 nt.
-                    if hit_c > 0:
-                        row[j] = (float(hit_c) / float(seq_len)) * 1000.0 if seq_len > 0 else 0.0
-                    else:
-                        row[j] = 0.0
-                elif args.profiles_norm == 2:  # Set count to 1 if hits, else 0.
-                    if hit_c > 0:
-                        row[j] = 1
-                    else:
-                        row[j] = 0
+            for j in range(nr_motifs):
+                    
+                    hit_c = row[j]
+
+                    if args.profiles_norm == 1:  # Normalize to hits per 1000 nt.
+                        if hit_c > 0:
+                            row[j] = (float(hit_c) / float(seq_len)) * 1000.0 if seq_len > 0 else 0.0
+                        else:
+                            row[j] = 0.0
+                    elif args.profiles_norm == 2:  # Set count to 1 if hits, else 0.
+                        if hit_c > 0:
+                            row[j] = 1
+                        else:
+                            row[j] = 0
 
 
-    """
-    Output motif hit and k-mer profile values.
-    """
+        """
+        Output motif hit and k-mer profile values.
 
-    OUTHITP = open(hit_profiles_out, "w")
-    motif_ids_str = ";".join(pid_list)
-    OUTHITP.write("seq_id\tseq_len\tseq_entropy\tA_perc\tC_perc\tG_perc\tT_perc\tc_hits\t%s\n" %(motif_ids_str))
-    OUTKMERP = open(kmer_profiles_out, "w")
-    kmer_ids_str = ";".join(kmer2idx_dic.keys())
-    OUTKMERP.write("seq_id\tseq_len\tseq_entropy\tA_perc\tC_perc\tG_perc\tT_perc\tk\t%s\n" %(kmer_ids_str))
+        """
 
-    for seq_id in seqid2feat_dic:
-        seq_feat = seqid2feat_dic[seq_id]
-        seq_len = seq_feat.seq_len
-        seq_entropy = seq_feat.entropy
-        c_hits = seq_feat.c_hits
-        kmer_k = args.profiles_k
+        OUTHITP = open(hit_profiles_out, "w")
+        motif_ids_str = ";".join(pid_list)
+        OUTHITP.write("seq_id\tseq_len\tseq_entropy\tA_perc\tC_perc\tG_perc\tT_perc\tc_hits\t%s\n" %(motif_ids_str))
+        OUTKMERP = open(kmer_profiles_out, "w")
+        kmer_ids_str = ";".join(kmer2idx_dic.keys())
+        OUTKMERP.write("seq_id\tseq_len\tseq_entropy\tA_perc\tC_perc\tG_perc\tT_perc\tk\t%s\n" %(kmer_ids_str))
 
-        # Row index of sequence in motif_mat and kmer_mat.
-        seq_idx = seqid2idx_dic[seq_id]
+        for seq_id in seqid2feat_dic:
+            seq_feat = seqid2feat_dic[seq_id]
+            seq_len = seq_feat.seq_len
+            seq_entropy = seq_feat.entropy
+            c_hits = seq_feat.c_hits
+            kmer_k = args.profiles_k
 
-        kmer_row = kmer_mat[seq_idx]
+            # Row index of sequence in motif_mat and kmer_mat.
+            seq_idx = seqid2idx_dic[seq_id]
 
-        kmer_profile_str_list = []
-        for kmer in kmer2idx_dic:
-            kmer_idx = kmer2idx_dic[kmer]
-            kmer_perc = kmer_row[kmer_idx]
-            if kmer_perc > 0:
-                kmer_perc = "%.4f" %(kmer_perc)
-            kmer_profile_str_list.append(str(kmer_perc))
+            kmer_row = kmer_mat[seq_idx]
 
-        motif_row = motif_mat[seq_idx]
+            kmer_profile_str_list = []
+            for kmer in kmer2idx_dic:
+                kmer_idx = kmer2idx_dic[kmer]
+                kmer_perc = kmer_row[kmer_idx]
+                if kmer_perc > 0:
+                    kmer_perc = "%.4f" %(kmer_perc)
+                kmer_profile_str_list.append(str(kmer_perc))
 
-        hit_profile_str_list = []
-        for pid in pid2idx_dic:
-            motif_idx = pid2idx_dic[pid]
-            motif_hit_val = motif_row[motif_idx]
-            if motif_hit_val > 0:
-                motif_hit_val = "%.4f" %(motif_hit_val)
-            hit_profile_str_list.append(str(motif_hit_val))
+            motif_row = motif_mat[seq_idx]
 
-        # hit_profile_list = seq_feat.hit_profile  # motif hit profile.
-        # kmer_profile_dic = seq_feat.kmer_perc  # k-mer percentages profile.
-        # hit_profile_str_list = []
-        # for hv in hit_profile_list:
-        #     if hv > 0:
-        #         hv = "%.4f" %(hv)
-        #     hit_profile_str_list.append(str(hv))
-        
-        # # hit_profile_str = ";".join(str(hv) for hv in hit_profile_list)
-        # kmer_profile_str_list = []
-        # for kmer in kmer2idx_dic:
-        #     kmer_perc = kmer_profile_dic[kmer]
-        #     if kmer_perc > 0:
-        #         kmer_perc = "%.4f" %(kmer_perc)
-        #     kmer_profile_str_list.append(str(kmer_perc))
+            hit_profile_str_list = []
+            for pid in pid2idx_dic:
+                motif_idx = pid2idx_dic[pid]
+                motif_hit_val = motif_row[motif_idx]
+                if motif_hit_val > 0:
+                    motif_hit_val = "%.4f" %(motif_hit_val)
+                hit_profile_str_list.append(str(motif_hit_val))
 
-        hit_profile_str = ";".join(hit_profile_str_list)
-        kmer_profile_str = ";".join(kmer_profile_str_list)
-        # kmer_profile_str = ";".join(str(kmer_profile_dic[kmer]) for kmer in profile_kmer_ids_list)
-        perc_A = seq_feat.a_perc
-        perc_C = seq_feat.c_perc
-        perc_G = seq_feat.g_perc
-        perc_T = seq_feat.t_perc
-        row_str = "%s\t%i\t%.4f\t%.2f\t%.2f\t%.2f\t%.2f\t%i\t%s\n" %(seq_id, seq_len, seq_entropy, perc_A, perc_C, perc_G, perc_T, c_hits, hit_profile_str)
-        OUTHITP.write(row_str)
-        row_str = "%s\t%i\t%.4f\t%.2f\t%.2f\t%.2f\t%.2f\t%i\t%s\n" %(seq_id, seq_len, seq_entropy, perc_A, perc_C, perc_G, perc_T, kmer_k, kmer_profile_str)
-        OUTKMERP.write(row_str)
-    OUTHITP.close()
-    OUTKMERP.close()
+            # hit_profile_list = seq_feat.hit_profile  # motif hit profile.
+            # kmer_profile_dic = seq_feat.kmer_perc  # k-mer percentages profile.
+            # hit_profile_str_list = []
+            # for hv in hit_profile_list:
+            #     if hv > 0:
+            #         hv = "%.4f" %(hv)
+            #     hit_profile_str_list.append(str(hv))
+            
+            # # hit_profile_str = ";".join(str(hv) for hv in hit_profile_list)
+            # kmer_profile_str_list = []
+            # for kmer in kmer2idx_dic:
+            #     kmer_perc = kmer_profile_dic[kmer]
+            #     if kmer_perc > 0:
+            #         kmer_perc = "%.4f" %(kmer_perc)
+            #     kmer_profile_str_list.append(str(kmer_perc))
+
+            hit_profile_str = ";".join(hit_profile_str_list)
+            kmer_profile_str = ";".join(kmer_profile_str_list)
+            # kmer_profile_str = ";".join(str(kmer_profile_dic[kmer]) for kmer in profile_kmer_ids_list)
+            perc_A = seq_feat.a_perc
+            perc_C = seq_feat.c_perc
+            perc_G = seq_feat.g_perc
+            perc_T = seq_feat.t_perc
+            row_str = "%s\t%i\t%.4f\t%.2f\t%.2f\t%.2f\t%.2f\t%i\t%s\n" %(seq_id, seq_len, seq_entropy, perc_A, perc_C, perc_G, perc_T, c_hits, hit_profile_str)
+            OUTHITP.write(row_str)
+            row_str = "%s\t%i\t%.4f\t%.2f\t%.2f\t%.2f\t%.2f\t%i\t%s\n" %(seq_id, seq_len, seq_entropy, perc_A, perc_C, perc_G, perc_T, kmer_k, kmer_profile_str)
+            OUTKMERP.write(row_str)
+        OUTHITP.close()
+        OUTKMERP.close()
 
     """
     Output matched sequence counts in table. 
