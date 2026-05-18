@@ -4034,9 +4034,16 @@ def read_fasta_into_dic_fast(fasta_file,
         2: convert to DNA.
         3: convert to RNA.
 
-    >>> test_fasta = "test_data/test.fa"
+    >>> test_fasta = "test_data/test_rna.fa"
     >>> read_fasta_into_dic_fast(test_fasta)
-    {'seq1': 'acguACGUacgu', 'seq2': 'ugcaUGCAugcaACGUacgu'}
+    {'seq1': 'ACGUU', 'seq2': 'UNGCAA'}
+    >>> read_fasta_into_dic_fast(test_fasta, convert_seq_mode=2)
+    {'seq1': 'ACGTT', 'seq2': 'TNGCAA'}
+    >>> read_fasta_into_dic_fast(test_fasta, new_header_id="reg", make_uniq_headers=True)
+    {'reg_1': 'ACGUU', 'reg_2': 'UNGCAA'}
+    >>> test_fasta = "test_data/test_bed.fa"
+    >>> read_fasta_into_dic_fast(test_fasta, name_bed=True)
+    {'bed_id1': 'ACGUU', 'bed_id2': 'UNGCAA'}
 
     """
 
