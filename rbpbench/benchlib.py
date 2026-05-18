@@ -7214,7 +7214,6 @@ def get_transcript_sequences_from_gtf(tid2tio_dic, in_genome_fasta,
                                     convert_seq_mode=convert_seq_mode,
                                     id_check=True)
 
-
     """
     Concatenate exon region sequences to transcript sequences.
 
