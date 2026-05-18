@@ -5168,12 +5168,16 @@ def main_search(args):
     Get FASTA sequences and sequence lengths.
     """
 
-    out_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
-                                       dna=True,
-                                       all_uc=True,
-                                       id_check=True,
-                                       empty_check=False,
-                                       skip_n_seqs=False)
+    # out_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
+    #                                    dna=True,
+    #                                    all_uc=True,
+    #                                    id_check=True,
+    #                                    empty_check=False,
+    #                                    skip_n_seqs=False)
+
+    out_seqs_dic = benchlib.read_fasta_into_dic_fast(filtered_sites_fa,
+                                                     convert_seq_mode=2,  # convert to DNA.
+                                                     id_check=True)
 
     assert out_seqs_dic, "no sequences extracted from FASTA file for --in BED sites. Make sure to use compatible FASTA/BED files!"
 
@@ -8321,12 +8325,16 @@ def main_batch(args):
         Get FASTA sequences and sequence lengths.
         """
 
-        out_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
-                                                    dna=True,
-                                                    all_uc=True,
-                                                    id_check=True,
-                                                    empty_check=False,
-                                                    skip_n_seqs=False)
+        # out_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
+        #                                             dna=True,
+        #                                             all_uc=True,
+        #                                             id_check=True,
+        #                                             empty_check=False,
+        #                                             skip_n_seqs=False)
+
+        out_seqs_dic = benchlib.read_fasta_into_dic_fast(filtered_sites_fa,
+                                                         convert_seq_mode=2,  # convert to DNA.
+                                                         id_check=True)
 
         assert out_seqs_dic, "no sequences extracted from FASTA file for --in BED sites. Make sure to use compatible FASTA/BED files!"
 
@@ -9980,15 +9988,25 @@ def main_searchregex(args):
 
         print("--in input file is FASTA. Read in sequences ... ")
 
-        in_seqs_dic = benchlib.read_fasta_into_dic(args.in_file,
-                                        dna=True,
-                                        all_uc=True,
-                                        id_check=id_check,
-                                        empty_check=False,
-                                        new_header_id=args.header_id,
-                                        make_uniq_headers=args.make_uniq_headers,
-                                        report=1,
-                                        skip_n_seqs=False)
+        # A bit slow for very large sequences.
+        # in_seqs_dic = benchlib.read_fasta_into_dic(args.in_file,
+        #                                 dna=True,
+        #                                 all_uc=True,
+        #                                 id_check=id_check,
+        #                                 empty_check=False,
+        #                                 new_header_id=args.header_id,
+        #                                 make_uniq_headers=args.make_uniq_headers,
+        #                                 report=1,
+        #                                 skip_n_seqs=False)
+
+        # Much faster! Automatically uppercases sequences. 
+        # Does not check if sequences are valid ACGTUN, and does not (optionally) filter out N-containing sequences.
+        in_seqs_dic = benchlib.read_fasta_into_dic_fast(args.in_file,
+                                            convert_seq_mode=2, # convert to DNA.
+                                            id_check=id_check,
+                                            new_header_id=args.header_id,
+                                            make_uniq_headers=args.make_uniq_headers)
+
 
         assert in_seqs_dic, "no sequences read in from --in FASTA file. Make sure to provide a FASTA formatted file with DNA or RNA sequences"
 
@@ -10021,14 +10039,19 @@ def main_searchregex(args):
                                                   add_param="-name",  # new FASTA header format: bed_col4_id::chr21:45528055-45528135(-)
                                                   print_warnings=True)
 
-        in_seqs_dic = benchlib.read_fasta_into_dic(in_seqs_fa,
-                                                   dna=True,
-                                                   all_uc=True,
-                                                   name_bed=True,  # Makes sure that in_seqs_dic keys are BED column 4 IDs.
-                                                   id_check=True,
-                                                   empty_check=False,
-                                                   skip_n_seqs=False)
-        
+        # in_seqs_dic = benchlib.read_fasta_into_dic(in_seqs_fa,
+        #                                            dna=True,
+        #                                            all_uc=True,
+        #                                            name_bed=True,  # Makes sure that in_seqs_dic keys are BED column 4 IDs.
+        #                                            id_check=True,
+        #                                            empty_check=False,
+        #                                            skip_n_seqs=False)
+
+        in_seqs_dic = benchlib.read_fasta_into_dic_fast(in_seqs_fa,
+                                                        convert_seq_mode=2,  # convert to DNA.
+                                                        name_bed=True,  # Makes sure that in_seqs_dic keys are BED column 4 IDs.
+                                                        id_check=True)
+
         assert in_seqs_dic, "no sequences extracted from --in BED file. Make sure to provide a BED file with genomic regions and a compatible FASTA file with genomic sequences"
 
     else:
@@ -10897,16 +10920,24 @@ def main_searchseq(args):
     
     print("Read in sequences from --in FASTA ... ")
     
-    in_seqs_dic = benchlib.read_fasta_into_dic(args.in_seqs,
-                                       dna=True,
-                                       all_uc=True,
+    # in_seqs_dic = benchlib.read_fasta_into_dic(args.in_seqs,
+    #                                    dna=True,
+    #                                    all_uc=True,
+    #                                    id_check=id_check,
+    #                                    empty_check=False,
+    #                                    new_header_id=args.header_id,
+    #                                    make_uniq_headers=args.make_uniq_headers,
+    #                                    report=1,
+    #                                    remove_regex=r"[ :\(\)]",
+    #                                    skip_n_seqs=False)
+
+    in_seqs_dic = benchlib.read_fasta_into_dic_fast(args.in_seqs,
+                                       convert_seq_mode=2,  # convert to DNA.
                                        id_check=id_check,
-                                       empty_check=False,
                                        new_header_id=args.header_id,
                                        make_uniq_headers=args.make_uniq_headers,
-                                       report=1,
-                                       remove_regex=r"[ :\(\)]",
-                                       skip_n_seqs=False)
+                                       remove_regex=r"[ :\(\)]")
+
 
     assert in_seqs_dic, "no sequences read in from --in FASTA file. Make sure to provide a FASTA formatted file with DNA or RNA sequences"
 
@@ -12829,12 +12860,17 @@ def main_searchlong(args):
     Get FASTA sequences and sequence lengths.
     """
 
-    out_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
-                                       dna=True,
-                                       all_uc=True,
-                                       id_check=True,
-                                       empty_check=False,
-                                       skip_n_seqs=False)
+    # out_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
+    #                                    dna=True,
+    #                                    all_uc=True,
+    #                                    id_check=True,
+    #                                    empty_check=False,
+    #                                    skip_n_seqs=False)
+
+    out_seqs_dic = benchlib.read_fasta_into_dic_fast(filtered_sites_fa,
+                                       convert_seq_mode=2,  # convert to DNA.
+                                       id_check=True)
+
 
     assert out_seqs_dic, "no sequences extracted from FASTA file for --in BED regions. Make sure to use compatible FASTA/BED files!"
 
@@ -14666,12 +14702,17 @@ def main_searchrna(args):
 
     """
 
-    out_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
-                                       dna=True,
-                                       all_uc=True,
-                                       id_check=True,
-                                       empty_check=False,
-                                       skip_n_seqs=False)
+    # out_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
+    #                                    dna=True,
+    #                                    all_uc=True,
+    #                                    id_check=True,
+    #                                    empty_check=False,
+    #                                    skip_n_seqs=False)
+
+    out_seqs_dic = benchlib.read_fasta_into_dic_fast(filtered_sites_fa,
+                                       convert_seq_mode=2,  # convert to DNA.
+                                       id_check=True)
+
 
     assert out_seqs_dic, "no sequences extracted from FASTA file for --in BED sites. Make sure to use compatible FASTA/BED files!"
 
@@ -18686,12 +18727,17 @@ def main_enmo(args):
                                                 print_warnings=True)
 
         print("Read in sequences ... ")
-        pos_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
-                                        dna=True,
-                                        all_uc=True,
-                                        id_check=True,
-                                        empty_check=False,
-                                        skip_n_seqs=False)
+        # pos_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
+        #                                 dna=True,
+        #                                 all_uc=True,
+        #                                 id_check=True,
+        #                                 empty_check=False,
+        #                                 skip_n_seqs=False)
+
+        pos_seqs_dic = benchlib.read_fasta_into_dic_fast(filtered_sites_fa,
+                                        convert_seq_mode=2,  # convert to DNA.
+                                        id_check=True)
+
 
         # Filter BED file to discard regions for which no sequence was extracted.
         benchlib.bed_filter_by_seqs_dic(pos_seqs_dic, f1_sites_bed, filtered_sites_bed)
@@ -18714,12 +18760,16 @@ def main_enmo(args):
                                                   print_warnings=True)
 
         print("Read in sequences ... ")
-        pos_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
-                                        dna=True,
-                                        all_uc=True,
-                                        id_check=True,
-                                        empty_check=False,
-                                        skip_n_seqs=False)
+        # pos_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
+        #                                 dna=True,
+        #                                 all_uc=True,
+        #                                 id_check=True,
+        #                                 empty_check=False,
+        #                                 skip_n_seqs=False)
+
+        pos_seqs_dic = benchlib.read_fasta_into_dic_fast(filtered_sites_fa,
+                                        convert_seq_mode=2,  # convert to DNA.
+                                        id_check=True)
 
         # Filter BED file to discard regions for which no sequence was extracted.
         benchlib.bed_filter_by_seqs_dic(pos_seqs_dic, f1_sites_bed, filtered_sites_bed)
@@ -19046,12 +19096,17 @@ def main_enmo(args):
                                                   print_warnings=True)
 
         print("Read in background sequences ... ")
-        neg_seqs_dic = benchlib.read_fasta_into_dic(neg_seqs_fa,
-                                                    dna=True,
-                                                    all_uc=True,
-                                                    id_check=True, # This will fail probably, need genomic regions.
-                                                    empty_check=False,
-                                                    skip_n_seqs=False)
+        # neg_seqs_dic = benchlib.read_fasta_into_dic(neg_seqs_fa,
+        #                                             dna=True,
+        #                                             all_uc=True,
+        #                                             id_check=True, # This will fail probably, need genomic regions.
+        #                                             empty_check=False,
+        #                                             skip_n_seqs=False)
+
+        neg_seqs_dic = benchlib.read_fasta_into_dic_fast(neg_seqs_fa,
+                                        convert_seq_mode=2,  # convert to DNA.
+                                        id_check=True)
+
 
         assert neg_seqs_dic, "no background sequences read in. Please contact developers"
 
@@ -19093,12 +19148,16 @@ def main_enmo(args):
                                     seed=args.random_seed)
 
         print("Read in background sequences ... ")
-        neg_seqs_dic = benchlib.read_fasta_into_dic(neg_seqs_fa,
-                                                    dna=True,
-                                                    all_uc=True,
-                                                    id_check=True, # This will fail probably, need genomic regions.
-                                                    empty_check=False,
-                                                    skip_n_seqs=False)
+        # neg_seqs_dic = benchlib.read_fasta_into_dic(neg_seqs_fa,
+        #                                             dna=True,
+        #                                             all_uc=True,
+        #                                             id_check=True, # This will fail probably, need genomic regions.
+        #                                             empty_check=False,
+        #                                             skip_n_seqs=False)
+
+        neg_seqs_dic = benchlib.read_fasta_into_dic_fast(neg_seqs_fa,
+                                        convert_seq_mode=2,  # convert to DNA.
+                                        id_check=True)
 
         assert neg_seqs_dic, "no shuffled background sequences read in. Please contact developers"
 
@@ -21055,13 +21114,18 @@ def main_nemo(args):
                                                 print_warnings=True)
 
         print("Read in sequences ... ")
-        pos_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
-                                        dna=True,
-                                        all_uc=True,
-                                        id_check=True,
+        # pos_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
+        #                                 dna=True,
+        #                                 all_uc=True,
+        #                                 id_check=True,
+        #                                 name_bed=True,
+        #                                 empty_check=False,
+        #                                 skip_n_seqs=False)
+
+        pos_seqs_dic = benchlib.read_fasta_into_dic_fast(filtered_sites_fa,
+                                        convert_seq_mode=2,  # convert to DNA.
                                         name_bed=True,
-                                        empty_check=False,
-                                        skip_n_seqs=False)
+                                        id_check=True)
 
         # Filter BED file to discard regions for which no sequence was extracted.
         benchlib.bed_filter_by_seqs_dic(pos_seqs_dic, f1_sites_bed, filtered_sites_bed,
@@ -21086,13 +21150,19 @@ def main_nemo(args):
                                                   print_warnings=True)
 
         print("Read in sequences ... ")
-        pos_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
-                                        dna=True,
-                                        all_uc=True,
-                                        id_check=True,
+        # pos_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
+        #                                 dna=True,
+        #                                 all_uc=True,
+        #                                 id_check=True,
+        #                                 name_bed=True,
+        #                                 empty_check=False,
+        #                                 skip_n_seqs=False)
+
+        pos_seqs_dic = benchlib.read_fasta_into_dic_fast(filtered_sites_fa,
+                                        convert_seq_mode=2,  # convert to DNA.
                                         name_bed=True,
-                                        empty_check=False,
-                                        skip_n_seqs=False)
+                                        id_check=True)
+
 
         # Filter BED file to discard regions for which no sequence was extracted.
         benchlib.bed_filter_by_seqs_dic(pos_seqs_dic, f1_sites_bed, filtered_sites_bed,
@@ -21455,13 +21525,18 @@ def main_nemo(args):
                                                   print_warnings=True)
 
         print("Read in background sequences ... ")
-        neg_seqs_dic = benchlib.read_fasta_into_dic(neg_seqs_fa,
-                                                    dna=True,
-                                                    all_uc=True,
-                                                    id_check=True, # This will fail probably, need genomic regions.
-                                                    name_bed=True,
-                                                    empty_check=False,
-                                                    skip_n_seqs=False)
+        # neg_seqs_dic = benchlib.read_fasta_into_dic(neg_seqs_fa,
+        #                                             dna=True,
+        #                                             all_uc=True,
+        #                                             id_check=True, # This will fail probably, need genomic regions.
+        #                                             name_bed=True,
+        #                                             empty_check=False,
+        #                                             skip_n_seqs=False)
+
+        neg_seqs_dic = benchlib.read_fasta_into_dic_fast(neg_seqs_fa,
+                                        convert_seq_mode=2, # convert to DNA.
+                                        name_bed=True,
+                                        id_check=True)
 
         assert neg_seqs_dic, "no background sequences read in. Please contact developers"
 
@@ -21515,12 +21590,16 @@ def main_nemo(args):
                                     seed=args.random_seed)
 
         print("Read in background sequences ... ")
-        neg_seqs_dic = benchlib.read_fasta_into_dic(neg_seqs_fa,
-                                                    dna=True,
-                                                    all_uc=True,
-                                                    id_check=True, # This will fail probably, need genomic regions.
-                                                    empty_check=False,
-                                                    skip_n_seqs=False)
+        # neg_seqs_dic = benchlib.read_fasta_into_dic(neg_seqs_fa,
+        #                                             dna=True,
+        #                                             all_uc=True,
+        #                                             id_check=True, # This will fail probably, need genomic regions.
+        #                                             empty_check=False,
+        #                                             skip_n_seqs=False)
+
+        neg_seqs_dic = benchlib.read_fasta_into_dic_fast(neg_seqs_fa,
+                                        convert_seq_mode=2, # convert to DNA.
+                                        id_check=True)
 
         assert neg_seqs_dic, "no shuffled background sequences read in. Please contact developers"
 
@@ -23097,12 +23176,16 @@ def main_sponge(args):
 
         """
         
-        tr_seqs_dic = benchlib.read_fasta_into_dic(args.in_fasta,
-                                            dna=True,
-                                            all_uc=True,
-                                            id_check=True,
-                                            empty_check=False,
-                                            skip_n_seqs=False)
+        # tr_seqs_dic = benchlib.read_fasta_into_dic(args.in_fasta,
+        #                                     dna=True,
+        #                                     all_uc=True,
+        #                                     id_check=True,
+        #                                     empty_check=False,
+        #                                     skip_n_seqs=False)
+
+        tr_seqs_dic = benchlib.read_fasta_into_dic_fast(args.in_fasta,
+                                        convert_seq_mode=2,  # convert to DNA.
+                                        id_check=True)
 
 
     """
@@ -23453,12 +23536,16 @@ def main_isocomp(args):
 
         """
         
-        in_seqs_dic = benchlib.read_fasta_into_dic(args.in_fasta,
-                                            dna=True,
-                                            all_uc=True,
-                                            id_check=True,
-                                            empty_check=False,
-                                            skip_n_seqs=False)
+        # in_seqs_dic = benchlib.read_fasta_into_dic(args.in_fasta,
+        #                                     dna=True,
+        #                                     all_uc=True,
+        #                                     id_check=True,
+        #                                     empty_check=False,
+        #                                     skip_n_seqs=False)
+
+        in_seqs_dic = benchlib.read_fasta_into_dic_fast(args.in_fasta,
+                                        convert_seq_mode=2,  # convert to DNA.
+                                        id_check=True)
 
         tr_seqs_dic = {}
 
@@ -24608,12 +24695,17 @@ def main_optex(args):
         Get FASTA sequences and sequence lengths.
         """
 
-        out_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
-                                        dna=True,
-                                        all_uc=True,
-                                        id_check=True,
-                                        empty_check=False,
-                                        skip_n_seqs=False)
+        # out_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
+        #                                 dna=True,
+        #                                 all_uc=True,
+        #                                 id_check=True,
+        #                                 empty_check=False,
+        #                                 skip_n_seqs=False)
+
+        out_seqs_dic = benchlib.read_fasta_into_dic_fast(filtered_sites_fa,
+                                        convert_seq_mode=2,  # convert to DNA.
+                                        id_check=True)
+
 
         assert out_seqs_dic, "no sequences extracted from FASTA file for --in BED sites. Make sure to use compatible FASTA/BED files!"
 
@@ -25097,13 +25189,18 @@ def main_dist(args):
         id_check = False
         make_uniq_headers = True
 
-    out_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
-                                       dna=True,
-                                       all_uc=True,
-                                       id_check=id_check,
-                                       make_uniq_headers=make_uniq_headers,
-                                       empty_check=False,
-                                       skip_n_seqs=False)
+    # out_seqs_dic = benchlib.read_fasta_into_dic(filtered_sites_fa,
+    #                                    dna=True,
+    #                                    all_uc=True,
+    #                                    id_check=id_check,
+    #                                    make_uniq_headers=make_uniq_headers,
+    #                                    empty_check=False,
+    #                                    skip_n_seqs=False)
+
+    out_seqs_dic = benchlib.read_fasta_into_dic_fast(filtered_sites_fa,
+                                    convert_seq_mode=2,  # convert to DNA.
+                                    id_check=id_check,
+                                    make_uniq_headers=make_uniq_headers)
 
     assert out_seqs_dic, "no sequences extracted from FASTA file for --in BED sites. Make sure to use compatible FASTA/BED files!"
 

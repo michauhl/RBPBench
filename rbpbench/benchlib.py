@@ -4015,6 +4015,105 @@ def plot_seq_len_distr(seq_len_list1, seq_len_list2, plot_out,
 
 ################################################################################
 
+def read_fasta_into_dic_fast(fasta_file,
+                             convert_seq_mode=1,
+                             id_check=True,
+                             new_header_id="site",
+                             name_bed=False,
+                             remove_regex=False,  # e.g. r"[ :\(\)]"
+                             make_uniq_headers=False):
+    """
+    Speed optimized version of read_fasta_into_dic, with fewer options, better for 
+    reading in very large sequences (e.g. chromosomes).
+
+    This always uppercases sequences, and does not check if DNA/RNA sequences 
+    are valid. Also N-containing sequences are allowed.
+    
+    convert_seq_mode:
+        1: do not convert to DNA/RNA.
+        2: convert to DNA.
+        3: convert to RNA.
+
+    >>> test_fasta = "test_data/test.fa"
+    >>> read_fasta_into_dic_fast(test_fasta)
+    {'seq1': 'acguACGUacgu', 'seq2': 'ugcaUGCAugcaACGUacgu'}
+
+    """
+
+    seqs_dic = {}
+
+    assert convert_seq_mode in [1, 2, 3], "invalid convert_seq_mode %s (should be 1, 2 or 3)" %(str(convert_seq_mode))
+
+    open_func = gzip.open if fasta_file.endswith(".gz") else open
+
+    with open_func(fasta_file, "rt") as f:
+
+        seq_id = None
+        seq_chunks = []
+
+        for line in f:
+
+            if line.startswith(">"):
+                # if line[0] == ">":  # This is faster, but does not catch empty lines (should not happen in FASTA though).
+
+                # Store previous sequence.
+                if seq_id is not None:
+                    seq = ""
+                    if convert_seq_mode == 1:
+                        seq = "".join(seq_chunks).upper()
+                    elif convert_seq_mode == 2:  # to DNA.
+                        seq = "".join(seq_chunks).upper().replace("U", "T")
+                    elif convert_seq_mode == 3:
+                        seq = "".join(seq_chunks).upper().replace("T", "U")
+
+                    seqs_dic[seq_id] = seq
+
+                # Parse new header.
+                seq_id = line[1:].split()[0].split("|")[0]
+
+                # Get BED column 4 ID as seq_id.
+                # I.e. if FASTA header was generated from BED file with -name option, get first part of ID (before "::").
+                # Example: bed_col4_id::chr21:45528055-45528135(-)
+                if name_bed:
+                    parts = seq_id.split("::", 1)
+                    assert len(parts) == 2, f'BED column 4 ID extraction failed for FASTA header "{seq_id}"'
+                    seq_id = parts[0]
+
+                # Remove certain specified parts from header ID.
+                if remove_regex:
+                    seq_id = re.sub(remove_regex, "", seq_id)
+                    assert seq_id, "filtering FASTA sequence header ID \"%s\" by regex \"%s\" resulted in string" %(seq_id, remove_regex)
+
+                # Optionally force make unique headers.
+                if make_uniq_headers:
+                    seq_id = new_header_id + "_" + str(len(seqs_dic) + 1)
+
+                # Check if header ID is unique.
+                if id_check:
+                    assert seq_id not in seqs_dic, "non-unique FASTA header \"%s\" in \"%s\"" % (seq_id, fasta_file)
+
+                seq_chunks = []
+
+            else:
+                seq_chunks.append(line.strip())
+
+        # Store last sequence.
+        if seq_id is not None:
+            seq = ""
+            if convert_seq_mode == 1:
+                seq = "".join(seq_chunks).upper()
+            elif convert_seq_mode == 2:  # to DNA.
+                seq = "".join(seq_chunks).upper().replace("U", "T")
+            elif convert_seq_mode == 3:
+                seq = "".join(seq_chunks).upper().replace("T", "U")
+            
+            seqs_dic[seq_id] = seq
+
+    return seqs_dic
+
+
+################################################################################
+
 def read_fasta_into_dic(fasta_file,
                         seqs_dic=False,
                         ids_dic=False,
@@ -7092,10 +7191,19 @@ def get_transcript_sequences_from_gtf(tid2tio_dic, in_genome_fasta,
                                      print_warnings=False,
                                      ignore_errors=False)
 
-    exon_seqs_dic = read_fasta_into_dic(tmp_fa,
-                                        dna=dna,
-                                        all_uc=all_uc,
-                                        skip_n_seqs=False)
+    # exon_seqs_dic = read_fasta_into_dic(tmp_fa,
+    #                                     dna=dna,
+    #                                     all_uc=all_uc,
+    #                                     skip_n_seqs=False)
+
+    convert_seq_mode = 1
+    if dna:
+        convert_seq_mode = 2
+
+    exon_seqs_dic = read_fasta_into_dic_fast(tmp_fa,
+                                    convert_seq_mode=convert_seq_mode,
+                                    id_check=True)
+
 
     """
     Concatenate exon region sequences to transcript sequences.
@@ -9408,6 +9516,30 @@ def bed_check_format(bed_file, asserts=True,
 
 ################################################################################
 
+def fasta_check_format_old(fasta_file):
+    """
+    Quick check if file is a valid FASTA file.
+
+    >>> test_fa = "test_data/test.fa"
+    >>> fasta_check_format_old(test_fa)
+    True
+    >>> test_fa = "test_data/test.bed"
+    >>> fasta_check_format_old(test_fa)
+    False
+
+    """
+    with open(fasta_file, 'r') as f:
+        lines = f.readlines()
+    if len(lines) == 0:
+        return False
+    if not lines[0].startswith(">"):
+        return False
+    
+    return True
+
+
+################################################################################
+
 def fasta_check_format(fasta_file):
     """
     Quick check if file is a valid FASTA file.
@@ -9420,14 +9552,17 @@ def fasta_check_format(fasta_file):
     False
 
     """
-    with open(fasta_file, 'r') as f:
-        lines = f.readlines()
-    if len(lines) == 0:
-        return False
-    if not lines[0].startswith(">"):
-        return False
-    
-    return True
+
+    open_func = gzip.open if fasta_file.endswith(".gz") else open
+
+    with open_func(fasta_file, "rt") as f:
+
+        first_line = f.readline()
+
+        if not first_line:
+            return False
+
+        return first_line[0] == ">"
 
 
 ################################################################################
