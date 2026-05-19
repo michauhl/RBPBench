@@ -23022,7 +23022,7 @@ def main_sponge(args):
     # Output files.
     if not os.path.exists(args.out_folder):
         os.makedirs(args.out_folder)
-    pecentile_ranks_out = os.path.join(args.out_folder, "sponge_transcripts_ranked.tsv")
+    percentile_ranks_out = os.path.join(args.out_folder, "sponge_transcripts_ranked.tsv")
     hit_dist_plot_out = os.path.join(args.out_folder, "hit_distribution.png")
     tr_seqs_fa = os.path.join(args.out_folder, "transcript_seqs.fa")  # Transcript sequences (spliced) in FASTA format.
     settings_file = args.out_folder + "/settings.rbpbench_sponge.out"
@@ -23232,8 +23232,8 @@ def main_sponge(args):
         # Print top hits.
         if total_entries > 0:
             print("")
-            print("Top 10 sequences with highest # motif hits per kb:")
-            print(result_df[["transcript_id", "gene_name", "transcript_length", "hit_count", "hits_per_kb", "percentile_rank"]].head(10))
+            print("Top 20 sequences with highest # motif hits per kb:")
+            print(result_df[["transcript_id", "gene_name", "transcript_length", "hit_count", "hits_per_kb", "percentile_rank"]].head(20))
             print("")
 
         zero_hits = (result_df["hits_per_kb"] == 0).sum()
@@ -23244,7 +23244,16 @@ def main_sponge(args):
         print("# sequences with hits:        %i (%.2f%%)" % (hit_entries, perc_hits))
         print("# sequences with zero hits:   %i (%.2f%%)" % (zero_hits, perc_zero_hits))
 
-        result_df.to_csv(pecentile_ranks_out, sep='\t', index=False)
+        result_df.to_csv(percentile_ranks_out, sep='\t', index=False)
+        # result_df.sort_values(
+        #     by="hits_per_kb",
+        #     ascending=False  # from high to low.
+        # ).to_csv(
+        #     percentile_ranks_out,
+        #     sep='\t',
+        #     index=False
+        # )
+
         benchlib.plot_hit_distribution(result_df, save_path=hit_dist_plot_out)
 
     else:
@@ -23268,7 +23277,7 @@ def main_sponge(args):
     print("")
     print("Hit distribution .png:\n%s" %(hit_dist_plot_out))
     print("Regex hits in transcript sequences .bed:\n%s" %(hits_bed_out))
-    print("Transcript sequences ranked by hits per kb .tsv:\n%s" %(pecentile_ranks_out))
+    print("Transcript sequences ranked by hits per kb .tsv:\n%s" %(percentile_ranks_out))
     print("")
 
 

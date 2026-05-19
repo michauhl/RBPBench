@@ -743,7 +743,7 @@ for the comparison. Two sets of genomic sites in BED format have to be provided
 (input sites via `--in`, control sites via `--ctrl-in`).
 For each genomic site the average conservation score is taken (i.e., by averaging over all single position scores), 
 and the distributions of the two sets are compared using the Wilcoxon rank-sum test. 
-A low p-value indicates that input sites have significantly higher conservation scores (effect sizes are provided as well in the HTML report). 
+A low p-value indicates that input sites have significantly higher conservation scores, and two effect sizes (explained [here](#input-region-score-motif-enrichment-statistics)) for interpretating the p-values are provided as well. 
 This mode can thus be used e.g. to compare different sets of motif hit regions, 
 or sets from different peak callers. An HTML report is produced to summarize and visually inspect the results.
 
@@ -772,13 +772,13 @@ rbpbench con --in mrna_region_end_pos.bed --ctrl-in mrna_region_end_pos.50ds_shi
 ```
 
 Inspecting the conservation score distribution plots in `test_con_smrna_region_end_pos_con_sc_outc_out/report.rbpbench_con.html` confirms the assumption 
-(plus the p-values are highly significant as well):
+(p-values and effect sizes):
 
 
 <img src="docs/con.ex1.png" alt="Conservation score distribution comparison"
   title="Conservation score distribution comparison" width="800" />
 
-**Fig. 17:** Comparison of phastCons and phyloP conservation score distributions between input sites (mRNA region end positions) and control sites (mRNA region end positions shifted downstream by 50 nt).
+**Fig. 17:** Comparison of phastCons and phyloP conservation score distributions between input sites (mRNA region end positions) and control sites (mRNA region end positions shifted downstream by 50 nt). `p`: Wilcoxon rank-sum test p-value `rbc_es`: Rank-Biserial Correlation effect size `cl_es`: Common Language effect size (explained [here](#input-region-score-motif-enrichment-statistics)).
 
 
 #### Searching for sponge transcripts
@@ -804,7 +804,7 @@ The top 10 transcripts ranked by hits per kilo base (kb) nt we get are the follo
 | ENST00000369489 | CD58 | 1086 | 3 | 2.7624 | protein_coding |
 | ENST00000565493 | NORAD | 5401 | 15 | 2.7773 | lncRNA |
 
-It is known that NORAD, a highly conserved cytoplasmic lncRNA, can sequester PUMILIO proteins (PUM1 and PUM2) and modulate the expression of their target genes ([Lee et al. 2016](https://doi.org/10.1016/j.cell.2015.12.017)). This shows that a simple and fast search approach like this can be used to identify potential sponge transcripts for any given (RBP) motif of interest, which can then be further investigated. Additional options are available, such as defining a minimum spacer length between regex hits (`--min-spacer-len`), or a minimum regex hit count per transcript (`--min-hit-count`) for transcripts to be included in the output table. Moreover, if GTF annotated transcripts are used, specific subsets can be selected for search via `--select-mode` (all, only mRNAs, only 3'UTRs). Also note that regular expressions can describe complex binding patterns, including variable length spacers, such as the IGF2BP3 binding motif `GGC.{15,25}CA.{7,20}CA.{15,25}GGC.{2,8}[CA]{4}` described in [Schneider et al. 2019](https://doi.org/10.1038/s41467-019-09769-8).
+It is known that NORAD, a highly conserved cytoplasmic lncRNA, can sequester PUMILIO proteins (PUM1 and PUM2) and modulate the expression of their target genes ([Lee et al. 2016](https://doi.org/10.1016/j.cell.2015.12.017)). This shows that a simple and fast search approach like this can be used to identify potential sponge transcripts for any given (RBP) motif of interest, which can then be further investigated. Additional options are available, such as defining a minimum spacer length between regex hits (`--min-spacer-len`), or a minimum regex hit count per transcript (`--min-hit-count`) for transcripts to be included in the output table. Moreover, if GTF annotated transcripts are used, specific subsets can be selected for search via `--select-mode` (all, only mRNAs, only 3'UTRs). Also note that regular expressions can describe complex binding patterns, including variable length spacers, such as the IGF2BP3 binding motif `GGC.{15,25}CA.{7,20}CA.{15,25}GGC.{2,8}[CA]{4}` described in [Schneider et al. 2019](https://doi.org/10.1038/s41467-019-09769-8), an even structure patterns (see [regular expressions](#regular-expressions) for more details).
 
 #### Comparing motif hits between transcript isoforms
 
@@ -1346,9 +1346,9 @@ the test thus can give clues on which RBPs preferentially bind to the provided r
 Note that the test is only informative if the scores are themselves informative w.r.t. RBP binding (e.g., not all the same), 
 or e.g. if not all or too many of the input regions contain motif hits. 
 For p-value interpretation, two test **effect sizes** are provided as well (RBC ES: rank-biserial correlation effect size, CL ES: common language effect size).
-RBC ES has a range from -1 to +1, where 0 means no effect, +1 means all hit region scores are greater than non-hit region scores, 
+**RBC ES** has a range from -1 to +1, where 0 means no effect, +1 means all hit region scores are greater than non-hit region scores, 
 and -1 means all hit region scores are smaller that non-hit region scores. 
-CL ES has a range 0 to +1. It denotes the probability that a random score from the hit region group exceeds one from the non-hit region group. 
+**CL ES** has a range 0 to +1. It denotes the probability that a random score from the hit region group exceeds one from the non-hit region group. 
 A CL ES of 0.5 means there is no effect, > 0.5 means hit region scores tend to be higher, and < 0.5 means hit region scores tend to be lower.
 
 The test results are output in the [output tables](#hit-statistics-table-files), as well as in the HTML reports.
@@ -1380,7 +1380,7 @@ be done via `--bed-sc-thr`.
 
 Considering the single motif level co-occurrences (`rbpbench enmo`, `rbpbench nemo`), 
 co-occurrence attribution is more strict, since it is only checked for motifs which are significantly enriched 
-in the input regions (details [here](#input-region-motif_enrichment-statistics)). 
+in the input regions (details [here](#input-region-motif-enrichment-statistics)). 
 Furthermore, in addition to `--min-motif-dist`, co-occurrences can be filtered 
 by motif pair similarity (only for MEME motif formatted sequence motifs, `--motif-sim-thr`), which 
 allows us to focus on co-occurrences with more dissimilar motifs. 
@@ -1461,8 +1461,8 @@ RBFOX2	clipper_idr	hepg2_eclip	batch_compare_test/RBFOX2.hepg2_eclip.clipper_idr
 RBFOX2	clipper_idr	k562_eclip	batch_compare_test/RBFOX2.k562_eclip.clipper_idr.bed
 ```
 Column 1 is the RBP ID, column 2 the method ID, column 3 the data ID, and column 4 the path 
-to the BED file containing the genomic regions (typically binding regions of the RBP determined through CLIPseq).
-In this example, method ID describes the peak calling methods, while data ID describes the CLIP protocol+cell type 
+to the BED file containing the genomic regions (typically binding regions of the RBP determined through CLIP-seq).
+In this example, method ID describes the peak calling methods, while data ID describes the CLIP-seq protocol + cell type 
 combination. From these, we ge the following to comparisons:
 
 1. compare the peak calling methods (i.e., their results) `clipper_idr`, `dewseq_w100_s5` with 

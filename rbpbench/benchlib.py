@@ -1168,6 +1168,8 @@ def get_val_dic_stats(val_dic):
 
 def create_con_sc_violin_plot(in_scores, control_scores, plot_out, 
                               pval=1.0,
+                              rbc_es=0.0,
+                              cl_es=0.5,
                               con_type="phastCons",
                               in_id="Input sites",
                               control_id="Control sites",
@@ -1186,10 +1188,25 @@ def create_con_sc_violin_plot(in_scores, control_scores, plot_out,
     if plot_title:
         plt.title("%s Conservation Score Distribution" %(con_type))
 
-    # Optional: Add p-value to plot.
+    # Optional: Add p-value + RBC + CL effect size values to plot.
+    # if add_pval:
+    #     plt.text(1.5, max(max(in_scores), max(control_scores)), f'p = {pval:.3g}', 
+    #             ha='center', va='bottom', fontsize=10)
     if add_pval:
-        plt.text(1.5, max(max(in_scores), max(control_scores)), f'p = {pval:.3g}', 
-                ha='center', va='bottom', fontsize=10)
+        y_pos = max(max(in_scores), max(control_scores))
+        stats_text = (
+            f"p = {pval:.3g}\n"
+            f"rbc_es = {rbc_es:.3f}\n"
+            f"cl_es = {cl_es:.3f}"
+        )
+        plt.text(
+            1.5,
+            y_pos,
+            stats_text,
+            ha='center',
+            va='top',
+            fontsize=9
+        )
 
     plt.tight_layout()
     # plt.show()
@@ -1760,6 +1777,8 @@ def compare_conservation_scores(args,
 
         create_con_sc_violin_plot(in_scores, control_scores, pc_plot_path, 
                                   pval=pc_pval,
+                                  rbc_es=pc_rbc_es,
+                                  cl_es=pc_cl_es,
                                   con_type="phastCons",
                                   add_pval=True,
                                   plot_title=False,
@@ -1837,6 +1856,8 @@ def compare_conservation_scores(args,
 
         create_con_sc_violin_plot(in_scores, control_scores, pp_plot_path, 
                                   pval=pp_pval,
+                                  rbc_es=pp_rbc_es,
+                                  cl_es=pp_cl_es,
                                   con_type="phyloP",
                                   add_pval=True,
                                   plot_title=False,
@@ -4043,7 +4064,7 @@ def read_fasta_into_dic_fast(fasta_file,
     {'reg_1': 'ACGUU', 'reg_2': 'UNGCAA'}
     >>> test_fasta = "test_data/test_bed.fa"
     >>> read_fasta_into_dic_fast(test_fasta, name_bed=True)
-    {'bed_id1': 'ACGUU', 'bed_id2': 'UNGCAA'}
+    {'bed_id1': 'ACGUUAC', 'bed_id2': 'UNGCAACA'}
     >>> test_fasta = "test_data/test_empty_seq.fa"
     >>> read_fasta_into_dic_fast(test_fasta)
     {'seq1': '', 'seq2': ''}
@@ -4751,7 +4772,7 @@ def sponge_search_regex_hits(seqs_dic, regex,
         df["gene_biotype"] = df["gene_id"].map(gn2type_dic).fillna("-")
 
     # Sort descending by percentile
-    df_sorted = df.sort_values(by="percentile_rank", ascending=False).reset_index(drop=True)
+    df_sorted = df.sort_values(by="hits_per_kb", ascending=False).reset_index(drop=True)
 
     return df_sorted
 

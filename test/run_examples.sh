@@ -86,6 +86,6 @@ rbpbench isocomp --regex "TGTA[ACGT]ATA" --out test_isocomp_gtf_out --genome $ge
 rbpbench searchregex --regex test_regexes.txt --in eclip_clipper_idr/PUM2_K562_IDR_peaks.bed --out test_searchregex_out --ext 40 --genome $genome_fa_path --make-uniq-headers --regex-spacer-max 50 --regex-min-gc 0.1 --regex-max-gu 0.2
 
 # Whole genome sequence search (reasonably fast if --profiles not set).
-rbpbench --in $genome_fa_path --regex 'TGTA[ACGT]ATA' --out test_searchseq_out --rbps REGEX
+rbpbench searchseq --in $genome_fa_path --regex 'TGTA[ACGT]ATA' --out test_searchseq_out --rbps REGEX
 
 
