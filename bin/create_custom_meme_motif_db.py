@@ -36,7 +36,7 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    required=True,
-                   help="Output folder to store MEME motif database genrated from --in regex infos in. Contains MEME XML file and table file used as input files (--custom-db-meme-xml xml_file --custom-db-info table_file) or folder (--custom-db db_folder) to RBPBench)")
+                   help="Output folder to store MEME motif database generated from --in regex infos in. Contains MEME motif format file (plain text format) and table file used as input files (--custom-db-meme motif_file --custom-db-info table_file) or folder (--custom-db db_folder) to RBPBench)")
     return p
 
 
@@ -52,7 +52,7 @@ if __name__ == '__main__':
     if not os.path.exists(args.out_folder):
         os.makedirs(args.out_folder)
 
-    out_xml = args.out_folder + "/seq_motifs.meme"
+    out_meme = args.out_folder + "/seq_motifs.meme"
     out_info_tsv = args.out_folder + "/info.txt"
 
     mandatory_columns = ["rbp_id", "motif_id", "regex"]
@@ -85,7 +85,7 @@ if __name__ == '__main__':
 
         print("Read in RBP ID %s, motif ID %s ..." % (rbp_id, motif_id))
 
-        motif_type = "meme_xml"
+        motif_type = "meme"
         motif_stats = benchlib.MotifInfos(rbp_id, motif_id, motif_type)
 
         function_ids = "-"
@@ -165,16 +165,16 @@ if __name__ == '__main__':
 
     OUTINFO.close()
 
-    out_str, c_added_motifs = benchlib.blocks_to_xml_string(query_motif_blocks_dic, query_motif_blocks_dic,
-                                                            mid2rid_dic=mid2rid_dic)
-    benchlib.output_string_to_file(out_str, out_xml)
-    print("# of added motifs to XML from --in:", c_added_motifs)
+    out_str, c_added_motifs = benchlib.blocks_to_meme_txt_string(query_motif_blocks_dic, query_motif_blocks_dic,
+                                                                 mid2rid_dic=mid2rid_dic)
+    benchlib.output_string_to_file(out_str, out_meme)
+    print("# of added motifs to MEME from --in:", c_added_motifs)
 
-    assert os.path.exists(out_xml), "no motifs file written to output folder. Please contact developers"
+    assert os.path.exists(out_meme), "no motifs file written to output folder. Please contact developers"
 
     print("")
     print("Motif database written to folder:\n%s" % (args.out_folder))
-    print("Motif database MEME XML file:\n%s" % (out_xml))
+    print("Motif database MEME file:\n%s" % (out_meme))
     print("Motif database info table file:\n%s" % (out_info_tsv))
     print("")
 

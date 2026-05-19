@@ -3,7 +3,7 @@
 [![GitHub](https://img.shields.io/github/tag/michauhl/RBPBench.svg)](https://github.com/michauhl/RBPBench)
 [![Bioconda](https://anaconda.org/bioconda/rbpbench/badges/version.svg)](https://anaconda.org/bioconda/rbpbench)
 
-RBPBench is multi-function tool to evaluate CLIP-seq and other genomic region data 
+RBPBench is a multi-function tool to evaluate CLIP-seq and other genomic region data 
 using a comprehensive collection of known RNA-binding protein (RBP) binding motifs. 
 RBPBench can be used for a variety of purposes, from RBP motif search (database or 
 user-supplied RBP motifs) in genomic regions, over motif enrichment and co-occurrence analysis, 
@@ -743,7 +743,7 @@ for the comparison. Two sets of genomic sites in BED format have to be provided
 (input sites via `--in`, control sites via `--ctrl-in`).
 For each genomic site the average conservation score is taken (i.e., by averaging over all single position scores), 
 and the distributions of the two sets are compared using the Wilcoxon rank-sum test. 
-A low p-value indicates that input sites have significantly higher conservation scores (effect sizes are provided as well in the HTML report). 
+A low p-value indicates that input sites have significantly higher conservation scores, and two effect sizes (explained [here](#input-region-score-motif-enrichment-statistics)) for interpretating the p-values are provided as well. 
 This mode can thus be used e.g. to compare different sets of motif hit regions, 
 or sets from different peak callers. An HTML report is produced to summarize and visually inspect the results.
 
@@ -772,13 +772,13 @@ rbpbench con --in mrna_region_end_pos.bed --ctrl-in mrna_region_end_pos.50ds_shi
 ```
 
 Inspecting the conservation score distribution plots in `test_con_smrna_region_end_pos_con_sc_outc_out/report.rbpbench_con.html` confirms the assumption 
-(plus the p-values are highly significant as well):
+(p-values and effect sizes):
 
 
 <img src="docs/con.ex1.png" alt="Conservation score distribution comparison"
   title="Conservation score distribution comparison" width="800" />
 
-**Fig. 17:** Comparison of phastCons and phyloP conservation score distributions between input sites (mRNA region end positions) and control sites (mRNA region end positions shifted downstream by 50 nt).
+**Fig. 17:** Comparison of phastCons and phyloP conservation score distributions between input sites (mRNA region end positions) and control sites (mRNA region end positions shifted downstream by 50 nt). `p`: Wilcoxon rank-sum test p-value `rbc_es`: Rank-Biserial Correlation effect size `cl_es`: Common Language effect size (explained [here](#input-region-score-motif-enrichment-statistics)).
 
 
 #### Searching for sponge transcripts
@@ -804,7 +804,7 @@ The top 10 transcripts ranked by hits per kilo base (kb) nt we get are the follo
 | ENST00000369489 | CD58 | 1086 | 3 | 2.7624 | protein_coding |
 | ENST00000565493 | NORAD | 5401 | 15 | 2.7773 | lncRNA |
 
-It is known that NORAD, a highly conserved cytoplasmic lncRNA, can sequester PUMILIO proteins (PUM1 and PUM2) and modulate the expression of their target genes ([Lee et al. 2016](https://doi.org/10.1016/j.cell.2015.12.017)). This shows that a simple and fast search approach like this can be used to identify potential sponge transcripts for any given (RBP) motif of interest, which can then be further investigated. Additional options are available, such as defining a minimum spacer length between regex hits (`--min-spacer-len`), or a minimum regex hit count per transcript (`--min-hit-count`) for transcripts to be included in the output table. Moreover, if GTF annotated transcripts are used, specific subsets can be selected for search via `--select-mode` (all, only mRNAs, only 3'UTRs). Also note that regular expressions can describe complex binding patterns, including variable length spacers, such as the IGF2BP3 binding motif `GGC.{15,25}CA.{7,20}CA.{15,25}GGC.{2,8}[CA]{4}` described in [Schneider et al. 2019](https://doi.org/10.1038/s41467-019-09769-8).
+It is known that NORAD, a highly conserved cytoplasmic lncRNA, can sequester PUMILIO proteins (PUM1 and PUM2) and modulate the expression of their target genes ([Lee et al. 2016](https://doi.org/10.1016/j.cell.2015.12.017)). This shows that a simple and fast search approach like this can be used to identify potential sponge transcripts for any given (RBP) motif of interest, which can then be further investigated. Additional options are available, such as defining a minimum spacer length between regex hits (`--min-spacer-len`), or a minimum regex hit count per transcript (`--min-hit-count`) for transcripts to be included in the output table. Moreover, if GTF annotated transcripts are used, specific subsets can be selected for search via `--select-mode` (all, only mRNAs, only 3'UTRs). Also note that regular expressions can describe complex binding patterns, including variable length spacers, such as the IGF2BP3 binding motif `GGC.{15,25}CA.{7,20}CA.{15,25}GGC.{2,8}[CA]{4}` described in [Schneider et al. 2019](https://doi.org/10.1038/s41467-019-09769-8), an even structure patterns (see [regular expressions](#regular-expressions) for more details).
 
 #### Comparing motif hits between transcript isoforms
 
@@ -926,7 +926,7 @@ up- or downstream occurrence.
 
 ##### Checking for similar database motifs
 
-If you have one or more sequence motifs of interest (MEME format or regex) and want to know if there are similar motifs 
+If you have one or more sequence motifs of interest (MEME motif format or regex) and want to know if there are similar motifs 
 in the database, you can run `rbpbench tomtom` (incorporating MEME's TOMTOM). 
 This mode also informs us whether the reported motif hits are enriched in certain RBP functions (e.g., 
 for regex input `--in TTTTTT`, the top 3 enriched functions are: splicing regulation, 
@@ -959,16 +959,16 @@ can again be used as input regions for the other modes, allowing for easily refi
 
 #### Motifs
 
-Motifs for search can be sequence motifs ([MEME motif format](https://meme-suite.org/meme/doc/meme-format.html)), 
+Motifs for search can be sequence motifs ([MEME motif format](https://meme-suite.org/meme/doc/meme-format.html), example see [below](#user-provided-motif-search)), 
 structure motifs (covariance models obtained through [Infernal](https://github.com/EddyRivasLab/infernal)),
 or [regular expressions](#regular-expressions) (given via `--regex` argument).
-Search motifs are selected via `--rbps`, e.g., to select PUM1 (sequence) and SLBP (structure) motifs `--rbps PUM1 SLBP`.
+Search motifs are selected via `--r bps`, e.g., to select PUM1 (sequence) and SLBP (structure) motifs `--rbps PUM1 SLBP`.
 To select all database motifs, set `--rbps ALL` (internal motif database can be changed via `--motif-db`, 
 a custom motif database can be supplied too). Additionally, a regular expression (regex) (e.g. `AATAAA`) can be added to 
 search via `--regex AA[AG]AA`. To search only for a regular expression, set `--rbps REGEX --regex AA[AG]AA`. Co-occurrence 
 and enrichment statistics are calculated on the RBP level in all modes, except `rbpbench enmo` and `rbpbench nemo`, 
 which enable enrichment and co-occurrence statistics on single motif level ([details](#co-occurrence-statistics)). 
-Alternatively, single motifs for search can be selected via `--motifs`, e.g. `--motifs CSTF1_1 DDX3X_1`, and sequence motifs (MEME format)
+Alternatively, single motifs for search can be selected via `--motifs`, e.g. `--motifs CSTF1_1 DDX3X_1`, and sequence motifs (MEME motif format)
 can be filtered by their length using `--motif-min-len` and `--motif-max-len`.
 To list and visualize all selected motifs, use `--plot-motifs` (in some modes automatically output).
 RBP motifs can also be filtered by their annotated RBP functions. To only inlcude RBPs with e.g. annotated 3' end processing
@@ -1058,20 +1058,43 @@ wget https://ftp.ensembl.org/pub/release-112/gtf/homo_sapiens/Homo_sapiens.GRCh3
 
 #### User-provided motif search
 
-Both sequence (MEME XML format) and structure (covariance model .cm) motifs can be supplied by the user 
-on top of the database RBPs (using `-rbps USER` option together with `-user-meme-xml` or `--user-cm`).
+Both sequence (MEME motif format) and structure (covariance model .cm) motifs can be supplied by the user 
+on top of the database RBPs (using `-rbps USER` option together with `-user-meme` or `--user-cm`).
 This way, the motifs can be used together with the database motifs for search and comparative statistics.
 For example, to supply a structure motif (SLBP) via `--user-cm` (the example motif files can be found in the RBPBench repository subfolder `RBPBench/test`):
 
 ```
-rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps USER --out SLBP_user_search_out --genome hg38.fa --user-cm SLBP_USER.cm  --user-rbp-id SLBP_USER
+rbpbench search --in SLBP_K562_IDR_peaks.bed --rbps USER --out SLBP_user_search_out --genome hg38.fa --user-cm SLBP_USER.cm --user-rbp-id SLBP_USER
 ```
 
-In the same way, we can supply sequence motif(s) (PUM1) via `--user-meme-xml`, and e.g. also combine it with any of the database RBPs (here PUM2 and RBFOX2):
+In the same way, we can supply sequence motif(s) (PUM1) via `--user-meme`, and e.g. also combine it with any of the database RBPs (here PUM2 and RBFOX2):
 
 ```
-rbpbench search --in eclip_clipper_idr/PUM1_K562_IDR_peaks.bed --rbps USER PUM2 RBFOX2 --out PUM1_user_search_out --genome hg38.fa --user-meme-xml PUM1_USER.xml --user-rbp-id PUM1_USER
+rbpbench search --in eclip_clipper_idr/PUM1_K562_IDR_peaks.bed --rbps USER PUM2 RBFOX2 --out PUM1_user_search_out --genome hg38.fa --user-meme PUM1_USER.meme --user-rbp-id PUM1_USER
 ```
+
+Note that the MEME motif(s) should be stored in plain text format. Here a header section is followed by any number of motif blocks. An example for a simple motif (`ACGT`) with the header section followed by the motif block:
+
+```
+MEME version 5
+
+ALPHABET= ACGT
+
+strands: +
+
+Background letter frequencies
+A 0.250000 C 0.250000 G 0.250000 T 0.250000
+
+MOTIF motif_id
+letter-probability matrix: alength= 4 w= 4 nsites= 20 E= 0
+1.0 0.0 0.0 0.0
+0.0 1.0 0.0 0.0
+0.0 0.0 1.0 0.0
+0.0 0.0 0.0 1.0
+```
+
+The header part is optional for RBPBench (default background letter frequencies can be defined via `--fimo-ntf-mode` or supplied via `--fimo-ntf-file`). A motif block needs to start with the line `MOTIF`. The following `motif_id` string is used as the motif ID in RBPBench. After the `letter-probability matrix ..` line (format details [here](https://meme-suite.org/meme/doc/meme-format.html#min_motif_pspm)), the actual nucleotide probabilities are given (each line for one position, with the order: `A C G T`).
+
 
 #### Custom motif database
 
@@ -1080,11 +1103,12 @@ it is also possible to define a custom motif database, which can then be applied
 The following command line parameters deal with defining a custom motif database:
 
 ```
-  --custom-db str       Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme-xml, --custom-
-                        db-cm, --custom-db-info
+  --custom-db str       Provide custom motif database folder. Alternatively, provide single files via --custom-db-meme, 
+                        --custom-db-cm, --custom-db-info
   --custom-db-id str    Set ID/name for provided custom motif database via --custom-db (default: "custom")
-  --custom-db-meme-xml str
-                        Provide custom motif database MEME/DREME XML file containing sequence motifs
+  --custom-db-meme str
+                        Provide custom motif database MEME/DREME motif format file (plain text format, not XML) containing 
+                        sequence motifs
   --custom-db-cm str    Provide custom motif database covariance model (.cm) file containing covariance model(s)
   --custom-db-info str  Provide custom motif database info table file containing RBP ID -> motif ID -> motif type assignments
 ```
@@ -1098,11 +1122,11 @@ Here is an example of a valid `info.txt` (minimum 3 columns required: RBP_motif_
 ```
 $ cat db_folder_path/info.txt
 RBP_motif_ID	RBP_name	Motif_type
-A1CF_1	A1CF	meme_xml
-A1CF_2	A1CF	meme_xml
-ACIN1_1	ACIN1	meme_xml
-ACIN1_2	ACIN1	meme_xml
-ACO1_1	ACO1	meme_xml
+A1CF_1	A1CF	meme
+A1CF_2	A1CF	meme
+ACIN1_1	ACIN1	meme
+ACIN1_2	ACIN1	meme
+ACO1_1	ACO1	meme
 RF00032	SLBP	cm
 ```
 
@@ -1111,11 +1135,11 @@ e.g., when filtering by [RBP functions](#rbp-functions), or when providing liter
 
 ```
 RBP_motif_ID	RBP_name	Motif_type	Organism	Gene_ID	Function_IDs	Reference	Experiment	Comments
-A1CF_1	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	31724725;10669759	RBNS_ENCODE;RBPDB	-
-A1CF_2	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	31724725	RBNS_ENCODE	-
-ACIN1_1	ACIN1	meme_xml	human	ENSG00000100813	-	27365209	iCLIP	-
-ACIN1_2	ACIN1	meme_xml	human	ENSG00000100813	-	27365209	iCLIP	-
-ACO1_1	ACO1	meme_xml	human	ENSG00000122729	RSD;TR	8021254	cisBP-RNA	-
+A1CF_1	A1CF	meme	human	ENSG00000148584	RM;RSD;RE	31724725;10669759	RBNS_ENCODE;RBPDB	-
+A1CF_2	A1CF	meme	human	ENSG00000148584	RM;RSD;RE	31724725	RBNS_ENCODE	-
+ACIN1_1	ACIN1	meme	human	ENSG00000100813	-	27365209	iCLIP	-
+ACIN1_2	ACIN1	meme	human	ENSG00000100813	-	27365209	iCLIP	-
+ACO1_1	ACO1	meme	human	ENSG00000122729	RSD;TR	8021254	cisBP-RNA	-
 RF00032	SLBP	cm	human	ENSG00000163950	TEP;VRR	34086933	catRAPID_omics_v2.1	-
 ```
 
@@ -1123,12 +1147,33 @@ RF00032	SLBP	cm	human	ENSG00000163950	TEP;VRR	34086933	catRAPID_omics_v2.1	-
 or a structure motif (expected to be found in `str_motifs.cm`).
 An ID / name for the custom database can be defined as well via `--custom-db-id`.
 Alternatively, the files can be input separately via `--custom-db-info`, 
-`--custom-db-meme-xml`, and `--custom-db-cm`. For example, all human RBP motifs from [CISBP-RNA](https://cisbp-rna.ccbr.utoronto.ca) can be found in the `test/` folder, and we can simply use them as a custom database like this:
+`--custom-db-meme`, and `--custom-db-cm`. For example, all human RBP motifs from [CISBP-RNA](https://cisbp-rna.ccbr.utoronto.ca) can be found in the `test/` folder, and we can simply use them as a custom database like this:
 
 ```
-rbpbench search --in input_sites.bed --genome hg38.fa --out test_cisbp_rna_search_out --rbps ALL --ext 10 --custom-db-meme-xml cisbp_rna_human_rbp_motifs.meme --custom-db-info cisbp_rna_human_rbp_motifs.info.txt --motif-min-len 6 --motif-max-len 7
+rbpbench search --in input_sites.bed --genome hg38.fa --out test_cisbp_rna_search_out --rbps ALL --ext 10 --custom-db-meme cisbp_rna_human_rbp_motifs.meme --custom-db-info cisbp_rna_human_rbp_motifs.info.txt --motif-min-len 6 --motif-max-len 7
 ```
 Here we also filter the input sequence motifs by length to allow only motifs of length 6 or 7 nt to be included in the search.
+
+The MEME motif database file (given via `--custom-db-meme`) should be in plain text format. Here a header section (optional) is followed by any number of motif blocks. An example for two simple motifs (`ACGT`, `TGCA`) without the header and two motif blocks:
+
+```
+MOTIF motif1 rbp1
+letter-probability matrix: alength= 4 w= 4 nsites= 20 E= 0
+1.0 0.0 0.0 0.0
+0.0 1.0 0.0 0.0
+0.0 0.0 1.0 0.0
+0.0 0.0 0.0 1.0
+
+MOTIF motif2 rbp1
+letter-probability matrix: alength= 4 w= 4 nsites= 20 E= 0
+0.0 0.0 0.0 1.0
+0.0 0.0 1.0 0.0
+0.0 1.0 0.0 0.0
+1.0 0.0 0.0 0.0
+```
+
+Default background letter frequencies for motif search can be defined via `--fimo-ntf-mode` or supplied via `--fimo-ntf-file`. 
+A motif block starts with `MOTIF`, followed by the motif ID and RBP ID strings. The motif + RBP ID combination tells RBPBench which motif belong to which RBP (here `rbp1` is represented by motifs `motif1` and `motif2`) and has to be unique (IDs have to match IDs in `--custom-db-info` table file).
 
 
 If you have some short sequences or regular expressions (regexes), you can also quickly create a MEME format motif 
@@ -1301,9 +1346,9 @@ the test thus can give clues on which RBPs preferentially bind to the provided r
 Note that the test is only informative if the scores are themselves informative w.r.t. RBP binding (e.g., not all the same), 
 or e.g. if not all or too many of the input regions contain motif hits. 
 For p-value interpretation, two test **effect sizes** are provided as well (RBC ES: rank-biserial correlation effect size, CL ES: common language effect size).
-RBC ES has a range from -1 to +1, where 0 means no effect, +1 means all hit region scores are greater than non-hit region scores, 
+**RBC ES** has a range from -1 to +1, where 0 means no effect, +1 means all hit region scores are greater than non-hit region scores, 
 and -1 means all hit region scores are smaller that non-hit region scores. 
-CL ES has a range 0 to +1. It denotes the probability that a random score from the hit region group exceeds one from the non-hit region group. 
+**CL ES** has a range 0 to +1. It denotes the probability that a random score from the hit region group exceeds one from the non-hit region group. 
 A CL ES of 0.5 means there is no effect, > 0.5 means hit region scores tend to be higher, and < 0.5 means hit region scores tend to be lower.
 
 The test results are output in the [output tables](#hit-statistics-table-files), as well as in the HTML reports.
@@ -1335,7 +1380,7 @@ be done via `--bed-sc-thr`.
 
 Considering the single motif level co-occurrences (`rbpbench enmo`, `rbpbench nemo`), 
 co-occurrence attribution is more strict, since it is only checked for motifs which are significantly enriched 
-in the input regions (details [here](#input-region-motif_enrichment-statistics)). 
+in the input regions (details [here](#input-region-motif-enrichment-statistics)). 
 Furthermore, in addition to `--min-motif-dist`, co-occurrences can be filtered 
 by motif pair similarity (only for MEME motif formatted sequence motifs, `--motif-sim-thr`), which 
 allows us to focus on co-occurrences with more dissimilar motifs. 
@@ -1416,8 +1461,8 @@ RBFOX2	clipper_idr	hepg2_eclip	batch_compare_test/RBFOX2.hepg2_eclip.clipper_idr
 RBFOX2	clipper_idr	k562_eclip	batch_compare_test/RBFOX2.k562_eclip.clipper_idr.bed
 ```
 Column 1 is the RBP ID, column 2 the method ID, column 3 the data ID, and column 4 the path 
-to the BED file containing the genomic regions (typically binding regions of the RBP determined through CLIPseq).
-In this example, method ID describes the peak calling methods, while data ID describes the CLIP protocol+cell type 
+to the BED file containing the genomic regions (typically binding regions of the RBP determined through CLIP-seq).
+In this example, method ID describes the peak calling methods, while data ID describes the CLIP-seq protocol + cell type 
 combination. From these, we ge the following to comparisons:
 
 1. compare the peak calling methods (i.e., their results) `clipper_idr`, `dewseq_w100_s5` with 

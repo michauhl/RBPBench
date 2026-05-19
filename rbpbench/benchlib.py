@@ -1168,6 +1168,8 @@ def get_val_dic_stats(val_dic):
 
 def create_con_sc_violin_plot(in_scores, control_scores, plot_out, 
                               pval=1.0,
+                              rbc_es=0.0,
+                              cl_es=0.5,
                               con_type="phastCons",
                               in_id="Input sites",
                               control_id="Control sites",
@@ -1186,10 +1188,25 @@ def create_con_sc_violin_plot(in_scores, control_scores, plot_out,
     if plot_title:
         plt.title("%s Conservation Score Distribution" %(con_type))
 
-    # Optional: Add p-value to plot.
+    # Optional: Add p-value + RBC + CL effect size values to plot.
+    # if add_pval:
+    #     plt.text(1.5, max(max(in_scores), max(control_scores)), f'p = {pval:.3g}', 
+    #             ha='center', va='bottom', fontsize=10)
     if add_pval:
-        plt.text(1.5, max(max(in_scores), max(control_scores)), f'p = {pval:.3g}', 
-                ha='center', va='bottom', fontsize=10)
+        y_pos = max(max(in_scores), max(control_scores))
+        stats_text = (
+            f"p = {pval:.3g}\n"
+            f"rbc_es = {rbc_es:.3f}\n"
+            f"cl_es = {cl_es:.3f}"
+        )
+        plt.text(
+            1.5,
+            y_pos,
+            stats_text,
+            ha='center',
+            va='top',
+            fontsize=9
+        )
 
     plt.tight_layout()
     # plt.show()
@@ -1760,6 +1777,8 @@ def compare_conservation_scores(args,
 
         create_con_sc_violin_plot(in_scores, control_scores, pc_plot_path, 
                                   pval=pc_pval,
+                                  rbc_es=pc_rbc_es,
+                                  cl_es=pc_cl_es,
                                   con_type="phastCons",
                                   add_pval=True,
                                   plot_title=False,
@@ -1837,6 +1856,8 @@ def compare_conservation_scores(args,
 
         create_con_sc_violin_plot(in_scores, control_scores, pp_plot_path, 
                                   pval=pp_pval,
+                                  rbc_es=pp_rbc_es,
+                                  cl_es=pp_cl_es,
                                   con_type="phyloP",
                                   add_pval=True,
                                   plot_title=False,
@@ -3735,7 +3756,7 @@ def run_cmsearch(in_fa, in_cm, out_tab,
 
 ################################################################################
 
-def run_fast_fimo(in_fa, in_meme_xml, out_tsv,
+def run_fast_fimo(in_fa, in_meme_txt, out_tsv,
                   pval_thr=0.001,
                   params="--norc --verbosity 1 --skip-matched-sequence --text",
                   nt_freqs_file=False,
@@ -3755,12 +3776,12 @@ def run_fast_fimo(in_fa, in_meme_xml, out_tsv,
     """
     assert is_tool("fimo"), "fimo not in PATH"
     assert os.path.exists(in_fa), "in_fa %s does not exist" %(in_fa)
-    assert os.path.exists(in_meme_xml), "in_meme_xml %s does not exist" %(in_meme_xml)
+    assert os.path.exists(in_meme_txt), "in_meme_txt %s does not exist" %(in_meme_txt)
     
     if nt_freqs_file:
         params += " --bfile %s " %(nt_freqs_file)
 
-    check_cmd = "fimo " + params + " --thresh " + str(pval_thr) + " " + in_meme_xml + " " + in_fa + " > " + out_tsv
+    check_cmd = "fimo " + params + " --thresh " + str(pval_thr) + " " + in_meme_txt + " " + in_fa + " > " + out_tsv
     output = subprocess.getoutput(check_cmd)
 
     if call_dic is not None:
@@ -3775,7 +3796,7 @@ def run_fast_fimo(in_fa, in_meme_xml, out_tsv,
 
 ################################################################################
 
-def run_fimo(in_fa, in_meme_xml, out_folder,
+def run_fimo(in_fa, in_meme_txt, out_folder,
              pval_thr=0.001,
              nt_freqs_file=False,
              params="--norc --verbosity 1"):
@@ -3806,12 +3827,12 @@ def run_fimo(in_fa, in_meme_xml, out_folder,
     """
     assert is_tool("fimo"), "fimo not in PATH"
     assert os.path.exists(in_fa), "in_fa %s does not exist" %(in_fa)
-    assert os.path.exists(in_meme_xml), "in_meme_xml %s does not exist" %(in_meme_xml)
+    assert os.path.exists(in_meme_txt), "in_meme_txt %s does not exist" %(in_meme_txt)
 
     if nt_freqs_file:
         params += " --bfile %s " %(nt_freqs_file)
 
-    check_cmd = "fimo " + params + " --thresh " + str(pval_thr) + " -oc " + out_folder + " " + in_meme_xml + " " + in_fa
+    check_cmd = "fimo " + params + " --thresh " + str(pval_thr) + " -oc " + out_folder + " " + in_meme_txt + " " + in_fa
     output = subprocess.getoutput(check_cmd)
     error = False
     if output:
@@ -4011,6 +4032,115 @@ def plot_seq_len_distr(seq_len_list1, seq_len_list2, plot_out,
     plt.legend(loc='upper right')
 
     plt.savefig(plot_out)
+
+
+################################################################################
+
+def read_fasta_into_dic_fast(fasta_file,
+                             convert_seq_mode=1,
+                             id_check=True,
+                             new_header_id="site",
+                             name_bed=False,
+                             remove_regex=False,  # e.g. r"[ :\(\)]"
+                             make_uniq_headers=False):
+    """
+    Speed optimized version of read_fasta_into_dic, with fewer options, better for 
+    reading in very large sequences (e.g. chromosomes).
+
+    This always uppercases sequences, and does not check if DNA/RNA sequences 
+    are valid. Also N-containing sequences are allowed.
+    
+    convert_seq_mode:
+        1: do not convert to DNA/RNA.
+        2: convert to DNA.
+        3: convert to RNA.
+
+    >>> test_fasta = "test_data/test_rna.fa"
+    >>> read_fasta_into_dic_fast(test_fasta)
+    {'seq1': 'ACGUU', 'seq2': 'UNGCAA'}
+    >>> read_fasta_into_dic_fast(test_fasta, convert_seq_mode=2)
+    {'seq1': 'ACGTT', 'seq2': 'TNGCAA'}
+    >>> read_fasta_into_dic_fast(test_fasta, new_header_id="reg", make_uniq_headers=True)
+    {'reg_1': 'ACGUU', 'reg_2': 'UNGCAA'}
+    >>> test_fasta = "test_data/test_bed.fa"
+    >>> read_fasta_into_dic_fast(test_fasta, name_bed=True)
+    {'bed_id1': 'ACGUUAC', 'bed_id2': 'UNGCAACA'}
+    >>> test_fasta = "test_data/test_empty_seq.fa"
+    >>> read_fasta_into_dic_fast(test_fasta)
+    {'seq1': '', 'seq2': ''}
+
+    """
+
+    seqs_dic = {}
+
+    assert convert_seq_mode in [1, 2, 3], "invalid convert_seq_mode %s (should be 1, 2 or 3)" %(str(convert_seq_mode))
+
+    open_func = gzip.open if fasta_file.endswith(".gz") else open
+
+    with open_func(fasta_file, "rt") as f:
+
+        seq_id = None
+        seq_chunks = []
+
+        for line in f:
+
+            if line.startswith(">"):
+                # if line[0] == ">":  # This is faster, but does not catch empty lines (should not happen in FASTA though).
+
+                # Store previous sequence.
+                if seq_id is not None:
+                    seq = ""
+                    if convert_seq_mode == 1:
+                        seq = "".join(seq_chunks).upper()
+                    elif convert_seq_mode == 2:  # to DNA.
+                        seq = "".join(seq_chunks).upper().replace("U", "T")
+                    elif convert_seq_mode == 3:
+                        seq = "".join(seq_chunks).upper().replace("T", "U")
+
+                    seqs_dic[seq_id] = seq
+
+                # Parse new header.
+                seq_id = line[1:].split()[0].split("|")[0]
+
+                # Get BED column 4 ID as seq_id.
+                # I.e. if FASTA header was generated from BED file with -name option, get first part of ID (before "::").
+                # Example: bed_col4_id::chr21:45528055-45528135(-)
+                if name_bed:
+                    parts = seq_id.split("::", 1)
+                    assert len(parts) == 2, f'BED column 4 ID extraction failed for FASTA header "{seq_id}"'
+                    seq_id = parts[0]
+
+                # Remove certain specified parts from header ID.
+                if remove_regex:
+                    seq_id = re.sub(remove_regex, "", seq_id)
+                    assert seq_id, "filtering FASTA sequence header ID \"%s\" by regex \"%s\" resulted in string" %(seq_id, remove_regex)
+
+                # Optionally force make unique headers.
+                if make_uniq_headers:
+                    seq_id = new_header_id + "_" + str(len(seqs_dic) + 1)
+
+                # Check if header ID is unique.
+                if id_check:
+                    assert seq_id not in seqs_dic, "non-unique FASTA header \"%s\" in \"%s\"" % (seq_id, fasta_file)
+
+                seq_chunks = []
+
+            else:
+                seq_chunks.append(line.strip())
+
+        # Store last sequence.
+        if seq_id is not None:
+            seq = ""
+            if convert_seq_mode == 1:
+                seq = "".join(seq_chunks).upper()
+            elif convert_seq_mode == 2:  # to DNA.
+                seq = "".join(seq_chunks).upper().replace("U", "T")
+            elif convert_seq_mode == 3:
+                seq = "".join(seq_chunks).upper().replace("T", "U")
+            
+            seqs_dic[seq_id] = seq
+
+    return seqs_dic
 
 
 ################################################################################
@@ -4642,7 +4772,7 @@ def sponge_search_regex_hits(seqs_dic, regex,
         df["gene_biotype"] = df["gene_id"].map(gn2type_dic).fillna("-")
 
     # Sort descending by percentile
-    df_sorted = df.sort_values(by="percentile_rank", ascending=False).reset_index(drop=True)
+    df_sorted = df.sort_values(by="hits_per_kb", ascending=False).reset_index(drop=True)
 
     return df_sorted
 
@@ -4745,10 +4875,10 @@ def fasta_output_dic(fasta_dic, fasta_out,
 
 ################################################################################
 
-def read_in_xml_motifs(meme_xml_file, 
-                       empty_check=True):
+def read_in_meme_motifs(meme_txt_file, 
+                        empty_check=True):
     """
-    Read in XML motifs, store in blocks dictionary.
+    Read in MEME motifs, store in blocks dictionary.
 
     motif_blocks_dic entry:
     ['letter-probability matrix: alength= 4 w= 10 nsites= 20 E= 0', 
@@ -4765,18 +4895,18 @@ def read_in_xml_motifs(meme_xml_file,
 
     """
 
-    assert os.path.exists(meme_xml_file), "meme_xml_file %s not found" % (meme_xml_file)
+    assert os.path.exists(meme_txt_file), "meme_txt_file %s not found" % (meme_txt_file)
 
     raw_text = ""
-    with open(meme_xml_file, "r") as f:
+    with open(meme_txt_file, "r") as f:
         raw_text = f.read()
-    assert raw_text, "nothing read in from MEME XML file %s. Please provide valid MEME/DREME XML sequence motifs file" %(meme_xml_file)
+    assert raw_text, "nothing read in from MEME motifs file %s. Please provide valid MEME/DREME sequence motifs file (plain text format, not XML)" %(meme_txt_file)
 
     # Get motif blocks.
     motif_blocks_dic = extract_motif_blocks(raw_text)
 
     if empty_check:
-        assert motif_blocks_dic, "motif_blocks_dic empty (malformatted MEME/DREME XML file provided?)"
+        assert motif_blocks_dic, "motif_blocks_dic empty (malformatted MEME/DREME motifs file provided?)"
 
     return motif_blocks_dic
 
@@ -4927,7 +5057,7 @@ def get_consensus_motif_from_seq_block(seq_block):
 
 def extract_motif_blocks(raw_text):
     """
-    Extract MEME XML motif blocks, store in dictionary:
+    Extract MEME motif blocks, store in dictionary:
     motif_id -> motif text block, as list of lines
 
     """
@@ -4942,10 +5072,10 @@ def extract_motif_blocks(raw_text):
             motif_id = m.group(1)
             # new_motif_id = remove_special_chars_from_str(motif_id)
             # Default: reg_ex=r'[^A-Za-z0-9_-]+', i.e. only allow A-Z a-z 0-9 _ -
-            # Now allow all characters in motif IDs, as MEME XML allows that.
+            # Now allow all characters in motif IDs, as MEME allows that.
             new_motif_id = remove_special_chars_from_str(motif_id, reg_ex=r'\s+')  # Only remove whitespace characters.
 
-            assert new_motif_id, "no characters left after removal of special characters from motif ID \"%s\". Please use valid MEME XML motif IDs (i.e., modify MOTIF column strings in motifs xml file)" %(motif_id)
+            assert new_motif_id, "no characters left after removal of special characters from motif ID \"%s\". Please use valid MEME motifs file (plain text format, not XML)" %(motif_id)
             motif_id = new_motif_id
         else:
             if motif_id and l:
@@ -4963,16 +5093,16 @@ def extract_motif_blocks(raw_text):
 
 ################################################################################
 
-def blocks_to_xml_string(motif_blocks_dic, motif_ids_dic,
-                         mid2rid_dic=None,
-                         out_xml=False):
+def blocks_to_meme_txt_string(motif_blocks_dic, motif_ids_dic,
+                              mid2rid_dic=None,
+                              out_meme_txt=False):
     """
-    Return MEME XML string based on given motif IDs dictionary and available
-    motif blocks dictionary.
+    Return MEME motifs text string based on given motif IDs dictionary and 
+    available motif blocks dictionary.
 
     mid2rid_dic:
         motif ID -> RBP ID mapping dictionary.
-        Adds RBP ID to motif ID in MEME XML output.
+        Adds RBP ID to motif ID in MEME motif output.
 
     """
 
@@ -4986,10 +5116,10 @@ Background letter frequencies
 A 0.250000 C 0.250000 G 0.250000 T 0.250000
 
 """
-    if out_xml:
-        OUTXML = open(out_xml, "w")
+    if out_meme_txt:
+        OUTMEME = open(out_meme_txt, "w")
 
-    xml_str = header
+    meme_txt_str = header
     c_added_motifs = 0
     for motif_id in motif_ids_dic:
         if motif_id in motif_blocks_dic: # Only for sequence motifs.
@@ -5000,13 +5130,13 @@ A 0.250000 C 0.250000 G 0.250000 T 0.250000
                 if motif_id in mid2rid_dic:
                     motif_str = motif_id + " " + mid2rid_dic[motif_id]
             block_str_final = "MOTIF " + motif_str + " \n" + block_str + "\n\n"
-            xml_str += block_str_final
+            meme_txt_str += block_str_final
             c_added_motifs += 1
-            if out_xml:
-                OUTXML.write(block_str_final)
-    if out_xml:
-        OUTXML.close()
-    return xml_str, c_added_motifs
+            if out_meme_txt:
+                OUTMEME.write(block_str_final)
+    if out_meme_txt:
+        OUTMEME.close()
+    return meme_txt_str, c_added_motifs
 
 
 ################################################################################
@@ -7092,10 +7222,18 @@ def get_transcript_sequences_from_gtf(tid2tio_dic, in_genome_fasta,
                                      print_warnings=False,
                                      ignore_errors=False)
 
-    exon_seqs_dic = read_fasta_into_dic(tmp_fa,
-                                        dna=dna,
-                                        all_uc=all_uc,
-                                        skip_n_seqs=False)
+    # exon_seqs_dic = read_fasta_into_dic(tmp_fa,
+    #                                     dna=dna,
+    #                                     all_uc=all_uc,
+    #                                     skip_n_seqs=False)
+
+    convert_seq_mode = 1
+    if dna:
+        convert_seq_mode = 2
+
+    exon_seqs_dic = read_fasta_into_dic_fast(tmp_fa,
+                                    convert_seq_mode=convert_seq_mode,
+                                    id_check=True)
 
     """
     Concatenate exon region sequences to transcript sequences.
@@ -9226,7 +9364,7 @@ def get_fid_db_counts(name2ids_dic, name2fids_dic,
 ################################################################################
 
 def get_rbp_id_mappings(rbp2ids_file,
-                        only_meme_xml=False):
+                        only_meme=False):
     """
     Read in file mapping RBP names to motif IDs and motif types.
     Return dictionaries with:
@@ -9236,11 +9374,11 @@ def get_rbp_id_mappings(rbp2ids_file,
     FILE FORMAT:
 
     RBP_motif_ID	RBP_name	Motif_type	Organism
-    AGGF1_1	AGGF1	meme_xml	human
-    AGGF1_2	AGGF1	meme_xml	human
-    AKAP1_1	AKAP1	meme_xml	human
-    BCCIP_1	BCCIP	meme_xml	human
-    BUD13_1	BUD13	meme_xml	human
+    AGGF1_1	AGGF1	meme	human
+    AGGF1_2	AGGF1	meme	human
+    AKAP1_1	AKAP1	meme	human
+    BCCIP_1	BCCIP	meme	human
+    BUD13_1	BUD13	meme	human
     ...
     RF00032	SLBP	cm	human
 
@@ -9249,16 +9387,16 @@ def get_rbp_id_mappings(rbp2ids_file,
 
     RBPBench v1.0 updated:
     RBP_motif_ID	RBP_name	Motif_type	Organism	Gene_ID	Function_IDs	Reference	Experiment	Comments
-    A1CF_1	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	34086933	-	-
-    A1CF_2	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	34086933	-	-
-    ACIN1_1	ACIN1	meme_xml	human	-	-	34086933	-	-
+    A1CF_1	A1CF	meme	human	ENSG00000148584	RM;RSD;RE	34086933	-	-
+    A1CF_2	A1CF	meme	human	ENSG00000148584	RM;RSD;RE	34086933	-	-
+    ACIN1_1	ACIN1	meme	human	-	-	34086933	-	-
 
     RBPBench v1.01 updated (more pubmed IDs + experiment infos):
     RBP_motif_ID	RBP_name	Motif_type	Organism	Gene_ID	Function_IDs	Reference	Experiment	Comments
-    A1CF_1	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	31724725;10669759	RBNS_ENCODE;RBPDB	-
-    A1CF_2	A1CF	meme_xml	human	ENSG00000148584	RM;RSD;RE	31724725	RBNS_ENCODE	-
-    ACIN1_1	ACIN1	meme_xml	human	ENSG00000100813	-	27365209	iCLIP	-
-    ACIN1_2	ACIN1	meme_xml	human	ENSG00000100813	-	27365209	iCLIP	-
+    A1CF_1	A1CF	meme	human	ENSG00000148584	RM;RSD;RE	31724725;10669759	RBNS_ENCODE;RBPDB	-
+    A1CF_2	A1CF	meme	human	ENSG00000148584	RM;RSD;RE	31724725	RBNS_ENCODE	-
+    ACIN1_1	ACIN1	meme	human	ENSG00000100813	-	27365209	iCLIP	-
+    ACIN1_2	ACIN1	meme	human	ENSG00000100813	-	27365209	iCLIP	-
         
     """
     name2ids_dic = {}
@@ -9280,8 +9418,8 @@ def get_rbp_id_mappings(rbp2ids_file,
             motif_type = cols[2]
 
             id2type_dic[motif_id] = motif_type
-            if only_meme_xml:
-                if motif_type != "meme_xml":
+            if only_meme:
+                if motif_type != "meme":
                     continue
 
             if rbp_name in name2ids_dic:
@@ -9408,6 +9546,30 @@ def bed_check_format(bed_file, asserts=True,
 
 ################################################################################
 
+def fasta_check_format_old(fasta_file):
+    """
+    Quick check if file is a valid FASTA file.
+
+    >>> test_fa = "test_data/test.fa"
+    >>> fasta_check_format_old(test_fa)
+    True
+    >>> test_fa = "test_data/test.bed"
+    >>> fasta_check_format_old(test_fa)
+    False
+
+    """
+    with open(fasta_file, 'r') as f:
+        lines = f.readlines()
+    if len(lines) == 0:
+        return False
+    if not lines[0].startswith(">"):
+        return False
+    
+    return True
+
+
+################################################################################
+
 def fasta_check_format(fasta_file):
     """
     Quick check if file is a valid FASTA file.
@@ -9420,14 +9582,17 @@ def fasta_check_format(fasta_file):
     False
 
     """
-    with open(fasta_file, 'r') as f:
-        lines = f.readlines()
-    if len(lines) == 0:
-        return False
-    if not lines[0].startswith(">"):
-        return False
-    
-    return True
+
+    open_func = gzip.open if fasta_file.endswith(".gz") else open
+
+    with open_func(fasta_file, "rt") as f:
+
+        first_line = f.readline()
+
+        if not first_line:
+            return False
+
+        return first_line[0] == ">"
 
 
 ################################################################################
@@ -10518,7 +10683,7 @@ class EnmoStats:
                  fisher_pval_corr = 1.0,
                  fisher_corr_mode = 1,  # 1: BH, 2: Bonferroni, 3: no correction
                  fisher_alt_hyp_mode = 1,  # Alternative hypothesis mode, 1: greater, 2: two-sided, 3: less
-                 motif_type="meme_xml",
+                 motif_type="meme",
                  consensus_seq="-",  # Consensus sequence of sequence motif (for structure motif "-", for regex "regex_string").
                  logo_png_file = False) -> None:
         self.motif_id = motif_id
@@ -10561,7 +10726,7 @@ class NemoStats:
                  fisher_pval_corr = 1.0,
                  fisher_corr_mode = 1,  # 1: BH, 2: Bonferroni, 3: no correction
                  fisher_alt_hyp_mode = 1,  # Alternative hypothesis mode, 1: greater, 2: two-sided, 3: less
-                 motif_type="meme_xml",
+                 motif_type="meme",
                  consensus_seq="-",  # Consensus sequence of sequence motif (for structure motif "-", for regex "regex_string").
                  pos_set_avg_center_dist="-",
                  neg_set_avg_center_dist="-",
@@ -16754,7 +16919,7 @@ by RBPBench (%s, rbpbench %s):
         pval_dic[motif_id] = pval
         if pval <= args.enmo_pval_thr:
             c_sig_motifs += 1
-            if motif_enrich_stats_dic[motif_id].motif_type == "meme_xml":
+            if motif_enrich_stats_dic[motif_id].motif_type == "meme":
                 sig_seq_motif_ids_list.append(motif_id)
 
     sig_seq_motif_ids_list.sort()
@@ -17187,16 +17352,19 @@ Frequency distributions of k-mers (in percent) for the input and background data
 
         # Create 3-mer plotly scatter plot.
         create_kmer_sc_plotly_scatter_plot(pos_3mer_dic, neg_3mer_dic, 3,
-                                        plotly_3mer_plot_out,
-                                        plotly_js_path)
+                                           plotly_3mer_plot_out,
+                                           include_plotlyjs=include_plotlyjs,
+                                           full_html=plotly_full_html)
         # Create 4-mer plotly scatter plot.
         create_kmer_sc_plotly_scatter_plot(pos_4mer_dic, neg_4mer_dic, 4,
-                                        plotly_4mer_plot_out,
-                                        plotly_js_path)
+                                           plotly_4mer_plot_out,
+                                           include_plotlyjs=include_plotlyjs,
+                                           full_html=plotly_full_html)
         # Create 5-mer plotly scatter plot.
         create_kmer_sc_plotly_scatter_plot(pos_5mer_dic, neg_5mer_dic, 5,
-                                        plotly_5mer_plot_out,
-                                        plotly_js_path)
+                                           plotly_5mer_plot_out,
+                                           include_plotlyjs=include_plotlyjs,
+                                           full_html=plotly_full_html)
         # Plot paths inside html report.
         plotly_3mer_plot_path = plots_folder + "/" + plotly_3mer_plot
         plotly_4mer_plot_path = plots_folder + "/" + plotly_4mer_plot
@@ -17362,7 +17530,7 @@ def nemo_generate_html_report(args,
     """
 
     include_plotlyjs = "cdn"
-    # plotly_full_html = False
+    plotly_full_html = False
     plotly_js_html = ""
     plotly_js_path = benchlib_path + "/content/plotly-2.20.0.min.js"
     assert os.path.exists(plotly_js_path), "plotly .js %s not found" %(plotly_js_path)
@@ -17536,7 +17704,7 @@ by RBPBench (%s, rbpbench %s):
         pval_dic[motif_id] = pval
         if pval <= args.nemo_pval_thr:
             c_sig_motifs += 1
-            if motif_enrich_stats_dic[motif_id].motif_type == "meme_xml":
+            if motif_enrich_stats_dic[motif_id].motif_type == "meme":
                 sig_seq_motif_ids_list.append(motif_id)
 
     sig_seq_motif_ids_list.sort()
@@ -18159,16 +18327,19 @@ Frequency distributions of k-mers (in percent) for the input and background data
 
         # Create 3-mer plotly scatter plot.
         create_kmer_sc_plotly_scatter_plot(pos_3mer_dic, neg_3mer_dic, 3,
-                                        plotly_3mer_plot_out,
-                                        plotly_js_path)
+                                           plotly_3mer_plot_out,
+                                           include_plotlyjs=include_plotlyjs,
+                                           full_html=plotly_full_html)
         # Create 4-mer plotly scatter plot.
         create_kmer_sc_plotly_scatter_plot(pos_4mer_dic, neg_4mer_dic, 4,
-                                        plotly_4mer_plot_out,
-                                        plotly_js_path)
+                                           plotly_4mer_plot_out,
+                                           include_plotlyjs=include_plotlyjs,
+                                           full_html=plotly_full_html)
         # Create 5-mer plotly scatter plot.
         create_kmer_sc_plotly_scatter_plot(pos_5mer_dic, neg_5mer_dic, 5,
-                                        plotly_5mer_plot_out,
-                                        plotly_js_path)
+                                           plotly_5mer_plot_out,
+                                           include_plotlyjs=include_plotlyjs,
+                                           full_html=plotly_full_html)
         # Plot paths inside html report.
         plotly_3mer_plot_path = plots_folder + "/" + plotly_3mer_plot
         plotly_4mer_plot_path = plots_folder + "/" + plotly_4mer_plot
@@ -18269,10 +18440,12 @@ percentage = 0.09765625. R2 = %.6f.
 ################################################################################
 
 def create_kmer_sc_plotly_scatter_plot(pos_mer_dic, neg_mer_dic, k,
-                                       out_html, plotly_js,
+                                       out_html,
                                        pos_label="k-mer % input",
                                        neg_label="k-mer % background",
-                                       kmer_label="k-mer"):
+                                       kmer_label="k-mer",
+                                       include_plotlyjs="cdn",
+                                       full_html=False):
     """
     Create plotly graph plot, containing k-mer scores of positive
     and negative set, and store in .html file.
@@ -18285,8 +18458,6 @@ def create_kmer_sc_plotly_scatter_plot(pos_mer_dic, neg_mer_dic, k,
         k in k-mer.
     out_html:
         Output .html path to store interactive (!) plotly graph.
-    plotly_js:
-        Path to plotly js plotly-latest.min.js.
 
     """
     assert pos_mer_dic, "given pos_mer_dic empty"
@@ -18358,8 +18529,8 @@ def create_kmer_sc_plotly_scatter_plot(pos_mer_dic, neg_mer_dic, k,
     plot.update_layout(xaxis_range=[min_perc, max_perc])
 
     plot.write_html(out_html,
-                    full_html=False,
-                    include_plotlyjs=plotly_js)
+                    full_html=full_html,
+                    include_plotlyjs=include_plotlyjs)
 
 
 ################################################################################
@@ -19624,15 +19795,17 @@ Sequence length statistics in nt.
     if args.profiles_norm == 2:
         profiles_norm_info = "The profile for each sequence is the vector of motif hit counts, normalized by setting motifs with hits to 1 and motifs with no hits to 0."
 
+    c_hit_feat = c_search_rbps
     profiles_level_info = "Motif hits are counted on the RBP level, i.e., the profile includes one hit count value per RBP."
     if args.profiles_level == 2:
+        c_hit_feat = c_search_motifs
         profiles_level_info = "Motif hits are counted on the individual motif level, i.e., the profile includes one count value for every motif, i.e., an RBP is represented by the hit count values of its individual motifs."
 
     profiles_seq_id_info = ""
     if args.profiles_seq_id:
         profiles_seq_id_info = "Selected sequence ID \"%s\" is highlighted in orange (click *Focus highlight* to zoom in on highlighted sequence point, or *Show all* to zoom out on all points)." %(args.profiles_seq_id)
 
-    if c_seqs_with_hits > 3:
+    if c_seqs_with_hits > 3 and c_hit_feat > 1:
 
         hit_prof_plot_plotly =  "motif_hit_profiles.plotly.html"
         hit_prof_plot_plotly_out = plots_out_folder + "/" + hit_prof_plot_plotly
@@ -19677,7 +19850,7 @@ Note that only sequences with motif hits are included in the plot (# of sequence
     else:
         mdtext += """
 
-No motif hit profiles plot generated since < 4 input sequences have motif hits.
+No motif hit profiles plot generated since < 4 input sequences have motif hits or only 1 motif hit feature (RBP or motif level, or only regex) was included in the search.
 
 &nbsp;
 
@@ -19701,6 +19874,7 @@ No motif hit profiles plot generated since < 4 input sequences have motif hits.
             mdtext += """
 **Table:** List of sequences (top %i) most similar to set sequence \"%s\" (via --profiles-seq-id) based on their motif hit profiles.
 **Cosine similarity** of motif hit vectors is used as similarity measure. Note that sequences with no hits cannot appear in this list.
+Also note that similarity statistics become uninformative if the set sequence is rather short, and/or if only one or a few motifs are selected for search (since many sequences might have zero or one hit).
 """ %(args.profiles_top_n, args.profiles_seq_id)
 
             # Top cosine similarities list.
@@ -19744,6 +19918,7 @@ No motif hit profiles plot generated since < 4 input sequences have motif hits.
             mdtext += """
 **Table:** List of sequences (top %i) closest to set sequence \"%s\" (via --profiles-seq-id) based on their motif hit profiles.
 **Euclidean distance** of motif hit vectors is used as distance measure. Note that sequences with no hits cannot appear in this list.
+Also note that similarity statistics become uninformative if the set sequence is rather short, and/or if only one or a few motifs are selected for search (since many sequences might have zero or one hit).
 """ %(args.profiles_top_n, args.profiles_seq_id)
             
             # Top euclidean distances list.
@@ -20689,10 +20864,12 @@ Change k via --kmer-plot-k.
 
         # Create k-mer plotly scatter plot.
         create_kmer_sc_plotly_scatter_plot(top_kmer_dic, bottom_kmer_dic, args.kmer_plot_k,
-                                           plotly_kmer_plot_out, plotly_js_path,
+                                           plotly_kmer_plot_out,
                                            pos_label=f"{args.kmer_plot_k}-mer % top scoring sites",
                                            neg_label=f"{args.kmer_plot_k}-mer % bottom scoring sites",
-                                           kmer_label=f"{args.kmer_plot_k}-mer")
+                                           kmer_label=f"{args.kmer_plot_k}-mer",
+                                           include_plotlyjs=include_plotlyjs,
+                                           full_html=plotly_full_html)
 
         # Plot paths inside html report.
         plotly_kmer_plot_path = plots_folder + "/" + plotly_kmer_plot
@@ -24650,7 +24827,7 @@ def create_motif_plot(motif_id,
                       plot_pdf=False,
                       plot_png=True):
     """
-    Create sequence motif plot from MEME XML motif block.
+    Create sequence motif plot from MEME motif block.
 
     Block format:
     block = ['letter-probability matrix: alength= 4 w= 9 nsites= 20 E= 0', 
