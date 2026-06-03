@@ -51,6 +51,188 @@ python3 -m doctest -v benchlib.py
 
 """
 
+
+################################################################################
+
+"""
+Define currently supported chromosome names, and their mappings between
+Ensembl style and Gencode style names.
+
+These include common human and mouse chromosome names.
+
+From Drosophila melanogaster:
+chr2L
+chr2R
+chr3L
+chr3R
+
+"""
+
+gencode2ensembl_chr_ids_dic = {
+    "chr1" : "1",
+    "chr2" : "2",
+    "chr3" : "3",
+    "chr4" : "4",
+    "chr5" : "5",
+    "chr6" : "6",
+    "chr7" : "7",
+    "chr8" : "8",
+    "chr9" : "9",
+    "chr10" : "10",
+    "chr11" : "11",
+    "chr12" : "12",
+    "chr13" : "13",
+    "chr14" : "14",
+    "chr15" : "15",
+    "chr16" : "16",
+    "chr17" : "17",
+    "chr18" : "18",
+    "chr19" : "19",
+    "chr20" : "20",
+    "chr21" : "21",
+    "chr22" : "22",
+    "chrM" : "MT",
+    "chrX" : "X",
+    "chrY" : "Y",
+    "chr2L" : "2L",
+    "chr2R" : "2R",
+    "chr3L" : "3L",
+    "chr3R" : "3R"
+}
+
+ensembl2gencode_chr_ids_dic = {
+    "1" : "chr1",
+    "2" : "chr2",
+    "3" : "chr3",
+    "4" : "chr4",
+    "5" : "chr5",
+    "6" : "chr6",
+    "7" : "chr7",
+    "8" : "chr8",
+    "9" : "chr9",
+    "10" : "chr10",
+    "11" : "chr11",
+    "12" : "chr12",
+    "13" : "chr13",
+    "14" : "chr14",
+    "15" : "chr15",
+    "16" : "chr16",
+    "17" : "chr17",
+    "18" : "chr18",
+    "19" : "chr19",
+    "20" : "chr20",
+    "21" : "chr21",
+    "22" : "chr22",
+    "MT" : "chrM",
+    "X" : "chrX",
+    "Y" : "chrY",
+    "2L" : "chr2L",
+    "2R" : "chr2R",
+    "3L" : "chr3L",
+    "3R" : "chr3R"
+}
+
+
+################################################################################
+
+def check_convert_chr_id(chr_id,
+                         id_style=1):
+    """
+    Check and convert chromosome IDs to format:
+    chr1, chr2, chrX, ...
+    If chromosome IDs like 1,2,X, .. given, convert to chr1, chr2, chrX ..
+    Return False if given chr_id not standard and not convertable.
+
+    Filter out scaffold IDs like:
+    GL000009.2, KI270442.1, chr14_GL000009v2_random
+    chrUn_KI270442v1 ...
+
+    id_style:
+        Defines to which style chromosome IDs should be converted to.
+        0: Do not convert at all, just return chr_id.
+        1: to chr1,chr2,...,chrM style (Gencode/UCSC).
+        2: to 1,2,...,MT style (Ensembl).
+
+    >>> chr_id = "chrX"
+    >>> check_convert_chr_id(chr_id)
+    'chrX'
+    >>> chr_id = "4"
+    >>> check_convert_chr_id(chr_id)
+    'chr4'
+    >>> chr_id = "MT"
+    >>> check_convert_chr_id(chr_id)
+    'chrM'
+    >>> chr_id = "GL000009.2"
+    >>> check_convert_chr_id(chr_id)
+    False
+    >>> chr_id = "chrUn_KI270442v1"
+    >>> check_convert_chr_id(chr_id)
+    False
+    >>> chr_id = "chr2R"
+    >>> check_convert_chr_id(chr_id)
+    'chr2R'
+    >>> chr_id = "3L"
+    >>> check_convert_chr_id(chr_id, id_style=0)
+    '3L'
+    >>> chr_id = "4L"
+    >>> check_convert_chr_id(chr_id)
+    False
+    >>> chr_id = "3L"
+    >>> check_convert_chr_id(chr_id, id_style=1)
+    'chr3L'
+    >>> chr_id = "3L"
+    >>> check_convert_chr_id(chr_id, id_style=2)
+    '3L'
+    >>> chr_id = "chrM"
+    >>> check_convert_chr_id(chr_id, id_style=2)
+    'MT'
+    >>> chr_id = "chr2R"
+    >>> check_convert_chr_id(chr_id, id_style=2)
+    '2R'
+    >>> chr_id = "5"
+    >>> check_convert_chr_id(chr_id, id_style=2)
+    '5'
+    >>> chr_id = "chrA"
+    >>> check_convert_chr_id(chr_id, id_style=2)
+    False
+    >>> chr_id = "chrA"
+    >>> check_convert_chr_id(chr_id, id_style=0)
+    'chrA'
+
+
+    """
+    assert chr_id, "given chr_id empty"
+
+    if not id_style: # If id_style == 0 or False.
+        return chr_id
+
+    elif id_style == 1:  # Convert to Gencode style (chr1,chr2,...,chrM).
+        if chr_id.startswith("chr"):
+            if chr_id in gencode2ensembl_chr_ids_dic:
+                return chr_id
+            else:
+                return False
+        else:
+            if chr_id in ensembl2gencode_chr_ids_dic:
+                return ensembl2gencode_chr_ids_dic[chr_id]
+            else:
+                return False
+
+    elif id_style == 2:  # Convert to Ensembl style (1,2,...,MT).
+        if chr_id.startswith("chr"):
+            if chr_id in gencode2ensembl_chr_ids_dic:
+                return gencode2ensembl_chr_ids_dic[chr_id]
+            else:
+                return False
+        else:
+            if chr_id in ensembl2gencode_chr_ids_dic:
+                return chr_id
+            else:
+                return False
+    else:
+        assert False, "invalid id_style set"
+
+
 ################################################################################
 
 def looks_like_structure(pattern: str) -> bool:
@@ -3707,7 +3889,7 @@ def get_fasta_headers(in_fa,
 
     seq_ids_dic = {}
     for line in output.split('\n'):
-        if re.search(r"^>", line):
+        if line.startswith(">"):
             if full_header:
                 m = re.search(r"^>(.+)", line)
                 seq_id = m.group(1)
@@ -4301,6 +4483,8 @@ def fasta_output_mrna_regions(tid2regl_dic, mrna_reg_id, fasta_dic, fasta_out,
                               utr5_label="5'UTR",
                               cds_label="CDS",
                               utr3_label="3'UTR",
+                              id_sep=",",
+                              reg_sep=",",
                               split_size=60):
     """
     Output FASTA sequences of mRNA regions (utr5, cds, utr3) to fasta_out.
@@ -4328,10 +4512,10 @@ def fasta_output_mrna_regions(tid2regl_dic, mrna_reg_id, fasta_dic, fasta_out,
         out_id = tid
         if tr2gid_dic:
             if tid in tr2gid_dic:
-                out_id = out_id + "," + str(tr2gid_dic[tid])
+                out_id = out_id + id_sep + str(tr2gid_dic[tid])
         if tr2gn_dic:
             if tid in tr2gn_dic:
-                out_id = out_id + "," + str(tr2gn_dic[tid])
+                out_id = out_id + id_sep + str(tr2gn_dic[tid])
 
         seq = fasta_dic[tid]
         if to_upper:
@@ -4339,18 +4523,18 @@ def fasta_output_mrna_regions(tid2regl_dic, mrna_reg_id, fasta_dic, fasta_out,
         # Get mRNA region sequence.
         if mrna_reg_id == "utr5":
             seq = seq[:tid2regl_dic[tid][0]]
-            out_id += "," + utr5_label
+            out_id += reg_sep + utr5_label
         elif mrna_reg_id == "cds":
             utr5_len = tid2regl_dic[tid][0]
             cds_len = tid2regl_dic[tid][1]
             seq = seq[utr5_len:utr5_len + cds_len]
-            out_id += "," + cds_label
+            out_id += reg_sep + cds_label
         elif mrna_reg_id == "utr3":
             utr5_len = tid2regl_dic[tid][0]
             cds_len = tid2regl_dic[tid][1]
             utr3_len = tid2regl_dic[tid][2]
             seq = seq[utr5_len + cds_len:utr5_len + cds_len + utr3_len]
-            out_id += "," + utr3_label
+            out_id += reg_sep + utr3_label
 
         if split:
             OUTFA.write(">%s\n" %(out_id))
@@ -5141,142 +5325,6 @@ A 0.250000 C 0.250000 G 0.250000 T 0.250000
 
 ################################################################################
 
-def check_convert_chr_id(chr_id,
-                         id_style=1):
-    """
-    Check and convert chromosome IDs to format:
-    chr1, chr2, chrX, ...
-    If chromosome IDs like 1,2,X, .. given, convert to chr1, chr2, chrX ..
-    Return False if given chr_id not standard and not convertable.
-
-    Filter out scaffold IDs like:
-    GL000009.2, KI270442.1, chr14_GL000009v2_random
-    chrUn_KI270442v1 ...
-
-    id_style:
-        Defines to which style chromosome IDs should be converted to.
-        0: Do not convert at all, just return chr_id.
-        1: to chr1,chr2,...,chrM style.
-        2: to 1,2,...,MT style.
-
-    >>> chr_id = "chrX"
-    >>> check_convert_chr_id(chr_id)
-    'chrX'
-    >>> chr_id = "4"
-    >>> check_convert_chr_id(chr_id)
-    'chr4'
-    >>> chr_id = "MT"
-    >>> check_convert_chr_id(chr_id)
-    'chrM'
-    >>> chr_id = "GL000009.2"
-    >>> check_convert_chr_id(chr_id)
-    False
-    >>> chr_id = "chrUn_KI270442v1"
-    >>> check_convert_chr_id(chr_id)
-    False
-    >>> chr_id = "chr2R"
-    >>> check_convert_chr_id(chr_id)
-    'chr2R'
-    >>> chr_id = "3L"
-    >>> check_convert_chr_id(chr_id)
-    'chr3L'
-    >>> chr_id = "4L"
-    >>> check_convert_chr_id(chr_id)
-    False
-    >>> chr_id = "chrM"
-    >>> check_convert_chr_id(chr_id, id_style=2)
-    'MT'
-    >>> chr_id = "chr2R"
-    >>> check_convert_chr_id(chr_id, id_style=2)
-    '2R'
-    >>> chr_id = "5"
-    >>> check_convert_chr_id(chr_id, id_style=2)
-    '5'
-    >>> chr_id = "chrA"
-    >>> check_convert_chr_id(chr_id, id_style=2)
-    False
-    >>> chr_id = "chrA"
-    >>> check_convert_chr_id(chr_id, id_style=0)
-    'chrA'
-
-
-    """
-    assert chr_id, "given chr_id empty"
-
-    if not id_style: # If id_style == 0 or False.
-        return chr_id
-
-    elif id_style == 1:
-        if re.search(r"^chr", chr_id):
-            if chr_id in add_chr_names_dic or re.search(r"^chr[\dMXY]+$", chr_id):
-                return chr_id
-            else:
-                return False
-        else:
-            # Convert to "chr" IDs.
-            if chr_id == "MT": # special case MT -> chrM.
-                return "chrM"
-            if chr_id in add_chr_names_dic or re.search(r"^[\dXY]+$", chr_id):
-                return "chr" + chr_id
-            else:
-                return False
-
-    elif id_style == 2:
-
-        if re.search(r"^chr", chr_id):
-            if chr_id == "chrM": # special case chrM -> MT.
-                return "MT"
-            if chr_id in add_chr_names_dic or re.search(r"^chr[\dXY]+$", chr_id):
-                # Cut out chr suffix.
-                m = re.search(r"chr(.+)", chr_id)
-                assert m, "no match for regex search"
-                chr_suffix = m.group(1)
-                return chr_suffix
-            else:
-                return False
-
-        else:
-            if chr_id == "MT": # special case MT.
-                return chr_id
-            if chr_id in add_chr_names_dic or re.search(r"^[\dXY]+$", chr_id):
-                return chr_id
-            else:
-                return False
-    else:
-        assert False, "invalid id_style set"
-
-
-################################################################################
-
-"""
-Define additional chromosome names to be supported.
-
-From Drosophila melanogaster:
-chr2L
-chr2R
-chr3L
-chr3R
-2L
-2R
-3L
-3R
-
-"""
-
-add_chr_names_dic = {
-    "chr2L" : 1,
-    "chr2R" : 1,
-    "chr3L" : 1,
-    "chr3R" : 1,
-    "2L" : 1,
-    "2R" : 1,
-    "3L" : 1,
-    "3R" : 1
-}
-
-
-################################################################################
-
 def gtf_tr_feat_to_bed(in_gtf, out_bed, tr_feat,
                        chr_style=0,
                        uniq_reg=False,
@@ -5367,6 +5415,73 @@ def gtf_tr_feat_to_bed(in_gtf, out_bed, tr_feat,
 
 ################################################################################
 
+def parse_gtf_info_str(info_str):
+    """
+    Parse GTF info column string into:
+      attrs[key] = value
+    For repeated keys, e.g. tag, stores list.
+
+    >>> info_str = 'gene_id "ENSG00000154727"; gene_version "12"; gene_name "GABPA"; gene_source "ensembl_havana"; gene_biotype "protein_coding";'
+    >>> parse_gtf_info_str(info_str)
+    {'gene_id': 'ENSG00000154727', 'gene_version': '12', 'gene_name': 'GABPA', 'gene_source': 'ensembl_havana', 'gene_biotype': 'protein_coding'}
+    >>> info_str = 'gene_id "ENSG00000154727.12"; gene_type "protein_coding"; gene_name "GABPA"; level 1; hgnc_id "HGNC:4071"; havana_gene "OTTHUMG00000078443.2";'
+    >>> parse_gtf_info_str(info_str)
+    {'gene_id': 'ENSG00000154727.12', 'gene_type': 'protein_coding', 'gene_name': 'GABPA', 'level': '1', 'hgnc_id': 'HGNC:4071', 'havana_gene': 'OTTHUMG00000078443.2'}
+    >>> info_str = 'gene_id "ENSG00000154727.11"; transcript_id "ENST00000354828.7"; exon_number 1; exon_id "ENSE00001407486.1"; level 2;'
+    >>> parse_gtf_info_str(info_str)
+    {'gene_id': 'ENSG00000154727.11', 'transcript_id': 'ENST00000354828.7', 'exon_number': '1', 'exon_id': 'ENSE00001407486.1', 'level': '2'}
+    >>> info_str = 'gene_id "ENSG00000154727"; gene_version "11"; transcript_id "ENST00000354828"; transcript_version "7"; exon_number "1"; exon_id "ENSE00001407486"; exon_version "1";'
+    >>> parse_gtf_info_str(info_str)
+    {'gene_id': 'ENSG00000154727', 'gene_version': '11', 'transcript_id': 'ENST00000354828', 'transcript_version': '7', 'exon_number': '1', 'exon_id': 'ENSE00001407486', 'exon_version': '1'}
+
+    """
+
+    attrs = {}
+
+    for field in info_str.rstrip("; \n").split(";"):
+        field = field.strip()
+        if not field:
+            continue
+
+        key, _, value = field.partition(" ")
+        value = value.strip().strip('"')
+
+        if key in attrs:
+            if isinstance(attrs[key], list):
+                attrs[key].append(value)
+            else:
+                attrs[key] = [attrs[key], value]
+        else:
+            attrs[key] = value
+
+    return attrs
+
+
+################################################################################
+
+def remove_id_version(id_str):
+    """
+    Removes version number from gene / transcript IDs.
+    E.g. given ENSG000001.12, return ENSG000001
+
+    >>> id_str = "ENSG000001.12"
+    >>> remove_id_version(id_str)
+    'ENSG000001'
+    >>> id_str = "ENSG6666"
+    >>> remove_id_version(id_str)
+    'ENSG6666'
+
+    """
+    
+    if "." in id_str:
+        base, suffix = id_str.rsplit(".", 1)
+        if suffix.isdigit():
+            return base
+    return id_str
+
+
+################################################################################
+
 def gtf_read_in_gene_infos(in_gtf,
                            tr2gid_dic=None,
                            tr_types_dic=None,
@@ -5435,28 +5550,43 @@ def gtf_read_in_gene_infos(in_gtf,
 
         if feature == "gene":
 
-            m = re.search('gene_id "(.+?)"', infos)
-            assert m, "gene_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
-            gene_id = m.group(1)
-            if remove_version_numbers:
-                gene_id = re.sub(r"\.\d+$", "", gene_id)
+            infos_dic = parse_gtf_info_str(infos)
 
-            m = re.search('gene_name "(.+?)"', infos)
-            gene_name = "-"  # optional.
-            if m:
-                gene_name = m.group(1)
-            gene_biotype = "-"  # # optional.
-            m = re.search('gene_biotype "(.+?)"', infos)
-            if not m:
-                m = re.search('gene_type "(.+?)"', infos)
-            if m:
-                gene_biotype = m.group(1)
-            # assert m, "gene_biotype / gene_type entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
-            # gene_biotype = m.group(1)
+            gene_id = infos_dic.get("gene_id")
+            assert gene_id, f'gene_id entry missing in GTF file "{in_gtf}", line "{line}"'
+
+            # m = re.search('gene_id "(.+?)"', infos)
+            # assert m, "gene_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
+            # gene_id = m.group(1)
+            if remove_version_numbers:
+                gene_id = remove_id_version(gene_id)
+            # if remove_version_numbers:
+            #     gene_id = re.sub(r"\.\d+$", "", gene_id)
 
             if gene_ids_dic:
                 if gene_id not in gene_ids_dic:
                     continue
+
+            gene_name = (
+                infos_dic.get("gene_name")
+                or "-"
+            )
+            # m = re.search('gene_name "(.+?)"', infos)
+            # gene_name = "-"  # optional.
+            # if m:
+            #     gene_name = m.group(1)
+
+            gene_biotype = (
+                infos_dic.get("gene_biotype")
+                or infos_dic.get("gene_type")
+                or "-"
+            )
+            # gene_biotype = "-"  # # optional.
+            # m = re.search('gene_biotype "(.+?)"', infos)
+            # if not m:
+            #     m = re.search('gene_type "(.+?)"', infos)
+            # if m:
+            #     gene_biotype = m.group(1)
 
             if gene_biotype in skip_gene_biotype_dic:
                 continue
@@ -5468,32 +5598,47 @@ def gtf_read_in_gene_infos(in_gtf,
 
         elif feature == "transcript":
 
-            m = re.search('gene_id "(.+?)"', infos)
-            assert m, "gene_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
-            gene_id = m.group(1)
-            if remove_version_numbers:
-                gene_id = re.sub(r"\.\d+$", "", gene_id)
+            infos_dic = parse_gtf_info_str(infos)
 
-            m = re.search('transcript_id "(.+?)"', infos)
-            assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
-            tr_id = m.group(1)
+            gene_id = infos_dic.get("gene_id")
+            assert gene_id, f'gene_id entry missing in GTF file "{in_gtf}", line "{line}"'
             if remove_version_numbers:
-                tr_id = re.sub(r"\.\d+$", "", tr_id)
+                gene_id = remove_id_version(gene_id)
+            # m = re.search('gene_id "(.+?)"', infos)
+            # assert m, "gene_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
+            # gene_id = m.group(1)
+            # if remove_version_numbers:
+            #     gene_id = re.sub(r"\.\d+$", "", gene_id)
 
             # assert gene_id in gid2gio_dic, "gene_id %s belonging to transcript ID %s not (yet) encountered. Gene feature expected to come before transcript and exon features in GTF file \"%s\"" %(gene_id, tr_id, in_gtf)
             if gene_id not in gid2gio_dic:
                 continue
 
+            tr_id = infos_dic.get("transcript_id")
+            assert tr_id, f'transcript_id entry missing in GTF file "{in_gtf}", line "{line}"'
+            if remove_version_numbers:
+                tr_id = remove_id_version(tr_id)
+            # m = re.search('transcript_id "(.+?)"', infos)
+            # assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
+            # tr_id = m.group(1)
+            # if remove_version_numbers:
+            #     tr_id = re.sub(r"\.\d+$", "", tr_id)
+
             if tr2gid_dic is not None:
                 tr2gid_dic[tr_id] = gene_id
 
-            tr_biotype = "-"  # # optional.
-            m = re.search('transcript_biotype "(.+?)"', infos)
-            if not m:
-                m = re.search('transcript_type "(.+?)"', infos)
-            # assert m, "transcript_biotype / transcript_type entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
-            if m:
-                tr_biotype = m.group(1)
+            tr_biotype = (
+                infos_dic.get("transcript_biotype")
+                or infos_dic.get("transcript_type")
+                or "-"
+            )
+            # tr_biotype = "-"  # # optional.
+            # m = re.search('transcript_biotype "(.+?)"', infos)
+            # if not m:
+            #     m = re.search('transcript_type "(.+?)"', infos)
+            # # assert m, "transcript_biotype / transcript_type entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
+            # if m:
+            #     tr_biotype = m.group(1)
 
             if tr_types_dic is not None:
                 if tr_biotype in tr_types_dic:
@@ -5501,45 +5646,72 @@ def gtf_read_in_gene_infos(in_gtf,
                 else:
                     tr_types_dic[tr_biotype] = 1
 
-            # Basic tag.
-            basic_tag = 0
-            m = re.search('tag "basic"', infos)
-            if m:
-                basic_tag = 1
-            # New basic tag (in newer Ensembl GTFs).
-            m = re.search('tag "gencode_basic"', infos)
-            if m:
-                basic_tag = 1
+            # Tags.
+            tags = infos_dic.get("tag", [])
+            if isinstance(tags, str):
+                tags = [tags]
 
-            # GENCODE primary tag (again newer).
-            primary_tag = 0
-            m = re.search('tag "GENCODE_Primary"', infos)
-            if m:
-                primary_tag = 1
-            m = re.search('tag "gencode_primary"', infos)
-            if m:
-                primary_tag = 1
+            tag_set = set(tags)
 
-            # Ensembl canonical.
-            ensembl_canonical = 0
-            m = re.search('tag "Ensembl_canonical"', infos)
-            if m:
-                ensembl_canonical = 1
-            # MANE select.
-            mane_select = 0
-            m = re.search('tag "MANE_Select"', infos)
-            if m:
-                mane_select = 1
+            basic_tag = int(
+                "basic" in tag_set
+                or "gencode_basic" in tag_set
+            )
+
+            primary_tag = int(
+                "GENCODE_Primary" in tag_set
+                or "gencode_primary" in tag_set
+            )
+
+            ensembl_canonical = int("Ensembl_canonical" in tag_set)
+            mane_select = int("MANE_Select" in tag_set)
+
+            # # Basic tag.
+            # basic_tag = 0
+            # m = re.search('tag "basic"', infos)
+            # if m:
+            #     basic_tag = 1
+            # # New basic tag (in newer Ensembl GTFs).
+            # m = re.search('tag "gencode_basic"', infos)
+            # if m:
+            #     basic_tag = 1
+
+            # # GENCODE primary tag (again newer).
+            # primary_tag = 0
+            # m = re.search('tag "GENCODE_Primary"', infos)
+            # if m:
+            #     primary_tag = 1
+            # m = re.search('tag "gencode_primary"', infos)
+            # if m:
+            #     primary_tag = 1
+
+            # # Ensembl canonical.
+            # ensembl_canonical = 0
+            # m = re.search('tag "Ensembl_canonical"', infos)
+            # if m:
+            #     ensembl_canonical = 1
+            # # MANE select.
+            # mane_select = 0
+            # m = re.search('tag "MANE_Select"', infos)
+            # if m:
+            #     mane_select = 1
             
             # Transcript support level (TSL).
             # transcript_support_level "NA (assigned to previous version 1)"
-            m = re.search('transcript_support_level "(.+?)"', infos)
-            tsl_id = "NA"
-            if m:
-                tsl_id = m.group(1)
-                if re.search("assigned to previous", tsl_id):
-                    m = re.search(r"(.+?) \(", tsl_id)
-                    tsl_id = m.group(1)
+            tsl_id = infos_dic.get("transcript_support_level", "NA")
+            if tsl_id != "NA":
+                idx = tsl_id.find(" (")
+                if idx != -1:
+                    tsl_id = tsl_id[:idx]
+
+            # m = re.search('transcript_support_level "(.+?)"', infos)
+            # tsl_id = "NA"
+            # if m:
+            #     tsl_id = m.group(1)
+            #     if re.search("assigned to previous", tsl_id):  # extract current level from string.
+            #         m = re.search(r"(.+?) \(", tsl_id)
+            #         tsl_id = m.group(1)
+            
             # Dummy length for now.
             tr_length = 0
 
@@ -5554,21 +5726,22 @@ def gtf_read_in_gene_infos(in_gtf,
             gid2gio_dic[gene_id].tr_primary_tags.append(primary_tag)
 
         elif feature == "exon":
-            m = re.search('gene_id "(.+?)"', infos)
-            assert m, "gene_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
-            gene_id = m.group(1)
+
+            infos_dic = parse_gtf_info_str(infos)
+
+            gene_id = infos_dic.get("gene_id")
+            assert gene_id, f'gene_id entry missing in GTF file "{in_gtf}", line "{line}"'
             if remove_version_numbers:
-                gene_id = re.sub(r"\.\d+$", "", gene_id)
+                gene_id = remove_id_version(gene_id)
             
             if gene_id not in gid2gio_dic:
                 continue
-            # Extract transcript ID.
-            m = re.search('transcript_id "(.+?)"', infos)
-            assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)    
-            tr_id = m.group(1)
+
+            tr_id = infos_dic.get("transcript_id")
+            assert tr_id, f'transcript_id entry missing in GTF file "{in_gtf}", line "{line}"'
             if remove_version_numbers:
-                tr_id = re.sub(r"\.\d+$", "", tr_id)
-            
+                tr_id = remove_id_version(tr_id)
+
             # Sum up length.
             ex_len = feat_e - feat_s + 1
             if not tr_id in tr2len_dic:
@@ -5587,6 +5760,38 @@ def gtf_read_in_gene_infos(in_gtf,
             gid2gio_dic[gene_id].tr_lengths[idx] = tr2len_dic[tr_id]
 
     return gid2gio_dic
+
+
+################################################################################
+
+def filter_transcripts_by_biotype(tr_ids_dic, tid2tio_dic, keep_tr_types_dic):
+    """
+    Filter transcript ID dictionaries tr_ids_dic and tid2tio_dic to keep only
+    transcript IDs whose biotype is contained in keep_tr_types_dic.
+
+    """
+
+    assert keep_tr_types_dic, "keep_tr_types_dic empty, cannot filter transcripts by biotype. Please provide non-empty keep_tr_types_dic"
+
+    keep_ids = {
+        tr_id
+        for tr_id, tio in tid2tio_dic.items()
+        if tio.tr_biotype in keep_tr_types_dic
+    }
+
+    tr_ids_dic = {
+        tr_id: val
+        for tr_id, val in tr_ids_dic.items()
+        if tr_id in keep_ids
+    }
+
+    tid2tio_dic = {
+        tr_id: tio
+        for tr_id, tio in tid2tio_dic.items()
+        if tr_id in keep_ids
+    }
+
+    return tr_ids_dic, tid2tio_dic
 
 
 ################################################################################
@@ -5646,18 +5851,18 @@ def gtf_read_in_transcript_infos(in_gtf,
             continue
 
         if feature == "transcript":
+            
+            infos_dic = parse_gtf_info_str(infos)
 
-            m = re.search('gene_id "(.+?)"', infos)
-            assert m, "gene_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
-            gene_id = m.group(1)
+            gene_id = infos_dic.get("gene_id")
+            assert gene_id, f'gene_id entry missing in GTF file "{in_gtf}", line "{line}"'
             if remove_version_numbers:
-                gene_id = re.sub(r"\.\d+$", "", gene_id)
+                gene_id = remove_id_version(gene_id)
 
-            m = re.search('transcript_id "(.+?)"', infos)
-            assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
-            tr_id = m.group(1)
+            tr_id = infos_dic.get("transcript_id")
+            assert tr_id, f'transcript_id entry missing in GTF file "{in_gtf}", line "{line}"'
             if remove_version_numbers:
-                tr_id = re.sub(r"\.\d+$", "", tr_id)
+                tr_id = remove_id_version(tr_id)
 
             tr_ids_seen_dic[tr_id] = 1
 
@@ -5665,53 +5870,40 @@ def gtf_read_in_transcript_infos(in_gtf,
                 if tr_id not in tr_ids_dic:
                     continue
 
-            tr_biotype = "-"  # optional.
-            m = re.search('transcript_biotype "(.+?)"', infos)
-            if not m:
-                m = re.search('transcript_type "(.+?)"', infos)
-            if m:
-                tr_biotype = m.group(1)
+            tr_biotype = (
+                infos_dic.get("transcript_biotype")
+                or infos_dic.get("transcript_type")
+                or "-"
+            )
 
-            # Basic tag.
-            basic_tag = 0
-            m = re.search('tag "basic"', infos)
-            if m:
-                basic_tag = 1
-            # New basic tag (in newer Ensembl GTFs).
-            m = re.search('tag "gencode_basic"', infos)
-            if m:
-                basic_tag = 1
+            # Extract tags.
+            tags = infos_dic.get("tag", [])
+            if isinstance(tags, str):
+                tags = [tags]
 
-            # Ensembl canonical.
-            ensembl_canonical = 0
-            m = re.search('tag "Ensembl_canonical"', infos)
-            if m:
-                ensembl_canonical = 1
-            
-            # MANE select.
-            mane_select = 0
-            m = re.search('tag "MANE_Select"', infos)
-            if m:
-                mane_select = 1
+            tag_set = set(tags)
 
-            # GENCODE primary tag (again newer).
-            primary_tag = 0
-            m = re.search('tag "GENCODE_Primary"', infos)
-            if m:
-                primary_tag = 1
-            m = re.search('tag "gencode_primary"', infos)
-            if m:
-                primary_tag = 1
+            basic_tag = int(
+                "basic" in tag_set
+                or "gencode_basic" in tag_set
+            )
+
+            primary_tag = int(
+                "GENCODE_Primary" in tag_set
+                or "gencode_primary" in tag_set
+            )
+
+            ensembl_canonical = int("Ensembl_canonical" in tag_set)
+            mane_select = int("MANE_Select" in tag_set)
 
             # Transcript support level (TSL).
             # transcript_support_level "NA (assigned to previous version 1)"
-            m = re.search('transcript_support_level "(.+?)"', infos)
-            tsl_id = "NA"
-            if m:
-                tsl_id = m.group(1)
-                if re.search("assigned to previous", tsl_id):
-                    m = re.search(r"(.+?) \(", tsl_id)
-                    tsl_id = m.group(1)
+            tsl_id = infos_dic.get("transcript_support_level", "NA")
+            if tsl_id != "NA":
+                # Cover "assigned to previous version" cases.
+                idx = tsl_id.find(" (")
+                if idx != -1:
+                    tsl_id = tsl_id[:idx]
 
             if tr_types_dic is not None:
                 if tr_biotype not in tr_types_dic:
@@ -5725,18 +5917,19 @@ def gtf_read_in_transcript_infos(in_gtf,
                                       ensembl_canonical=ensembl_canonical,  # int
                                       mane_select=mane_select,  # int
                                       primary_tag=primary_tag,  # int
-                                      tsl_id=tsl_id,  # int
+                                      tsl_id=tsl_id,  # str
                                       exon_c=0)
             assert tr_id not in tid2tio_dic, "transcript feature with transcript ID %s already encountered in GTF file \"%s\"" %(tr_id, in_gtf)
             tid2tio_dic[tr_id] = tr_infos
 
         elif feature == "exon":
 
-            m = re.search('transcript_id "(.+?)"', infos)
-            assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)    
-            tr_id = m.group(1)
+            infos_dic = parse_gtf_info_str(infos)
+
+            tr_id = infos_dic.get("transcript_id")
+            assert tr_id, f'transcript_id entry missing in GTF file "{in_gtf}", line "{line}"'
             if remove_version_numbers:
-                tr_id = re.sub(r"\.\d+$", "", tr_id)
+                tr_id = remove_id_version(tr_id)
 
             assert tr_id in tr_ids_seen_dic, "transcript ID %s in exon feature not (yet) encountered. Transcript feature expected to come before exon features in GTF file \"%s\"" %(tr_id, in_gtf)
     
@@ -5744,11 +5937,9 @@ def gtf_read_in_transcript_infos(in_gtf,
                 if tr_id not in tr_ids_dic:
                     continue
 
-            m = re.search(r'exon_number "(\d+?)"', infos)
-            if not m:
-                m = re.search(r'exon_number (\d+?);', infos)  # GENCODE encoding.
-            assert m, "exon_number entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)
-            exon_nr = int(m.group(1))
+            exon_nr = infos_dic.get("exon_number")
+            assert exon_nr, f'exon_number entry missing in GTF file "{in_gtf}", line "{line}"'
+            exon_nr = int(exon_nr)
 
             tid2tio_dic[tr_id].exon_c += 1
 
@@ -5767,11 +5958,12 @@ def gtf_read_in_transcript_infos(in_gtf,
 
         elif feature == "CDS":
 
-            m = re.search('transcript_id "(.+?)"', infos)
-            assert m, "transcript_id entry missing in GTF file \"%s\", line \"%s\"" %(in_gtf, line)    
-            tr_id = m.group(1)
+            infos_dic = parse_gtf_info_str(infos)
+
+            tr_id = infos_dic.get("transcript_id")
+            assert tr_id, f'transcript_id entry missing in GTF file "{in_gtf}", line "{line}"'
             if remove_version_numbers:
-                tr_id = re.sub(r"\.\d+$", "", tr_id)
+                tr_id = remove_id_version(tr_id)
 
             assert tr_id in tr_ids_seen_dic, "transcript ID %s in exon feature not (yet) encountered. Transcript feature expected to come before CDS features in GTF file \"%s\"" %(tr_id, in_gtf)
         
@@ -6582,28 +6774,6 @@ def bed_intersect_files_count_lines(a_bed, b_bed,
     assert count >= 0, "intersectBed + line count has problems with your input:\n%s\n%s" %(check_cmd, output)
 
     return count
-
-
-################################################################################
-
-class TranscriptInfoExonTest:
-    """
-    Transcript infos exon coordinates test class.
-
-    """
-    def __init__(self,
-                 tr_id: str,
-                 chr_id: str,
-                 tr_pol: str,
-                 exon_coords=None) -> None:
-
-        self.tr_id = tr_id
-        self.chr_id = chr_id
-        self.tr_pol = tr_pol
-        if exon_coords is None:
-            self.exon_coords = []
-        else:
-            self.exon_coords = exon_coords
 
 
 ################################################################################
@@ -9080,6 +9250,63 @@ def select_more_prominent_tid(tid1, tid2, tid2tio_dic):
 
 ################################################################################
 
+def select_longest_tr_from_gene_infos(gid2gio_dic,
+                                      gene_ids_dic=False):
+    """
+    Select longest transcript ID for each gene from gene infos objects.
+
+    """
+
+    # Selected transcript IDs to gene ID mapping.
+    tid2gid_dic = {}
+
+    for gene_id in gid2gio_dic:
+        gene_info = gid2gio_dic[gene_id]
+
+        if gene_ids_dic:
+            if gene_id not in gene_ids_dic:
+                continue
+
+        sel_tr_id = "-"
+        sel_tr_len = 0
+
+        for idx, tr_id in enumerate(gene_info.tr_ids):
+            tr_len = gene_info.tr_lengths[idx]
+            if tr_len > sel_tr_len:
+                sel_tr_id = tr_id
+                sel_tr_len = tr_len
+
+        tid2gid_dic[sel_tr_id] = gene_id
+
+    return tid2gid_dic
+
+
+################################################################################
+
+def select_all_trs_from_gene_infos(gid2gio_dic,
+                                   gene_ids_dic=False):
+    """
+    Get all transcript IDs from all gene infos.
+
+    """
+
+    tid2gid_dic = {}
+
+    for gene_id in gid2gio_dic:
+        gene_info = gid2gio_dic[gene_id]
+
+        if gene_ids_dic:
+            if gene_id not in gene_ids_dic:
+                continue
+
+        for tr_id in gene_info.tr_ids:
+            tid2gid_dic[tr_id] = gene_id
+
+    return tid2gid_dic
+
+
+################################################################################
+
 def select_mpts_from_gene_infos(gid2gio_dic,
                                 basic_tag=True,
                                 ensembl_canonical_tag=False,
@@ -10258,6 +10485,7 @@ def genome_fasta_get_chr_sizes_file(in_genome_fa, out_chr_sizes_file,
                 seq_id = new_id
             else:
                 seq_len += len(line.strip())
+
 
     # Print last sequence length.
     if seq_len:
@@ -16321,6 +16549,25 @@ def filter_rbp2regidx_dic(rbp2regidx_dic,
     """
     Filter RBP to region index dictionary by count and rank.
 
+    min_rbp_count:
+        To be included in the statistic + plot, RBPs need to have motif hits 
+        in >= min_rbp_count input regions
+    max_rbp_rank:
+        Number of top RBPs included in statistic + plot (ranked by # input 
+        regions with hits)
+
+    >>> rbp2regidx_dic = {"RBP1": [0, 3, 12, 88], "RBP2": [4], "RBP3": [], "RBP4": [12, 23]}
+    >>> filter_rbp2regidx_dic(rbp2regidx_dic, min_rbp_count=0)
+    {'RBP1': [0, 3, 12, 88], 'RBP2': [4], 'RBP3': [], 'RBP4': [12, 23]}
+    >>> filter_rbp2regidx_dic(rbp2regidx_dic, min_rbp_count=1)
+    {'RBP1': [0, 3, 12, 88], 'RBP2': [4], 'RBP4': [12, 23]}
+    >>> filter_rbp2regidx_dic(rbp2regidx_dic, min_rbp_count=5)
+    {}
+    >>> filter_rbp2regidx_dic(rbp2regidx_dic, min_rbp_count=0, max_rbp_rank=2)
+    {'RBP1': [0, 3, 12, 88], 'RBP4': [12, 23]}
+    >>> filter_rbp2regidx_dic(rbp2regidx_dic, min_rbp_count=3, max_rbp_rank=2)
+    {'RBP1': [0, 3, 12, 88]}
+
     """
     # Go through RBPs, and count number of sites for each RBP.
     max_count = 0
@@ -20439,6 +20686,11 @@ by RBPBench (%s, rbpbench %s):
     # Additional plot if GTF annotations given.
     if reg2annot_dic:
         mdtext += "- [Region annotations per RBP](#annot-rbp-plot)\n"
+
+    # Upset plot.
+    if args.enable_upset_plot:
+        mdtext += "- [RBP combinations upset plot](#rbp-comb-upset-plot)\n"
+
     # Additional region annotations statistics.
     if add_annot_stats_dic:
         mdtext += "- [Additional region annotations](#add-annot-stats)\n"
@@ -20452,10 +20704,6 @@ by RBPBench (%s, rbpbench %s):
     if reg2annot_dic:
         mdtext += "- [Intronic regions intron border distances](#intron-border-dist)\n"
 
-    # Upset plot.
-    # mdtext += "\n"
-    if args.enable_upset_plot:
-        mdtext += "- [RBP combinations upset plot](#rbp-comb-upset-plot)\n"
 
     # If --set-rbp-id given.
     if args.set_rbp_id is not None:
@@ -21135,7 +21383,6 @@ No plot generated since no motif hits found in input regions.
 """
         else:
 
-            
             create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg2annot_dic,
                                                        plot_out=annot_stacked_bars_plot_out,
                                                        annot2color_dic=annot2color_dic,
@@ -21163,6 +21410,121 @@ By default, RBPBench for each gene in the GTF file selects the most prominent tr
 &nbsp;
 
 """ %(more_infos)
+
+
+    """
+    RBP region occupancies upset plot.
+
+    """
+
+    if args.enable_upset_plot:
+
+        mdtext += """
+## RBP combinations upset plot ### {#rbp-comb-upset-plot}
+
+"""
+
+        rbp_reg_occ_upset_plot =  "rbp_region_occupancies.upset_plot.png"
+        rbp_reg_occ_upset_plot_out = plots_out_folder + "/" + rbp_reg_occ_upset_plot
+
+        upset_plot_nr_included_rbps = len(rbp2regidx_dic)
+        if args.upset_plot_max_rbp_rank is not None:
+            if args.upset_plot_max_rbp_rank < upset_plot_nr_included_rbps:
+                upset_plot_nr_included_rbps = args.upset_plot_max_rbp_rank
+
+        plotted, reason, count = create_rbp_reg_occ_upset_plot_incl(rbp2regidx_dic, reg_ids_list,
+                                    reg2annot_dic=reg2annot_dic,
+                                    min_degree=args.upset_plot_min_degree,
+                                    max_degree=args.upset_plot_max_degree,
+                                    min_subset_size=args.upset_plot_min_subset_size,
+                                    max_subset_rank=args.upset_plot_max_subset_rank,
+                                    min_rbp_count=args.upset_plot_min_rbp_count,
+                                    max_rbp_rank=args.upset_plot_max_rbp_rank,
+                                    annot2color_dic=annot2color_dic,
+                                    plot_pdf=args.plot_pdf,
+                                    plot_out=rbp_reg_occ_upset_plot_out)
+
+
+        plot_path = plots_folder + "/" + rbp_reg_occ_upset_plot
+
+        if plotted:
+            mdtext += '<img src="' + plot_path + '" alt="RBP region occupancies upset plot"' + "\n"
+            mdtext += 'title="RBP region occupancies upset plot" />' + "\n"
+            mdtext += """
+
+**Figure:** Upset plot of RBP combinations found in the given set of %s regions (# of regions = %i). 
+Hit regions for RBP combination: number of input regions with motif hits for the respective RBP combination (== occurrence number).
+Hit regions: number of input regions with motif hits for the listed RBP. 
+**Note** that this upset plot shows only inclusive intersections, i.e., each reported combination means 
+*"regions containing motif hits for at least these RBPs"*, not *"regions containing motif hits for exactly these RBPs"*.
+Plot produced with the current command line parameter settings:
+Minimum occurrence number for a combination to be reported = %i (--upset-plot-min-subset-size). 
+How many RBPs a combination must at least contain to be reported = %i (--upset-plot-min-degree).
+How many RBPs a combination can at most have to be reported = %i (--upset-plot-max-degree).
+Maximum rank of a combination (w.r.t. to its occurrence number) to be reported = %i (--upset-plot-max-subset-rank).
+Number of top RBPs (ranked by # input regions with hits) considered for plot generation = %i (--upset-plot-max-rbp-rank).
+Minimum amount of input regions containing motif hits for an RBP in order for the RBP to be considered for plot generation = %i (--upset-plot-min-rbp-count)
+If a GTF file was given, bar charts become stacked bar charts, showing what GTF annotations the regions overlap with (see legend for region types).
+
+&nbsp;
+
+""" %(site_type, c_regions, args.upset_plot_min_subset_size, args.upset_plot_min_degree, args.upset_plot_max_degree, args.upset_plot_max_subset_rank, upset_plot_nr_included_rbps, args.upset_plot_min_rbp_count)
+
+        else:
+
+            if reason == "min_degree":
+
+                mdtext += """
+
+No upset plot generated since set --upset-plot-min-degree > maximum degree found in the RBP combination set. Please use lower number for --upset-plot-min-degree parameter.
+
+&nbsp;
+
+"""
+
+            elif reason == "min_subset_size":
+
+                mdtext += """
+
+No upset plot generated since set --upset-plot-min-subset-size (%i) > maximum subset size (%i) found in the RBP combination set. Please use lower number for --upset-plot-min-subset-size parameter.
+
+&nbsp;
+
+""" %(args.upset_plot_min_subset_size, count)
+
+            elif reason == "len(rbp_id_list) == 1":
+
+                mdtext += """
+
+No plot generated since number of selected RBPs == 1.
+
+&nbsp;
+
+"""
+
+            elif reason == "no_region_hits":
+
+                mdtext += """
+
+No plot generated since no motif hits found in input regions.
+
+&nbsp;
+
+"""
+
+            elif reason == "min_rbp_count":
+
+                mdtext += """
+
+No plot generated since set --upset-plot-min-rbp-count (i.e., filtering by minimum amount of motif hit regions an RBP needs to have) results in no RBPs remaining for upset plot.
+
+&nbsp;
+
+"""
+
+            else:
+                assert False, "invalid reason given for not plotting upset plot"
+
 
 
     """
@@ -21307,7 +21669,7 @@ been removed already. Number of considered input regions = %i.
         mdtext += 'title="mRNA region coverage plot" />' + "\n"
         mdtext += """
 **Figure:** mRNA region coverage profile for provided input regions (# input regions = %i, # of input regions overlapping with mRNAs = %i). 
-Percentage of input regions overlapping with mRNA exons = %s%%. 
+Percentage of input regions overlapping with mRNA exons = **%s%%**. 
 **NOTE** that if this percentage is low, it likely means that the input regions (if derived from CLIP-seq or similar protocols) 
 originate from an intron binding RBP, making the plot less informative (since the RBP is typically not binding to spliced mRNAs).
 Minimum overlap amount with mRNA exons required for input region to be counted as overlapping = %s%% (set via --gtf-min-mrna-overlap).
@@ -21541,132 +21903,6 @@ No intronic regions intron border distance plot generated since there are no inp
 &nbsp;
 
 """
-
-
-
-    """
-    RBP region occupancies upset plot.
-
-    """
-
-    if args.enable_upset_plot:
-
-        mdtext += """
-## RBP combinations upset plot ### {#rbp-comb-upset-plot}
-
-"""
-
-        rbp_reg_occ_upset_plot =  "rbp_region_occupancies.upset_plot.png"
-        rbp_reg_occ_upset_plot_out = plots_out_folder + "/" + rbp_reg_occ_upset_plot
-
-        upset_plot_nr_included_rbps = len(rbp2regidx_dic)
-        if args.upset_plot_max_rbp_rank is not None:
-            if args.upset_plot_max_rbp_rank < upset_plot_nr_included_rbps:
-                upset_plot_nr_included_rbps = args.upset_plot_max_rbp_rank
-
-        plotted, reason, count = create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list, 
-                                    reg2annot_dic=reg2annot_dic,
-                                    min_degree=args.upset_plot_min_degree,
-                                    max_degree=args.upset_plot_max_degree,
-                                    min_subset_size=args.upset_plot_min_subset_size,
-                                    max_subset_rank=args.upset_plot_max_subset_rank,
-                                    min_rbp_count=args.upset_plot_min_rbp_count,
-                                    max_rbp_rank=args.upset_plot_max_rbp_rank,
-                                    plot_pdf=args.plot_pdf,
-                                    plot_out=rbp_reg_occ_upset_plot_out)
-
-
-        plot_path = plots_folder + "/" + rbp_reg_occ_upset_plot
-
-        if plotted:
-            mdtext += '<img src="' + plot_path + '" alt="RBP region occupancies upset plot"' + "\n"
-            mdtext += 'title="RBP region occupancies upset plot" />' + "\n"
-            mdtext += """
-
-**Figure:** Upset plot of RBP combinations found in the given set of %s regions (# of regions = %i). 
-Intersection size == how often a specific RBP combination is found in the regions dataset.
-For example, if two regions in the input set contain motif hits for RBP1, RBP3, and RBP5, then the RBP combination "RBP1,RBP3,RBP5" will get a count (i.e., Intersection size) of 2.
-Minimum occurrence number for a combination to be reported = %i (command line parameter: --upset-plot-min-subset-size). 
-How many RBPs a combination must at least contain to be reported = %i (command line parameter: --upset-plot-min-degree).
-Maximum rank of a combination (w.r.t. to its intersection size) to be reported = %i (command line parameter: --upset-plot-max-subset-rank).
-Number of top RBPs included in statistic + plot (ranked by # input regions with hits) = %i (command line parameter: --upset-plot-max-rbp-rank).
-To be included in the statistic + plot, RBPs need to have motif hits in >= %i input regions (command line parameter: --upset-plot-min-rbp-count).
-The numbers on the left side for each RBP tell how many %s regions have motif hits of the respective RBP. 
-If a GTF file was given, bar charts become stacked bar charts, showing what GTF annotations the regions overlap with (see legend for region types).
-NOTE that upsetplot currently (v0.9) only supports distinct mode (no intersect or union modes available). 
-In distinct mode, the reported intersection/subset size for a combination is the number of times 
-this distinct RBP combination shows up in the data. For example, if the combination "RBP1,RBP3,RBP5" has a count of 2,
-it means that there are two regions in the input set which contain motif hits exclusively by RBP1, RBP2, and RBP5 (and no other RBPs!).
-This is why the more RBPs are selected, the smaller intersection sizes typically become for specific combinations (down to counts of 1).
-
-&nbsp;
-
-""" %(site_type, c_regions, args.upset_plot_min_subset_size, args.upset_plot_min_degree, args.upset_plot_max_subset_rank, upset_plot_nr_included_rbps, args.upset_plot_min_rbp_count, site_type)
-
-        else:
-
-            if reason == "min_degree":
-
-                mdtext += """
-
-No upset plot generated since set --upset-plot-min-degree > maximum degree found in the RBP combination set. Please use lower number for --upset-plot-min-degree parameter.
-Also NOTE that upsetplot currently (v0.9) only supports distinct mode (no intersect or union modes available). 
-In distinct mode, the reported intersection/subset size for a combination is the number of times 
-this distinct RBP combination shows up in the data. For example, if the combination "RBP1,RBP3,RBP5" has a count of 2,
-it means that there are two regions in the input set which contain motif hits exclusively by RBP1, RBP2, and RBP5 (and no other RBPs!).
-This is why the more RBPs are selected, the smaller intersection sizes typically become for specific combinations (down to counts of 1).
-
-&nbsp;
-
-"""
-
-            elif reason == "min_subset_size":
-
-                mdtext += """
-
-No upset plot generated since set --upset-plot-min-subset-size (%i) > maximum subset size (%i) found in the RBP combination set. Please use lower number for --upset-plot-min-subset-size parameter.
-Also NOTE that upsetplot currently (v0.9) only supports distinct mode (no intersect or union modes available). 
-In distinct mode, the reported intersection/subset size for a combination is the number of times 
-this distinct RBP combination shows up in the data. For example, if the combination "RBP1,RBP3,RBP5" has a count of 2,
-it means that there are two regions in the input set which contain motif hits exclusively by RBP1, RBP2, and RBP5 (and no other RBPs!).
-This is why the more RBPs are selected, the smaller intersection sizes typically become for specific combinations (down to counts of 1).
-
-&nbsp;
-
-""" %(args.upset_plot_min_subset_size, count)
-
-            elif reason == "len(rbp_id_list) == 1":
-
-                mdtext += """
-
-No plot generated since number of selected RBPs == 1.
-
-&nbsp;
-
-"""
-
-            elif reason == "no_region_hits":
-
-                mdtext += """
-
-No plot generated since no motif hits found in input regions.
-
-&nbsp;
-
-"""
-
-            elif reason == "min_rbp_count":
-
-                mdtext += """
-
-No plot generated since set --upset-plot-min-rbp-count results in no RBPs remaining for upset plot.
-
-&nbsp;
-
-"""
-
-            else:
-                assert False, "invalid reason given for not plotting upset plot"
 
 
 
@@ -22443,6 +22679,416 @@ def plot_motif_dist_motif_level(set_motif_id,
 
 ################################################################################
 
+def create_rbp_reg_occ_upset_plot_incl(
+    rbp2regidx_dic,
+    reg_ids_list,
+    reg2annot_dic=False,
+    min_degree=2,
+    max_degree=5,
+    min_subset_size=10,
+    max_subset_rank=25,
+    min_rbp_count=5,
+    max_rbp_rank=25,
+    annot2color_dic=False,
+    plot_pdf=False,
+    plot_out="rbp_region_occupancies.upset_plot.png",
+):
+    """
+    Create inclusive-intersection UpSet-like plot for RBP region occupancies.
+
+    This plot does not depend on the upsetplot conda package, which does 
+    not support inclusive (intersect) mode (only exclusive intersection / 
+    distinct mode), but inclusive mode results are biologically more 
+    meaningful. 
+
+    Inclusive mode means:
+    A combination such as (RBP1, RBP3) counts all regions that contain
+    at least RBP1 and RBP3 motif hits, regardless of whether additional 
+    RBPs have motif hits in these regions / are present.
+    In other words:
+    Each reported combination means: 
+    "regions containing at least these RBPs", not 
+    "regions containing exactly these RBPs." (distinct mode).
+
+    rbp2regidx_dic:
+    Mapping of rbp_id -> 0-based indexes of occupied regions, e.g. "RBP1" -> [0, 3, 12, 88, 114] 
+    reg_ids_list:
+    The binding site IDs list (indices correspond to rbp2regidx_dic), e.g. 
+    reg_ids_list = [reg_id1, reg_id2, ... ]
+    reg2annot_dic:
+    This is a reg_id to genomic annotation list mapping, where
+    reg2annot_dic[reg_id][0] is the annotation label, e.g. "3'UTR"
+    min_degree:
+    --upset-plot-min-degree
+    How many RBPs a combination must at least contain to be reported (args.upset_plot_min_degree)
+    max_degree:
+    --upset-plot-max-degree
+    How many RBPs a combination can at most have to be reported (args.upset_plot_max_degree)
+    min_subset_size:
+    --upset-plot-min-subset-size
+    Minimum occurrence number for a combination to be reported (args.upset_plot_min_subset_size).
+    max_subset_rank:
+    --upset-plot-max-subset-rank
+    Maximum rank of a combination (w.r.t. to its intersection size) to be reported (args.upset_plot_max_subset_rank)
+    min_rbp_count:
+    --upset-plot-min-rbp-count
+    To be included in the statistic + plot, RBPs need to have motif hits in >= 0 input regions (args.upset_plot_min_rbp_count)
+    max_rbp_rank:
+    --upset-plot-max-rbp-rank
+    Number of top RBPs included in statistic + plot (ranked by # input regions with hits) = 4 (args.upset_plot_max_rbp_rank)
+
+    """
+
+    # All regions (# regions).
+    c_regions = len(reg_ids_list)
+    assert c_regions > 0, "c_regions must be >= 0"
+
+    # Filter rbp2regidx_dic if min_rbp_count or max_rbp_rank set.
+    if min_rbp_count > 0 or max_rbp_rank is not None:
+        rbp2regidx_dic = filter_rbp2regidx_dic(
+            rbp2regidx_dic,
+            min_rbp_count=min_rbp_count,
+            max_rbp_rank=max_rbp_rank,
+        )
+        if not rbp2regidx_dic:
+            return False, "min_rbp_count", 0
+
+    # Check if there are regions that have motif hits.
+    no_region_hits = True
+    for rbp_id in rbp2regidx_dic:
+        if rbp2regidx_dic[rbp_id]:
+            no_region_hits = False
+            break
+
+    if no_region_hits:
+        return False, "no_region_hits", 0
+
+    # Convert values to sets.
+    rbp2regidx_dic = {
+        rbp_id: set(regidx_list)
+        for rbp_id, regidx_list in rbp2regidx_dic.items()
+    }
+
+    rbp_id_list = sorted(rbp2regidx_dic)
+
+    if len(rbp_id_list) == 1:
+        return False, "len(rbp_id_list) == 1", 0
+
+    if max_degree is None:
+        max_degree = len(rbp_id_list)
+
+    # Check whether min_degree is possible.
+    if min_degree > len(rbp_id_list):
+        return False, "min_degree", 0
+
+    if max_degree < min_degree:
+        return False, "min_degree", 0
+
+    """
+    Compute inclusive intersections.
+
+    """
+
+    records = []
+    max_subset_size = 0
+
+    for degree in range(min_degree, max_degree + 1): # Beware of runtime (limit max_degree if many RBPs!).
+        for rbp_comb in combinations(rbp_id_list, degree):
+
+            shared_idxs = set.intersection(
+                *(rbp2regidx_dic[rbp_id] for rbp_id in rbp_comb)
+            )
+
+            subset_size = len(shared_idxs)
+
+            if subset_size > max_subset_size:
+                max_subset_size = subset_size
+
+            if subset_size < min_subset_size:
+                continue
+
+            annot_counts = Counter()
+
+            if reg2annot_dic:
+                for idx in shared_idxs:
+                    reg_id = reg_ids_list[idx]
+                    annot_id = reg2annot_dic[reg_id][0]
+                    annot_counts[annot_id] += 1
+
+            records.append({
+                "rbps": rbp_comb,
+                "count": subset_size,
+                "idxs": shared_idxs,
+                "annot_counts": annot_counts,
+            })
+
+    if max_subset_size < min_subset_size:
+        return False, "min_subset_size", max_subset_size
+
+    if not records:
+        return False, "min_subset_size", max_subset_size
+
+    # Sort by inclusive intersection size.
+    records.sort(key=lambda x: x["count"], reverse=True)
+
+    if max_subset_rank is not None:
+        records = records[:max_subset_rank]
+
+    """
+    Prepare annotation colors.
+    """
+
+    # Sort annotation labels alphabetically for plotting.
+    annot_ids = sorted({
+        annot_id
+        for rec in records
+        for annot_id in rec["annot_counts"]
+    })
+
+    # # Get total annotation abundances across all plotted intersections.
+    # annot2total_dic = {}
+
+    # for rec in records:
+    #     for annot_id, c in rec["annot_counts"].items():
+    #         annot2total_dic[annot_id] = annot2total_dic.get(annot_id, 0) + c
+
+    # # Sort descending by total abundance.
+    # annot_ids = sorted(
+    #     annot2total_dic,
+    #     key=lambda x: annot2total_dic[x],
+    #     reverse=True,
+    # )
+
+    if reg2annot_dic and annot_ids and not annot2color_dic:
+        annot2color_dic = {}
+
+        annot_dic = {}
+        for reg_id in reg2annot_dic:
+            annot_id = reg2annot_dic[reg_id][0]
+            annot_dic[annot_id] = annot_dic.get(annot_id, 0) + 1
+
+        hex_colors = get_hex_colors_list(min_len=len(annot_dic))
+
+        for idx, annot_id in enumerate(sorted(annot_dic)):
+            annot2color_dic[annot_id] = hex_colors[idx]
+
+    """
+    Let's Plot!
+
+    """
+
+    x = np.arange(len(records))
+    y = np.arange(len(rbp_id_list))
+
+    # These settings work reasonably well for few RBPs as well as many.
+    n_combinations = len(records)
+    n_rbps = len(rbp_id_list)
+
+    top_height = 2.5
+    matrix_height = max(1.6, n_rbps * 0.38)
+
+    fig_width = max(3.2, 2.5 + n_combinations * 0.35)
+    fig_height = top_height + matrix_height
+
+    fig = plt.figure(figsize=(fig_width, fig_height))
+
+    gs = fig.add_gridspec(
+        2,
+        2,
+        width_ratios=[5, 1.2],
+        height_ratios=[top_height, matrix_height],
+        hspace=0.08,
+        wspace=0.08,
+    )
+
+    ax_bar = fig.add_subplot(gs[0, 0])
+    ax_matrix = fig.add_subplot(gs[1, 0], sharex=ax_bar)
+    ax_sizes = fig.add_subplot(gs[1, 1], sharey=ax_matrix)
+
+    # Empty top-right panel.
+    ax_empty = fig.add_subplot(gs[0, 1])
+    ax_empty.axis("off")
+
+
+    # Top intersection-size bars.
+    if reg2annot_dic and annot_ids:
+        bottom = np.zeros(len(records))
+
+        for annot_id in annot_ids:
+            vals = [
+                rec["annot_counts"].get(annot_id, 0)
+                for rec in records
+            ]
+
+            ax_bar.bar(
+                x,
+                vals,
+                bottom=bottom,
+                width=0.6,  # how slim bars should be.
+                label=annot_id,
+                color=annot2color_dic.get(annot_id, None),
+            )
+
+            bottom += np.array(vals)
+
+        ax_bar.legend(bbox_to_anchor=(1.02, 1), loc="upper left")
+
+    else:
+        ax_bar.bar(
+            x,
+            [rec["count"] for rec in records],
+            color="black",
+            width=0.5,  # how slim bars should be.
+        )
+
+    for i, rec in enumerate(records):
+        ax_bar.text(
+            i,
+            rec["count"],
+            str(rec["count"]),
+            ha="center",
+            va="bottom",
+            fontsize=6,  # size of numbers on top of bars of upper bar plot.
+        )
+
+    ax_bar.set_ylabel(
+        "Hit regions for RBP combination",
+        fontsize=9,
+        labelpad=2,
+    )
+
+    ax_bar.tick_params(axis="x", bottom=False, labelbottom=False, labelsize=8)
+    ax_bar.tick_params(axis="y", labelsize=9)
+
+    ax_bar.grid(axis="y", alpha=0.4)
+    ax_bar.set_axisbelow(True)
+
+    ax_bar.spines["top"].set_visible(False)
+    ax_bar.spines["right"].set_visible(False)
+    ax_bar.spines["left"].set_visible(True)
+    ax_bar.spines["bottom"].set_visible(True)
+
+    # Membership matrix.
+    for i, rec in enumerate(records):
+        active_y = []
+
+        for j, rbp_id in enumerate(rbp_id_list):
+            is_active = rbp_id in rec["rbps"]
+
+            ax_matrix.scatter(
+                i,
+                j,
+                s=90,
+                color="black" if is_active else "lightgray",
+                zorder=3,
+            )
+
+            if is_active:
+                active_y.append(j)
+
+        if len(active_y) >= 2:
+            ax_matrix.plot(
+                [i, i],
+                [min(active_y), max(active_y)],
+                color="black",
+                linewidth=2,
+                zorder=2,
+            )
+
+    ax_matrix.set_yticks(y)
+    ax_matrix.set_yticklabels(rbp_id_list)
+    ax_matrix.tick_params(
+        axis="y",
+        labelleft=True,
+        labelright=False,
+        length=0,
+    )
+
+    ax_matrix.set_xticks([])
+    ax_matrix.set_ylim(-0.5, len(rbp_id_list) - 0.5)
+    ax_matrix.invert_yaxis()
+    ax_matrix.tick_params(axis="x", length=0)
+
+    for j in range(len(rbp_id_list)):
+        if j % 2 == 1:
+            ax_matrix.axhspan(
+                j - 0.5,
+                j + 0.5,
+                color="0.95",
+                zorder=0,
+            )
+
+    ax_matrix.spines["top"].set_visible(False)
+    ax_matrix.spines["right"].set_visible(False)
+    ax_matrix.spines["left"].set_visible(False)
+    ax_matrix.spines["bottom"].set_visible(False)
+
+
+    # Right-side RBP set-size bars.
+    set_sizes = [len(rbp2regidx_dic[rbp_id]) for rbp_id in rbp_id_list]
+
+    ax_sizes.barh(
+        y,
+        set_sizes,
+        color="black",
+        height=0.5,  # slimness of bars.
+    )
+
+    ax_sizes.set_yticks(y)
+    ax_sizes.tick_params(
+        axis="y",
+        labelleft=False,
+        labelright=False,
+        length=0,
+        labelsize=8,
+    )
+
+    ax_sizes.set_xlim(0, max(set_sizes) * 1.1)
+    ax_sizes.set_xlabel(
+        "Hit regions",
+         fontsize=9,
+         labelpad=2,
+    )
+    ax_sizes.tick_params(axis="x", labelsize=9)
+
+    ax_sizes.grid(axis="x", alpha=0.4)
+    ax_sizes.set_axisbelow(True)
+
+    for j, size in enumerate(set_sizes):
+        ax_sizes.text(
+            size,
+            j,
+            str(size),
+            va="center",
+            ha="left",
+            fontsize=6,  # Size of numbers next to bars of right bar plot.
+        )
+
+    ax_sizes.spines["top"].set_visible(False)
+    ax_sizes.spines["right"].set_visible(False)
+    ax_sizes.spines["left"].set_visible(False)
+    ax_sizes.spines["bottom"].set_visible(True)
+
+    plt.savefig(plot_out, dpi=125, bbox_inches="tight")
+
+    plt.subplots_adjust(
+        left=0.14,
+        right=0.97,
+        top=0.95,
+        bottom=0.08,
+    )
+
+    if plot_pdf and plot_out.endswith(".png"):
+        pdf_out = plot_out[:-4] + ".pdf"
+        plt.savefig(pdf_out, dpi=125) #, bbox_inches="tight")
+
+    plt.close()
+
+    return True, "yowza", 0
+
+
+################################################################################
+
 def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
                                   reg2annot_dic=False,
                                   min_degree=2,
@@ -22759,7 +23405,7 @@ def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg
         rbp_id_list.append(all_regions_id)
 
     data_dic = {}
-    for annot in sorted(annot_dic, reverse=True):  # make reverse sort to have same color coding as upset plot.
+    for annot in sorted(annot_dic, reverse=False):  # make reverse sort to have same color coding as upset plot.
         data_dic[annot] = []
         for rbp_id in rbp_id_list:
             data_dic[annot].append(0)

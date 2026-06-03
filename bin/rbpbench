@@ -17,7 +17,7 @@ from scipy.stats import mannwhitneyu
 from scipy.stats import false_discovery_control  # Benjamini-Hochberg correction.
 
 
-__version__ = "1.1.2"
+__version__ = "1.1.3"
 
 ################################################################################
 
@@ -397,43 +397,43 @@ def setup_argument_parser():
                    dest="enable_upset_plot",
                    default = False,
                    action = "store_true",
-                   help = "Enable upset plot in HTML report (default: False)")
+                   help = 'Enable RBP combinations upset plot in HTML report. Note that this upset plot shows only inclusive intersections, i.e., each reported combination means "regions containing at least these RBPs", not "regions containing exactly these RBPs" (default: False)')
     p_s.add_argument("--upset-plot-min-degree",
                    dest="upset_plot_min_degree",
                    type=int,
                    metavar='int',
                    default=2,
-                   help="Upset plot minimum degree parameter (default: 2)")
+                   help="Upset plot minimum degree. How many RBPs a combination must at least contain to be included in upset plot (default: 2)")
     p_s.add_argument("--upset-plot-max-degree",
                    dest="upset_plot_max_degree",
                    type=int,
                    metavar='int',
-                   default=None,
-                   help="Upset plot maximum degree. By default no maximum degree is set. Useful to look at specific degrees only (together with --upset-plot-min-degree), e.g. 2 or 2 to 3 (default: None)")
+                   default=4,
+                   help="Upset plot maximum degree. How many RBPs a combination can at most have to be included in upset plot (default: 4)")
     p_s.add_argument("--upset-plot-min-subset-size",
                    dest="upset_plot_min_subset_size",
                    type=int,
                    metavar='int',
                    default=5,
-                   help="Upset plot minimum subset size (default: 5)")
+                   help="Upset plot minimum subset size. Minimum occurrence number for a combination to be included in upset plot (default: 10)")
     p_s.add_argument("--upset-plot-max-subset-rank",
                    dest="upset_plot_max_subset_rank",
                    type=int,
                    metavar='int',
                    default=25,
-                   help="Upset plot maximum subset rank to plot. All tied subsets are included (default: 25)")
+                   help="Upset plot maximum subset rank. Maximum rank of a combination (w.r.t. to its occurrence number) to be included in upset plot (default: 25)")
     p_s.add_argument("--upset-plot-max-rbp-rank",
                    dest="upset_plot_max_rbp_rank",
                    type=int,
                    metavar='int',
-                   default=None,
-                   help="Maximum RBP hit region count rank. Set this to limit the amount of RBPs included in upset plot (+ statistic !) to top --upset-plot-max-rbp-rank RBPs. By default all RBPs are included (default: None)")
+                   default=25,
+                   help="Maximum RBP hit region count rank. Number of top RBPs (ranked by # input regions with hits) included in upset plot (default: 25)")
     p_s.add_argument("--upset-plot-min-rbp-count",
                    dest="upset_plot_min_rbp_count",
                    type=int,
                    metavar='int',
-                   default=0,
-                   help="Minimum amount of input sites containing motifs for an RBP in order for the RBP to be included in upset plot (+ statistic !). By default, all RBPs are included, also RBPs without hit regions (default: 0)")
+                   default=10,
+                   help="Minimum amount of input sites containing motif hits for an RBP in order for the RBP to be included in upset plot (default: 10)")
     p_s.add_argument("--gtf",
                    dest="in_gtf",
                    type=str,
@@ -2181,47 +2181,48 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Disable input sequence length distribution plot in HTML report (default: False)")
+    # Upset plot.
     p_scr.add_argument("--enable-upset-plot",
                    dest="enable_upset_plot",
                    default = False,
                    action = "store_true",
-                   help = "Enable upset plot in HTML report (default: False)")
+                   help = 'Enable RBP combinations upset plot in HTML report. Note that this upset plot shows only inclusive intersections, i.e., each reported combination means "regions containing at least these RBPs", not "regions containing exactly these RBPs" (default: False)')
     p_scr.add_argument("--upset-plot-min-degree",
                    dest="upset_plot_min_degree",
                    type=int,
                    metavar='int',
                    default=2,
-                   help="Upset plot minimum degree parameter (default: 2)")
+                   help="Upset plot minimum degree. How many RBPs a combination must at least contain to be included in upset plot (default: 2)")
     p_scr.add_argument("--upset-plot-max-degree",
                    dest="upset_plot_max_degree",
                    type=int,
                    metavar='int',
-                   default=None,
-                   help="Upset plot maximum degree. By default no maximum degree is set. Useful to look at specific degrees only (together with --upset-plot-min-degree), e.g. 2 or 2 to 3 (default: None)")
+                   default=4,
+                   help="Upset plot maximum degree. How many RBPs a combination can at most have to be included in upset plot (default: 4)")
     p_scr.add_argument("--upset-plot-min-subset-size",
                    dest="upset_plot_min_subset_size",
                    type=int,
                    metavar='int',
                    default=5,
-                   help="Upset plot minimum subset size (default: 5)")
+                   help="Upset plot minimum subset size. Minimum occurrence number for a combination to be included in upset plot (default: 10)")
     p_scr.add_argument("--upset-plot-max-subset-rank",
                    dest="upset_plot_max_subset_rank",
                    type=int,
                    metavar='int',
                    default=25,
-                   help="Upset plot maximum subset rank to plot. All tied subsets are included (default: 25)")
+                   help="Upset plot maximum subset rank. Maximum rank of a combination (w.r.t. to its occurrence number) to be included in upset plot (default: 25)")
     p_scr.add_argument("--upset-plot-max-rbp-rank",
                    dest="upset_plot_max_rbp_rank",
                    type=int,
                    metavar='int',
-                   default=None,
-                   help="Maximum RBP hit region count rank. Set this to limit the amount of RBPs included in upset plot (+ statistic !) to top --upset-plot-max-rbp-rank RBPs. By default all RBPs are included (default: None)")
+                   default=25,
+                   help="Maximum RBP hit region count rank. Number of top RBPs (ranked by # input regions with hits) included in upset plot (default: 25)")
     p_scr.add_argument("--upset-plot-min-rbp-count",
                    dest="upset_plot_min_rbp_count",
                    type=int,
                    metavar='int',
-                   default=0,
-                   help="Minimum amount of input sites containing motifs for an RBP in order for the RBP to be included in upset plot (+ statistic !). By default, all RBPs are included, also RBPs without hit regions (default: 0)")
+                   default=10,
+                   help="Minimum amount of input sites containing motifs for an RBP in order for the RBP to be included in upset plot (default: 10)")
     p_scr.add_argument("--motif-distance-plot-range",
                    dest="motif_distance_plot_range",
                    type=int,
@@ -5016,9 +5017,18 @@ def main_search(args):
 
     """
     Get chromosome IDs from --genome.
-    """
+
+        """
     print("Get --genome FASTA headers ... ")
     chr_ids_dic = benchlib.get_fasta_headers(args.in_genome)
+
+    """
+    todo:
+    Check and complain if bed_chr_ids_dic are not in chr_ids_dic, 
+    and also skip GTF rows with chromosome IDs not in bed_chr_ids_dic.
+    ...
+
+    """
 
     """
     Guess chromosome ID style.
@@ -5026,6 +5036,8 @@ def main_search(args):
     chr_style:
         1: chr1, chr2, ..., chrX, chrM
         2: 1, 2, ... , X, MT
+
+    Based on detected chr_style, convert GTF chromosome IDs.
 
     """
     print("Guess chromosome ID style (based on --genome FASTA headers) ... ")
@@ -7374,28 +7386,28 @@ def main_search(args):
     print("Create report ... ")
 
     benchlib.search_generate_html_report(args,
-                                        df_pval, pval_cont_lll,
-                                        search_rbps_dic,
-                                        id2name_dic, name2ids_dic,
-                                        region_rbp_motif_pos_dic,
-                                        reg2pol_dic,
-                                        benchlib_path,
-                                        rbp2regidx_dic,
-                                        reg_ids_list,
-                                        seq_len_df=seq_len_df,
-                                        mrna_prof_dic=mrna_prof_dic,
-                                        ei_ol_stats_dic=ei_ol_stats_dic,
-                                        seq_motif_blocks_dic=seq_motif_blocks_dic,
-                                        reg2annot_dic=reg2annot_dic,
-                                        annot2color_dic=annot2color_dic,
-                                        goa_results_df=goa_results_df,
-                                        goa_stats_dic=goa_stats_dic,
-                                        html_report_out=html_report_out,
-                                        reg_seq_str="regions",
-                                        reg2seq_dic=out_seqs_dic,
-                                        reg2sc_dic=reg2sc_dic,
-                                        add_annot_stats_dic=add_annot_stats_dic,
-                                        plots_subfolder=plots_subfolder)
+                                    df_pval, pval_cont_lll,
+                                    search_rbps_dic,
+                                    id2name_dic, name2ids_dic,
+                                    region_rbp_motif_pos_dic,
+                                    reg2pol_dic,
+                                    benchlib_path,
+                                    rbp2regidx_dic,
+                                    reg_ids_list,
+                                    seq_len_df=seq_len_df,
+                                    mrna_prof_dic=mrna_prof_dic,
+                                    ei_ol_stats_dic=ei_ol_stats_dic,
+                                    seq_motif_blocks_dic=seq_motif_blocks_dic,
+                                    reg2annot_dic=reg2annot_dic,
+                                    annot2color_dic=annot2color_dic,
+                                    goa_results_df=goa_results_df,
+                                    goa_stats_dic=goa_stats_dic,
+                                    html_report_out=html_report_out,
+                                    reg_seq_str="regions",
+                                    reg2seq_dic=out_seqs_dic,
+                                    reg2sc_dic=reg2sc_dic,
+                                    add_annot_stats_dic=add_annot_stats_dic,
+                                    plots_subfolder=plots_subfolder)
 
 
     """
@@ -7961,7 +7973,7 @@ def main_batch(args):
                                                       chr_style=chr_style,
                                                       empty_check=False)
 
-        assert gid2gio_dic, "no gene infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
+        assert gid2gio_dic, "no gene infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE) and if set --gene-list, ensure it contains valid gene IDs from the GTF file"
         c_gene_infos = len(gid2gio_dic)
         print("# gene features read in from --gtf:", c_gene_infos)
 
@@ -23048,7 +23060,7 @@ def main_sponge(args):
 
         gid2gio_dic = benchlib.gtf_read_in_gene_infos(args.in_gtf,
                                                     tr2gid_dic=tr2gid_dic,
-                                                    chr_style=args.chr_id_style,
+                                                    chr_style=args.chr_id_style-1,
                                                     empty_check=False)
 
         assert gid2gio_dic, "no gene infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
@@ -23103,7 +23115,7 @@ def main_sponge(args):
         tid2tio_dic = benchlib.gtf_read_in_transcript_infos(args.in_gtf, 
                                                             tr_ids_dic=tr_ids_dic,
                                                             correct_min_ex_order=correct_min_ex_order,
-                                                            chr_style=args.chr_id_style,
+                                                            chr_style=args.chr_id_style-1,
                                                             empty_check=False)
 
         assert tid2tio_dic, "no transcript infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
@@ -23355,7 +23367,7 @@ def main_isocomp(args):
 
         gid2gio_dic = benchlib.gtf_read_in_gene_infos(args.in_gtf,
                                                     tr2gid_dic=tr2gid_dic,
-                                                    chr_style=args.chr_id_style,
+                                                    chr_style=args.chr_id_style-1,
                                                     empty_check=False)
 
         assert gid2gio_dic, "no gene infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"
@@ -23393,7 +23405,7 @@ def main_isocomp(args):
         tid2tio_dic = benchlib.gtf_read_in_transcript_infos(args.in_gtf, 
                                                             tr_ids_dic=tr2gid_dic,  # read in all transcripts.
                                                             correct_min_ex_order=correct_min_ex_order,
-                                                            chr_style=args.chr_id_style,
+                                                            chr_style=args.chr_id_style-1,
                                                             empty_check=False)
 
         assert tid2tio_dic, "no transcript infos read in from --gtf. Please provide a valid/compatible GTF file (e.g. from Ensembl or ENCODE)"

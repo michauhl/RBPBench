@@ -148,12 +148,12 @@ def setup_argument_parser():
                    metavar='str',
                    default = "custom",
                    help = "Set ID/name for provided custom motif database via --custom-db  (default: \"custom\")")
-    p.add_argument("--custom-db-meme-xml",
-                   dest="custom_db_meme_xml",
+    p.add_argument("--custom-db-meme",
+                   dest="custom_db_meme",
                    type=str,
                    metavar='str',
                    default = False,
-                   help = "Provide custom motif database MEME/DREME XML file containing sequence motifs")
+                   help = "Provide custom motif database MEME/DREME motif format file (plain text format, not XML) containing sequence motifs")
     p.add_argument("--custom-db-cm",
                    dest="custom_db_cm",
                    type=str,
@@ -523,10 +523,10 @@ if __name__ == '__main__':
     batch_call += " --wrs-mode %i" % (args.wrs_mode)
 
     # Custom database.
-    if args.custom_db_meme_xml or args.custom_db_cm:
-        assert args.custom_db_info, "--custom-db-info needed if --custom-db-meme-xml or --custom-db-cm provided"
-        if args.custom_db_meme_xml:
-            batch_call += " --custom-db-meme-xml %s" % (args.custom_db_meme_xml)
+    if args.custom_db_meme or args.custom_db_cm:
+        assert args.custom_db_info, "--custom-db-info needed if --custom-db-meme or --custom-db-cm provided"
+        if args.custom_db_meme:
+            batch_call += " --custom-db-meme %s" % (args.custom_db_meme)
         if args.custom_db_cm:
             batch_call += " --custom-db-cm %s" % (args.custom_db_cm)
         batch_call += " --custom-db-info %s" % (args.custom_db_info)

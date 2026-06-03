@@ -37,7 +37,7 @@ fi
 rbpbench search --in eclip_clipper_idr/PUM2_K562_IDR_peaks.bed --genome $genome_fa_path --gtf $gtf_path --out test_search_pum2_ex1_out --rbps PUM2 PUM1 RBFOX2 --ext 10 --regex AATAAA
 
 # Search with all RBPs.
-rbpbench search --in eclip_clipper_idr/SLBP_K562_IDR_peaks.bed --genome $genome_fa_path --gtf $gtf_path --out test_search_slbp_tr_rsd_tep_out --functions TR RSD TEP --rbps ALL --ext 20 --goa
+rbpbench search --in eclip_clipper_idr/SLBP_K562_IDR_peaks.bed --genome $genome_fa_path --gtf $gtf_path --out test_search_slbp_tr_rsd_tep_out --functions TR RSD TEP --rbps ALL --ext 20 --goa --enable-upset-plot
 
 # With greatest hits.
 rbpbench search --in eclip_clipper_idr/SLBP_K562_IDR_peaks.bed --genome $genome_fa_path --gtf $gtf_path --out test_search_slbp_tr_rsd_tep_gh_out --functions TR RSD TEP  --rbps ALL --ext 20 --set-rbp-id SLBP --greatest-hits
@@ -87,5 +87,8 @@ rbpbench searchregex --regex test_regexes.txt --in eclip_clipper_idr/PUM2_K562_I
 
 # Whole genome sequence search (reasonably fast if --profiles not set).
 rbpbench searchseq --in $genome_fa_path --regex 'TGTA[ACGT]ATA' --out test_searchseq_out --rbps REGEX
+
+# Custom motif database.
+rbpbench search --in eclip_clipper_idr/PUM2_K562_IDR_peaks.bed --genome $genome_fa_path --out test_cisbp_rna_search_out --rbps ALL --ext 10 --custom-db-meme cisbp_rna_human_rbp_motifs.meme --custom-db-info cisbp_rna_human_rbp_motifs.info.txt --motif-min-len 6 --motif-max-len 7
 
 
