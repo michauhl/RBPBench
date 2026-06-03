@@ -274,7 +274,7 @@ be shown in total (`--upset-plot-max-subset-rank`). Note that the upset plot onl
 combination means *"regions containing motif hits for at least these RBPs"*, not *"regions containing motif hits for exactly these RBPs"*, 
 which is more informative for our purposes.
 
-Additionally, `rbpbench search` HTML report includes several plots showing k-mer distributions and variations in the input dataset (**Fig. 4**), 
+Additionally, `rbpbench search` HTML report includes several plots showing k-mer distributions and variations in the input dataset (**Fig. 5**), 
 which also take into account the region scores to identify enriched k-mers, which can hint at RBP binding preferences.
 
 <img src="docs/search.ex2.2.png" width="800" />
