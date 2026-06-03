@@ -3035,7 +3035,8 @@ def read_in_tomtom_sim_results(sim_out_tsv,
 
 ################################################################################
 
-def calc_tomtom_sim(seq_motifs_db_file, out_folder):
+def calc_tomtom_sim(seq_motifs_db_file, out_folder,
+                    motif_sim_cap=50):
     """
     Based on given seq_motifs_db_file (MEME motif format file), 
     calculate similarities between all motifs in file.
@@ -3066,7 +3067,7 @@ def calc_tomtom_sim(seq_motifs_db_file, out_folder):
 
     output_tomtom_sim_results(motif_ids_dic, pair2sim_dic, tomtom_sim_out, header=True)
 
-    motif_pair2sim_dic = read_in_tomtom_sim_results(tomtom_sim_out)
+    motif_pair2sim_dic = read_in_tomtom_sim_results(tomtom_sim_out, motif_sim_cap=motif_sim_cap)
 
     return motif_pair2sim_dic
 

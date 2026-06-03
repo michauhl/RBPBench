@@ -1,3 +1,11 @@
+MEME version 5
+
+ALPHABET= ACGT
+
+strands: +
+
+Background letter frequencies
+A 0.250000 C 0.250000 G 0.250000 T 0.250000
 
 MOTIF M00700_2.00 ZFR
 letter-probability matrix: alength= 4 w= 10 nsites= 20 E= 0

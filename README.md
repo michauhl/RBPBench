@@ -1108,7 +1108,7 @@ letter-probability matrix: alength= 4 w= 4 nsites= 20 E= 0
 0.0 0.0 0.0 1.0
 ```
 
-The header part is optional for RBPBench (default background letter frequencies can be defined via `--fimo-ntf-mode` or supplied via `--fimo-ntf-file`). A motif block needs to start with the line `MOTIF`. The following `motif_id` string is used as the motif ID in RBPBench. After the `letter-probability matrix ..` line (format details [here](https://meme-suite.org/meme/doc/meme-format.html#min_motif_pspm)), the actual nucleotide probabilities are given (each line for one position, with the order: `A C G T`).
+The header part is mostly optional for RBPBench (except for modes `rbpbench enmo` and `rbpbench nemo`!). Default background letter frequencies can be defined via `--fimo-ntf-mode` or supplied via `--fimo-ntf-file`. A motif block needs to start with the line `MOTIF`. The following `motif_id` string is used as the motif ID in RBPBench. After the `letter-probability matrix ..` line (format details [here](https://meme-suite.org/meme/doc/meme-format.html#min_motif_pspm)), the actual nucleotide probabilities are given (each line for one position, with the order: `A C G T`).
 
 
 #### Custom motif database
@@ -1169,7 +1169,7 @@ rbpbench search --in input_sites.bed --genome hg38.fa --out test_cisbp_rna_searc
 ```
 Here we also filter the input sequence motifs by length to allow only motifs of length 6 or 7 nt to be included in the search.
 
-The MEME motif database file (given via `--custom-db-meme`) should be in plain text format. Here a header section (optional) is followed by any number of motif blocks. An example for two simple motifs (`ACGT`, `TGCA`) without the header and two motif blocks:
+The MEME motif database file (given via `--custom-db-meme`) should be in plain text format. Here a header section (optional except for `rbpbench nemo` and `rbpbench enmo`) is followed by any number of motif blocks. An example for two simple motifs (`ACGT`, `TGCA`) without the header and two motif blocks:
 
 ```
 MOTIF motif1 rbp1

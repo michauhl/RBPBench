@@ -2903,7 +2903,7 @@ def setup_argument_parser():
                    dest="bg_user_incl_bed",
                    type=str,
                    metavar='str',
-                   help = "Supply BED regions file (6-column format) to define from which regions to extract background sites. Make sure that regions are compatible with --in sites (genomic or transcript). By default, representative transcript regions for all genes from --gtf are used for this. Note that if extraction of needed number of background sites from --bg-incl-bed fails, all transcripts will be used in second try (or define which to use with --tr-list). Also note that --ada-sampling only applies to interally generated list of regions")
+                   help = "Supply BED regions file (6-column format) to define from which regions to extract background sites. Make sure that regions are compatible with --in sites (genomic or transcript). By default, representative transcript regions for all genes from --gtf are used for this. Note that if extraction of needed number of background sites from --bg-incl-bed fails, all transcripts will be used in second try (or define which to use with --tr-list). Also note that --ada-sampling only applies to internally generated list of regions")
     p_em.add_argument("--bg-ada-sampling",
                    dest="bg_adaptive_sampling",
                    default = False,
@@ -17974,6 +17974,51 @@ def main_enmo(args):
     benchlib_path = os.path.dirname(benchlib.__file__)
     db_path = benchlib_path + "/content"
 
+
+    """
+    Output folders + files.
+
+    """
+    if not os.path.exists(args.out_folder):
+        os.makedirs(args.out_folder)
+
+    f1_sites_bed = args.out_folder + "/in_sites.filtered.tmp.bed"
+    filtered_sites_bed = args.out_folder + "/in_sites.filtered.bed"
+    filtered_sites_fa = args.out_folder + "/in_sites.filtered.fa"
+    seq_motifs_meme = args.out_folder + "/seq_motifs.meme"
+    str_motifs_cm = args.out_folder + "/str_motifs.cm"
+    fimo_res_tsv = args.out_folder + "/fimo_results.tsv"
+    cmsearch_res_txt = args.out_folder + "/cmsearch_results.txt"
+
+    chr_len_file = args.out_folder + "/" + "reference_lengths.out"
+    mrna_regions_bed = args.out_folder + "/mrna_regions.bed"
+
+    tr_seqs_fa = args.out_folder + "/transcript_sequences.fa"
+    bg_excl_bed = args.out_folder + "/background_excluded_regions.bed"
+    bg_incl_bed = args.out_folder + "/background_included_regions.bed"
+    bg_shuffle_in_bed = args.out_folder + "/" + "background_shuffle_in.bed"
+
+    # con_res_out_tsv = args.out_folder + "/contingency_table_results.tsv"
+    settings_file = args.out_folder + "/settings.rbpbench_enmo.out"
+
+    # Motif enrichment stats table.
+    enmo_stats_out = args.out_folder + "/motif_enrichment_stats.tsv"
+
+    # Motif co-ooccurrence stats table.
+    cooc_stats_out = args.out_folder + "/motif_cooc_stats.tsv"
+
+    # Temp files.
+    # random_id = uuid.uuid1()
+    # tmp_out_bed = args.out_folder + "/" + str(random_id) + ".filtered_in.bed"
+    cmstat_tmp_out = args.out_folder + "/cmstat_out.tmp.txt"
+
+    # Delete if existing folder.
+    if os.path.exists(fimo_res_tsv):
+        os.remove(fimo_res_tsv)
+    if os.path.exists(cmsearch_res_txt):
+        os.remove(cmsearch_res_txt)
+
+
     """
     FIMO nt frequencies.
 
@@ -18018,7 +18063,7 @@ def main_enmo(args):
         if os.path.exists(seq_motifs_db_file):
             print("Calculate motif similarities for supplied custom motif database ... ")
             motif_pair2sim_dic = benchlib.calc_tomtom_sim(seq_motifs_db_file, args.out_folder,
-                                                          motif_sim_cap=args.motif_sim_cap)
+                                                          motif_sim_cap=args.motif_sim_cap)  # alamo
         args.custom_db_id = benchlib.remove_special_chars_from_str(args.custom_db_id)
         assert args.custom_db_id, "empty string after removing special chars from --custom-db-id. Please provide alphanumeric string for custom motif database ID (- or _ are okay as well)"
         motif_db_str = args.custom_db_id
@@ -18093,49 +18138,6 @@ def main_enmo(args):
                                                           empty_check=True)
         for motif_id in str_motif_blocks_dic:
             assert motif_id in id2name_dic, "Covariance model accession ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
-
-    """
-    Output folders + files.
-
-    """
-    if not os.path.exists(args.out_folder):
-        os.makedirs(args.out_folder)
-
-    f1_sites_bed = args.out_folder + "/in_sites.filtered.tmp.bed"
-    filtered_sites_bed = args.out_folder + "/in_sites.filtered.bed"
-    filtered_sites_fa = args.out_folder + "/in_sites.filtered.fa"
-    seq_motifs_meme = args.out_folder + "/seq_motifs.meme"
-    str_motifs_cm = args.out_folder + "/str_motifs.cm"
-    fimo_res_tsv = args.out_folder + "/fimo_results.tsv"
-    cmsearch_res_txt = args.out_folder + "/cmsearch_results.txt"
-
-    chr_len_file = args.out_folder + "/" + "reference_lengths.out"
-    mrna_regions_bed = args.out_folder + "/mrna_regions.bed"
-
-    tr_seqs_fa = args.out_folder + "/transcript_sequences.fa"
-    bg_excl_bed = args.out_folder + "/background_excluded_regions.bed"
-    bg_incl_bed = args.out_folder + "/background_included_regions.bed"
-    bg_shuffle_in_bed = args.out_folder + "/" + "background_shuffle_in.bed"
-
-    # con_res_out_tsv = args.out_folder + "/contingency_table_results.tsv"
-    settings_file = args.out_folder + "/settings.rbpbench_enmo.out"
-
-    # Motif enrichment stats table.
-    enmo_stats_out = args.out_folder + "/motif_enrichment_stats.tsv"
-
-    # Motif co-ooccurrence stats table.
-    cooc_stats_out = args.out_folder + "/motif_cooc_stats.tsv"
-
-    # Temp files.
-    # random_id = uuid.uuid1()
-    # tmp_out_bed = args.out_folder + "/" + str(random_id) + ".filtered_in.bed"
-    cmstat_tmp_out = args.out_folder + "/cmstat_out.tmp.txt"
-
-    # Delete if existing folder.
-    if os.path.exists(fimo_res_tsv):
-        os.remove(fimo_res_tsv)
-    if os.path.exists(cmsearch_res_txt):
-        os.remove(cmsearch_res_txt)
 
 
     """
@@ -20337,6 +20339,46 @@ def main_nemo(args):
     benchlib_path = os.path.dirname(benchlib.__file__)
     db_path = benchlib_path + "/content"
 
+
+    """
+    Output folders + files.
+
+    """
+    if not os.path.exists(args.out_folder):
+        os.makedirs(args.out_folder)
+
+    f1_sites_bed = args.out_folder + "/in_sites.filtered.tmp.bed"
+    filtered_sites_bed = args.out_folder + "/in_sites.filtered.bed"
+    filtered_sites_fa = args.out_folder + "/in_sites.filtered.fa"
+    seq_motifs_meme = args.out_folder + "/seq_motifs.meme"
+    str_motifs_cm = args.out_folder + "/str_motifs.cm"
+    fimo_res_tsv = args.out_folder + "/fimo_results.tsv"
+    cmsearch_res_txt = args.out_folder + "/cmsearch_results.txt"
+
+    chr_len_file = args.out_folder + "/" + "reference_lengths.out"
+    mrna_regions_bed = args.out_folder + "/mrna_regions.bed"
+
+    tr_seqs_fa = args.out_folder + "/transcript_sequences.fa"
+    bg_excl_bed = args.out_folder + "/background_excluded_regions.bed"
+    bg_incl_bed = args.out_folder + "/background_included_regions.bed"
+    bg_shuffle_in_bed = args.out_folder + "/" + "background_shuffle_in.bed"
+
+    settings_file = args.out_folder + "/settings.rbpbench_nemo.out"
+
+    # Motif enrichment stats table.
+    nemo_stats_out = args.out_folder + "/motif_enrichment_stats.tsv"
+    # Motif co-ooccurrence stats table.
+    cooc_stats_out = args.out_folder + "/motif_cooc_stats.tsv"
+
+    cmstat_tmp_out = args.out_folder + "/cmstat_out.tmp.txt"
+
+    # Delete if existing folder.
+    if os.path.exists(fimo_res_tsv):
+        os.remove(fimo_res_tsv)
+    if os.path.exists(cmsearch_res_txt):
+        os.remove(cmsearch_res_txt)
+
+
     """
     FIMO nt frequencies.
 
@@ -20456,44 +20498,6 @@ def main_nemo(args):
                                                           empty_check=True)
         for motif_id in str_motif_blocks_dic:
             assert motif_id in id2name_dic, "Covariance model accession ID \"%s\" not found in prior mapping. Please contact developers!" %(motif_id)
-
-    """
-    Output folders + files.
-
-    """
-    if not os.path.exists(args.out_folder):
-        os.makedirs(args.out_folder)
-
-    f1_sites_bed = args.out_folder + "/in_sites.filtered.tmp.bed"
-    filtered_sites_bed = args.out_folder + "/in_sites.filtered.bed"
-    filtered_sites_fa = args.out_folder + "/in_sites.filtered.fa"
-    seq_motifs_meme = args.out_folder + "/seq_motifs.meme"
-    str_motifs_cm = args.out_folder + "/str_motifs.cm"
-    fimo_res_tsv = args.out_folder + "/fimo_results.tsv"
-    cmsearch_res_txt = args.out_folder + "/cmsearch_results.txt"
-
-    chr_len_file = args.out_folder + "/" + "reference_lengths.out"
-    mrna_regions_bed = args.out_folder + "/mrna_regions.bed"
-
-    tr_seqs_fa = args.out_folder + "/transcript_sequences.fa"
-    bg_excl_bed = args.out_folder + "/background_excluded_regions.bed"
-    bg_incl_bed = args.out_folder + "/background_included_regions.bed"
-    bg_shuffle_in_bed = args.out_folder + "/" + "background_shuffle_in.bed"
-
-    settings_file = args.out_folder + "/settings.rbpbench_nemo.out"
-
-    # Motif enrichment stats table.
-    nemo_stats_out = args.out_folder + "/motif_enrichment_stats.tsv"
-    # Motif co-ooccurrence stats table.
-    cooc_stats_out = args.out_folder + "/motif_cooc_stats.tsv"
-
-    cmstat_tmp_out = args.out_folder + "/cmstat_out.tmp.txt"
-
-    # Delete if existing folder.
-    if os.path.exists(fimo_res_tsv):
-        os.remove(fimo_res_tsv)
-    if os.path.exists(cmsearch_res_txt):
-        os.remove(cmsearch_res_txt)
 
 
     """
