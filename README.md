@@ -249,7 +249,7 @@ the CLIP-seq peak region. We can see that SLBP has the lowest p-value here,
 as expected (assuming that the region score is to some extent indicative of binding site quality 
 or binding affinity), showing that the statistic can be useful e.g. to check for 
 dataset quality, or for co-enriched RBP motifs. Region scores can be further taken advantage of by comparing k-mer distributions 
-of top and bottom scoring input regions ([details](#comparing-top-scoring-and-bottom-scoring-sites-via-k-mer-distribution), plus **Fig. 4a** example).
+of top and bottom scoring input regions ([details](#comparing-top-scoring-and-bottom-scoring-sites-via-k-mer-distribution), plus **Fig. 5a** example).
 **Fig. 3c** shows the GO term enrichment analysis results.
 As expected for SLBP, we can see many chromatin related terms in the top GO terms (more on GOA settings [here](#go-term-analysis)).
 **Fig. 3d** again depicts the mRNA region coverage profile, this time for SLBP (see **Fig. 1e** for PUM2 profile). 
