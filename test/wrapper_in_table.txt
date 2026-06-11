@@ -1,0 +1,6 @@
+PUM1	clipper_idr	K562_eclip	PUM1_K562_IDR_peaks.bed
+PUM2	clipper_idr	K562_eclip	PUM2_K562_IDR_peaks.bed
+RBFOX2	clipper_idr	K562_eclip	RBFOX2_K562_IDR_peaks.bed
+RBFOX2	clipper_idr	HepG2_eclip	RBFOX2_HepG2_IDR_peaks.bed
+QKI	clipper_idr	K562_eclip	QKI_K562_IDR_peaks.bed
+QKI	clipper_idr	HepG2_eclip	QKI_HepG2_IDR_peaks.bed

@@ -1577,12 +1577,12 @@ by RBPBench (%s, rbpbench con):
 
     mdtext += "\n&nbsp;\n&nbsp;\n"
     mdtext += "\nColumn IDs have the following meanings: "
-    mdtext += "**Dataset ID** -> dataset ID (input or control), sites provided via --in (input) and --ctrl-in (control), "
-    mdtext += '**# sites** -> number of genomic sites in dataset, '
-    mdtext += "**Mean length** -> mean site length in dataset, "
-    mdtext += "**Median length** -> median site length in dataset, "
-    mdtext += "**Min length** -> minimum site length in dataset, "
-    mdtext += "**Max length** -> maximum site length in dataset." + "\n"
+    mdtext += "**Dataset ID** &rarr; dataset ID (input or control), sites provided via --in (input) and --ctrl-in (control), "
+    mdtext += '**# sites** &rarr; number of genomic sites in dataset, '
+    mdtext += "**Mean length** &rarr; mean site length in dataset, "
+    mdtext += "**Median length** &rarr; median site length in dataset, "
+    mdtext += "**Min length** &rarr; minimum site length in dataset, "
+    mdtext += "**Max length** &rarr; maximum site length in dataset." + "\n"
     mdtext += "\n&nbsp;\n"
 
 
@@ -14596,16 +14596,16 @@ by RBPBench (%s, rbpbench goa):
         
         mdtext += "\n&nbsp;\n&nbsp;\n"
         mdtext += "\nColumn IDs have the following meanings: "
-        mdtext += "**GO** -> gene ontology (GO) ID, "
-        mdtext += "**Term** -> GO term / name, "
-        mdtext += "**Class** -> GO term class (biological_process, molecular_function, or cellular_component), "
-        mdtext += "**p-value** -> multiple testing corrected (BH) p-value, "
-        mdtext += "**[e,p]** -> e: enriched, i.e., GO term with significantly higher concentration, p: purified, GO term with significantly lower concentration), "
-        mdtext += "**Depth** -> depth / level of GO term in GO hierarchy (the higher number, the more specific), "
-        mdtext += "**# child** -> number of GO term children, "
-        mdtext += "**# genes** -> number of genes associated with GO term, "
-        mdtext += "**# study** -> number of genes in study (i.e., target genes), "
-        mdtext += "**% genes** -> percentage of study genes associated with GO term." + "\n"
+        mdtext += "**GO** &rarr; gene ontology (GO) ID, "
+        mdtext += "**Term** &rarr; GO term / name, "
+        mdtext += "**Class** &rarr; GO term class (biological_process, molecular_function, or cellular_component), "
+        mdtext += "**p-value** &rarr; multiple testing corrected (BH) p-value, "
+        mdtext += "**[e,p]** &rarr; e: enriched, i.e., GO term with significantly higher concentration, p: purified, GO term with significantly lower concentration), "
+        mdtext += "**Depth** &rarr; depth / level of GO term in GO hierarchy (the higher number, the more specific), "
+        mdtext += "**# child** &rarr; number of GO term children, "
+        mdtext += "**# genes** &rarr; number of genes associated with GO term, "
+        mdtext += "**# study** &rarr; number of genes in study (i.e., target genes), "
+        mdtext += "**% genes** &rarr; percentage of study genes associated with GO term." + "\n"
         mdtext += "\n&nbsp;\n"
 
     else:
@@ -15179,18 +15179,18 @@ Considered exon-intron border region = +/- %i nt relative to border.
 
         mdtext += "\n&nbsp;\n&nbsp;\n"
         mdtext += "\nColumn IDs have the following meanings: "
-        mdtext += "**Dataset ID** -> Dataset ID for input dataset with following format: %s, " %(dataset_id_format)
-        mdtext += '**# input regions** -> number of considered input regions from input dataset, '
-        mdtext += '**% exon regions** -> % of input regions overlapping with exon regions (== exonic regions), '
-        mdtext += '**% intron regions** -> % of input regions overlapping with intron regions (== intronic regions), '
-        mdtext += '**%% us intron border** -> %% of intronic regions closer to intron upstream borders + within first %i nt of intron, ' %(ib_len)
-        mdtext += '**%% ds intron border** -> %% of intronic regions closer to intron downstream borders + within first %i nt of intron, ' %(ib_len)
-        mdtext += '**%% distant us intron** -> %% of intronic regions closer to intron upstream borders and > %i nt away from intron borders, ' %(ib_len)
-        mdtext += '**%% distant ds intron** -> %% of intronic regions closer to intron downstream borders and > %i nt away from intron borders, ' %(ib_len)
-        mdtext += '**%% exon-intron border** -> %% of input regions overlapping with exon-intron borders (+/- %i nt of exon-intron borders). ' %(eib_len)
-        mdtext += "**% first exon** -> % of input regions overlapping with transcript first exons, "
-        mdtext += '**% last exon** -> % of input regions overlapping with transcript last exons, '
-        mdtext += '**% single exon** -> % of input regions overlapping with single exon transcripts. '
+        mdtext += "**Dataset ID** &rarr; Dataset ID for input dataset with following format: %s, " %(dataset_id_format)
+        mdtext += '**# input regions** &rarr; number of considered input regions from input dataset, '
+        mdtext += '**% exon regions** &rarr; % of input regions overlapping with exon regions (== exonic regions), '
+        mdtext += '**% intron regions** &rarr; % of input regions overlapping with intron regions (== intronic regions), '
+        mdtext += '**%% us intron border** &rarr; %% of intronic regions closer to intron upstream borders + within first %i nt of intron, ' %(ib_len)
+        mdtext += '**%% ds intron border** &rarr; %% of intronic regions closer to intron downstream borders + within first %i nt of intron, ' %(ib_len)
+        mdtext += '**%% distant us intron** &rarr; %% of intronic regions closer to intron upstream borders and > %i nt away from intron borders, ' %(ib_len)
+        mdtext += '**%% distant ds intron** &rarr; %% of intronic regions closer to intron downstream borders and > %i nt away from intron borders, ' %(ib_len)
+        mdtext += '**%% exon-intron border** &rarr; %% of input regions overlapping with exon-intron borders (+/- %i nt of exon-intron borders). ' %(eib_len)
+        mdtext += "**% first exon** &rarr; % of input regions overlapping with transcript first exons, "
+        mdtext += '**% last exon** &rarr; % of input regions overlapping with transcript last exons, '
+        mdtext += '**% single exon** &rarr; % of input regions overlapping with single exon transcripts. '
         mdtext += "**NOTE** that for upstream/downstream intron end overlaps, the input region is always assigned "
         mdtext += "to the closest intron border (based on distance between input region center position and intron ends), "
         mdtext += "independent of intron length (i.e., intron length can also be < %i nt)." %(ib_len)
@@ -15238,17 +15238,17 @@ Considered exon-intron border region = +/- %i nt relative to border.
 The closer two datasets (i.e., the dots representing them), the more similar the datasets are w.r.t. their exon-intron overlap statistics.
 Hover box shows: 
 dataset ID (bold-faced, format: %s), 
-**Input regions** -> \# of dataset regions,
-**Exon** -> %% of input regions overlapping with exon regions (== exonic regions),
-**Intron** -> %% of input regions overlapping with intron regions (== intronic regions),
-**US intron border** -> %% of intronic regions closer to intron upstream borders + within first %i nt of intron,
-**DS intron border** -> %% of intronic regions closer to intron downstream borders + within first %i nt of intron,
-**US distant intron** -> %% of intronic regions closer to intron upstream borders and > %i nt away from intron borders,
-**DS distant intron** -> %% of intronic regions closer to intron downstream borders and > %i nt away from intron borders,
-**Exon-intron border** -> %% of input regions overlapping with exon-intron borders (+/- %i nt of exon-intron borders),
-**First exon** -> %% of input regions overlapping with transcript first exons,
-**Last exon** -> %% of input regions overlapping with transcript last exons,
-**Single exon** -> %% of input regions overlapping with single exon transcripts.
+**Input regions** &rarr; \# of dataset regions,
+**Exon** &rarr; %% of input regions overlapping with exon regions (== exonic regions),
+**Intron** &rarr; %% of input regions overlapping with intron regions (== intronic regions),
+**US intron border** &rarr; %% of intronic regions closer to intron upstream borders + within first %i nt of intron,
+**DS intron border** &rarr; %% of intronic regions closer to intron downstream borders + within first %i nt of intron,
+**US distant intron** &rarr; %% of intronic regions closer to intron upstream borders and > %i nt away from intron borders,
+**DS distant intron** &rarr; %% of intronic regions closer to intron downstream borders and > %i nt away from intron borders,
+**Exon-intron border** &rarr; %% of input regions overlapping with exon-intron borders (+/- %i nt of exon-intron borders),
+**First exon** &rarr; %% of input regions overlapping with transcript first exons,
+**Last exon** &rarr; %% of input regions overlapping with transcript last exons,
+**Single exon** &rarr; %% of input regions overlapping with single exon transcripts.
 **NOTE** that for upstream/downstream intron end overlaps, the input region is always assigned
 to the closest intron border (based on distance between input region center position and intron ends),
 independent of intron length (i.e., intron length can also be < %i nt).
@@ -15298,9 +15298,9 @@ that %s-scoring regions are more likely to contain RBP motif hits.
 (i.e., they result in p-values of 1.0).
 Likewise, the p-value becomes non-informative if most or all input regions have RBP motif hits (i.e., very high hit region percentages).
 For p-value interpretation, two test **effect sizes** are given (RBC ES: rank-biserial correlation effect size, CL ES: common language effect size).
-RBC ES: range -1 to +1, 0 -> no effect, +1 -> all scores in hit regions > non-hit regions. -1 -> all scores in hit regions < non-hit regions. 
-CL ES: range 0 to +1. Probability that a random score from hit region group exceeds one from non-hit region. 0.5 -> no effect, > 0.5 
--> hit region scores tend to be higher, < 0.5 -> hit region scores tend to be lower.
+RBC ES: range -1 to +1, 0 &rarr; no effect, +1 &rarr; all scores in hit regions > non-hit regions. -1 &rarr; all scores in hit regions < non-hit regions. 
+CL ES: range 0 to +1. Probability that a random score from hit region group exceeds one from non-hit region. 0.5 &rarr; no effect, > 0.5 
+&rarr; hit region scores tend to be higher, < 0.5 &rarr; hit region scores tend to be lower.
 By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
 
 """ %(wrs_mode_info1, wrs_mode_info2)
@@ -15351,14 +15351,14 @@ By default, BED genomic regions input file column 5 is used as the score column 
         
         mdtext += "\n&nbsp;\n&nbsp;\n"
         mdtext += "\nColumn IDs have the following meanings: "
-        mdtext += "**Dataset ID** -> Dataset ID with following format: %s, " %(dataset_id_format)
-        mdtext += '**# regions** -> number of input genomic regions in dataset (after filtering and optional extension), '
-        mdtext += '**# hit regions** -> number of input genomic regions with motif hits (after filtering and optional extension), '
-        mdtext += '**% hit regions** -> percentage of motif hit regions over all regions (i.e., how many input regions contain >= 1 RBP motif hit), '
-        mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
-        mdtext += '**RBC ES** -> rank-biserial correlation effect size calculated from test statistic, '
-        mdtext += '**CL ES** -> common language effect size calculated from test statistic, '
-        mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
+        mdtext += "**Dataset ID** &rarr; Dataset ID with following format: %s, " %(dataset_id_format)
+        mdtext += '**# regions** &rarr; number of input genomic regions in dataset (after filtering and optional extension), '
+        mdtext += '**# hit regions** &rarr; number of input genomic regions with motif hits (after filtering and optional extension), '
+        mdtext += '**% hit regions** &rarr; percentage of motif hit regions over all regions (i.e., how many input regions contain >= 1 RBP motif hit), '
+        mdtext += '**# motif hits** &rarr; number of unique motif hits in input regions (removed double counts), '
+        mdtext += '**RBC ES** &rarr; rank-biserial correlation effect size calculated from test statistic, '
+        mdtext += '**CL ES** &rarr; common language effect size calculated from test statistic, '
+        mdtext += '**p-value** &rarr; Wilcoxon rank-sum test p-value.' + "\n"
         mdtext += "\n&nbsp;\n"
 
 
@@ -15384,9 +15384,9 @@ that %s-scoring regions are more likely to contain regex hits.
 **NOTE** that if scores associated to input genomic regions are all the same, p-values become meaningless 
 (i.e., they result in p-values of 1.0).
 For p-value interpretation, two test **effect sizes** are given (RBC ES: rank-biserial correlation effect size, CL ES: common language effect size).
-RBC ES: range -1 to +1, 0 -> no effect, +1 -> all scores in hit regions > non-hit regions. -1 -> all scores in hit regions < non-hit regions. 
-CL ES: range 0 to +1. Probability that a random score from hit region group exceeds one from non-hit region. 0.5 -> no effect, > 0.5 
--> hit region scores tend to be higher, < 0.5 -> hit region scores tend to be lower.
+RBC ES: range -1 to +1, 0 &rarr; no effect, +1 &rarr; all scores in hit regions > non-hit regions. -1 &rarr; all scores in hit regions < non-hit regions. 
+CL ES: range 0 to +1. Probability that a random score from hit region group exceeds one from non-hit region. 0.5 &rarr; no effect, > 0.5 
+&rarr; hit region scores tend to be higher, < 0.5 &rarr; hit region scores tend to be lower.
 By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
 
 """ %(args.regex, wrs_mode_info1, wrs_mode_info2)
@@ -15445,14 +15445,14 @@ By default, BED genomic regions input file column 5 is used as the score column 
 
         mdtext += "\n&nbsp;\n&nbsp;\n"
         mdtext += "\nColumn IDs have the following meanings: "
-        mdtext += "**Dataset ID** -> Dataset ID with following format: %s, " %(dataset_id_format)
-        mdtext += '**# regions** -> number of input genomic regions in dataset (after filtering and optional extension), '
-        mdtext += '**# hit regions** -> number of input genomic regions with regex hits (after filtering and optional extension), '
-        mdtext += '**% hit regions** -> percentage of regex hit regions over all regions (i.e., how many input regions contain >= 1 regex motif hit), '
-        mdtext += '**# regex hits** -> number of unique regex motif hits in input regions (removed double counts), '
-        mdtext += '**RBC ES** -> rank-biserial correlation effect size calculated from test statistic, '
-        mdtext += '**CL ES** -> common language effect size calculated from test statistic, '
-        mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
+        mdtext += "**Dataset ID** &rarr; Dataset ID with following format: %s, " %(dataset_id_format)
+        mdtext += '**# regions** &rarr; number of input genomic regions in dataset (after filtering and optional extension), '
+        mdtext += '**# hit regions** &rarr; number of input genomic regions with regex hits (after filtering and optional extension), '
+        mdtext += '**% hit regions** &rarr; percentage of regex hit regions over all regions (i.e., how many input regions contain >= 1 regex motif hit), '
+        mdtext += '**# regex hits** &rarr; number of unique regex motif hits in input regions (removed double counts), '
+        mdtext += '**RBC ES** &rarr; rank-biserial correlation effect size calculated from test statistic, '
+        mdtext += '**CL ES** &rarr; common language effect size calculated from test statistic, '
+        mdtext += '**p-value** &rarr; Wilcoxon rank-sum test p-value.' + "\n"
         mdtext += "\n&nbsp;\n"
 
 
@@ -15532,16 +15532,16 @@ between regex and RBP motif(s) for each dataset.
         mdtext += """
 
 Column IDs have the following meanings: 
-**Dataset ID** -> Dataset ID with following format: %s,
-**contingency table** -> contingency table of co-occurrence counts (i.e., number of genomic regions with/without shared regex + RBP motif hits), 
+**Dataset ID** &rarr; Dataset ID with following format: %s,
+**contingency table** &rarr; contingency table of co-occurrence counts (i.e., number of genomic regions with/without shared regex + RBP motif hits), 
 with format [[A, B], [C, D]], where 
 A: regex AND RBP, 
 B: NOT regex AND RBP
 C: regex AND NOT RBP
 D: NOT regex AND NOT RBP. 
-**avg min distance** -> Mean minimum distance of regex and RBP motif hits (mean over all regions containing regex + RBP motif hits).
-**%s close hits** -> Over all regions containing regex and RBP motif hit pairs, percentage of regions where regex + RBP motif hits are within %i nt distance (set via --max-motif-dist).
-**p-value** -> Fisher's exact test p-value (calculated based on contingency table).
+**avg min distance** &rarr; Mean minimum distance of regex and RBP motif hits (mean over all regions containing regex + RBP motif hits).
+**%s close hits** &rarr; Over all regions containing regex and RBP motif hit pairs, percentage of regions where regex + RBP motif hits are within %i nt distance (set via --max-motif-dist).
+**p-value** &rarr; Fisher's exact test p-value (calculated based on contingency table).
 
 &nbsp;
 
@@ -15555,7 +15555,7 @@ D: NOT regex AND NOT RBP.
 
     if seq_feat_ll:
 
-        comp_info = "Mono-nucleotide contents (A, C, G, T) are used to calculate sequence complexity (change via --seq-comp-k). Equal A,C,G,T contents result in a complexity value of 1.0, while, e.g., an AA content of 100.0% results in a complexity of 0.0."
+        comp_info = "Mono-nucleotide contents (A, C, G, T) are used to calculate sequence complexity (change via --seq-comp-k). Equal A,C,G,T contents result in a complexity value of 1.0, while, e.g., an A content of 100.0% results in a complexity of 0.0."
         if args.seq_comp_k == 2:
             comp_info = "Di-nucleotide contents (AA, AC, ..., TG, TT) are used to calculate sequence complexity (change via --seq-comp-k). Equal AA,AC,... contents result in a complexity value of 1.0, while, e.g., an AA content of 100.0% results in a complexity of 0.0."
 
@@ -15628,18 +15628,18 @@ Percentages of mono- and di-nucleotide contents (AC, AG, AT, CG, CT, GT) are giv
         mdtext += """
 
 Column IDs have the following meanings: 
-**Dataset ID** -> Dataset ID with following format: %s,
-**%% A** -> percentage of A nucleotides in input regions,
-**%% C** -> percentage of C nucleotides in input regions,
-**%% G** -> percentage of G nucleotides in input regions,
-**%% T** -> percentage of T nucleotides in input regions,
-**%% AC** -> AC content percentage in input regions,
-**%% AG** -> AG content percentage in input regions,
-**%% AT** -> AT content percentage in input regions,
-**%% CG** -> CG content percentage in input regions,
-**%% CT** -> CT content percentage in input regions,
-**%% GT** -> GT content percentage in input regions,
-**Mean complexity** -> Mean sequence complexity (Shannon entropy) of input regions. 
+**Dataset ID** &rarr; Dataset ID with following format: %s,
+**%% A** &rarr; percentage of A nucleotides in input regions,
+**%% C** &rarr; percentage of C nucleotides in input regions,
+**%% G** &rarr; percentage of G nucleotides in input regions,
+**%% T** &rarr; percentage of T nucleotides in input regions,
+**%% AC** &rarr; AC content percentage in input regions,
+**%% AG** &rarr; AG content percentage in input regions,
+**%% AT** &rarr; AT content percentage in input regions,
+**%% CG** &rarr; CG content percentage in input regions,
+**%% CT** &rarr; CT content percentage in input regions,
+**%% GT** &rarr; GT content percentage in input regions,
+**Mean complexity** &rarr; Mean sequence complexity (Shannon entropy) of input regions. 
 %s
 
 &nbsp;
@@ -15797,13 +15797,13 @@ while low percentage k-mers likely should also have low affinity to the RBP.
 Hover box content:
 Dataset ID (bold-faced, format: %s),
 sorted k-mer site percentages, 
-**Present k-mer %%** -> percentage of all possible k-mers present in the dataset.
-**Average k-mer %%** -> mean site percentage of all k-mers present in the dataset.
-**# regions** -> number of input regions (i.e., sequences) in dataset.
-**Median length** -> median length of input regions.
-**Mean length** -> mean length of input regions.
-**Min length** -> minimum input region length.
-**Max length** -> maximum input region length.
+**Present k-mer %%** &rarr; percentage of all possible k-mers present in the dataset.
+**Average k-mer %%** &rarr; mean site percentage of all k-mers present in the dataset.
+**# regions** &rarr; number of input regions (i.e., sequences) in dataset.
+**Median length** &rarr; median length of input regions.
+**Mean length** &rarr; mean length of input regions.
+**Min length** &rarr; minimum input region length.
+**Max length** &rarr; maximum input region length.
 
 &nbsp;
 
@@ -15834,8 +15834,8 @@ evenly distributed over the dataset sequences, and thus should be more important
 The average CV (mean over all single k-mer CVs) is used for coloring.
 **Hover box content:**
 dataset ID (bold-faced, format: %s),
-single k-mer CVs -> single k-mer CVs sorted by ascending CV (for k-mer sizes > 2 only top and bottom %i CVs are shown),
-Average CV -> average CV ratio of the dataset.
+single k-mer CVs &rarr; single k-mer CVs sorted by ascending CV (for k-mer sizes > 2 only top and bottom %i CVs are shown),
+Average CV &rarr; average CV ratio of the dataset.
 
 &nbsp;
 
@@ -16277,13 +16277,13 @@ been removed already.
 
         mdtext += "\n&nbsp;\n&nbsp;\n"
         mdtext += "\nColumn IDs have the following meanings: "
-        mdtext += "**Dataset ID** -> Dataset ID for input dataset with following format: %s, " %(dataset_id_format)
-        mdtext += '**# input regions** -> number of considered input regions from input dataset, '
-        mdtext += "**% outside genes** -> percentage of input regions located outside of gene regions, "
-        mdtext += '**% inside promoters** -> percentage of input regions overlapping with promoter regions, '
+        mdtext += "**Dataset ID** &rarr; Dataset ID for input dataset with following format: %s, " %(dataset_id_format)
+        mdtext += '**# input regions** &rarr; number of considered input regions from input dataset, '
+        mdtext += "**% outside genes** &rarr; percentage of input regions located outside of gene regions, "
+        mdtext += '**% inside promoters** &rarr; percentage of input regions overlapping with promoter regions, '
         if args.add_annot_bed:
-            mdtext += "**% " + args.add_annot_id + "** -> percentage of input regions" + add_annot_not_ol + 'overlapping with additionally provided regions (via --add-annot-bed, ID: "' + args.add_annot_id + '"), '
-        mdtext += '**% input regions** -> percentage of input regions overlapping or not overlapping with region annotations.'  + "\n"
+            mdtext += "**% " + args.add_annot_id + "** &rarr; percentage of input regions" + add_annot_not_ol + 'overlapping with additionally provided regions (via --add-annot-bed, ID: "' + args.add_annot_id + '"), '
+        mdtext += '**% input regions** &rarr; percentage of input regions overlapping or not overlapping with region annotations.'  + "\n"
         mdtext += "\n&nbsp;\n"
 
 
@@ -16387,16 +16387,16 @@ been removed already.
             
             mdtext += "\n&nbsp;\n&nbsp;\n"
             mdtext += "\nColumn IDs have the following meanings: "
-            mdtext += "**GO** -> gene ontology (GO) ID, "
-            mdtext += "**Term** -> GO term / name, "
-            mdtext += "**Class** -> GO term class (biological_process, molecular_function, or cellular_component), "
-            mdtext += "**p-value** -> multiple testing corrected (BH) p-value, "
-            mdtext += "**[e,p]** -> e: enriched, i.e., GO term with significantly higher concentration, p: purified, GO term with significantly lower concentration), "
-            mdtext += "**Depth** -> depth / level of GO term in GO hierarchy (the higher number, the more specific), "
-            mdtext += "**# child** -> number of GO term children, "
-            mdtext += "**# genes** -> number of genes associated with GO term, "
-            mdtext += "**# study** -> number of genes in study (i.e., target genes), "
-            mdtext += "**% genes** -> percentage of study genes associated with GO term." + "\n"
+            mdtext += "**GO** &rarr; gene ontology (GO) ID, "
+            mdtext += "**Term** &rarr; GO term / name, "
+            mdtext += "**Class** &rarr; GO term class (biological_process, molecular_function, or cellular_component), "
+            mdtext += "**p-value** &rarr; multiple testing corrected (BH) p-value, "
+            mdtext += "**[e,p]** &rarr; e: enriched, i.e., GO term with significantly higher concentration, p: purified, GO term with significantly lower concentration), "
+            mdtext += "**Depth** &rarr; depth / level of GO term in GO hierarchy (the higher number, the more specific), "
+            mdtext += "**# child** &rarr; number of GO term children, "
+            mdtext += "**# genes** &rarr; number of genes associated with GO term, "
+            mdtext += "**# study** &rarr; number of genes in study (i.e., target genes), "
+            mdtext += "**% genes** &rarr; percentage of study genes associated with GO term." + "\n"
             mdtext += "\n&nbsp;\n"
 
         else:
@@ -17400,16 +17400,16 @@ For full motif results list regardless of significance, see *motif_enrichment_st
 
     mdtext += "\n&nbsp;\n&nbsp;\n"
     mdtext += "\nColumn IDs have the following meanings: "
-    mdtext += "**RBP ID** -> RBP ID belonging to motif ID, "
-    mdtext += "**Motif ID** -> motif ID, "
-    mdtext += "**Motif plot** -> visualization of motif (sequence logo for sequence motifs, otherwise -), "
-    mdtext += '**# in hits** -> number of motif hits in input sites, '
-    mdtext += '**# bg hits** -> number of motif hits in background sites, '
-    mdtext += '**# in** -> number of input sites with motif hits, '
-    mdtext += '**# not in** -> number of input sites without motif hits, '
-    mdtext += '**# bg** -> number of background sites with motif hits, '
-    mdtext += '**# not bg** -> number of background sites without motif hits, '
-    mdtext += '**p-value** -> Fisher exact test p-value (corrected).' + "\n"
+    mdtext += "**RBP ID** &rarr; RBP ID belonging to motif ID, "
+    mdtext += "**Motif ID** &rarr; motif ID, "
+    mdtext += "**Motif plot** &rarr; visualization of motif (sequence logo for sequence motifs, otherwise -), "
+    mdtext += '**# in hits** &rarr; number of motif hits in input sites, '
+    mdtext += '**# bg hits** &rarr; number of motif hits in background sites, '
+    mdtext += '**# in** &rarr; number of input sites with motif hits, '
+    mdtext += '**# not in** &rarr; number of input sites without motif hits, '
+    mdtext += '**# bg** &rarr; number of background sites with motif hits, '
+    mdtext += '**# not bg** &rarr; number of background sites without motif hits, '
+    mdtext += '**p-value** &rarr; Fisher exact test p-value (corrected).' + "\n"
     mdtext += "\n&nbsp;\n"
 
 
@@ -17589,16 +17589,16 @@ Motifs closer together in the plot translates to higher motif similarity.
 Motif similarity is measured using TOMTOM's euclidean distance measure between motif position weight matrices (PWMs), and motif similarity vectors are used for 2-dimensional PCA.
 Only motifs that are sequence motifs and that are significantly %s (from upper table, sequence logos shown as well) are used for the comparison.
 Hover box: 
-**Motif** -> Motif ID.
-**Consensus** -> Consensus sequence derived from PWM (PWM sequence logo can be found in upper motif enrichment statistics table).
-**Counts** -> contingency table of motif occurrence counts (i.e., number of input and background regions with/without motif hits), 
+**Motif** &rarr; Motif ID.
+**Consensus** &rarr; Consensus sequence derived from PWM (PWM sequence logo can be found in upper motif enrichment statistics table).
+**Counts** &rarr; contingency table of motif occurrence counts (i.e., number of input and background regions with/without motif hits), 
 with format [[A, B], [C, D]], where 
 A: # input regions with motif hits, 
 B: # input regions without motif hits,
 C: # background regions with motif hits,
 D: # background regions without motif hits.
-**p-value** -> Fisher exact test p-value (corrected) derived from contingency table.
-**-log10(p-value)** -> -log10 p-value of Fisher exact test p-value, used for coloring of motifs.
+**p-value** &rarr; Fisher exact test p-value (corrected) derived from contingency table.
+**-log10(p-value)** &rarr; -log10 p-value of Fisher exact test p-value, used for coloring of motifs.
 
 &nbsp;
 
@@ -18250,24 +18250,24 @@ Wilcoxon rank-sum (WRS) test is applied.
 
     mdtext += "\n&nbsp;\n&nbsp;\n"
     mdtext += "\nColumn IDs have the following meanings: "
-    mdtext += "**RBP ID** -> RBP ID belonging to motif ID, "
-    mdtext += "**Motif ID** -> motif ID, "
-    mdtext += "**Motif plot** -> visualization of motif (sequence logo for sequence motifs, otherwise -), "
-    mdtext += '**# in hits** -> number of motif hits in input sites, '
-    mdtext += '**# bg hits** -> number of motif hits in background sites, '
-    mdtext += '**# in** -> number of input sites with motif hits, '
-    mdtext += '**# not in** -> number of input sites without motif hits, '
-    mdtext += '**# bg** -> number of background sites with motif hits, '
-    mdtext += '**# not bg** -> number of background sites without motif hits, '
-    mdtext += '**avg in dist** -> average distance of motif hits to center of input sites (positive value indicates motifs tend to be located upstream of input sites, whereas negative value indicates downstream), '
-    # mdtext += '**max in dist** -> distance position with maximum count (i.e., where most motif hit centers lie relative to input site centers), '
-    # mdtext += '**# max in dist** -> number of motif hits at distance position with maximum count for input sites, '
-    mdtext += '**avg bg dist** -> average distance of motif hits to center of background sites (positive value indicates motifs tend to be located upstream of input sites, whereas negative value indicates downstream), '
-    # mdtext += '**max bg dist** -> distance position with maximum count (i.e., where most motif hit centers lie relative to background site centers), '
-    # mdtext += '**# max bg dist** -> number of motif hits at distance position with maximum count for background sites, '
-    mdtext += '**WRS p-value** -> Wilcoxon rank-sum test p-value to test for significantly different counts in up- and downstream context regions.' + "\n"
-    mdtext += "**Motif distance plot** -> visualization of motif distance plot (counting motif hit center occurrences relative to input site centers), "
-    mdtext += '**p-value** -> Fisher exact test p-value (corrected).' + "\n"
+    mdtext += "**RBP ID** &rarr; RBP ID belonging to motif ID, "
+    mdtext += "**Motif ID** &rarr; motif ID, "
+    mdtext += "**Motif plot** &rarr; visualization of motif (sequence logo for sequence motifs, otherwise -), "
+    mdtext += '**# in hits** &rarr; number of motif hits in input sites, '
+    mdtext += '**# bg hits** &rarr; number of motif hits in background sites, '
+    mdtext += '**# in** &rarr; number of input sites with motif hits, '
+    mdtext += '**# not in** &rarr; number of input sites without motif hits, '
+    mdtext += '**# bg** &rarr; number of background sites with motif hits, '
+    mdtext += '**# not bg** &rarr; number of background sites without motif hits, '
+    mdtext += '**avg in dist** &rarr; average distance of motif hits to center of input sites (positive value indicates motifs tend to be located upstream of input sites, whereas negative value indicates downstream), '
+    # mdtext += '**max in dist** &rarr; distance position with maximum count (i.e., where most motif hit centers lie relative to input site centers), '
+    # mdtext += '**# max in dist** &rarr; number of motif hits at distance position with maximum count for input sites, '
+    mdtext += '**avg bg dist** &rarr; average distance of motif hits to center of background sites (positive value indicates motifs tend to be located upstream of input sites, whereas negative value indicates downstream), '
+    # mdtext += '**max bg dist** &rarr; distance position with maximum count (i.e., where most motif hit centers lie relative to background site centers), '
+    # mdtext += '**# max bg dist** &rarr; number of motif hits at distance position with maximum count for background sites, '
+    mdtext += '**WRS p-value** &rarr; Wilcoxon rank-sum test p-value to test for significantly different counts in up- and downstream context regions.' + "\n"
+    mdtext += "**Motif distance plot** &rarr; visualization of motif distance plot (counting motif hit center occurrences relative to input site centers), "
+    mdtext += '**p-value** &rarr; Fisher exact test p-value (corrected).' + "\n"
     mdtext += "\n&nbsp;\n"
 
 
@@ -18447,16 +18447,16 @@ Motifs closer together in the plot translates to higher motif similarity.
 Motif similarity is measured using TOMTOM's euclidean distance measure between motif position weight matrices (PWMs), and motif similarity vectors are used for 2-dimensional PCA.
 Only motifs that are sequence motifs and that are significantly %s (from upper table, sequence logos shown as well) are used for the comparison.
 Hover box: 
-**Motif** -> Motif ID.
-**Consensus** -> Consensus sequence derived from PWM (PWM sequence logo can be found in upper motif enrichment statistics table).
-**Counts** -> contingency table of motif occurrence counts (i.e., number of input and background regions with/without motif hits), 
+**Motif** &rarr; Motif ID.
+**Consensus** &rarr; Consensus sequence derived from PWM (PWM sequence logo can be found in upper motif enrichment statistics table).
+**Counts** &rarr; contingency table of motif occurrence counts (i.e., number of input and background regions with/without motif hits), 
 with format [[A, B], [C, D]], where 
 A: # input regions with motif hits, 
 B: # input regions without motif hits,
 C: # background regions with motif hits,
 D: # background regions without motif hits.
-**p-value** -> Fisher exact test p-value (corrected) derived from contingency table.
-**-log10(p-value)** -> -log10 p-value of Fisher exact test p-value, used for coloring of motifs.
+**p-value** &rarr; Fisher exact test p-value (corrected) derived from contingency table.
+**-log10(p-value)** &rarr; -log10 p-value of Fisher exact test p-value, used for coloring of motifs.
 
 &nbsp;
 
@@ -18560,18 +18560,18 @@ Motifs closer together in the plot translates to higher motif similarity.
 Motif similarity is measured using TOMTOM's euclidean distance measure between motif position weight matrices (PWMs), and motif similarity vectors are used for 2-dimensional PCA.
 Only motifs that are sequence motifs and that are significantly %s (from upper table, also containing their sequence logos) are used for the comparison.
 Hover box: 
-**Motif** -> Motif ID.
-**Consensus** -> Consensus sequence derived from PWM (PWM sequence logo can be found in upper motif enrichment statistics table).
-**Counts** -> contingency table of motif occurrence counts (i.e., number of input and background regions with/without motif hits), 
+**Motif** &rarr; Motif ID.
+**Consensus** &rarr; Consensus sequence derived from PWM (PWM sequence logo can be found in upper motif enrichment statistics table).
+**Counts** &rarr; contingency table of motif occurrence counts (i.e., number of input and background regions with/without motif hits), 
 with format [[A, B], [C, D]], where 
 A: # input regions with motif hits, 
 B: # input regions without motif hits,
 C: # background regions with motif hits,
 D: # background regions without motif hits.
-**p-value** -> Fisher exact test p-value (corrected) derived from contingency table.
-**WRS p-value (upstream)** -> Wilcoxon rank-sum test p-value to test for significantly higher counts in upstream context regions.
-**WRS p-value (downstream)** -> Wilcoxon rank-sum test p-value to test for significantly higher counts in downstream context regions.
-**-log10(WRS p-value)** -> -log10 p-value of Wilcoxon rank-sum test p-value used for coloring of motifs. 
+**p-value** &rarr; Fisher exact test p-value (corrected) derived from contingency table.
+**WRS p-value (upstream)** &rarr; Wilcoxon rank-sum test p-value to test for significantly higher counts in upstream context regions.
+**WRS p-value (downstream)** &rarr; Wilcoxon rank-sum test p-value to test for significantly higher counts in downstream context regions.
+**-log10(WRS p-value)** &rarr; -log10 p-value of Wilcoxon rank-sum test p-value used for coloring of motifs. 
 The smaller of the two WRS p-values is taken. A negative value indicates upstream preference, a positive value downstream preference.
 
 &nbsp;
@@ -20408,7 +20408,7 @@ No top similar/closest sequences to highlighted sequence \"%s\" computed since h
 
         mdtext += """
 
-**Figure:** Comparison of input sequences, using their k-mer hit profiles (3-dimensional PCA, k = %i -> # of k-mers = %i) as features, 
+**Figure:** Comparison of input sequences, using their k-mer hit profiles (3-dimensional PCA, k = %i &rarr; # of k-mers = %i) as features, 
 to show similarities of input sequences based on type and amount of occurring k-mers (points close to each other have similar k-mer profiles).
 Note that only sequences with valid k-mers are included in the plot (# of sequences with profiles: %i).
 %s
@@ -20894,9 +20894,9 @@ that %s-scoring regions are more likely to contain motif hits of the respective 
 (i.e., they result in p-values of 1.0).
 Likewise, the p-value becomes non-informative if most or all input regions have RBP motif hits (i.e., very high hit region percentages).
 For p-value interpretation, two test **effect sizes** are given (RBC ES: rank-biserial correlation effect size, CL ES: common language effect size).
-RBC ES: range -1 to +1, 0 -> no effect, +1 -> all scores in hit regions > non-hit regions. -1 -> all scores in hit regions < non-hit regions. 
-CL ES: range 0 to +1. Probability that a random score from hit region group exceeds one from non-hit region. 0.5 -> no effect, > 0.5 
--> hit region scores tend to be higher, < 0.5 -> hit region scores tend to be lower.
+RBC ES: range -1 to +1, 0 &rarr; no effect, +1 &rarr; all scores in hit regions > non-hit regions. -1 &rarr; all scores in hit regions < non-hit regions. 
+CL ES: range 0 to +1. Probability that a random score from hit region group exceeds one from non-hit region. 0.5 &rarr; no effect, > 0.5 
+&rarr; hit region scores tend to be higher, < 0.5 &rarr; hit region scores tend to be lower.
 By default, BED genomic regions input file column 5 is used as the score column (change with --bed-score-col).
 %s
 
@@ -20961,13 +20961,13 @@ By default, BED genomic regions input file column 5 is used as the score column 
 
         mdtext += "\n&nbsp;\n&nbsp;\n"
         mdtext += "\nColumn IDs have the following meanings: "
-        mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
-        mdtext += '**# hit regions** -> number of input genomic regions with motif hits (after filtering and optional extension), '
-        mdtext += '**% hit regions** -> percentage of hit regions over all regions (i.e., how many input regions contain >= 1 RBP binding motif), '
-        mdtext += '**# motif hits** -> number of unique motif hits in input regions (removed double counts), '
-        mdtext += '**RBC ES** -> rank-biserial correlation effect size calculated from test statistic, '
-        mdtext += '**CL ES** -> common language effect size calculated from test statistic, '
-        mdtext += '**p-value** -> Wilcoxon rank-sum test p-value.' + "\n"
+        mdtext += "**RBP ID** &rarr; RBP ID from database or user-defined (typically RBP name), "
+        mdtext += '**# hit regions** &rarr; number of input genomic regions with motif hits (after filtering and optional extension), '
+        mdtext += '**% hit regions** &rarr; percentage of hit regions over all regions (i.e., how many input regions contain >= 1 RBP binding motif), '
+        mdtext += '**# motif hits** &rarr; number of unique motif hits in input regions (removed double counts), '
+        mdtext += '**RBC ES** &rarr; rank-biserial correlation effect size calculated from test statistic, '
+        mdtext += '**CL ES** &rarr; common language effect size calculated from test statistic, '
+        mdtext += '**p-value** &rarr; Wilcoxon rank-sum test p-value.' + "\n"
         mdtext += "\n&nbsp;\n"
 
 
@@ -21342,12 +21342,12 @@ by default top and bottom are split in half), or change k (--kmer-plot-k).
 
 **Figure:** k-mer variations in input sequences. Set k-mer size = %i (change via --kmer-plot-k).
 x-axis: k-mer variation, describing the variation of the k-mer over all input sequences (see coefficient of variation (CV) in hover box description).
-y-axis: site %%, i.e., percentage of sequences where k-mer is present.
+y-axis: site %%, i.e., percentage of input sequences where k-mer is present.
 By default, the correlation (Spearman correlation coefficient) between k-mer ratios and input region scores is used for coloring 
 (alternatively use --kmer-var-color-mode to change to k-mer %%).
 Hover box:
-**k-mer** -> observed k-mer.
-**Variation** -> coefficient of variation (CV) of the k-mer ratios over all input site sequences. 
+**k-mer** &rarr; observed k-mer.
+**Variation** &rarr; coefficient of variation (CV) of the k-mer ratios over all input site sequences. 
 CV is defined as the standard deviation of ratios divided by the mean ratio. 
 Thus, the lower the CV of a k-mer, the more even its ratios over the input site sequences.
 A CV of 0.0 for a given k-mer would mean that all sequences have exactly the same ratio of the k-mer.
@@ -21355,10 +21355,10 @@ In general, we can assume that k-mers with high CVs are less important for the R
 they do not occur evenly over the dataset. In contrast, k-mers with low CVs are more 
 evenly distributed over the dataset sequences, and thus should be more important for RBP binding 
 (assuming a sufficient dataset quality + an affinity of the RBP towards specific k-mer sequences). 
-**k-mer #** -> number of times k-mer appears in all input sequences.
-**k-mer %%** -> percentage of k-mer over all k-mers in the input sequences.
-**Site %%** -> percentage of sequences where k-mer is present.
-**Correlation** -> correlation coefficient (Spearman) between k-mer ratios and input region scores.
+**k-mer #** &rarr; number of times k-mer appears in all input sequences.
+**k-mer %%** &rarr; percentage of k-mer over all k-mers in the input sequences.
+**Site %%** &rarr; percentage of input sequences where k-mer is present.
+**Correlation** &rarr; correlation coefficient (Spearman) between k-mer ratios and input region scores.
 
 &nbsp;
 
@@ -21758,9 +21758,9 @@ been removed already. Number of considered input regions = %i.
 
         mdtext += "\n&nbsp;\n&nbsp;\n"
         mdtext += "\nColumn IDs have the following meanings: "
-        mdtext += "**Region annotation** -> Type of genomic regions overlapping or not overlapping (depending on specified setting) with input regions, "
-        mdtext += "**# input regions** -> number of input regions overlapping or not overlapping with region annotations, "
-        mdtext += '**% input regions** -> percentage of input regions overlapping or not overlapping with region annotations.'  + "\n"
+        mdtext += "**Region annotation** &rarr; Type of genomic regions overlapping or not overlapping (depending on specified setting) with input regions, "
+        mdtext += "**# input regions** &rarr; number of input regions overlapping or not overlapping with region annotations, "
+        mdtext += '**% input regions** &rarr; percentage of input regions overlapping or not overlapping with region annotations.'  + "\n"
         mdtext += "\n&nbsp;\n"
 
     """
@@ -21909,18 +21909,18 @@ mRNA region lengths used for plotting are derived from the occupied mRNA regions
 \# input regions overlapping with exon regions = %i.
 \# input regions overlapping with intron regions = %i.
 Categories:
-**Exon regions** -> %% of input regions overlapping with exon regions (== exonic regions).
-**Intron regions** -> %% of input regions overlapping with intron regions (== intronic regions).
-**%i nt us intron regions** -> %% of intronic regions closer to intron upstream borders + within first %i nt of intron (\# %i).
-**%i nt ds intron regions** -> %% of intronic regions closer to intron downstream borders + within first %i nt of intron (\# %i).
-**> %i nt us intron regions** -> %% of intronic regions closer to intron upstream borders and > %i nt away from intron borders (\# %i).
-**> %i nt ds intron regions** -> %% of intronic regions closer to intron downstream borders and > %i nt away from intron borders (\# %i).
-**+/- 50 nt exon intron borders** -> %% of input regions overlapping with exon-intron borders 
+**Exon regions** &rarr; %% of input regions overlapping with exon regions (== exonic regions).
+**Intron regions** &rarr; %% of input regions overlapping with intron regions (== intronic regions).
+**%i nt us intron regions** &rarr; %% of intronic regions closer to intron upstream borders + within first %i nt of intron (\# %i).
+**%i nt ds intron regions** &rarr; %% of intronic regions closer to intron downstream borders + within first %i nt of intron (\# %i).
+**> %i nt us intron regions** &rarr; %% of intronic regions closer to intron upstream borders and > %i nt away from intron borders (\# %i).
+**> %i nt ds intron regions** &rarr; %% of intronic regions closer to intron downstream borders and > %i nt away from intron borders (\# %i).
+**+/- 50 nt exon intron borders** &rarr; %% of input regions overlapping with exon-intron borders 
 (50 nt upstream and downstream of exon-intron borders) (\# %i).
-**Exon regions** -> %% of input regions overlapping with exon regions (== exonic regions).
-**First exon** -> %% of input regions overlapping with transcript first exons (\# %i).
-**Last exon** -> %% of input regions overlapping with transcript last exons (\# %i).
-**Single exon** -> %% of input regions overlapping with single exon transcripts (\# %i).
+**Exon regions** &rarr; %% of input regions overlapping with exon regions (== exonic regions).
+**First exon** &rarr; %% of input regions overlapping with transcript first exons (\# %i).
+**Last exon** &rarr; %% of input regions overlapping with transcript last exons (\# %i).
+**Single exon** &rarr; %% of input regions overlapping with single exon transcripts (\# %i).
 **NOTE** that for upstream/downstream intron end overlaps, the input region is always assigned 
 to the closest intron border (based on distance between input region center position and intron ends), 
 independent of intron length (i.e., intron length can also be < %i nt).
@@ -22123,11 +22123,11 @@ In case of an empty table, try to lower --rbp-min-pair-count (current value: %i)
 
         mdtext += "\n&nbsp;\n&nbsp;\n"
         mdtext += "\nColumn IDs have the following meanings: "
-        mdtext += "**Set RBP ID** -> set RBP ID (specified via --set-rbp-id), "
-        mdtext += "**Other RBP ID** -> other RBP ID that set RBP ID is compared to, "
-        mdtext += "**Pair count** -> number of input regions with motif hits from both RBP IDs (minimum pair count to be reported: %i (set by --rbp-min-pair-count)), " %(args.rbp_min_pair_count)
-        mdtext += '**# near motifs** -> ' + "number of other RBP ID motifs within specified distance (--motif-distance-plot-range %i) of the centered set RBP ID motifs, " %(args.motif_distance_plot_range)
-        mdtext += '**# distant motifs** -> ' + "number of other RBP ID motifs outside specified distance (--motif-distance-plot-range %i) of the centered set RBP ID motifs." %(args.motif_distance_plot_range)
+        mdtext += "**Set RBP ID** &rarr; set RBP ID (specified via --set-rbp-id), "
+        mdtext += "**Other RBP ID** &rarr; other RBP ID that set RBP ID is compared to, "
+        mdtext += "**Pair count** &rarr; number of input regions with motif hits from both RBP IDs (minimum pair count to be reported: %i (set by --rbp-min-pair-count)), " %(args.rbp_min_pair_count)
+        mdtext += '**# near motifs**' + " &rarr; number of other RBP ID motifs within specified distance (--motif-distance-plot-range %i) of the centered set RBP ID motifs, " %(args.motif_distance_plot_range)
+        mdtext += '**# distant motifs**' + " &rarr; number of other RBP ID motifs outside specified distance (--motif-distance-plot-range %i) of the centered set RBP ID motifs." %(args.motif_distance_plot_range)
         # mdtext += "\n"
         mdtext += "\n&nbsp;\n"
 
@@ -22317,12 +22317,12 @@ In case of an empty table, try to lower --motif-min-pair-count (current value: %
 
             mdtext += "\n&nbsp;\n&nbsp;\n"
             mdtext += "\nColumn IDs have the following meanings: "
-            mdtext += "**Motif ID** -> motif ID (motif belonging to set RBP), "
-            mdtext += "**Other motif ID** -> other motif ID that set RBP motif ID is compared to, "
-            mdtext += "**Other motif ID plot** -> other motif ID sequence motif plot (if motif is sequence motif), "
-            mdtext += "**Pair count** -> number of input regions containing hits for both motifs (minimum pair count to be reported: %i (set by --motif-min-pair-count)), " %(args.motif_min_pair_count)
-            mdtext += '**# near motifs** -> ' + "number of other motifs within specified distance (--motif-distance-plot-range %i) of the centered motif belonging to set RBP, " %(args.motif_distance_plot_range)
-            mdtext += '**# distant motifs** -> ' + "number of other motifs outside specified distance (--motif-distance-plot-range %i) of the centered motif belonging to set RBP." %(args.motif_distance_plot_range)
+            mdtext += "**Motif ID** &rarr; motif ID (motif belonging to set RBP), "
+            mdtext += "**Other motif ID** &rarr; other motif ID that set RBP motif ID is compared to, "
+            mdtext += "**Other motif ID plot** &rarr; other motif ID sequence motif plot (if motif is sequence motif), "
+            mdtext += "**Pair count** &rarr; number of input regions containing hits for both motifs (minimum pair count to be reported: %i (set by --motif-min-pair-count)), " %(args.motif_min_pair_count)
+            mdtext += '**# near motifs**' + " &rarr; number of other motifs within specified distance (--motif-distance-plot-range %i) of the centered motif belonging to set RBP, " %(args.motif_distance_plot_range)
+            mdtext += '**# distant motifs**' + " &rarr; number of other motifs outside specified distance (--motif-distance-plot-range %i) of the centered motif belonging to set RBP." %(args.motif_distance_plot_range)
             # mdtext += "\n"
             mdtext += "\n&nbsp;\n"
 
@@ -22469,16 +22469,16 @@ Only motifs with a pair count of >= %i appear in the plot.
             
             mdtext += "\n&nbsp;\n&nbsp;\n"
             mdtext += "\nColumn IDs have the following meanings: "
-            mdtext += "**GO** -> gene ontology (GO) ID, "
-            mdtext += "**Term** -> GO term / name, "
-            mdtext += "**Class** -> GO term class (biological_process, molecular_function, or cellular_component), "
-            mdtext += "**p-value** -> multiple testing corrected (BH) p-value, "
-            mdtext += "**[e,p]** -> e: enriched, i.e., GO term with significantly higher concentration, p: purified, GO term with significantly lower concentration), "
-            mdtext += "**Depth** -> depth / level of GO term in GO hierarchy (the higher number, the more specific), "
-            mdtext += "**# child** -> number of GO term children, "
-            mdtext += "**# genes** -> number of genes associated with GO term, "
-            mdtext += "**# study** -> number of genes in study (i.e., target genes), "
-            mdtext += "**% genes** -> percentage of study genes associated with GO term." + "\n"
+            mdtext += "**GO** &rarr; gene ontology (GO) ID, "
+            mdtext += "**Term** &rarr; GO term / name, "
+            mdtext += "**Class** &rarr; GO term class (biological_process, molecular_function, or cellular_component), "
+            mdtext += "**p-value** &rarr; multiple testing corrected (BH) p-value, "
+            mdtext += "**[e,p]** &rarr; e: enriched, i.e., GO term with significantly higher concentration, p: purified, GO term with significantly lower concentration), "
+            mdtext += "**Depth** &rarr; depth / level of GO term in GO hierarchy (the higher number, the more specific), "
+            mdtext += "**# child** &rarr; number of GO term children, "
+            mdtext += "**# genes** &rarr; number of genes associated with GO term, "
+            mdtext += "**# study** &rarr; number of genes in study (i.e., target genes), "
+            mdtext += "**% genes** &rarr; percentage of study genes associated with GO term." + "\n"
             mdtext += "\n&nbsp;\n"
 
         else:
@@ -25198,10 +25198,10 @@ and respective number of motif hits found in supplied %s regions.
 
     mdtext += "\n&nbsp;\n&nbsp;\n"
     mdtext += "\nColumn IDs have the following meanings: "
-    mdtext += "**RBP ID** -> RBP ID from database or user-defined (typically RBP name), "
-    mdtext += "**Motif ID** -> Motif ID from database or user-defined, "
-    mdtext += "**Motif database** -> Motif database used for search run, "
-    mdtext += '**# motif hits** -> number of unique individual motif hits (i.e., unique hits for motif with motif ID).' + "\n"
+    mdtext += "**RBP ID** &rarr; RBP ID from database or user-defined (typically RBP name), "
+    mdtext += "**Motif ID** &rarr; Motif ID from database or user-defined, "
+    mdtext += "**Motif database** &rarr; Motif database used for search run, "
+    mdtext += '**# motif hits** &rarr; number of unique individual motif hits (i.e., unique hits for motif with motif ID).' + "\n"
     mdtext += "\n&nbsp;\n"
 
     """
@@ -25318,16 +25318,16 @@ and respective number of motif hits found in supplied %s regions.
             
             mdtext += "\n&nbsp;\n&nbsp;\n"
             mdtext += "\nColumn IDs have the following meanings: "
-            mdtext += "**GO** -> gene ontology (GO) ID, "
-            mdtext += "**Term** -> GO term / name, "
-            mdtext += "**Class** -> GO term class (biological_process, molecular_function, or cellular_component), "
-            mdtext += "**p-value** -> multiple testing corrected (BH) p-value, "
-            mdtext += "**[e,p]** -> e: enriched, i.e., GO term with significantly higher concentration, p: purified, GO term with significantly lower concentration), "
-            mdtext += "**Depth** -> depth / level of GO term in GO hierarchy (the higher number, the more specific), "
-            mdtext += "**# child** -> number of GO term children, "
-            mdtext += "**# genes** -> number of genes associated with GO term, "
-            mdtext += "**# study** -> number of genes in study (i.e., target genes), "
-            mdtext += "**% genes** -> percentage of study genes associated with GO term." + "\n"
+            mdtext += "**GO** &rarr; gene ontology (GO) ID, "
+            mdtext += "**Term** &rarr; GO term / name, "
+            mdtext += "**Class** &rarr; GO term class (biological_process, molecular_function, or cellular_component), "
+            mdtext += "**p-value** &rarr; multiple testing corrected (BH) p-value, "
+            mdtext += "**[e,p]** &rarr; e: enriched, i.e., GO term with significantly higher concentration, p: purified, GO term with significantly lower concentration), "
+            mdtext += "**Depth** &rarr; depth / level of GO term in GO hierarchy (the higher number, the more specific), "
+            mdtext += "**# child** &rarr; number of GO term children, "
+            mdtext += "**# genes** &rarr; number of genes associated with GO term, "
+            mdtext += "**# study** &rarr; number of genes in study (i.e., target genes), "
+            mdtext += "**% genes** &rarr; percentage of study genes associated with GO term." + "\n"
             mdtext += "\n&nbsp;\n"
 
         else:
@@ -25966,12 +25966,12 @@ by RBPBench (%s, rbpbench compare):
 
         mdtext += "\n&nbsp;\n&nbsp;\n"
         mdtext += "\nColumn IDs have the following meanings: "
-        mdtext += "**Method ID** -> method ID set for dataset (typically peak calling method ID), "
-        mdtext += '**# regions** -> number of peak regions used for motif search, '
-        mdtext += '**# motif hits** -> number of unique motif hits in peak regions (removed double counts), '
-        mdtext += '**% regions with motifs** -> percentage of peak regions with motif hits, '
-        mdtext += '**% motif nucleotides** -> percentage of unique motif nucleotides over effective peak region size (overlapping regions merged), '
-        mdtext += '**# motif hits per 1000 nt** -> number of motif hits over 1000 nt of called peak region size (overlapping regions NOT merged).' + "\n"
+        mdtext += "**Method ID** &rarr; method ID set for dataset (typically peak calling method ID), "
+        mdtext += '**# regions** &rarr; number of peak regions used for motif search, '
+        mdtext += '**# motif hits** &rarr; number of unique motif hits in peak regions (removed double counts), '
+        mdtext += '**% regions with motifs** &rarr; percentage of peak regions with motif hits, '
+        mdtext += '**% motif nucleotides** &rarr; percentage of unique motif nucleotides over effective peak region size (overlapping regions merged), '
+        mdtext += '**# motif hits per 1000 nt** &rarr; number of motif hits over 1000 nt of called peak region size (overlapping regions NOT merged).' + "\n"
         mdtext += "\n&nbsp;\n"
 
         """
@@ -26080,12 +26080,12 @@ Any given motif hit can either be found only by one method, or be identified by 
 
         mdtext += "\n&nbsp;\n&nbsp;\n"
         mdtext += "\nColumn IDs have the following meanings: "
-        mdtext += "**Data ID** -> data ID set for dataset (typically describing CLIP data, e.g. CLIP method + cell type combination), "
-        mdtext += '**# regions** -> number of peak regions used for motif search, '
-        mdtext += '**# motif hits** -> number of unique motif hits in peak regions (removed double counts), '
-        mdtext += '**% regions with motifs** -> percentage of peak regions with motif hits, '
-        mdtext += '**% motif nucleotides** -> percentage of unique motif nucleotides over effective peak region size (overlapping regions merged), '
-        mdtext += '**# motif hits per 1000 nt** -> number of motif hits over 1000 nt of called peak region size (overlapping regions NOT merged).' + "\n"
+        mdtext += "**Data ID** &rarr; data ID set for dataset (typically describing CLIP data, e.g. CLIP method + cell type combination), "
+        mdtext += '**# regions** &rarr; number of peak regions used for motif search, '
+        mdtext += '**# motif hits** &rarr; number of unique motif hits in peak regions (removed double counts), '
+        mdtext += '**% regions with motifs** &rarr; percentage of peak regions with motif hits, '
+        mdtext += '**% motif nucleotides** &rarr; percentage of unique motif nucleotides over effective peak region size (overlapping regions merged), '
+        mdtext += '**# motif hits per 1000 nt** &rarr; number of motif hits over 1000 nt of called peak region size (overlapping regions NOT merged).' + "\n"
         mdtext += "\n&nbsp;\n"
 
         """

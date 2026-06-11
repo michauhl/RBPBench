@@ -1011,7 +1011,7 @@ def setup_argument_parser():
                    type=int,
                    default=1,
                    choices=[1, 2, 3],
-                   help = "Define how to obtain GO DAG (directed acyclic graph) obo file. 1: download most recent file from internet,  2: use local file,  3: provide file via --goa-obo-file (default: 1)")
+                   help = "Define how to obtain GO DAG (directed acyclic graph) obo file. 1: download most recent file from internet, 2: use local file, 3: provide file via --goa-obo-file (default: 1)")
     p_b.add_argument("--goa-obo-file",
                    dest="goa_obo_file",
                    type=str,

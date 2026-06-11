@@ -91,4 +91,11 @@ rbpbench searchseq --in $genome_fa_path --regex 'TGTA[ACGT]ATA' --out test_searc
 # Custom motif database.
 rbpbench search --in eclip_clipper_idr/PUM2_K562_IDR_peaks.bed --genome $genome_fa_path --out test_cisbp_rna_search_out --rbps ALL --ext 10 --custom-db-meme cisbp_rna_human_rbp_motifs.meme --custom-db-info cisbp_rna_human_rbp_motifs.info.txt --motif-min-len 6 --motif-max-len 7
 
+# Batch wrapper test.
+batch_table_wrapper_rbpbench.py --table wrapper_in_table.txt --ids PUM1_K562_IDR_peaks.bed PUM2_K562_IDR_peaks.bed RBFOX2_K562_IDR_peaks.bed RBFOX2_HepG2_IDR_peaks.bed QKI_K562_IDR_peaks.bed QKI_HepG2_IDR_peaks.bed --paths eclip_clipper_idr/PUM1_K562_IDR_peaks.bed eclip_clipper_idr/PUM2_K562_IDR_peaks.bed eclip_clipper_idr/RBFOX2_K562_IDR_peaks.bed eclip_clipper_idr/RBFOX2_HepG2_IDR_peaks.bed eclip_clipper_idr/QKI_K562_IDR_peaks.bed eclip_clipper_idr/QKI_HepG2_IDR_peaks.bed --genome $genome_fa_path --out batch_wrapper_test_batch_out --ext 10 --regex AATAAA --gtf $gtf_path
+
+# Batch wrapper compare.
+rbpbench compare --in batch_wrapper_test_batch_out --out batch_wrapper_test_compare_out
+
+
 
