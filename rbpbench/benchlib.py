@@ -1330,13 +1330,13 @@ def get_region_dic_stats(region_dic):
 def get_val_dic_stats(val_dic):
     """
     val_dic format:
-    {data_id: score_value}
+    {data_id: [score_value, ...]}
 
     """
     assert val_dic, "val_dic empty"
     val_list = []
-    for data_id, val in val_dic.items():
-        val_list.append(val)
+    for data_id, vals in val_dic.items():
+        val_list.append(vals[0])
     # Get mean, median, min, max.
     mean_val = statistics.mean(val_list)
     median_val = statistics.median(val_list)
@@ -1582,7 +1582,6 @@ by RBPBench (%s, rbpbench con):
     mdtext += "**Mean length** -> mean site length in dataset, "
     mdtext += "**Median length** -> median site length in dataset, "
     mdtext += "**Min length** -> minimum site length in dataset, "
-    mdtext += "**Min length** -> minimum site length in dataset, "
     mdtext += "**Max length** -> maximum site length in dataset." + "\n"
     mdtext += "\n&nbsp;\n"
 
@@ -1615,6 +1614,20 @@ score for each site (i.e., averaged over all site positions).
         ctrl_min = stats_dic["ctrl_phastcons_stats"][3]
         in_max = stats_dic["in_phastcons_stats"][4]
         ctrl_max = stats_dic["ctrl_phastcons_stats"][4]
+        c_in_nan_pos = stats_dic["in_phastcons_nan_stats"][0]
+        c_in_non_nan_pos = stats_dic["in_phastcons_nan_stats"][1]
+        c_in_reg_all_nan = stats_dic["in_phastcons_nan_stats"][2]
+        c_in_total_pos = c_in_nan_pos + c_in_non_nan_pos
+        c_ctrl_nan_pos = stats_dic["ctrl_phastcons_nan_stats"][0]
+        c_ctrl_non_nan_pos = stats_dic["ctrl_phastcons_nan_stats"][1]
+        c_ctrl_reg_all_nan = stats_dic["ctrl_phastcons_nan_stats"][2]
+        c_ctrl_total_pos = c_ctrl_nan_pos + c_ctrl_non_nan_pos
+
+        # NaA percentages.
+        perc_in_nan_sites = (c_in_reg_all_nan / in_c_sites) * 100 if in_c_sites > 0 else 0
+        perc_ctrl_nan_sites = (c_ctrl_reg_all_nan / ctrl_c_sites) * 100 if ctrl_c_sites > 0 else 0
+        perc_in_nan_pos = (c_in_nan_pos / c_in_total_pos) * 100 if c_in_total_pos > 0 else 0
+        perc_ctrl_nan_pos = (c_ctrl_nan_pos / c_ctrl_total_pos) * 100 if c_ctrl_total_pos > 0 else 0
 
         pc_pval = pc_pval_stats[0]
         pc_rbc_es = pc_pval_stats[1]
@@ -1632,15 +1645,20 @@ For each site, the average phastCons score is used (i.e., average over all genom
 Wilcoxon rank-sum test p-value = %s (effect sizes (RBC, CL) = %s, %s).
 Wilcoxon rank-sum test is applied to check for significant differences between input and control site scores.
 %s
+Range & interpretation of phastCons (probability of conservation) scores: from 0 to 1, describing probability that a specific nucleotide belongs to a conserved element.
+Note that NaN scoring genomic positions are excluded from calculating average scores.
  # input sites = %i, # control sites = %i, mean input score = %.2f, mean control score = %.2f,
  # median input score = %.2f, median control score = %.2f,
  # min input score = %.2f, min control score = %.2f,
- # max input score = %.2f, max control score = %.2f.
+ # max input score = %.2f, max control score = %.2f,
+ # NaN input positions = %i (%.2f%%),
+ # NaN control positions = %i (%.2f%%),
+ # input sites with all NaN positions = %i (%.2f%%),
+ # control sites with all NaN positions = %i (%.2f%%).
 
 &nbsp;
 
-""" %(str(pc_pval), str(pc_rbc_es), str(pc_cl_es), pval_info, in_c_sites, ctrl_c_sites, in_mean, ctrl_mean, in_median, ctrl_median, in_min, ctrl_min, in_max, ctrl_max)
-
+""" %(str(pc_pval), str(pc_rbc_es), str(pc_cl_es), pval_info, in_c_sites, ctrl_c_sites, in_mean, ctrl_mean, in_median, ctrl_median, in_min, ctrl_min, in_max, ctrl_max, c_in_nan_pos, perc_in_nan_pos, c_ctrl_nan_pos, perc_ctrl_nan_pos, c_in_reg_all_nan, perc_in_nan_sites, c_ctrl_reg_all_nan, perc_ctrl_nan_sites)
 
 
     """"
@@ -1671,6 +1689,20 @@ score for each site (i.e., averaged over all site positions).
         ctrl_min = stats_dic["ctrl_phylop_stats"][3]
         in_max = stats_dic["in_phylop_stats"][4]
         ctrl_max = stats_dic["ctrl_phylop_stats"][4]
+        c_in_nan_pos = stats_dic["in_phylop_nan_stats"][0]
+        c_in_non_nan_pos = stats_dic["in_phylop_nan_stats"][1]
+        c_in_reg_all_nan = stats_dic["in_phylop_nan_stats"][2]
+        c_in_total_pos = c_in_nan_pos + c_in_non_nan_pos
+        c_ctrl_nan_pos = stats_dic["ctrl_phylop_nan_stats"][0]
+        c_ctrl_non_nan_pos = stats_dic["ctrl_phylop_nan_stats"][1]
+        c_ctrl_reg_all_nan = stats_dic["ctrl_phylop_nan_stats"][2]
+        c_ctrl_total_pos = c_ctrl_nan_pos + c_ctrl_non_nan_pos
+
+        # NaA percentages.
+        perc_in_nan_sites = (c_in_reg_all_nan / in_c_sites) * 100 if in_c_sites > 0 else 0
+        perc_ctrl_nan_sites = (c_ctrl_reg_all_nan / ctrl_c_sites) * 100 if ctrl_c_sites > 0 else 0
+        perc_in_nan_pos = (c_in_nan_pos / c_in_total_pos) * 100 if c_in_total_pos > 0 else 0
+        perc_ctrl_nan_pos = (c_ctrl_nan_pos / c_ctrl_total_pos) * 100 if c_ctrl_total_pos > 0 else 0
 
         pp_pval = pp_pval_stats[0]
         pp_rbc_es = pp_pval_stats[1]
@@ -1688,14 +1720,20 @@ For each site, the average phyloP score is used (i.e., average over all genomic 
 Wilcoxon rank-sum test p-value = %s (effect sizes (RBC, CL) = %s, %s).
 Wilcoxon rank-sum test is applied to check for significant differences between input and control site scores.
 %s
+Range & interpretation of phyloP (phylogenetic p-values) scores: positive scores indicate conservation (slower evolution than expected). The higher the positive number, the more conserved and constrained the base is. Negative scores indicate acceleration or fast-evolving regions (faster than expected). Zero scores indicate neutral evolution.
+Note that NaN scoring genomic positions are excluded from calculating average scores.
  # input sites = %i, # control sites = %i, mean input score = %.2f, mean control score = %.2f,
  # median input score = %.2f, median control score = %.2f,
  # min input score = %.2f, min control score = %.2f,
- # max input score = %.2f, max control score = %.2f.
+ # max input score = %.2f, max control score = %.2f,
+ # NaN input positions = %i (%.2f%%),
+ # NaN control positions = %i (%.2f%%),
+ # input sites with all NaN positions = %i (%.2f%%),
+ # control sites with all NaN positions = %i (%.2f%%).
 
 &nbsp;
 
-""" %(str(pp_pval), str(pp_rbc_es), str(pp_cl_es), pval_info, in_c_sites, ctrl_c_sites, in_mean, ctrl_mean, in_median, ctrl_median, in_min, ctrl_min, in_max, ctrl_max)
+""" %(str(pp_pval), str(pp_rbc_es), str(pp_cl_es), pval_info, in_c_sites, ctrl_c_sites, in_mean, ctrl_mean, in_median, ctrl_median, in_min, ctrl_min, in_max, ctrl_max, c_in_nan_pos, perc_in_nan_pos, c_ctrl_nan_pos, perc_ctrl_nan_pos, c_in_reg_all_nan, perc_in_nan_sites, c_ctrl_reg_all_nan, perc_ctrl_nan_sites)
 
 
     # Convert mdtext to html.
@@ -1856,6 +1894,10 @@ def compare_conservation_scores(args,
     in_regions_stats = get_region_dic_stats(in_regions_dic)
     ctrl_regions_stats = get_region_dic_stats(control_regions_dic)
 
+    stats_dic = {}
+    stats_dic["in_regions_stats"] = in_regions_stats
+    stats_dic["ctrl_regions_stats"] = ctrl_regions_stats
+
     in_reg_avg_phastcons_dic = {}
     in_reg_avg_phylop_dic = {}
     ctrl_reg_avg_phastcons_dic = {}
@@ -1888,6 +1930,7 @@ def compare_conservation_scores(args,
     pc_pval = 1.0
     pp_pval = 1.0
 
+
     """
     PhastCons conservation scores.
 
@@ -1901,6 +1944,13 @@ def compare_conservation_scores(args,
 
         pc_bw_data = pyBigWig.open(pc_bw)
 
+        c_in_nan_pos = 0
+        c_in_non_nan_pos = 0
+        c_ctrl_nan_pos = 0
+        c_ctrl_non_nan_pos = 0
+        c_in_reg_all_nan = 0
+        c_ctrl_reg_all_nan = 0
+
         for reg_id, reg_info in in_regions_dic.items():
 
             chr_id = reg_info[0]
@@ -1910,10 +1960,24 @@ def compare_conservation_scores(args,
             try:
                 # Get conservation scores for the region.
                 scores = pc_bw_data.values(chr_id, start, end, numpy=False)
-                # Convert NaN values to 0.0.
-                scores = [0.0 if np.isnan(s) else s for s in scores]
-                avg_score = statistics.mean(scores) if scores else 0.0
-                in_reg_avg_phastcons_dic[reg_id] = avg_score
+                scores_no_nan = []
+                for s in scores:
+                    if np.isnan(s):
+                        c_in_nan_pos += 1
+                    else:
+                        c_in_non_nan_pos += 1
+                        scores_no_nan.append(s)
+                if scores_no_nan:
+                    avg_score = statistics.mean(scores_no_nan)
+                    in_reg_avg_phastcons_dic[reg_id] = [avg_score, len(scores_no_nan)]
+                else:
+                    c_in_reg_all_nan += 1
+
+                # # Convert NaN values to 0.0.
+                # scores = [0.0 if np.isnan(s) else s for s in scores]
+                # avg_score = statistics.mean(scores) if scores else 0.0
+                # in_reg_avg_phastcons_dic[reg_id] = avg_score
+
             except RuntimeError:
                 print(f"Skipping --in site {chr_id}:{start}-{end} (coordinates not in bigWig)")
 
@@ -1926,24 +1990,48 @@ def compare_conservation_scores(args,
             try:
                 # Get conservation scores for the region.
                 scores = pc_bw_data.values(chr_id, start, end, numpy=False)
-                # Convert NaN values to 0.0.
-                scores = [0.0 if np.isnan(s) else s for s in scores]
-                avg_score = statistics.mean(scores) if scores else 0.0
-                ctrl_reg_avg_phastcons_dic[reg_id] = avg_score
+                scores_no_nan = []
+                for s in scores:
+                    if np.isnan(s):
+                        c_ctrl_nan_pos += 1
+                    else:
+                        c_ctrl_non_nan_pos += 1
+                        scores_no_nan.append(s)
+                if scores_no_nan:
+                    avg_score = statistics.mean(scores_no_nan)
+                    ctrl_reg_avg_phastcons_dic[reg_id] = [avg_score, len(scores_no_nan)]
+                else:
+                    c_ctrl_reg_all_nan += 1
+
             except RuntimeError:
                 print(f"Skipping --ctrl-in site {chr_id}:{start}-{end} (coordinates not in bigWig)")
 
         pc_bw_data.close()
+
+        print("# Non-NaN positions (phastCons) in --in:      %i" %(c_in_non_nan_pos))
+        print("# Non-NaN positions (phastCons) in --ctrl-in: %i" %(c_ctrl_non_nan_pos))
+        print("# NaN positions (phastCons) in --in:          %i" %(c_in_nan_pos))
+        print("# NaN positions (phastCons) in --ctrl-in:     %i" %(c_ctrl_nan_pos))
+        print("# Regions with all NaN in --in:               %i" %(c_in_reg_all_nan))
+        print("# Regions with all NaN in --ctrl-in:          %i" %(c_ctrl_reg_all_nan))
+
+        stats_dic["in_phastcons_nan_stats"] = (c_in_nan_pos, c_in_non_nan_pos, c_in_reg_all_nan, len(in_regions_dic))
+        stats_dic["ctrl_phastcons_nan_stats"] = (c_ctrl_nan_pos, c_ctrl_non_nan_pos, c_ctrl_reg_all_nan, len(control_regions_dic))
 
         # Make violin plot.
         print("Create plot ... ")
 
         in_scores = []
         for reg_id, reg_info in in_regions_dic.items():
-            in_scores.append(in_reg_avg_phastcons_dic[reg_id])
+            if reg_id in in_reg_avg_phastcons_dic:
+                in_scores.append(in_reg_avg_phastcons_dic[reg_id][0])
         control_scores = []
         for reg_id, reg_info in control_regions_dic.items():
-            control_scores.append(ctrl_reg_avg_phastcons_dic[reg_id])
+            if reg_id in ctrl_reg_avg_phastcons_dic:
+                control_scores.append(ctrl_reg_avg_phastcons_dic[reg_id][0])
+
+        assert in_scores, "no valid --in scores found for phastCons"
+        assert control_scores, "no valid --ctrl-in scores found for phastCons"
 
         # Compare distributions.
         stat, pc_pval = mannwhitneyu(in_scores, control_scores, alternative=wrs_alt_hypo)
@@ -1979,6 +2067,13 @@ def compare_conservation_scores(args,
 
         pp_bw_data = pyBigWig.open(pp_bw)
 
+        c_in_nan_pos = 0
+        c_in_non_nan_pos = 0
+        c_ctrl_nan_pos = 0
+        c_ctrl_non_nan_pos = 0
+        c_in_reg_all_nan = 0
+        c_ctrl_reg_all_nan = 0
+
         for reg_id, reg_info in in_regions_dic.items():
 
             chr_id = reg_info[0]
@@ -1988,10 +2083,19 @@ def compare_conservation_scores(args,
             try:
                 # Get conservation scores for the region.
                 scores = pp_bw_data.values(chr_id, start, end, numpy=False)
-                # Convert NaN values to 0.0.
-                scores = [0.0 if np.isnan(s) else s for s in scores]
-                avg_score = statistics.mean(scores) if scores else 0.0
-                in_reg_avg_phylop_dic[reg_id] = avg_score
+                scores_no_nan = []
+                for s in scores:
+                    if np.isnan(s):
+                        c_in_nan_pos += 1
+                    else:
+                        c_in_non_nan_pos += 1
+                        scores_no_nan.append(s)
+                if scores_no_nan:
+                    avg_score = statistics.mean(scores_no_nan)
+                    in_reg_avg_phylop_dic[reg_id] = [avg_score, len(scores_no_nan)]
+                else:
+                    c_in_reg_all_nan += 1
+
             except RuntimeError:
                 print(f"Skipping --in site {chr_id}:{start}-{end} (coordinates not in bigWig)")
 
@@ -2004,24 +2108,48 @@ def compare_conservation_scores(args,
             try:
                 # Get conservation scores for the region.
                 scores = pp_bw_data.values(chr_id, start, end, numpy=False)
-                # Convert NaN values to 0.0.
-                scores = [0.0 if np.isnan(s) else s for s in scores]
-                avg_score = statistics.mean(scores) if scores else 0.0
-                ctrl_reg_avg_phylop_dic[reg_id] = avg_score
+                scores_no_nan = []
+                for s in scores:
+                    if np.isnan(s):
+                        c_ctrl_nan_pos += 1
+                    else:
+                        c_ctrl_non_nan_pos += 1
+                        scores_no_nan.append(s)
+                if scores_no_nan:
+                    avg_score = statistics.mean(scores_no_nan)
+                    ctrl_reg_avg_phylop_dic[reg_id] = [avg_score, len(scores_no_nan)]
+                else:
+                    c_ctrl_reg_all_nan += 1
+                
             except RuntimeError:
                 print(f"Skipping --ctrl-in site {chr_id}:{start}-{end} (coordinates not in bigWig)")
 
         pp_bw_data.close()
+
+        print("# Non-NaN positions (phyloP) in --in:      %i" %(c_in_non_nan_pos))
+        print("# Non-NaN positions (phyloP) in --ctrl-in: %i" %(c_ctrl_non_nan_pos))
+        print("# NaN positions (phyloP) in --in:          %i" %(c_in_nan_pos))
+        print("# NaN positions (phyloP) in --ctrl-in:     %i" %(c_ctrl_nan_pos))
+        print("# Regions with all NaN in --in:            %i" %(c_in_reg_all_nan))
+        print("# Regions with all NaN in --ctrl-in:       %i" %(c_ctrl_reg_all_nan))
+
+        stats_dic["in_phylop_nan_stats"] = (c_in_nan_pos, c_in_non_nan_pos, c_in_reg_all_nan, len(in_regions_dic))
+        stats_dic["ctrl_phylop_nan_stats"] = (c_ctrl_nan_pos, c_ctrl_non_nan_pos, c_ctrl_reg_all_nan, len(control_regions_dic))
 
         # Make violin plot.
         print("Create plot ... ")
 
         in_scores = []
         for reg_id, reg_info in in_regions_dic.items():
-            in_scores.append(in_reg_avg_phylop_dic[reg_id])
+            if reg_id in in_reg_avg_phylop_dic:
+                in_scores.append(in_reg_avg_phylop_dic[reg_id][0])
         control_scores = []
         for reg_id, reg_info in control_regions_dic.items():
-            control_scores.append(ctrl_reg_avg_phylop_dic[reg_id])
+            if reg_id in ctrl_reg_avg_phylop_dic:
+                control_scores.append(ctrl_reg_avg_phylop_dic[reg_id][0])
+
+        assert in_scores, "no valid --in scores found for phyloP"
+        assert control_scores, "no valid --ctrl-in scores found for phyloP"
 
         # Compare distributions.
         stat, pp_pval = mannwhitneyu(in_scores, control_scores, alternative=wrs_alt_hypo)
@@ -2044,10 +2172,6 @@ def compare_conservation_scores(args,
                                   add_pval=True,
                                   plot_title=False,
                                   plot_pdf=args.plot_pdf)
-
-    stats_dic = {}
-    stats_dic["in_regions_stats"] = in_regions_stats
-    stats_dic["ctrl_regions_stats"] = ctrl_regions_stats
 
     pc_pval_stats = False
     pp_pval_stats = False
@@ -2073,7 +2197,6 @@ def compare_conservation_scores(args,
 
     """
 
-    
     print("Create HTML report ... ")
 
     con_generate_html_report(args, stats_dic, benchlib_path,
@@ -2094,33 +2217,47 @@ def compare_conservation_scores(args,
     ctrl_reg_con_sc_out = os.path.join(args.out_folder, ctrl_con_sc_name)
 
     SCOUT = open(in_reg_con_sc_out, "w")
-    SCOUT.write("site_id\tchr_id\tsite_s\tsite_e\tphastcons_sc\tphylop_sc\n")
+    SCOUT.write("site_id\tchr_id\tsite_s\tsite_e\tsite_length\tavg_phastcons_sc\tc_nan_pos_phastcons\tavg_phylop_sc\tc_nan_pos_phylop\n")
 
     for reg_id, reg_info in in_regions_dic.items():
         chr_id = reg_info[0]
         start = reg_info[1]
         end = reg_info[2]
-        avg_phastcons = in_reg_avg_phastcons_dic.get(reg_id, "-")
-        avg_phylop = in_reg_avg_phylop_dic.get(reg_id, "-")
-        avg_phastcons = str(avg_phastcons)
-        avg_phylop = str(avg_phylop)
-        row_str = "%s\t%s\t%s\t%s\t%s\t%s\n" % (reg_id, chr_id, start, end, avg_phastcons, avg_phylop)
+        reg_len = end - start
+        avg_phastcons = "NaN"
+        avg_phylop = "NaN"
+        c_nan_pos_phastcons = str(reg_len)
+        c_nan_pos_phylop = str(reg_len)
+        if reg_id in in_reg_avg_phastcons_dic:
+            avg_phastcons = str(in_reg_avg_phastcons_dic[reg_id][0])
+            c_nan_pos_phastcons = str(reg_len - in_reg_avg_phastcons_dic[reg_id][1])
+        if reg_id in in_reg_avg_phylop_dic:
+            avg_phylop = str(in_reg_avg_phylop_dic[reg_id][0])
+            c_nan_pos_phylop = str(reg_len - in_reg_avg_phylop_dic[reg_id][1])
+        row_str = "%s\t%s\t%i\t%i\t%i\t%s\t%s\t%s\t%s\n" % (reg_id, chr_id, start, end, reg_len, avg_phastcons, c_nan_pos_phastcons, avg_phylop, c_nan_pos_phylop)
         SCOUT.write("%s" % (row_str))
 
     SCOUT.close()
 
     SCOUT = open(ctrl_reg_con_sc_out, "w")
-    SCOUT.write("site_id\tchr_id\tsite_s\tsite_e\tphastcons_sc\tphylop_sc\n")
+    SCOUT.write("site_id\tchr_id\tsite_s\tsite_e\tsite_length\tavg_phastcons_sc\tc_nan_pos_phastcons\tavg_phylop_sc\tc_nan_pos_phylop\n")
 
     for reg_id, reg_info in control_regions_dic.items():
         chr_id = reg_info[0]
         start = reg_info[1]
         end = reg_info[2]
-        avg_phastcons = ctrl_reg_avg_phastcons_dic.get(reg_id, "-")
-        avg_phylop = ctrl_reg_avg_phylop_dic.get(reg_id, "-")
-        avg_phastcons = str(avg_phastcons)
-        avg_phylop = str(avg_phylop)
-        row_str = "%s\t%s\t%s\t%s\t%s\t%s\n" % (reg_id, chr_id, start, end, avg_phastcons, avg_phylop)
+        reg_len = end - start
+        avg_phastcons = "NaN"
+        avg_phylop = "NaN"
+        c_nan_pos_phastcons = str(reg_len)
+        c_nan_pos_phylop = str(reg_len)
+        if reg_id in ctrl_reg_avg_phastcons_dic:
+            avg_phastcons = str(ctrl_reg_avg_phastcons_dic[reg_id][0])
+            c_nan_pos_phastcons = str(reg_len - ctrl_reg_avg_phastcons_dic[reg_id][1])
+        if reg_id in ctrl_reg_avg_phylop_dic:
+            avg_phylop = str(ctrl_reg_avg_phylop_dic[reg_id][0])
+            c_nan_pos_phylop = str(reg_len - ctrl_reg_avg_phylop_dic[reg_id][1])
+        row_str = "%s\t%s\t%i\t%i\t%i\t%s\t%s\t%s\t%s\n" % (reg_id, chr_id, start, end, reg_len, avg_phastcons, c_nan_pos_phastcons, avg_phylop, c_nan_pos_phylop)
         SCOUT.write("%s" % (row_str))
 
     SCOUT.close()
