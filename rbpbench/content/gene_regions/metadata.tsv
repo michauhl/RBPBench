@@ -1,0 +1,7 @@
+species	assembly	source	version	file	comment
+human	hg38	GENCODE	v50	gene_regions.hg38.gencode.v50.bed.gz	original
+human	hg19	GENCODE	v50	gene_regions.hg19.gencode.v50.lifted_from_hg38.bed.gz	lifted_from_hg38
+human	hg18	GENCODE	v50	gene_regions.hg18.gencode.v50.lifted_from_hg38.bed.gz	lifted_from_hg38
+mouse	mm39	GENCODE	vM39	gene_regions.mm39.gencode.vM39.bed.gz	original
+mouse	mm10	GENCODE	vM39	gene_regions.mm10.gencode.vM39.lifted_from_mm39.bed.gz	lifted_from_mm39
+mouse	mm9	GENCODE	vM39	gene_regions.mm9.gencode.vM39.lifted_from_mm39.bed.gz	lifted_from_mm39

@@ -34,10 +34,11 @@ setup(
              'bin/gtf_get_gene_transcripts.py',
              'bin/bed_tr_context_add_avg_con_scores.py',
              'bin/bed_gen_context_add_avg_con_scores.py',
-             'bin/bed_tr_context_add_gene_infos.py'
+             'bin/bed_tr_context_add_gene_infos.py',
+             'bin/bed_guess_assembly.py',
              ],
     packages=['rbpbench'],
-    package_data={'rbpbench': ['content/*', 'content/motif_plots/*']},
+    package_data={'rbpbench': ['content/*', 'content/motif_plots/*', 'content/gene_regions/*']},
     include_package_data=True,
     zip_safe=False,
 )

@@ -8159,6 +8159,7 @@ def output_promoter_regions_to_bed(tid2tio_dic, out_bed,
                                    prom_min_tr_len=False,
                                    prom_mrna_only=False,
                                    prom_both_str=False,
+                                   tr_ids_dic=False,
                                    mrna_biotype_label="protein_coding",
                                    prom_ext_up=1000,
                                    prom_ext_down=100,
@@ -8176,6 +8177,11 @@ def output_promoter_regions_to_bed(tid2tio_dic, out_bed,
     c_out = 0
 
     for tid in tid2tio_dic:
+
+        if tr_ids_dic:
+            if tid not in tr_ids_dic:
+                continue
+
         tio = tid2tio_dic[tid]
         chr_id = tio.chr_id
         tr_pol = tio.tr_pol

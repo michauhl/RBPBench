@@ -99,6 +99,24 @@ def setup_argument_parser():
                    default = False,
                    action = "store_true",
                    help = "Skip transcript IDs provided via --tr-list that are not in --gtf. By default throws an error (default: False)")
+    # Promoter region extraction settings.
+    p.add_argument("--prom-min-tr-len",
+                   dest="prom_min_tr_len",
+                   type=int,
+                   metavar='int',
+                   default=False,
+                   help="Minimum transcript length for promoter region extraction. By default consider all selectedtranscript regions")
+    p.add_argument("--prom-mrna-only",
+                   dest="prom_mrna_only",
+                   default = False,
+                   action = "store_true",
+                   help="Consider only mRNA transcript regions for promoter region extraction")
+    p.add_argument("--prom-ext",
+                   dest="prom_ext_up_down",
+                   type=str,
+                   metavar='str',
+                   default="1000,100",
+                   help="Up- and downstream extension of transcript start site (TSS) to define putative promoter regions, e.g. --prom-ext 500,0 for 500 upstream and 0 downstream extension (default: 1000,100)")
     p.add_argument("--chr-id-style",
                    dest="chr_id_style",
                    type=int,
@@ -130,6 +148,7 @@ if __name__ == '__main__':
     utr3_seqs_fa = os.path.join(args.out_folder, "transcript_seqs.utr3.fa")  # 3'UTR sequences.
     cds_seqs_fa = os.path.join(args.out_folder, "transcript_seqs.cds.fa")  # CDS sequences.
     out_tr_list = os.path.join(args.out_folder, "transcript_infos.tsv")  # Transcript infos table.
+    promoter_regions_bed = os.path.join(args.out_folder, "promoter_regions.bed")
 
     # If transcript list is given.
     tr_ids_dic = {}
@@ -381,6 +400,27 @@ if __name__ == '__main__':
                                tr2gid_dic=tr2gid_dic,  # add gene ID.
                                tr2gn_dic=tr2gn_dic)  # add gene name.
 
+    # Output promoter regions to BED file.
+
+    prom_ext_parts = args.prom_ext_up_down.split(",")
+    c_prom_ext_parts = len(prom_ext_parts)
+    assert c_prom_ext_parts == 2, "invalid --prom-ext argument provided (correct format: --prom-ext 1000,100, i.e., please provide two integers separated by a comma)"
+
+    prom_ext_up = int(prom_ext_parts[0])
+    prom_ext_down = int(prom_ext_parts[1])
+
+    assert benchlib.boundary_check(prom_ext_up, 1, 100000), "set promoter upstream extension expected to be >= 1 and <= 100000"
+    assert benchlib.boundary_check(prom_ext_down, 0, 100000), "set promoter downstream extension expected to be >= 0 and <= 100000"
+
+    print("Output putative promoter regions to BED ... ")
+    benchlib.output_promoter_regions_to_bed(tid2tio_dic, promoter_regions_bed,
+                                    prom_min_tr_len=args.prom_min_tr_len,
+                                    prom_mrna_only=args.prom_mrna_only,
+                                    tr_ids_dic=tr_ids_dic,
+                                    mrna_biotype_label="protein_coding",
+                                    prom_ext_up=prom_ext_up,
+                                    prom_ext_down=prom_ext_down)
+
     # Output mRNA regions.
     print("Output 5'UTR, CDS and 3'UTR sequences to FASTA ... ")
 
@@ -523,6 +563,7 @@ if __name__ == '__main__':
     print("Output FASTA file with CDS sequences:\n%s" %(cds_seqs_fa))
     print("Output FASTA file with 3'UTR sequences:\n%s" %(utr3_seqs_fa))
     print("Output BED file with exon and intron regions:\n%s" %(out_exon_intron_bed))
+    print("Output BED file with promoter regions:\n%s" %(promoter_regions_bed))
     print("# transcript regions output to BED file:", c_out)
     print("Output BED file with transcript regions:\n%s" %(out_tr_bed))
     print("Output BED file with mRNA regions:\n%s" %(mrna_regions_bed))
