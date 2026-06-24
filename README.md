@@ -1,5 +1,5 @@
 <p align="left">
-  <img src="docs/logo.png" width="220">
+  <img src="docs/logo.png" width="240">
 </p>
 
 [![GitHub](https://img.shields.io/github/tag/michauhl/RBPBench.svg)](https://github.com/michauhl/RBPBench)
