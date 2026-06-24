@@ -1,5 +1,5 @@
 <p align="left">
-  <img src="docs/logo.png" width="240">
+  <img src="docs/logo.png" width="220">
 </p>
 
 [![GitHub](https://img.shields.io/github/tag/michauhl/RBPBench.svg)](https://github.com/michauhl/RBPBench)
@@ -1593,6 +1593,7 @@ Various helper scripts are included as well on the command line:
 ```
 batch_get_common_dataset_gene_ids.py
 bed_extend_regions.py
+bed_guess_assembly.py
 bed_merge_ol_reg.py
 bed_print_first_n_pos.py
 bed_print_last_n_pos.py
@@ -1610,10 +1611,12 @@ gtf_get_gene_transcripts.py
 gtf_get_mpt_nt_freqs.py
 gtf_get_mpt_with_introns_nt_freqs.py
 ```
+
 You can call their help pages to get more infos on what they do and how to use them (e.g., `bed_merge_ol_reg.py -h`).
 To get a quick overview: 
 `batch_get_common_dataset_gene_ids.py` extracts gene IDs which occur in all datasets, given the `gene_region_occupancies.tsv` file from RBPBench batch output folder.
 `bed_extend_regions.py` extends genomic regions in a BED file by a given number of nucleotides up- and downstream.
+`bed_guess_assembly.py` guesses the genome assembly of a BED file.
 `bed_merge_ol_reg.py` takes a BED file and merges bookend or overlapping regions outputs the merged regions to a new BED file.
 `bed_print_first_n_pos.py` prints the first n positions of each region from the provided BED file.
 `bed_print_last_n_pos.py` prints the last n positions of each region from the provided BED file.
