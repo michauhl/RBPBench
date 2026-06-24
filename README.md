@@ -1,19 +1,10 @@
-<p align="left">
+<p align="center">
   <img src="docs/logo.png" width="240">
 </p>
 
 <p align="center">
-  <a href="https://github.com/michauhl/RBPBench">
-    <img src="https://img.shields.io/github/tag/michauhl/RBPBench.svg" alt="GitHub">
-  </a>
-
-  <a href="https://anaconda.org/bioconda/rbpbench">
-    <img src="https://anaconda.org/bioconda/rbpbench/badges/version.svg" alt="Bioconda">
-  </a>
-
-  <img src="https://img.shields.io/badge/platform-linux-lightgrey" alt="Platform">
+<a href="https://github.com/michauhl/RBPBench"><img src="https://img.shields.io/github/tag/michauhl/RBPBench.svg"></a><a href="https://anaconda.org/bioconda/rbpbench"><img src="https://anaconda.org/bioconda/rbpbench/badges/version.svg"></a><img src="https://img.shields.io/badge/platform-linux-lightgrey">
 </p>
-
 
 
 RBPBench is a multi-function tool to evaluate CLIP-seq and other related genomic region data 
