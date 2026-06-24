@@ -1,11 +1,17 @@
-<p align="center">
+<p align="left">
   <img src="docs/logo.png" width="240">
 </p>
 
 <p align="center">
-  [![GitHub](https://img.shields.io/github/tag/michauhl/RBPBench.svg)](https://github.com/michauhl/RBPBench)
-  [![Bioconda](https://anaconda.org/bioconda/rbpbench/badges/version.svg)](https://anaconda.org/bioconda/rbpbench)
-  ![Platform](https://img.shields.io/badge/platform-linux-lightgrey)
+  <a href="https://github.com/michauhl/RBPBench">
+    <img src="https://img.shields.io/github/tag/michauhl/RBPBench.svg" alt="GitHub">
+  </a>
+
+  <a href="https://anaconda.org/bioconda/rbpbench">
+    <img src="https://anaconda.org/bioconda/rbpbench/badges/version.svg" alt="Bioconda">
+  </a>
+
+  <img src="https://img.shields.io/badge/platform-linux-lightgrey" alt="Platform">
 </p>
 
 
