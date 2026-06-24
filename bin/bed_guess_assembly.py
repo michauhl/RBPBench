@@ -20,7 +20,6 @@ Optionally store results in table:
 """
 
 
-
 ################################################################################
 
 def count_bed_rows(bed_file):
