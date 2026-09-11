@@ -149,6 +149,7 @@ if __name__ == '__main__':
     cds_seqs_fa = os.path.join(args.out_folder, "transcript_seqs.cds.fa")  # CDS sequences.
     out_tr_list = os.path.join(args.out_folder, "transcript_infos.tsv")  # Transcript infos table.
     promoter_regions_bed = os.path.join(args.out_folder, "promoter_regions.bed")
+    settings_file = os.path.join(args.out_folder, "settings.gtf_extract_transcript_data.out")
 
     # If transcript list is given.
     tr_ids_dic = {}
@@ -557,6 +558,13 @@ if __name__ == '__main__':
         OUT.write("%s\t%s\t%i\t%i\t%s\t%s\t%s\t%i\t%i\t%i\t%i\t%s\n" % (tid, tr_biotype, tr_length, exon_c, gene_name, gene_id, gene_biotype, basic_tag, ensembl_canonical, mane_select, primary_tag, tsl_id))
 
     OUT.close()
+
+    # Output mode settings.
+    print("Output parameter settings ... ")
+    SETOUT = open(settings_file, "w")
+    for arg in vars(args):
+        SETOUT.write("%s\t%s\n" %(arg, str(getattr(args, arg))))
+    SETOUT.close()
 
     print("Output FASTA file with transcript sequences:\n%s" %(tr_seqs_fa))
     print("Output FASTA file with 5'UTR sequences:\n%s" %(utr5_seqs_fa))

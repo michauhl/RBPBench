@@ -388,11 +388,15 @@ For the example call above, the following statistics and plots are included in t
 7. Input datasets nucleotide percentages statistics
 8. Input datasets k-mer frequencies comparative plot
 9. Input datasets k-mer variation comparative plot
-10. Input datasets occupied gene regions comparative plot
-11. Input datasets occupied gene regions similarity heat map
-12. Input datasets genomic region annotations comparative plot
-13. Plus a genomic regions annotation plot for each input dataset
-14. Additional region annotation statistics
+10. Input datasets occupied transcript regions comparative plot
+11. Input datasets occupied transcript regions similarity heat map
+12. Input datasets occupied 5'UTR regions similarity heat map
+13. Input datasets occupied CDS regions similarity heat map
+14. Input datasets occupied 3'UTR regions similarity heat map
+15. Input datasets occupied intron regions similarity heat map
+16. Input datasets genomic region annotations comparative plot
+17. Plus a genomic regions annotation plot for each input dataset
+18. Additional region annotation statistics
 
 Detailed explanations can be found in the corresponding table and plot legends in the HTML file. 
 **Fig. 7** shows the 2 plots related to k-mer sequence produced by the above call:
@@ -427,8 +431,8 @@ A higher mean percentage for a dataset means that the present k-mers are more ev
 
 **Fig. 8**: Example genomic annotation plots produced by `rbpbench batch` (K562 eCLIP datasets example).
 **a:** Input datasets exon-intron overlap comparative plot.
-**b:** Input datasets occupied gene regions comparative plot.
-**c:** Input datasets occupied gene regions similarity heat map.
+**b:** Input datasets occupied transcript regions comparative plot.
+**c:** Input datasets occupied transcript regions similarity heat map.
 **d:** Input datasets genomic region annotations comparative plot.
 
 **Fig. 8a** plot shows the exon-intron overlap statistics for the input datasets, visualized as 2D PCA plot.
@@ -439,11 +443,11 @@ intronic regions close to intron borders (upstream and downstream),
 intronic regions distant from intron borders (upstream and downstream),
 exon-intron border regions (+/- 50 nt of exon-intron borders),
 first exons, last exons, and single exon transcripts.
-**Fig. 8b** plot again uses 3D-PCA, this time on the occupied gene regions for each input dataset.
-Here we can quickly identify e.g. datasets with very low numbers of occupied genes, or in general 
-datasets with similar gene occupancy profiles.
-**Fig. 8c** further expands on occupied genes statistics, this time using the cosine similarity 
-to measure the similarity in occupied genes between datasets. In addition, the datasets are ordered 
+**Fig. 8b** plot again uses 3D-PCA, this time on the occupied transcript regions for each input dataset.
+Here we can quickly identify e.g. datasets with very low numbers of occupied transcripts, or in general 
+datasets with similar transcript occupancy profiles.
+**Fig. 8c** further expands on occupied transcripts statistics, this time using the cosine similarity 
+to measure the similarity in occupied transcripts between datasets. In addition, the datasets are ordered 
 based on hierarchical clustering, resulting in similar datasets appearing close together on the axes.
 This enables us to identify groups of datasets which have similar occupancy profiles.
 **Fig. 8d** gives us the genomic region annotations for each input dataset, using 2D-PCA to 
@@ -684,7 +688,7 @@ We can see that the motifs (identified from eCLIP data), show a preference for G
 
 #### Motif preferences in long genomic regions
 
-To get motif hits for and look at motif preferences (GTF file needed) in long genomic regions (e.g. whole gene regions), 
+To get motif hits for and look at motif preferences (GTF file needed) in long genomic regions (e.g., whole gene regions), 
 we can utilize `rbpbench searchlong`. 
 Besides visualizing the genomic region annotations for motif hits on the defined genomic regions, it also visualizes the normalized 
 annotations. This means that the motif hit counts are normalized by the annotation region lengths found in the input regions. 
@@ -1564,7 +1568,8 @@ the same gene, to decide which one is "more prominent":
 4. If both have "Ensembl_canonical" tag, chose the longer transcript as current MPT
 
 This is done for all possible pairs, which leaves one transcript as MPT in the end for each gene.
-Regions that do not overlap with the selected transcript regions are assigned to "intergenic".
+Regions that do not overlap with the selected transcript regions are assigned to "unassigned genic" if they 
+still overlap gene regions, and otherwise "intergenic".
 Note that for lncRNA genes, MPT selection favors transcripts with the `gencode_primary` tag if present.
 Alternatively, a list of transcript IDs can be supplied `--tr-list`, bypassing the MPT selection.
 Which region annotations are to be considered can be further defined via `--tr-types`, and the 

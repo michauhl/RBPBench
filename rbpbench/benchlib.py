@@ -32,6 +32,7 @@ from goatools.obo_parser import GODag
 from goatools.goea.go_enrichment_ns import GOEnrichmentStudy
 from decimal import Decimal, getcontext
 from dataclasses import dataclass
+from pathlib import Path
 
 
 """
@@ -6204,6 +6205,7 @@ class ExonIntronOverlap:
                  c_exon_sites = 0,
                  c_intron_sites = 0,
                  c_intergenic_sites = 0,
+                 c_genic_unassigned_sites = 0,
                  c_us_ib_sites = 0,
                  c_ds_ib_sites = 0,
                  c_us_ib_dist_sites = 0,  # upstream intron border distant (>intron_border_len) sites.
@@ -6223,6 +6225,7 @@ class ExonIntronOverlap:
         self.c_exon_sites = c_exon_sites
         self.c_intron_sites = c_intron_sites
         self.c_intergenic_sites = c_intergenic_sites
+        self.c_genic_unassigned_sites = c_genic_unassigned_sites
         self.c_us_ib_sites = c_us_ib_sites
         self.c_ds_ib_sites = c_ds_ib_sites
         self.c_us_ib_dist_sites = c_us_ib_dist_sites
@@ -6872,7 +6875,7 @@ def count_lines_in_file(file_path):
 ################################################################################
 
 def bed_intersect_files(a_bed, b_bed, out_bed,
-                                    params="-s -u"):
+                        params="-s -u"):
 
     """
     Intersect two files using bedtools intersect.
@@ -6887,6 +6890,27 @@ def bed_intersect_files(a_bed, b_bed, out_bed,
     if output:
         error = True
     assert error == False, "intersectBed has problems with your input:\n%s\n%s" %(check_cmd, output)
+
+
+################################################################################
+
+def bed_subtract_files(a_bed, b_bed, out_bed,
+                       params="-s"):
+
+    """
+    Subtract two files using bedtools subtract. I.e., report only regions or 
+    parts of regions in -a which do not overlap with -b.
+
+    """
+    assert os.path.exists(a_bed), "a_bed does not exist"
+    assert os.path.exists(b_bed), "b_bed does not exist"
+
+    check_cmd = "bedtools subtract -a " + a_bed + " -b " + b_bed + " " + params + " > " + out_bed
+    output = subprocess.getoutput(check_cmd)
+    error = False
+    if output:
+        error = True
+    assert error == False, "bedtools subtract has problems with your input:\n%s\n%s" %(check_cmd, output)
 
 
 ################################################################################
@@ -6912,6 +6936,50 @@ def bed_intersect_files_count_lines(a_bed, b_bed,
     assert count >= 0, "intersectBed + line count has problems with your input:\n%s\n%s" %(check_cmd, output)
 
     return count
+
+
+################################################################################
+
+def bed_intersect_files_get_ids(a_bed, b_bed,
+                                params="-s -u",
+                                as_list=True,
+                                val_id_col=False,
+                                key_id_col=3):
+    """
+    Intersect two files using bedtools intersect.
+    Get IDs from column id_col in output.
+
+    >>> a_bed = "test_data/test_get_ol_ids.a_file.bed"
+    >>> b_bed = "test_data/test_get_ol_ids.b_file.bed"
+    >>> bed_intersect_files_get_ids(a_bed, b_bed, params="-s -u", key_id_col=3, as_list=True)
+    ['s2', 's4']
+    >>> bed_intersect_files_get_ids(a_bed, b_bed, params="-s -v", key_id_col=3, as_list=True)
+    ['s1', 's3']
+    >>> bed_intersect_files_get_ids(a_bed, b_bed, params="-s -wo", key_id_col=3, val_id_col=9, as_list=False)
+    {'s2': 'g1', 's4': 'g1'}
+
+    """
+    assert os.path.exists(a_bed), "a_bed does not exist"
+    assert os.path.exists(b_bed), "b_bed does not exist"
+
+    check_cmd = "intersectBed -a " + a_bed + " -b " + b_bed + " " + params
+    output = subprocess.getoutput(check_cmd)
+
+    # id_set = set()
+    ids_dic = {}
+    for line in output.split('\n'):
+        if not line:
+            continue
+        cols = line.split("\t")
+        if not val_id_col:
+            ids_dic[cols[key_id_col]] = 1
+        else:
+            ids_dic[cols[key_id_col]] = cols[val_id_col]
+
+    if as_list:
+        return list(ids_dic.keys())
+    else:
+        return ids_dic
 
 
 ################################################################################
@@ -7759,8 +7827,21 @@ def output_exon_annotations(tid2tio_dic, out_bed,
         "TR_C_gene" : "TR gene",
         "TR_D_gene" : "TR gene",
         "TR_J_gene" : "TR gene",
-        "TR_V_gene" : "TR gene"
+        "TR_V_gene" : "TR gene",
     }
+
+    """
+        "retained_intron": "other long RNA",
+        "TEC": "other long RNA",
+        "processed_transcript": "other long RNA",
+        "sRNA" : "other small RNA",
+        "ribozyme" : "other small RNA",
+        "misc_RNA" : "other small RNA",
+        "vault_RNA" : "other small RNA",
+        "artifact" : "artifact",
+    """
+
+
     if custom_annot_dic is not None:
         valid_annot_dic = custom_annot_dic
 
@@ -7950,7 +8031,7 @@ def get_regex_hit_region_annotations(overlap_annotations_bed,
             chr_id = cols[0]
             reg_s = str(int(cols[1]) + 1)
             reg_e = cols[2]
-            regex = cols[3]
+            # regex = cols[3]
             reg_strand = cols[5]
 
             reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + reg_strand + ")"
@@ -7959,9 +8040,16 @@ def get_regex_hit_region_annotations(overlap_annotations_bed,
 
             if cols[annot_col] != ".":
                 annot_ids = cols[annot_col].split(";")
-                assert len(annot_ids) == 3, "len(annot_ids) != 3 (expected ; separated string, but got: \"%s\")" %(cols[9])
+                assert len(annot_ids) >= 2, "len(annot_ids) < 2 (expected ; separated string, but got: \"%s\")" %(cols[9])
                 annot_id = annot_ids[0]
                 tr_id = annot_ids[1]
+
+            # For unassigned genic annotation.
+            if annot_id == "gene":
+                if reg_id not in reg2annot_dic:
+                    reg2maxol_dic[reg_id] = 0  # set to zero so in comparison always the other non-gene annotation is selected.
+                    reg2annot_dic[reg_id] = ["unassigned genic", tr_id]
+                continue
 
             c_overlap_nts = int(cols[c_ol_nt_col])
 
@@ -8043,7 +8131,8 @@ def get_normalized_annot_counts(filtered_sites_bed, intron_exon_out_bed,
     reg_len_dic = {}
     bed_get_effective_reg_bed(filtered_sites_bed, in_bed, reg2pol_dic,
                               reg_len_dic=reg_len_dic)
-                              
+
+    # The effective total input regions size (merged overlapping input regions).                 
     eff_reg_size = 0
     for reg_id in reg_len_dic:
         reg_len = reg_len_dic[reg_id]
@@ -8054,6 +8143,7 @@ def get_normalized_annot_counts(filtered_sites_bed, intron_exon_out_bed,
 
     out_bed = out_folder + "/in_sites.filtered.annot_overlap.tmp.bed"
 
+    # Overlap effective input regions (unique parts of it) with unique annotation regions.
     bed_intersect_files(in_bed, intron_exon_out_bed, out_bed, params="-s -wb")
 
     annot_len_dic = {}
@@ -8067,7 +8157,9 @@ def get_normalized_annot_counts(filtered_sites_bed, intron_exon_out_bed,
             reg_len = reg_e - reg_s
             annot_info = cols[9]
             annot_id = annot_info.split(";")[0]
-            tr_id = annot_info.split(";")[1]
+            # tr_id = annot_info.split(";")[1]
+            if annot_id == "gene":
+                annot_id = "unassigned genic"
             if annot_id not in annot_len_dic:
                 annot_len_dic[annot_id] = reg_len
             else:
@@ -8075,7 +8167,7 @@ def get_normalized_annot_counts(filtered_sites_bed, intron_exon_out_bed,
 
     f.closed
 
-    # Get effective region length of of regions overlapping with annotations.
+    # Get effective region length of regions overlapping with annotations.
     eff_ol_reg_size = get_uniq_gen_size(out_bed)
     assert eff_ol_reg_size <= eff_reg_size, "eff_ol_reg_size > eff_reg_size"
     len_intergenic = eff_reg_size - eff_ol_reg_size
@@ -8097,12 +8189,253 @@ def get_normalized_annot_counts(filtered_sites_bed, intron_exon_out_bed,
 
 ################################################################################
 
+def bed_get_id_pol_mapping(in_bed, id_col=3, check_uniq_ids=True):
+    """
+    Given a BED(6+) file, get mapping of region ID to polarity.
+    chr1	1000	2000	s1	0	+
+    chr1	1000	2000	s2	0	-
+    s1 -> +, s2 -> -
+
+    """
+
+    id2pol_dic = {}
+
+    with open(in_bed) as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            # assert len(cols) >= 6, "BED >=6-column file expected"
+            # assert len(cols) >= id_col+1, "incompatible id_col vs. in_bed setting"
+
+            reg_id = cols[id_col]
+            reg_pol = cols[5]
+
+            if check_uniq_ids:
+                assert reg_id not in id2pol_dic, "reg_id \"%s\" already encountered in in_bed \"%s!\"" %(reg_id, in_bed)
+            id2pol_dic[reg_id] = reg_pol
+
+    f.closed
+
+    return id2pol_dic
+
+
+################################################################################
+
+def bed_make_regions_unique_select_best(in_bed, out_bed, tid2tio_dic):
+    """
+    Merge BED regions (i.e. create unique regions), then select the best column 4
+    ID, e.g. for
+    chr1 1300 1400 intron;ENST00001,miRNA;ENST00002 0 +
+    if ENST00001 has better evidence, keep:
+    chr1 1300 1400 intron;ENST00001 0 +      
+    
+    test_uniq_select_best.in.bed:
+    chr1	1000	2000	lncRNA;tr1	0	+
+    chr1	1100	1200	miRNA;tr2	0	+
+    chr1	1000	1200	antisense;tr3	0	-
+
+    >>> in_bed = "test_data/test_uniq_select_best.in.bed"
+    >>> out_bed = "test_data/test_uniq_select_best.tmp.bed"
+    >>> exp_bed = "test_data/test_uniq_select_best.exp.bed"
+    >>> tid2tio_dic = {"tr1":TranscriptInfo("tr1", "lncRNA", "chr1", 1000, 2000, "+", "gene1", mane_select=0),
+    ...                "tr2":TranscriptInfo("tr2", "miRNA", "chr1", 1100, 1200, "+", "gene2", mane_select=1),
+    ...                "tr3":TranscriptInfo("tr3", "antisense", "chr1", 1000, 1200, "-", "gene3", mane_select=0)}
+    >>> bed_make_regions_unique_select_best(in_bed, out_bed, tid2tio_dic)
+    >>> diff_two_files_identical(out_bed, exp_bed)
+    True
+
+    """
+
+    in_bed = Path(in_bed)
+    out_bed = Path(out_bed)
+
+    """
+    Events are grouped by chromosome and strand.
+    events[(chrom, strand)][position]["start"]
+    events[(chrom, strand)][position]["end"]    
+
+    """
+    events = defaultdict(
+        lambda: defaultdict(lambda: {"start": [], "end": []})
+    )
+
+    interval_id = 0
+
+    with in_bed.open() as bed_handle:
+        for line_number, line in enumerate(bed_handle, start=1):
+            line = line.rstrip("\n")
+
+            if not line or line.startswith(("#", "track", "browser")):
+                continue
+
+            fields = line.split("\t")
+
+            if len(fields) < 6:
+                raise ValueError(
+                    f"Line {line_number}: expected at least 6 BED columns, "
+                    f"but found {len(fields)}."
+                )
+
+            chrom, start_text, end_text, name, score, strand = fields[:6]
+
+            try:
+                start = int(start_text)
+                end = int(end_text)
+            except ValueError as error:
+                raise ValueError(
+                    f"Line {line_number}: BED start and end must be integers."
+                ) from error
+
+            if start < 0 or end <= start:
+                raise ValueError(
+                    f"Line {line_number}: invalid BED interval "
+                    f"{chrom}:{start}-{end}."
+                )
+
+            if strand not in {"+", "-"}:
+                raise ValueError(
+                    f"Line {line_number}: expected strand '+' or '-', "
+                    f"but found {strand!r}."
+                )
+
+            if ";" not in name:
+                raise ValueError(
+                    f"Line {line_number}: column 4 must have the format "
+                    f"'annotation_type;transcript_id', but found {name!r}."
+                )
+
+            annotation_type, transcript_id = name.split(";", maxsplit=1)
+
+            if not annotation_type or not transcript_id:
+                raise ValueError(
+                    f"Line {line_number}: invalid annotation/transcript value "
+                    f"in column 4: {name!r}."
+                )
+
+            interval = {
+                "id": interval_id,
+                "annotation": annotation_type,
+                "transcript_id": transcript_id,
+                "name": name,
+            }
+
+            events[(chrom, strand)][start]["start"].append(interval)
+            events[(chrom, strand)][end]["end"].append(interval)
+
+            interval_id += 1
+
+    output_regions = []
+
+    for chrom, strand in sorted(events):
+        chromosome_events = events[(chrom, strand)]
+        positions = sorted(chromosome_events)
+
+        # active maps interval ID to interval information.
+        active = {}
+        previous_position = None
+
+        for position in positions:
+            # The active intervals cover [previous_position, position).
+            if (
+                previous_position is not None
+                and previous_position < position
+                and active
+            ):
+                selected_name = _select_best_active_annotation(active.values(), tid2tio_dic)
+
+                region = [
+                    chrom,
+                    previous_position,
+                    position,
+                    selected_name,
+                    "0",
+                    strand,
+                ]
+
+                # Merge directly adjacent regions when all BED fields except
+                # coordinates are identical.
+                if (
+                    output_regions
+                    and output_regions[-1][0] == region[0]
+                    and output_regions[-1][2] == region[1]
+                    and output_regions[-1][3:] == region[3:]
+                ):
+                    output_regions[-1][2] = region[2]
+                else:
+                    output_regions.append(region)
+
+            # BED intervals ending at this position do not overlap intervals
+            # beginning at this position.
+            for interval in chromosome_events[position]["end"]:
+                active.pop(interval["id"], None)
+
+            for interval in chromosome_events[position]["start"]:
+                active[interval["id"]] = interval
+
+            previous_position = position
+
+    with out_bed.open("w") as output_handle:
+        for chrom, start, end, name, score, strand in output_regions:
+            output_handle.write(
+                f"{chrom}\t{start}\t{end}\t{name}\t{score}\t{strand}\n"
+            )
+
+
+################################################################################
+
+def _select_best_active_annotation(active_intervals, tid2tio_dic):
+    """
+    Select the best transcript among all intervals covering one region.
+
+    Returns column 4 as "annotation_id;transcript_id'.
+
+    """
+
+    # A transcript should only participate once in the comparison. This maps
+    # each transcript ID to the corresponding annotation entry.
+    transcript_annotations = {}
+
+    for interval in active_intervals:
+        transcript_id = interval["transcript_id"]
+
+        # Normally a transcript has only one annotation at a given position.
+        # If the same transcript occurs repeatedly, retain the first entry.
+        transcript_annotations.setdefault(transcript_id, interval["name"])
+
+    transcript_ids = sorted(transcript_annotations)
+
+    best_tr_id = transcript_ids[0]
+
+    for current_tr_id in transcript_ids[1:]:
+        new_best_tr_id = select_more_prominent_tid(
+            current_tr_id,
+            best_tr_id,
+            tid2tio_dic
+        )
+
+        if new_best_tr_id not in {current_tr_id, best_tr_id}:
+            raise ValueError(
+                "select_more_prominent_tid() returned "
+                f"{new_best_tr_id!r}, but expected either "
+                f"{current_tr_id!r} or {best_tr_id!r}."
+            )
+
+        best_tr_id = new_best_tr_id
+
+    return transcript_annotations[best_tr_id]
+
+
+################################################################################
+
 def bed_get_effective_reg_bed(in_bed, out_bed, reg2pol_dic,
                               reg2sc_dic=False,
+                              delimiter=";",
                               reg_len_dic=None):
     """
     Convert regions BED file into effective regions BED file.
     Effective regions are unique regions, i.e., overlapping regions are merged.
+    New column 4 IDs will contain all merged region column 4 IDs, e.g.
+    chr1	1000	2000	s1;s2	0	+
+    Delimiter can be set with delimiter argument (default ";").
 
     reg2pol_dic:
         region ID -> region polarity / strand. Needed since merge operation does not 
@@ -8118,7 +8451,7 @@ def bed_get_effective_reg_bed(in_bed, out_bed, reg2pol_dic,
 
     """
 
-    params_str = '-s -c 4 -o distinct -delim ";"'
+    params_str = '-s -c 4 -o distinct -delim "' + delimiter + '"' 
     check_cmd = "sort -k1,1 -k2,2n " + in_bed + " | mergeBed -i stdin " + params_str
     output = subprocess.getoutput(check_cmd)
 
@@ -8131,7 +8464,7 @@ def bed_get_effective_reg_bed(in_bed, out_bed, reg2pol_dic,
         reg_s = int(cols[1])
         reg_e = int(cols[2])
         reg_ids_str = cols[3]
-        reg_ids_list = reg_ids_str.split(";")
+        reg_ids_list = reg_ids_str.split(delimiter)
         reg_id_0 = reg_ids_list[0]
         assert reg_id_0 in reg2pol_dic, "region ID \"%s\" not in reg2pol_dic" %(reg_id_0)
         reg_strand = reg2pol_dic[reg_id_0]
@@ -8235,6 +8568,7 @@ def output_promoter_regions_to_bed(tid2tio_dic, out_bed,
 ################################################################################
 
 def output_gene_regions_to_bed(gid2gio_dic, out_bed,
+                               add_gene_str=False,
                                add_annot_stats_dic=None):
     """
     Output gene regions stored in gid2gio_dic to BED file.
@@ -8254,18 +8588,16 @@ def output_gene_regions_to_bed(gid2gio_dic, out_bed,
 
         c_out += 1
 
-        OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, gene_s, gene_e, gene_id, gene_pol))
+        out_gene_id = gene_id
+        if add_gene_str:
+            out_gene_id = "gene;" + gene_id
+
+        OUTBED.write("%s\t%i\t%i\t%s\t0\t%s\n" % (chr_id, gene_s, gene_e, out_gene_id, gene_pol))
 
     OUTBED.close()
     assert c_out, "no gene regions written to out_bed %s" %(out_bed)
     if add_annot_stats_dic is not None:
         add_annot_stats_dic["c_genes"] = c_out
-
-
-def bed_output_cp_bed(in_bed, out_bed):
-    """
-    Given BED
-    """
 
 
 ################################################################################
@@ -8286,55 +8618,6 @@ def bed_sort_file(in_bed, out_bed,
     if output:
         error = True
     assert error == False, "sort has problems with your input:\n%s\n%s" %(check_cmd, output)
-
-
-################################################################################
-
-# def bed_get_site_distances(in_bed):
-#     """
-#     Get minimum site distance (i.e. distance to next site) for each site.
-#     Return site -> distance dictionary.
-#     If e.g. site is only one on one chromosome + strand, return
-#     site -> -1 as entry.
-    
-#     """
-
-
-"""
-
-$ bedtools closest -a test.bed -b test.bed -D a -s -t "first" -N -sorted
-chr1	1000	1001	s1	0	+	chr1	1100	1101	s2	0	+	100
-chr1	1000	1001	sx	0	-	.	-1	-1	.	-1	.	-1
-chr1	1100	1101	s2	0	+	chr1	1150	1151	s3	0	+	50
-chr1	1150	1151	s3	0	+	chr1	1100	1101	s2	0	+	-50
-chr1	1250	1251	s4	0	+	chr1	1250	1251	s5	0	+	0
-chr1	1250	1251	s5	0	+	chr1	1250	1251	s4	0	+	0
-chr1	1250	1251	s6	0	+	chr1	1250	1251	s4	0	+	0
-
-
-"""
-
-
-# ################################################################################
-
-# def bed_merge_entries(in_bed, out_bed, 
-#                       params="-k1,1 -k2,2n"):
-
-#     """
-#     Merge entries in in_bed file. Output is 3-col BED:
-#     chr1	1000	1900
-
-#     """
-
-#     assert os.path.exists(in_bed), "in_bed does not exist"
-
-#     check_cmd = "sort " + params + " " + in_bed + " > " + out_bed
-#     output = subprocess.getoutput(check_cmd)
-#     error = False
-#     if output:
-#         error = True
-#     assert error == False, "sort has problems with your input:\n%s\n%s" %(check_cmd, output)
-
 
 
 ################################################################################
@@ -8385,7 +8668,7 @@ def get_motif_hit_region_annotations(overlap_annotations_bed,
             # motif_id = reg_id.split(":")[1].split(";")[0]
             reg_id = chr_id + ":" + reg_s + "-" + reg_e + "(" + reg_strand + ")" + motif_id
 
-            annot_id = "intergenic"
+            annot_id = "intergenic"  # AALAMO
             tr_id = False
 
             if cols[annot_col] != ".":
@@ -8395,6 +8678,13 @@ def get_motif_hit_region_annotations(overlap_annotations_bed,
                 tr_id = annot_ids[1]
 
             c_overlap_nts = int(cols[c_ol_nt_col])
+
+            # Deal with gene overlap (skip comparison and set if reg_id not seen yet).
+            if annot_id == "gene":
+                if reg_id not in reg2annot_dic:
+                    reg2maxol_dic[reg_id] = 0  # set to zero so in comparison always the other non-gene annotation is selected.
+                    reg2annot_dic[reg_id] = ["unassigned genic", tr_id]
+                continue
 
             if reg_id not in reg2maxol_dic:
                 reg2maxol_dic[reg_id] = c_overlap_nts
@@ -8582,6 +8872,7 @@ def get_eib_annot_c_strict(annot_list, eib_annot_c_dic,
         "exonic" : 0,
         "intronic" : 0,
         "intergenic" : 0,
+        "genic_unassigned" : 0,
         "eib" : 0,
         "us_ib_strict" : 0,
         "ds_ib_strict" : 0,
@@ -8676,6 +8967,8 @@ def get_eib_annot_c_strict(annot_list, eib_annot_c_dic,
 
     elif annot_id == "intergenic":
         eib_annot_c_dic["intergenic"] += 1
+    elif annot_id == "unassigned genic":  # AALAMO
+        eib_annot_c_dic["genic_unassigned"] += 1
     else:  # exonic sites.
         assert exon_intron_nr > 0, "exon_intron_nr <= 0 for annot_list \"%s\"" %(annot_list)
         eib_annot_c_dic["exonic"] += 1
@@ -8718,6 +9011,7 @@ def get_eib_annot_c(annot_list, eib_annot_c_dic,
         "exonic" : 0,
         "intronic" : 0,
         "intergenic" : 0,
+        "genic_unassigned" : 0,
         "eib" : 0,
         "us_ib_dist" : 0,
         "ds_ib_dist" : 0,
@@ -8824,6 +9118,8 @@ def get_eib_annot_c(annot_list, eib_annot_c_dic,
 
     elif annot_id == "intergenic":
         eib_annot_c_dic["intergenic"] += 1
+    elif annot_id == "unassigned genic":
+        eib_annot_c_dic["genic_unassigned"] += 1
     else:  # exonic sites.
         assert exon_intron_nr > 0, "exon_intron_nr <= 0 for annot_list \"%s\"" %(annot_list)
         eib_annot_c_dic["exonic"] += 1
@@ -8895,7 +9191,7 @@ def get_region_annotations(overlap_annotations_bed,
         To check that if two features have same overlap amount with region,
         choose the more prominent transcript ID (i.e., better annotation).
         Also, for exonic sites to get distances from exon borders.
-        Exonic sites == everything not "intron" or "intergenic".
+        Exonic sites == everything not "intron", "unassigned genic", or "intergenic".
     motif_hits:
         If True, the -a file is the motif hits BED file. In this case, the region ID
         has to be reconstructed from the BED region info.
@@ -8945,10 +9241,17 @@ def get_region_annotations(overlap_annotations_bed,
             annot_reg_e = int(cols[annot_col-1])
 
             annot_ids = cols[annot_col].split(";")
-            assert len(annot_ids) == 3, "len(annot_ids) != 3 (expected ; separated string, but got: \"%s\")" %(cols[9])
-            annot_id = annot_ids[0]
-            tr_id = annot_ids[1]
+            assert len(annot_ids) >= 2, "len(annot_ids) < 2 (expected ; separated string, but got: \"%s\")" %(cols[9])
+            annot_id = annot_ids[0]  # can be: intron, gene, CDS, 3'UTR, lncRNA, other (nc)RNA ...
+            tr_id = annot_ids[1]  # if annot_id == gene, tr_id is gene_id.
             c_overlap_nts = int(cols[c_ol_nt_col])
+
+            # Deal with gene overlap (skip comparison and set if reg_id not seen yet).
+            if annot_id == "gene":
+                if reg_id not in reg2annot_dic:
+                    reg2maxol_dic[reg_id] = 0  # set to zero so in comparison always the other non-gene annotation is selected.
+                    reg2annot_dic[reg_id] = ["unassigned genic", tr_id, -1, "-", -1, "0-0"]
+                continue
 
             # Get distanced to intron borders (only for intron annotations).
             border_dist = -1
@@ -9002,10 +9305,10 @@ def get_region_annotations(overlap_annotations_bed,
                         reg2annot_dic[reg_id][4] = annot_reg_len
                         reg2annot_dic[reg_id][5] = exon_intron_nr_c
 
-            test_reg_id = "chr19:3980035-3980070(-)"
-            if reg_id == test_reg_id:
-                print("test_reg_id:", reg_id, "annot_id:", annot_id, "tr_id:", tr_id, "border_dist:", border_dist, "us_ds_label:", us_ds_label, "exon_intron_nr_c:", exon_intron_nr_c, "c_overlap_nts:", c_overlap_nts)
-                print("set:", reg2annot_dic[reg_id])
+            # test_reg_id = "chr19:3980035-3980070(-)"
+            # if reg_id == test_reg_id:
+            #     print("test_reg_id:", reg_id, "annot_id:", annot_id, "tr_id:", tr_id, "border_dist:", border_dist, "us_ds_label:", us_ds_label, "exon_intron_nr_c:", exon_intron_nr_c, "c_overlap_nts:", c_overlap_nts)
+            #     print("set:", reg2annot_dic[reg_id])
     f.closed
 
     if reg_ids_dic is not None:
@@ -9128,7 +9431,7 @@ def get_hex_colors_list(min_len=0):
 
     assert min_len < 1000, "provide reasonable min_len"
 
-    hex_colors_tab20_list = ['#1f77b4', '#aec7e8', '#ff7f0e', '#ffbb78', '#2ca02c', '#98df8a', '#d62728', '#ff9896', '#9467bd', '#c5b0d5', '#8c564b', '#c49c94', '#e377c2', '#f7b6d2', '#7f7f7f', '#c7c7c7', '#bcbd22', '#dbdb8d', '#17becf', '#9edae5']
+    hex_colors_tab20_list = ['#1f77b4', '#aec7e8', '#ff7f0e', '#ffbb78', '#2ca02c', '#98df8a', '#d62728', '#ff9896', '#9467bd', '#c5b0d5', '#c49c94', '#e377c2',  '#f7b6d2', '#7f7f7f', '#c7c7c7', '#bcbd22', '#dbdb8d', '#17becf', '#9edae5', '#8c564b']
     hex_colors_tab20b_list = ['#393b79', '#5254a3', '#6b6ecf', '#9c9ede', '#637939', '#8ca252', '#b5cf6b', '#cedb9c', '#8c6d31', '#bd9e39', '#e7ba52', '#e7cb94', '#843c39', '#ad494a', '#d6616b', '#e7969c', '#7b4173', '#a55194', '#ce6dbd', '#de9ed6']
     hex_colors_Pastel1_list = ['#fbb4ae', '#b3cde3', '#ccebc5', '#decbe4', '#fed9a6', '#ffffcc', '#e5d8bd', '#fddaec', '#f2f2f2']
 
@@ -12392,8 +12695,15 @@ def get_target_genes_with_rbp_hits(reg2annot_dic, tr2gid_dic, region_rbp_binds_d
     target_genes_dic = {}
     for reg_id in region_rbp_binds_dic:
         tr_id = reg2annot_dic[reg_id][1]
-        if tr_id:
-            gid = tr2gid_dic[tr_id]
+        if tr_id:  # Could be transcript annotation or unassigned genic.
+            gid = "-"
+            if tr_id in tr2gid_dic:  # only for transcript regions, tr_id for unassigned genic == "-".
+                gid = tr2gid_dic[tr_id]
+            else:
+                # If region has unassigned genic annotation, reg2annot_dic[reg_id][1] = "-", and reg2annot_dic[reg_id][6] has gene ID.
+                assert len(reg2annot_dic[reg_id]) == 9, "reg2annot_dic[reg_id] list expected to have 9 elements for reg_id %s, but got: %s" %(reg_id, reg2annot_dic[reg_id])
+                gid = reg2annot_dic[reg_id][6]
+
             if gid2tid_dic is not None:
                 gid2tid_dic[gid] = tr_id
             add_gene = False
@@ -12976,17 +13286,33 @@ def create_annot_comp_plot_plotly(dataset_ids_list, annots_ll,
         perc_annot_string = "<br>"
         highest_perc_annot = "-"
         highest_freq = 0.0
+        annot2freq_dic = {}
         for idx, annot_freq in enumerate(annots_l):
             annot = annot_ids_list[idx]
             if annot_freq > highest_freq:
                 highest_freq = annot_freq
                 highest_perc_annot = annot
-            # Make percentage out of frequency and round to two decimal places.
+            annot2freq_dic[annot] = annot_freq
+            # # Make percentage out of frequency and round to two decimal places.
+            # annot_perc = round(annot_freq * 100, 2)
+            # perc_annot_string += annot + ": " + str(annot_perc) + '%<br>'
+        highest_perc_annot_list.append(highest_perc_annot)
+        
+        # perc_annot_str_list.append(perc_annot_string)
+        # # Sort annotation frequencies by descending order for hover box.
+        # sorted_annot2freq_dic = dict(sorted(annot2freq_dic.items(), key=lambda item: item[1], reverse=True))
+        # for annot, annot_freq in sorted_annot2freq_dic.items():
+        #     annot_perc = round(annot_freq * 100, 2)
+        #     perc_annot_string += annot + ": " + str(annot_perc) + '%<br>'
+        # perc_annot_str_list.append(perc_annot_string)
+
+        # Sort alphabetically by annotation name.
+        sorted_annot2freq_dic = dict(sorted(annot2freq_dic.items(), key=lambda item: item[0]))
+        for annot, annot_freq in sorted_annot2freq_dic.items():
             annot_perc = round(annot_freq * 100, 2)
             perc_annot_string += annot + ": " + str(annot_perc) + '%<br>'
-        highest_perc_annot_list.append(highest_perc_annot)
         perc_annot_str_list.append(perc_annot_string)
-    
+
 
     pca = PCA(n_components=2)  # Reduce data to 2 dimensions.
     data_2d_pca = pca.fit_transform(annots_ll)
@@ -13770,12 +14096,12 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
         # print("combined_id:", combined_id)
         # print(id2occ_list_dic[internal_id])
 
-    hover_data = ['# occupied genes', '% occupied genes']
-    color = '% occupied genes'
+    hover_data = ['# occupied transcripts', '% occupied transcripts']
+    color = '% occupied transcripts'
 
     if id2hk_gene_stats_dic:
-        hover_data += ['# all transcripts', '# hk transcripts', '% HK genes']
-        color = '% HK genes'
+        hover_data += ['# all transcripts', '# hk transcripts', '% HK transcripts']
+        color = '% HK transcripts'
 
     color_scale = ['#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
 
@@ -13788,8 +14114,8 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
 
         df = pd.DataFrame(data_3d_pca, columns=['PC1', 'PC2', 'PC3'])
         df['Dataset ID'] = dataset_ids_list
-        df['# occupied genes'] = c_one_labels_list
-        df['% occupied genes'] = perc_one_labels_list
+        df['# occupied transcripts'] = c_one_labels_list
+        df['% occupied transcripts'] = perc_one_labels_list
 
         fig = px.scatter_3d(
             df,  # Use the DataFrame directly
@@ -13806,12 +14132,12 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
 
         df = pd.DataFrame(data_3d_pca, columns=['PC1', 'PC2', 'PC3'])
         df['Dataset ID'] = dataset_ids_list
-        df['# occupied genes'] = c_one_labels_list
-        df['% occupied genes'] = perc_one_labels_list
+        df['# occupied transcripts'] = c_one_labels_list
+        df['% occupied transcripts'] = perc_one_labels_list
         if id2hk_gene_stats_dic:
             df['# all transcripts'] = c_all_tr_list
             df['# hk transcripts'] = c_hk_tr_list
-            df['% HK genes'] = perc_hk_tr_list
+            df['% HK transcripts'] = perc_hk_tr_list
 
         explained_variance = pca.explained_variance_ratio_ * 100
 
@@ -13835,13 +14161,13 @@ def create_pca_reg_occ_plot_plotly(id2occ_list_dic, id2infos_dic,
     if id2hk_gene_stats_dic:
 
         fig.update_traces(
-            hovertemplate='<b>%{hovertext}</b><br>Occupied genes (#): %{customdata[0]}<br>Occupied genes (%): %{customdata[1]}<br>Occupied HK genes (#): %{customdata[3]}<br>Occupied HK genes (%): %{customdata[4]}<extra></extra>'
+            hovertemplate='<b>%{hovertext}</b><br>Occupied transcripts (#): %{customdata[0]}<br>Occupied transcripts (%): %{customdata[1]}<br>Occupied HK transcripts (#): %{customdata[3]}<br>Occupied HK transcripts (%): %{customdata[4]}<extra></extra>'
         )
 
     else:
 
         fig.update_traces(
-            hovertemplate='<b>%{hovertext}</b><br>Occupied genes (#): %{customdata[0]}<br>Occupied genes (%): %{customdata[1]}<extra></extra>'
+            hovertemplate='<b>%{hovertext}</b><br>Occupied transcripts (#): %{customdata[0]}<br>Occupied transcripts (%): %{customdata[1]}<extra></extra>'
         )
 
 
@@ -14719,6 +15045,8 @@ def batch_generate_html_report(args,
                                goa_results_df=False,
                                goa_stats_dic=False,
                                dsid2add_annot_stats_dic=False,
+                               id2ol_annot_dic=False,
+                               valid_annot_list=False,
                                plots_subfolder="html_report_plots"):
     """
     Create plots for RBPBench batch run results.
@@ -14805,30 +15133,42 @@ def batch_generate_html_report(args,
         include_plotlyjs = False
         # plotly_full_html = True
 
+    # Valid transcript subregion annotations.
+    if not valid_annot_list:
+        valid_annot_list = ["5'UTR", "CDS", "3'UTR", "intron"]
+
+
+    # Annotations and colors.
     annot_dic = {}
     annot2color_dic = {}
+
     if id2reg_annot_dic:  # if --gtf provided.
 
+        annot_dic = get_basic_annot_dic()
+
         # All annotations.
-        annot_dic = {}
-        c_annot = 0
+        # annot_dic = {}
+        # c_annot = 0
         for internal_id in id2reg_annot_dic:
             for annot in id2reg_annot_dic[internal_id]:
-                c_annot += 1
+                # c_annot += 1
                 if annot not in annot_dic:
                     annot_dic[annot] = 1
                 else:
                     annot_dic[annot] += 1
 
-        # Annotation color assignments.
-        hex_colors = get_hex_colors_list(min_len=len(annot_dic))
+        # # Annotation color assignments.
+        # hex_colors = get_hex_colors_list(min_len=len(annot_dic))
 
-        idx = 0
-        for annot in sorted(annot_dic, reverse=False):
-            hc = hex_colors[idx]
-            # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
-            annot2color_dic[annot] = hex_colors[idx]
-            idx += 1
+        # idx = 0
+        # for annot in sorted(annot_dic, reverse=False):
+        #     hc = hex_colors[idx]
+        #     # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
+        #     annot2color_dic[annot] = hex_colors[idx]
+        #     idx += 1
+
+        annot2color_dic = get_annot2color_dic(annot_dic)  # ALAMO
+
 
     # Logo path.
     logo_path_html = plots_folder + "/logo.png"
@@ -14912,9 +15252,14 @@ by RBPBench (%s, rbpbench batch):
         mdtext += "- [Input datasets k-mer variation comparative plot](#seq-var-plot)\n"
 
     if id2reg_annot_dic:  # if --gtf provided.
-        mdtext += "- [Input datasets occupied gene regions comparative plot](#occ-comp-plot)\n"
+        mdtext += "- [Input datasets occupied transcript regions comparative plot](#occ-comp-plot)\n"
         if gene_occ_cooc_plot:
-            mdtext += "- [Input datasets occupied gene regions similarity heat map](#cooc-heat-map)\n"
+            mdtext += "- [Input datasets occupied transcript regions similarity heat map](#cooc-heat-map)\n"
+            if id2ol_annot_dic:
+                for annot_id in valid_annot_list:
+                    annot_id_str = annot_id.replace("'", "").replace(" ", "").lower()
+                    mdtext += "- [Input datasets occupied %s regions similarity heat map](#cooc-heat-map-%s)\n" %(annot_id, annot_id_str)
+
         mdtext += "- [Input datasets genomic region annotations comparative plot](#annot-comp-plot)\n"
 
     if id2reg_annot_dic:  # if --gtf provided.
@@ -15861,19 +16206,21 @@ No plot generated since < 4 datasets were provided.
     """
     Input datasets gene / transcript region occupancies comparative plot.
 
+    Actually it is transcript regions (by default most prominent transcript for each gene).
+
     """
     c_total_number_genes = 0  # total number of gene regions considered for PCA plots.
 
     if id2reg_annot_dic:  # if --gtf provided.
 
         mdtext += """
-## Input datasets occupied gene regions comparative plot ### {#occ-comp-plot}
+## Input datasets occupied transcript regions comparative plot ### {#occ-comp-plot}
 
 """
 
         if len(dataset_ids_list) > 3:
 
-            occ_comp_plot_plotly =  "gene_reg_occ_comparative_plot.plotly.html"
+            occ_comp_plot_plotly =  "tr_occ_comparative_plot.plotly.html"
             occ_comp_plot_plotly_out = plots_out_folder + "/" + occ_comp_plot_plotly
 
             # Get number of gene regions considered.
@@ -15909,11 +16256,13 @@ No plot generated since < 4 datasets were provided.
 
             mdtext += """
 
-**Figure:** Comparison of input datasets, using gene region occupancy of input regions (3-dimensional PCA) as features, 
-to show similarities of input datasets based on the gene regions they occupy (points close to each other have similar occupancy profiles).
-Note that only gene regions covered by regions in any of the input datasets are considered (# of gene regions: %i).
-Datasets are colored by the percentage of the total %i gene regions they occupy.
+**Figure:** Comparison of input datasets, using transcript region occupancy of input regions (3-dimensional PCA) as features, 
+to show similarities of input datasets based on the transcript regions they occupy (points close to each other have similar occupancy profiles).
+Note that only transcript regions covered by regions in any of the input datasets are considered (# of transcript regions: %i).
+Datasets are colored by the percentage of the total %i transcript regions they occupy.
 Input dataset IDs (show via hovering over data points) have following format: %s.
+By default, the most prominent transcript is chosen for every gene from --gtf file (see manual for details, custom transcript set can be 
+provided via --tr-list).
 
 &nbsp;
 
@@ -15931,14 +16280,14 @@ No plot generated since < 4 datasets were provided.
 
 
     """
-    Input datasets gene / transcript region occupancies co-occurrence heat map plot.
+    Input datasets transcript region occupancies co-occurrence heat map plots.
 
     """
 
     if id2reg_annot_dic and gene_occ_cooc_plot:
 
         mdtext += """
-## Input datasets occupied gene regions similarity heat map ### {#cooc-heat-map}
+## Input datasets occupied transcript regions similarity heat map ### {#cooc-heat-map}
 
 """
 
@@ -15946,7 +16295,7 @@ No plot generated since < 4 datasets were provided.
         df_gene_cooc, gene_cooc_lll = get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic,
                                                                optimal_ordering=heatmap_cluster_olo)
 
-        cooc_plot_plotly =  "gene_occ_cooc_heatmap.plotly.html"
+        cooc_plot_plotly =  "tr_occ_cooc_heatmap.plotly.html"
         cooc_plot_plotly_out = plots_out_folder + "/" + cooc_plot_plotly
 
         create_gene_occ_cooc_plot_plotly(df_gene_cooc, gene_cooc_lll, cooc_plot_plotly_out,
@@ -15974,10 +16323,10 @@ No plot generated since < 4 datasets were provided.
 
 
         mdtext += """
-**Figure:** Heat map comparing gene region occupancy profiles between input datasets. Similarity between the occupied 
-gene regions of two datasets is calculated using the cosine similarity of the gene region binary vectors. A cosine similarity 
+**Figure:** Heat map comparing transcript region occupancy profiles between input datasets. Similarity between the occupied 
+transcript regions of two datasets is calculated using the cosine similarity of the transcript region binary vectors. A cosine similarity 
 of 1 indicates that two datasets have identical occupancy profiles (like datasets compared with themselves on diagonal), 
-while a cosine similarity of 0 means that the two vectors are completely different (i.e., if dataset 1 covers a gene region, 
+while a cosine similarity of 0 means that the two vectors are completely different (i.e., if dataset 1 covers a transcript region, 
 dataset 2 does not and vice versa). 
 Datasets are ordered based on hierarchical clustering of the cosine similarity values, 
 so that similar datasets are placed close to each other.
@@ -15985,19 +16334,131 @@ Hover box:
 **1)** dataset 1 ID.
 **2)** dataset 2 ID.
 **3)** Cosine similarity value between the two datasets.
-**4)** Counts[]: contingency table of co-occurrence counts (i.e., number of gene regions covered/not covered by the two datasets), 
+**4)** Counts[]: contingency table of co-occurrence counts (i.e., number of transcript regions covered/not covered by the two datasets), 
 with format [[A, B], [C, D]], where 
 A: dataset 1 AND dataset 2, 
 B: NOT dataset1 AND dataset2,
 C: dataset1 AND NOT dataset2,
 D: NOT dataset1 AND NOT dataset2.
-Gene regions are labelled 1 or 0 (1 if a genomic region from the dataset overlaps with the gene region, otherwise 0), 
+Transcript regions are labelled 1 or 0 (1 if a genomic region from the dataset overlaps with the transcript region, otherwise 0), 
 resulting in a vector of 1s and 0s for each RBP, which is then used to construct the contigency table.
-Note that only gene regions covered by regions in any of the input datasets are considered (# of gene regions: %i).
+Note that only transcript regions covered by regions in any of the input datasets are considered (# of transcript regions: %i).
+By default, the most prominent transcript is chosen for every gene from --gtf file (see manual for details, custom transcript set can be 
+provided via --tr-list).
 
 &nbsp;
 
 """ %(c_total_number_genes)
+
+        """
+        if id2ol_annot_dic is given, create occupied transcript subregion similarity heat maps.
+        id2ol_annot_dic[internal_id][annot] = [tr_id1, tr_id2, ...]
+        valid annot: 5'UTR, CDS, 3'UTR, intron.
+        For introns, transcript IDs have format: tr_id;1-5 (second part denotes intron number), so that
+        occupancies are calculated only for same introns.
+        Use these as default (i.e. create plots for all of them).
+        valid_annot_list = ["5'UTR", "CDS", "3'UTR", "intron"]
+
+        """
+
+        if id2ol_annot_dic:  # AALAMO
+
+            for annot_id in valid_annot_list:
+
+                # Collect all transcript IDs for this annotation.
+                transcript_ids = set()
+
+                for internal_id in id2ol_annot_dic:
+                    transcript_ids.update(
+                        id2ol_annot_dic[internal_id].get(annot_id, [])
+                    )
+
+                # Sorted list defines the occurrence vector order.
+                transcript_ids = sorted(transcript_ids)
+
+                # Transcript -> index mapping.
+                tid2idx_dic = {
+                    tid: i for i, tid in enumerate(transcript_ids)
+                }
+
+                c_total_number_regions = len(transcript_ids)
+
+                # Construct occurrence dictionary.
+                id2occ_list_dic = {}
+
+                for internal_id in id2ol_annot_dic:
+
+                    occ = [0] * len(transcript_ids)
+
+                    for tid in id2ol_annot_dic[internal_id].get(annot_id, []):
+                        occ[tid2idx_dic[tid]] = 1
+
+                    id2occ_list_dic[internal_id] = occ
+
+
+                annot_id_str = annot_id.replace("'", "").replace(" ", "").lower()
+
+                mdtext += """
+## Input datasets occupied %s regions similarity heat map ### {#cooc-heat-map-%s}
+
+""" %(annot_id, annot_id_str)
+
+
+                # Get tables for plotting heatmap.
+                df_gene_cooc, gene_cooc_lll = get_gene_occ_cooc_tables(id2occ_list_dic, id2infos_dic,
+                                                                       optimal_ordering=heatmap_cluster_olo)
+
+                cooc_plot_plotly =  "tr_%s_occ_cooc_heatmap.plotly.html" %(annot_id_str)
+                cooc_plot_plotly_out = plots_out_folder + "/" + cooc_plot_plotly
+
+                create_gene_occ_cooc_plot_plotly(df_gene_cooc, gene_cooc_lll, cooc_plot_plotly_out,
+                                                include_plotlyjs=include_plotlyjs,
+                                                full_html=plotly_full_html)
+
+                plot_path = plots_folder + "/" + cooc_plot_plotly
+
+                if args.plotly_js_mode in [5, 6, 7]:
+                    # Read in plotly code.
+                    # mdtext += '<div style="width: 1200px; height: 1200px; align-items: center;">' + "\n"
+                    js_code = read_file_content_into_str_var(cooc_plot_plotly_out)
+                    js_code = js_code.replace("height:100%; width:100%;", "height:1200px; width:1200px;")
+                    mdtext += js_code + "\n"
+                    # mdtext += '</div>'
+                else:
+                    if plotly_embed_style == 1:
+                        # mdtext += '<div class="container-fluid" style="margin-top:40px">' + "\n"
+                        mdtext += "<div>\n"
+                        mdtext += '<iframe src="' + plot_path + '" width="1200" height="1200"></iframe>' + "\n"
+                        mdtext += '</div>'
+                    elif plotly_embed_style == 2:
+                        mdtext += '<object data="' + plot_path + '" width="1200" height="1200"> </object>' + "\n"
+
+
+                mdtext += """
+**Figure:** Heat map comparing %s region occupancy profiles between input datasets. Similarity between the occupied 
+%s regions of two datasets is calculated using the cosine similarity of the %s region binary vectors. A cosine similarity 
+of 1 indicates that two datasets have identical occupancy profiles (i.e., occupying the same %s regions), 
+while a cosine similarity of 0 means that the two vectors are completely different (i.e., if dataset 1 covers a specific %s region, 
+dataset 2 does not and vice versa). 
+Datasets are ordered based on hierarchical clustering of the cosine similarity values, 
+so that similar datasets are placed close to each other.
+Hover box: 
+**1)** dataset 1 ID.
+**2)** dataset 2 ID.
+**3)** Cosine similarity value between the two datasets.
+**4)** Counts[]: contingency table of co-occurrence counts (i.e., number of %s regions covered/not covered by the two datasets), 
+with format [[A, B], [C, D]], where 
+A: dataset 1 AND dataset 2, 
+B: NOT dataset1 AND dataset2,
+C: dataset1 AND NOT dataset2,
+D: NOT dataset1 AND NOT dataset2.
+%s regions are labelled 1 or 0 (1 if a genomic region from the dataset overlaps with the %s region, otherwise 0), 
+resulting in a vector of 1s and 0s for each RBP, which is then used to construct the contigency table.
+Note that only %s regions covered by regions in any of the input datasets are considered (# of %s regions: %i).
+
+&nbsp;
+
+""" %(annot_id, annot_id, annot_id, annot_id, annot_id, annot_id, annot_id, annot_id, annot_id, annot_id, c_total_number_regions)
 
 
 
@@ -16176,9 +16637,10 @@ No plot generated since no regions for plotting.
                 mdtext += """
 **Figure:** Genomic region annotations for input dataset **%s** (dataset ID format: %s). 
 Input regions are overlapped with genomic regions from GTF file and genomic region feature with highest overlap 
-is assigned to each input region. "intergenic" feature means none of the used GTF region features overlap with the input region 
-(minimum overlap amount controlled by --gtf-feat-min-overlap). 
+is assigned to each input region.
 By default, RBPBench for each gene in the GTF file selects the region features of the most prominent transcript (see manual for details).
+If an input region does not overlap the selected transcript features, it can either still overlap with gene regions ("unassigned genic"), 
+or not overlap with any gene regions at all ("intergenic").
 **%s**: annotations for input regions containing %s motif hits. 
 **All**: annotations for all input regions (with and without motif hits).
 
@@ -16645,7 +17107,7 @@ def create_batch_annotation_stacked_bars_plot(internal_id, id2infos_dic, id2reg_
     rbp_id = id2infos_dic[internal_id][0]
 
     data_dic = {}
-    for annot in sorted(id2reg_annot_dic[internal_id], reverse=True):
+    for annot in sorted(id2reg_annot_dic[internal_id], reverse=False):  # AALAMO changed to False.
         data_dic[annot] = []
         data_dic[annot].append(id2reg_annot_dic[internal_id][annot])
         if annot in id2hit_reg_annot_dic[internal_id]:
@@ -21548,8 +22010,10 @@ No plot generated since no motif hits found in input regions.
 with motif hits for the respective RBP. 
 Total bar height equals to the number of genomic regions with >= 1 motif hit for the RBP.
 %s
-Note that regions termed "intergenic" include all input regions not overlapping with selected transcript region features. 
 By default, RBPBench for each gene in the GTF file selects the most prominent transcript (see manual for details).
+Input regions not overlapping with selected transcript region features but still within gene regions are annotated 
+as "unassigned genic", while input regions outside gene regions are annotated as "intergenic".
+
 
 &nbsp;
 
@@ -23004,17 +23468,19 @@ def create_rbp_reg_occ_upset_plot_incl(
     # )
 
     if reg2annot_dic and annot_ids and not annot2color_dic:
-        annot2color_dic = {}
 
-        annot_dic = {}
+        annot_dic = get_basic_annot_dic()
+
         for reg_id in reg2annot_dic:
             annot_id = reg2annot_dic[reg_id][0]
             annot_dic[annot_id] = annot_dic.get(annot_id, 0) + 1
 
-        hex_colors = get_hex_colors_list(min_len=len(annot_dic))
+        annot2color_dic = get_annot2color_dic(annot_dic)
 
-        for idx, annot_id in enumerate(sorted(annot_dic)):
-            annot2color_dic[annot_id] = hex_colors[idx]
+        # hex_colors = get_hex_colors_list(min_len=len(annot_dic))
+
+        # for idx, annot_id in enumerate(sorted(annot_dic)):
+        #     annot2color_dic[annot_id] = hex_colors[idx]
 
     """
     Let's Plot!
@@ -23230,6 +23696,42 @@ def create_rbp_reg_occ_upset_plot_incl(
 
     return True, "yowza", 0
 
+################################################################################
+
+def get_basic_annot_dic():
+    """
+    Get basic annotation labels dictionary.
+
+    """
+    annot_dic = {"3'UTR" : 0, "5'UTR" : 0, "CDS" : 0, "lncRNA" : 0, "intron" : 0}
+
+    return annot_dic
+
+
+################################################################################
+
+def get_annot2color_dic(annot_dic,
+                        hex_unassigned_genic="#aaaaaa",
+                        hex_intergenic="#cecece"):
+    """
+    Based on annotation labels dictionary, get annotation label -> hex color mapping.
+
+    """
+
+    annot2color_dic = {}
+    
+    hex_colors = get_hex_colors_list(min_len=len(annot_dic))
+
+    idx = 0
+    for annot in sorted(annot_dic, reverse=False):
+        annot2color_dic[annot] = hex_colors[idx]
+        idx += 1
+
+    annot2color_dic["unassigned genic"] = hex_unassigned_genic
+    annot2color_dic["intergenic"] = hex_intergenic
+
+    return annot2color_dic
+
 
 ################################################################################
 
@@ -23245,6 +23747,8 @@ def create_rbp_reg_occ_upset_plot(rbp2regidx_dic, reg_ids_list,
                                   plot_pdf=False,
                                   plot_out="rbp_region_occupancies.upset_plot.png"):
     """
+    DEPRECATED: use create_rbp_reg_occ_upset_plot_incl() instead.
+
     Create upset plot for RBP region occupancies.
 
     conda install -c conda-forge upsetplot
@@ -23466,12 +23970,15 @@ def create_enmo_annotation_bar_plot(reg2annot_dic,
     # df = df.loc[:, (df != 0).any(axis=0)]
 
     if not annot2color_dic:
-        annot2color_dic = {}
-        hex_colors = get_hex_colors_list(min_len=len(annot_dic))
-        idx = 0
-        for annot in sorted(annot_dic, reverse=False):
-            annot2color_dic[annot] = hex_colors[idx]
-            idx += 1
+
+        annot2color_dic = get_annot2color_dic(annot_dic)
+
+        # annot2color_dic = {}
+        # hex_colors = get_hex_colors_list(min_len=len(annot_dic))
+        # idx = 0
+        # for annot in sorted(annot_dic, reverse=False):
+        #     annot2color_dic[annot] = hex_colors[idx]
+        #     idx += 1
 
     ax = df.set_index('data_id').plot(kind='barh', stacked=True, legend=False, color=annot2color_dic, edgecolor="none", figsize=(fwidth, fheight))
 
@@ -23589,16 +24096,16 @@ def create_search_annotation_stacked_bars_plot(rbp2regidx_dic, reg_ids_list, reg
 
     if not annot2color_dic:
         # Get annotation ID -> hex color mapping for plotting.
-        annot2color_dic = {}
+        annot2color_dic = get_annot2color_dic(annot_dic)
 
-        # Colors for all annotations.
-        hex_colors = get_hex_colors_list(min_len=len(annot_dic))
-        # hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
+        # # Colors for all annotations.
+        # hex_colors = get_hex_colors_list(min_len=len(annot_dic))
+        # # hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
 
-        idx = 0
-        for annot in sorted(annot_dic, reverse=False):
-            annot2color_dic[annot] = hex_colors[idx]
-            idx += 1
+        # idx = 0
+        # for annot in sorted(annot_dic, reverse=False):
+        #     annot2color_dic[annot] = hex_colors[idx]
+        #     idx += 1
 
     # idx = 0
     # for annot in sorted(annot_with_hits_dic, reverse=False):
@@ -23845,7 +24352,7 @@ def create_seqs_kmer_plot_plotly(reg2seq_dic, reg2kmer_rat_dic, plot_out,
 
     if reg2annot_dic:
 
-        # reg2annot_dic format: 
+        # reg2annot_dic format:
         # reg_id -> [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr, gene_id, gene_name, tr_biotype]
 
         df['Annotation'] = [str(reg2annot_dic[reg_id][0]) for reg_id in reg_ids_list]
@@ -25464,7 +25971,9 @@ Number of mRNA sequences used for prediction and plot generation: %i.
             mdtext += """
 **Figure:** Genomic region annotations for RBP "%s" motif hits.
 %s motif hit regions are overlapped with genomic regions from GTF file and genomic region feature with highest overlap
-is assigned to each motif hit region. "intergenic" feature means none of the used GTF region features overlap with the motif hit region.
+is assigned to each motif hit region. 
+Motif hit regions not overlapping with selected transcript region features but still within gene regions are annotated as "unassigned genic", 
+while hit regions outside gene regions are annotated as "intergenic".
 Genomic annotations are shown for all motifs of RBP "%s" combined, as well as for the single motifs (unless there is only one motif).
 
 &nbsp;

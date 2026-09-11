@@ -451,13 +451,13 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    nargs='+',
-                   help="List of transcript biotypes to consider for genomic region annotations. By default an internal selection of transcript biotypes is used (in addition to intron, CDS, UTR, intergenic). Note that provided biotype strings need to be in GTF file")
+                   help="List of transcript biotypes to consider for genomic region annotations. By default an internal selection of transcript biotypes is used (in addition to intron, CDS, UTR, unassigned genic, intergenic). Note that provided biotype strings need to be in GTF file")
     p_s.add_argument("--gtf-feat-min-overlap",
                    dest="gtf_feat_min_overlap",
                    type=float,
                    metavar='float',
                    default=0.1,
-                   help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\"). If there is overlap with several features, assign the one with highest overlap (default: 0.1)")
+                   help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"unassigned genic\" or \"intergenic\"). If there is overlap with several features, assign the one with highest overlap. If same overlap, choose one with more prominent transcript (default: 0.1)")
     # p_s.add_argument("--gtf-eib-min-overlap",
     #                dest="gtf_eib_min_overlap",
     #                type=float,
@@ -947,13 +947,13 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    nargs='+',
-                   help="List of transcript biotypes to consider for genomic region annotations plots. By default an internal selection of transcript biotypes is used (in addition to intron, CDS, UTR, intergenic). Note that provided biotype strings need to be in --gtf GTF file")
+                   help="List of transcript biotypes to consider for genomic region annotations plots. By default an internal selection of transcript biotypes is used (in addition to intron, CDS, UTR, unassigned genic, intergenic). Note that provided biotype strings need to be in --gtf GTF file")
     p_b.add_argument("--gtf-feat-min-overlap",
                    dest="gtf_feat_min_overlap",
                    type=float,
                    metavar='float',
                    default=0.1,
-                   help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\"). If there is overlap with several features, assign the one with highest overlap (default: 0.1)")
+                   help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"unassigned genic\" or \"intergenic\"). If there is overlap with several features, assign the one with highest overlap. If same overlap, choose one with more prominent transcript (default: 0.1)")
     p_b.add_argument("--gtf-intron-border-len",
                    dest="gtf_intron_border_len",
                    type=int,
@@ -964,7 +964,7 @@ def setup_argument_parser():
                    dest="no_occ_heatmap",
                    default = False,
                    action = "store_true",
-                   help = "Do not produce gene region occupancy heatmap plot in HTML report (default: False)")
+                   help = "Do not produce transcript region occupancy heatmap plots in HTML report (default: False)")
     p_b.add_argument("--hk-gene-list",
                    dest="hk_gene_list",
                    type=str,
@@ -1810,13 +1810,13 @@ def setup_argument_parser():
                    type=str,
                    metavar='str',
                    nargs='+',
-                   help="List of transcript biotypes to consider for genomic region annotations plots. By default an internal selection of transcript biotypes is used (in addition to intron, CDS, UTR, intergenic). Note that provided biotype strings need to be in --gtf GTF file")
+                   help="List of transcript biotypes to consider for genomic region annotations plots. By default an internal selection of transcript biotypes is used (in addition to intron, CDS, UTR, unassigned genic, intergenic). Note that provided biotype strings need to be in --gtf GTF file")
     p_sl.add_argument("--gtf-feat-min-overlap",
                    dest="gtf_feat_min_overlap",
                    type=float,
                    metavar='float',
                    default=0.1,
-                   help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\"). If there is overlap with several features, assign the one with highest overlap (default: 0.1)")
+                   help="Minimum amount of overlap required for a region to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\" or \"unassigned genic\"). If there is overlap with several features, assign the one with highest overlap. If same overlap, choose one with more prominent transcript (default: 0.1)")
     p_sl.add_argument("--top-n-matched",
                    dest="top_n_matched",
                    type=int,
@@ -2576,7 +2576,7 @@ def setup_argument_parser():
                    type=float,
                    metavar='float',
                    default=0.1,
-                   help="Minimum amount of overlap required for a motif hit to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\") (default: 0.1)")
+                   help="Minimum amount of overlap required for a motif hit to be assigned to a GTF feature (if less or no overlap, region will be assigned to \"intergenic\" or \"unassigned genic\") (default: 0.1)")
     p_smr.add_argument("--goa",
                    dest="run_goa_tr",
                    default = False,
@@ -6635,9 +6635,9 @@ def main_search(args):
         # Extract exon + intron regions of selected transcripts from transcript infos.
         print("Output intron annotations to BED ... ")
 
-        intron_exon_out_bed = os.path.join(args.out_folder, "intron_exon_regions.tmp.bed")
+        intron_exon_gene_out_bed = os.path.join(args.out_folder, "intron_exon_gene_regions.tmp.bed")
 
-        benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
+        benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_gene_out_bed,
                                             output_mode=3,  # only introns.
                                             report_counts=True,
                                             add_tr_id=True,  # new reg_id format: intron;ENST000006666
@@ -6654,76 +6654,11 @@ def main_search(args):
 
         # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.
         print("Output exon annotations to BED ... ")
-        benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
+        benchlib.output_exon_annotations(tid2tio_dic, intron_exon_gene_out_bed,
                                          custom_annot_dic=custom_annot_dic,
                                          add_numbers=True,
                                          append=True)
 
-        # Overlap with input regions.
-        print("Overlap annotations with input regions ... ")
-        params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
-        # params = "-s -wo -f %s -F %s -e" %(str(args.gtf_feat_min_overlap), str(args.gtf_feat_min_overlap))
-        overlap_annotations_bed = os.path.join(args.out_folder, "overlap_region_annotations.tmp.bed")
-
-        benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_out_bed, 
-                                     overlap_annotations_bed,
-                                     params=params)
-        
-        reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
-                                                        tid2tio_dic,
-                                                        reg_ids_dic=reg_ids_dic)
-
-        # Output assignments.
-        print("Output region annotations ... ")
-        
-        OUTRAN = open(reg_annot_table_file, "w")
-        OUTRAN.write("region_id\tgene_id\tgene_name\ttranscript_id\tregion_annotation\ttranscript_biotype\tborder_dist\tus_ds_label\tannot_reg_len\texon_intron_nr\n")
-
-        tids_with_sites_dic = {}  # transcript IDs with sites.
-
-        # So far reg2annot_dic format: reg_id -> [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr]
-        # intergenic: ["intergenic", False, -1, "-", -1, "-"]
-        #  annot_reg_len == intron/exon length.
-        # exon_intron_nr format: 1-5, 2-6 ...
-
-        for reg_id in reg2annot_dic:
-            annot = reg2annot_dic[reg_id][0]
-            tr_id = reg2annot_dic[reg_id][1]
-            gene_id = "-"
-            gene_name = "-"
-            tr_biotype = "-"
-            reg2annot_dic[reg_id].append("-")
-            reg2annot_dic[reg_id].append("-")
-            reg2annot_dic[reg_id].append("-")
-            if tr_id:
-                gene_id = tr2gid_dic[tr_id]
-                gene_info = gid2gio_dic[gene_id]
-                tr_biotype = tid2tio_dic[tr_id].tr_biotype
-                gene_name = gene_info.gene_name
-                gid2tid_dic[gene_id] = tr_id
-                reg2annot_dic[reg_id][6] = gene_id
-                reg2annot_dic[reg_id][7] = gene_name
-                reg2annot_dic[reg_id][8] = tr_biotype
-                if gene_id not in target_genes_dic:
-                    target_genes_dic[gene_id] = 1
-                else:
-                    target_genes_dic[gene_id] += 1
-            else:
-                tr_id = "-"
-            border_dist = str(reg2annot_dic[reg_id][2])  # -1 unless intron annotation.
-            us_ds_label = reg2annot_dic[reg_id][3]  # "-" unless intron annotation.
-            annot_reg_len = str(reg2annot_dic[reg_id][4])
-            exon_intron_nr_c = reg2annot_dic[reg_id][5]  # format: 1-5, 2-6 ...
-
-            OUTRAN.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot, tr_biotype, border_dist, us_ds_label, annot_reg_len, exon_intron_nr_c))
-
-            if tr_id not in tids_with_sites_dic:
-                tids_with_sites_dic[tr_id] = 1
-            else:
-                tids_with_sites_dic[tr_id] += 1
-            
-        OUTRAN.close()
-    
         """
         Output additional annotations to BED files.
 
@@ -6732,7 +6667,12 @@ def main_search(args):
         print("Output gene regions to BED ... ")
 
         benchlib.output_gene_regions_to_bed(gid2gio_dic, gene_regions_bed,
-                                            add_annot_stats_dic=add_annot_stats_dic)
+                                            add_gene_str=True,
+                                            add_annot_stats_dic=add_annot_stats_dic)  # add "c_genes" key -> # of genes output.
+
+        # Append gene_regions_bed to intron_exon_gene_out_bed.
+        with open(gene_regions_bed, "r") as src, open(intron_exon_gene_out_bed, "a") as dst:
+            dst.write(src.read())
 
         print("Output putative promoter regions to BED ... ")
 
@@ -6746,6 +6686,21 @@ def main_search(args):
                                         add_annot_stats_dic=add_annot_stats_dic)
 
 
+        # Overlap with input regions.
+        print("Overlap annotations with input regions ... ")
+        params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
+        # params = "-s -wo -f %s -F %s -e" %(str(args.gtf_feat_min_overlap), str(args.gtf_feat_min_overlap))
+        overlap_annotations_bed = os.path.join(args.out_folder, "overlap_region_annotations.tmp.bed")
+
+        benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_gene_out_bed, 
+                                     overlap_annotations_bed,
+                                     params=params)
+        
+        reg2annot_dic = benchlib.get_region_annotations(overlap_annotations_bed,
+                                                        tid2tio_dic,
+                                                        reg_ids_dic=reg_ids_dic)
+
+    
         """
         Overlap additional annotation regions with input regions.
 
@@ -6758,6 +6713,16 @@ def main_search(args):
                                         params="-s -v")
 
         print("# input regions NOT overlapping with gene regions: %i" %(c_outside_genes))
+
+        # # Also get region IDs overlapping with gene regions.
+        # reg_ids_inside_genes_dic = benchlib.bed_intersect_files_get_ids(filtered_sites_bed, gene_regions_bed,
+        #                                                          params="-s -wo",
+        #                                                          key_id_col=3,  # zero-based column number.
+        #                                                          val_id_col=9,
+        #                                                          as_list=False)
+
+        # c_inside_genes = len(reg_ids_inside_genes_dic)
+        # print("# input regions overlapping with gene regions: %i" %(c_inside_genes))
 
         print("Overlap input regions with promoter regions ... ")
 
@@ -6792,6 +6757,76 @@ def main_search(args):
         add_annot_stats_dic["prom_ext_up"] = prom_ext_up
         add_annot_stats_dic["prom_ext_down"] = prom_ext_down
 
+
+        """
+        Output region annotations.
+
+        """
+
+        # Output assignments.
+        print("Output region annotations ... ")
+        
+        OUTRAN = open(reg_annot_table_file, "w")
+        OUTRAN.write("region_id\tgene_id\tgene_name\ttranscript_id\tregion_annotation\ttranscript_biotype\tborder_dist\tus_ds_label\tannot_reg_len\texon_intron_nr\n")
+
+        tids_with_sites_dic = {}  # transcript IDs with sites.
+
+        # So far reg2annot_dic format: reg_id -> [annot_id, tr_id, border_dist, us_ds_label, annot_reg_len, exon_intron_nr]
+        # intergenic: ["intergenic", False, -1, "-", -1, "-"]
+        #  annot_reg_len == intron/exon length.
+        # exon_intron_nr format: 1-5, 2-6 ...
+
+        for reg_id in reg2annot_dic:
+            annot = reg2annot_dic[reg_id][0]
+            tr_id = reg2annot_dic[reg_id][1]
+            gene_id = "-"
+            gene_name = "-"
+            tr_biotype = "-"
+            reg2annot_dic[reg_id].append("-")
+            reg2annot_dic[reg_id].append("-")
+            reg2annot_dic[reg_id].append("-")
+            if tr_id:
+                if tr_id not in tid2tio_dic:  # "unassigned genic" case, here tr_id == gene_id.
+                    assert tr_id in gid2gio_dic, "unassigned genic annotation gene ID %s not in gid2gio_dic" %(tr_id)
+                    gene_info = gid2gio_dic[tr_id]
+                    gene_name = gene_info.gene_name
+                    reg2annot_dic[reg_id][6] = tr_id
+                    reg2annot_dic[reg_id][7] = gene_name
+                    reg2annot_dic[reg_id][1] = "-"  # Unset tr_id.
+
+                else:  # if valid transcript ID (i.e. annotation is on transcripts).
+                    gene_id = tr2gid_dic[tr_id]
+                    gene_info = gid2gio_dic[gene_id]
+                    tr_biotype = tid2tio_dic[tr_id].tr_biotype
+                    gene_name = gene_info.gene_name
+                    gid2tid_dic[gene_id] = tr_id
+                    reg2annot_dic[reg_id][6] = gene_id
+                    reg2annot_dic[reg_id][7] = gene_name
+                    reg2annot_dic[reg_id][8] = tr_biotype
+                    if gene_id not in target_genes_dic:
+                        target_genes_dic[gene_id] = 1
+                    else:
+                        target_genes_dic[gene_id] += 1
+            else:
+                tr_id = "-"
+
+            border_dist = str(reg2annot_dic[reg_id][2])  # -1 unless intron annotation.
+            us_ds_label = reg2annot_dic[reg_id][3]  # "-" unless intron annotation.
+            annot_reg_len = str(reg2annot_dic[reg_id][4])
+            exon_intron_nr_c = reg2annot_dic[reg_id][5]  # format: 1-5, 2-6 ...
+
+            OUTRAN.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" %(reg_id, gene_id, gene_name, tr_id, annot, tr_biotype, border_dist, us_ds_label, annot_reg_len, exon_intron_nr_c))
+
+            # If tr_id is valid transcript ID (not gene ID if annotation is unassigned genic).
+            if tr_id in tid2tio_dic:
+                if tr_id not in tids_with_sites_dic:
+                    tids_with_sites_dic[tr_id] = 1
+                else:
+                    tids_with_sites_dic[tr_id] += 1
+            
+        OUTRAN.close()
+
+
         """
         Get exon+intron+eib overlap counts.
 
@@ -6811,6 +6846,7 @@ def main_search(args):
             "exonic" : 0,
             "intronic" : 0,
             "intergenic" : 0,
+            "genic_unassigned" : 0,
             "eib" : 0,
             "us_ib_dist" : 0,
             "ds_ib_dist" : 0,
@@ -6859,6 +6895,7 @@ def main_search(args):
         c_exon_ol = eib_annot_c_dic["exonic"]
         c_intron_ol = eib_annot_c_dic["intronic"]
         c_intergenic = eib_annot_c_dic["intergenic"]
+        c_genic_unassigned = eib_annot_c_dic["genic_unassigned"]
         c_eib_ol = eib_annot_c_dic["eib"]
         c_us_ib_ol = eib_annot_c_dic["us_ib"]
         c_ds_ib_ol = eib_annot_c_dic["ds_ib"]
@@ -6872,6 +6909,7 @@ def main_search(args):
                                                           c_exon_sites=c_exon_ol,
                                                           c_intron_sites=c_intron_ol,
                                                           c_intergenic_sites=c_intergenic,
+                                                          c_genic_unassigned_sites=c_genic_unassigned,
                                                           c_us_ib_sites=c_us_ib_ol,
                                                           c_ds_ib_sites=c_ds_ib_ol,
                                                           c_us_ib_dist_sites=c_us_ib_dist_ol,
@@ -7246,15 +7284,15 @@ def main_search(args):
         benchlib.reformat_to_bed10(motif_hits_bed_out, motif_hits_bed_tmp_out)
 
         overlap_motif_hit_annotations_bed = os.path.join(args.out_folder, "overlap_motif_hit_annotations.tmp.bed")
-        benchlib.bed_intersect_files(motif_hits_bed_tmp_out, intron_exon_out_bed, 
+        benchlib.bed_intersect_files(motif_hits_bed_tmp_out, intron_exon_gene_out_bed, 
                                      overlap_motif_hit_annotations_bed,
                                      params=params)
 
         motif_hit2annot_dic = benchlib.get_region_annotations(
-                                        overlap_motif_hit_annotations_bed,
-                                        tid2tio_dic,
-                                        motif_hits=True,
-                                        reg_ids_dic=motif_reg_dic)
+                                       overlap_motif_hit_annotations_bed,
+                                       tid2tio_dic,
+                                       motif_hits=True,
+                                       reg_ids_dic=motif_reg_dic)
 
         for motif_hit in motif_hit2annot_dic:
             # motif_hit format: "chr1:10-15(+)motif_id". Get motif_id.
@@ -7296,7 +7334,9 @@ def main_search(args):
 
     if reg2annot_dic or rbp2motif2annot2c_dic:
 
-        annot_dic = {"3'UTR" : 0, "5'UTR" : 0, "CDS" : 0, "lncRNA" : 0, "intron" : 0, "intergenic" : 0}
+        # annot_dic = {"3'UTR" : 0, "5'UTR" : 0, "CDS" : 0, "lncRNA" : 0, "intron" : 0, "intergenic" : 0, "unassigned genic" : 0}
+        annot_dic = benchlib.get_basic_annot_dic()
+
         # annot_dic = {}
 
         if reg2annot_dic:
@@ -7321,15 +7361,7 @@ def main_search(args):
             annot_dic["CDS"] = 1
             annot_dic["3'UTR"] = 1
 
-        # hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
-        hex_colors = benchlib.get_hex_colors_list(min_len=len(annot_dic))
-
-        idx = 0
-        for annot in sorted(annot_dic, reverse=False):
-            # hc = hex_colors[idx]
-            # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
-            annot2color_dic[annot] = hex_colors[idx]
-            idx += 1
+        annot2color_dic = benchlib.get_annot2color_dic(annot_dic)
 
 
     """
@@ -7378,6 +7410,7 @@ def main_search(args):
     plots_subfolder = "html_report_plots"
     benchlib_path = os.path.dirname(benchlib.__file__)
 
+    # More insanity checks.
     for reg_id in reg2annot_dic:
         if len(reg2annot_dic[reg_id]) != 9:
             print("!=9 for:", reg_id, reg2annot_dic[reg_id])
@@ -7678,6 +7711,7 @@ def main_batch(args):
 
     if not bed_path and len(bed_list) == 1:
         # Check if file is a table file and not a BED file.
+        print("Check if file given via --bed is valid table file (check # columns + .bed paths) ... ")
         if benchlib.check_table_file(bed_list[0]):
             print("Table file provided via --bed ... ")
             print("Read in table file infos (including RBP, method, data IDs + BED file paths) ... ")
@@ -7691,6 +7725,8 @@ def main_batch(args):
                 method_ids_list.append(dataset[1])
                 data_ids_list.append(dataset[2])
                 bed_list.append(dataset[3])
+        else:
+            print("WARNING: Table check failed (table file paths correct?) ... ")
 
     """
     Extracting RBP IDs from BED file names.
@@ -7941,7 +7977,7 @@ def main_batch(args):
     If --gtf file, read in GTF info.
 
     """
-    intron_exon_out_bed = args.out_folder + "/intron_exon_regions.tmp.bed"
+    intron_exon_gene_out_bed = args.out_folder + "/intron_exon_gene_regions.tmp.bed"
     intron_exon_border_out_bed = args.out_folder + "/intron_exon_border_regions.tmp.bed"
 
     tr_ids_dic = {}  # Store (most prominent / representative) transcript ID -> gene ID.
@@ -8061,7 +8097,7 @@ def main_batch(args):
 
         # Extract exon + intron regions of selected transcripts from transcript infos.
         print("Output intron annotations to BED ... ")
-        benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_out_bed,
+        benchlib.output_transcript_info_intron_exon_to_bed(tid2tio_dic, intron_exon_gene_out_bed,
                                             output_mode=3,  # only introns.
                                             report_counts=True,
                                             add_tr_id=True,  # new reg_id format: intron;ENST000006666
@@ -8078,7 +8114,7 @@ def main_batch(args):
 
         # Append detailed exon annotations (CDS, UTR, transcript biotypes) to intron annotations.
         print("Output exon annotations to BED ... ")
-        benchlib.output_exon_annotations(tid2tio_dic, intron_exon_out_bed,
+        benchlib.output_exon_annotations(tid2tio_dic, intron_exon_gene_out_bed,
                                          custom_annot_dic=custom_annot_dic,
                                          add_numbers=True,
                                          append=True)
@@ -8097,7 +8133,12 @@ def main_batch(args):
         print("Output gene regions to BED ... ")
 
         benchlib.output_gene_regions_to_bed(gid2gio_dic, gene_regions_bed,
+                                            add_gene_str=True,
                                             add_annot_stats_dic=add_annot_stats_dic)
+
+        # Append gene_regions_bed to intron_exon_gene_out_bed.  AALAMO
+        with open(gene_regions_bed, "r") as src, open(intron_exon_gene_out_bed, "a") as dst:
+            dst.write(src.read())
 
         print("Output putative promoter regions to BED ... ")
 
@@ -8226,6 +8267,10 @@ def main_batch(args):
     ei_ol_stats_dic = {}
     # Dataset IDs to additional annotation stats dictionary.
     dsid2add_annot_stats_dic = {}
+    # Internal ID to occurring transcript region annotations.
+    id2ol_annot_dic = {}  # internal_id -> ["3'UTR;ENST1", "CDS;ENST2", ...]
+    valid_ol_annot_dic = ["3'UTR", "5'UTR", "CDS", "intron"]
+
     # Settings for all datasets.
     if add_annot_stats_dic:
         dsid2add_annot_stats_dic["general"] = {"c_genes": add_annot_stats_dic["c_genes"], 
@@ -8272,6 +8317,7 @@ def main_batch(args):
         print("Internal ID:   ", internal_id)
 
         id2infos_dic[internal_id] = [rbp_id, data_id, method_id, motif_db_str, bed_file_path]
+        id2ol_annot_dic[internal_id] = {}
 
         rbp = benchlib.RBP(rbp_id, internal_id)
 
@@ -9058,7 +9104,7 @@ def main_batch(args):
             print("Overlap annotations with input regions ... ")
             params = "-s -wo -f %s" %(str(args.gtf_feat_min_overlap))
             overlap_annotations_bed = args.out_folder + "/overlap_annotations.tmp.bed"
-            benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_out_bed, 
+            benchlib.bed_intersect_files(filtered_sites_bed, intron_exon_gene_out_bed,
                                          overlap_annotations_bed,
                                          params=params)
             
@@ -9119,15 +9165,27 @@ def main_batch(args):
             occ_hits_tr_ids_dic = {}  # Transcript IDs occupied by dataset regions with motif hits.
             id2reg_annot_dic[internal_id] = {}
             
-            for reg_id in reg2annot_dic:
+            for reg_id in reg2annot_dic:  # AALAMO AAALAMO
                 annot = reg2annot_dic[reg_id][0]
                 tr_id = reg2annot_dic[reg_id][1]
                 # Extend to 9 elements format.
                 reg2annot_dic[reg_id].append("-")
                 reg2annot_dic[reg_id].append("-")
                 reg2annot_dic[reg_id].append("-")
+                if annot == "unassigned genic":  # unassigned genic annotation.
+                    reg2annot_dic[reg_id][1] = "-"
+                    reg2annot_dic[reg_id][6] = tr_id  # tr_id here is actually gene ID.
 
-                if tr_id:  # if tr_id is not False (if region does not overlap with transcripts/genes).
+                if tr_id and tr_id in tid2tio_dic:  # Exclude unassigned genic and intergenic annotations here (where no tr_id is set).
+
+                    if annot in valid_ol_annot_dic:
+                        add_tr_id = tr_id
+                        if annot == "intron":
+                            add_tr_id = tr_id + ";" + reg2annot_dic[reg_id][5]
+                        if annot in id2ol_annot_dic[internal_id]:
+                            id2ol_annot_dic[internal_id][annot].append(add_tr_id)
+                        else:
+                            id2ol_annot_dic[internal_id][annot] = [add_tr_id]
 
                     # Record transcript IDs occupied by all dataset regions.
                     if tr_id in all_sets_occ_tr_ids_dic:
@@ -9153,7 +9211,7 @@ def main_batch(args):
                 annot = reg2annot_dic[reg_id][0]
                 tr_id = reg2annot_dic[reg_id][1]
 
-                if tr_id:
+                if tr_id and tr_id in tid2tio_dic:
                     if tr_id in occ_hits_tr_ids_dic:
                         occ_hits_tr_ids_dic[tr_id] += 1
                     else:
@@ -9245,6 +9303,7 @@ def main_batch(args):
                 "exonic" : 0,
                 "intronic" : 0,
                 "intergenic" : 0,
+                "genic_unassigned" : 0,
                 "eib" : 0,
                 "us_ib_dist" : 0,
                 "ds_ib_dist" : 0,
@@ -9260,12 +9319,13 @@ def main_batch(args):
 
             for reg_id in reg2annot_dic:
                 benchlib.get_eib_annot_c(reg2annot_dic[reg_id], eib_annot_c_dic,
-                                        ib_len=args.gtf_intron_border_len,
-                                        eib_len=ei_border_len)
+                                         ib_len=args.gtf_intron_border_len,
+                                         eib_len=ei_border_len)
 
             c_exon_ol = eib_annot_c_dic["exonic"]
             c_intron_ol = eib_annot_c_dic["intronic"]
             c_intergenic = eib_annot_c_dic["intergenic"]
+            c_genic_unassigned = eib_annot_c_dic["genic_unassigned"]
             c_eib_ol = eib_annot_c_dic["eib"]
             c_us_ib_ol = eib_annot_c_dic["us_ib"]
             c_ds_ib_ol = eib_annot_c_dic["ds_ib"]
@@ -9279,6 +9339,7 @@ def main_batch(args):
                                                             c_exon_sites=c_exon_ol,
                                                             c_intron_sites=c_intron_ol,
                                                             c_intergenic_sites=c_intergenic,
+                                                            c_genic_unassigned_sites=c_genic_unassigned,
                                                             c_us_ib_sites=c_us_ib_ol,
                                                             c_ds_ib_sites=c_ds_ib_ol,
                                                             c_us_ib_dist_sites=c_us_ib_dist_ol,
@@ -9432,7 +9493,7 @@ def main_batch(args):
 
             params = "-s -wao -f %s" %(str(args.gtf_feat_min_overlap))
             overlap_regex_hit_annotations_bed = args.out_folder + "/overlap_regex_hit_annotations.tmp.bed"
-            benchlib.bed_intersect_files(regex_hits_bed_out, intron_exon_out_bed, 
+            benchlib.bed_intersect_files(regex_hits_bed_out, intron_exon_gene_out_bed, 
                                          overlap_regex_hit_annotations_bed,
                                          params=params)
 
@@ -9786,6 +9847,7 @@ def main_batch(args):
                                         goa_results_df=goa_results_df,
                                         goa_stats_dic=goa_stats_dic,
                                         dsid2add_annot_stats_dic=dsid2add_annot_stats_dic,
+                                        id2ol_annot_dic=id2ol_annot_dic,
                                         plots_subfolder=plots_subfolder)
 
     """
@@ -13515,6 +13577,10 @@ def main_searchlong(args):
 
     """
 
+    gene_regions_bed = os.path.join(args.out_folder, "gene_regions.bed")
+    gene_regions_ol_in_bed = os.path.join(args.out_folder, "gene_regions.ol_in.bed")
+    gene_regions_sub_exon_intron_bed = os.path.join(args.out_folder, "gene_regions.subtract_exon_intron.bed")
+
     rbp2motif2annot2c_dic = {}  # rbp_id -> motif_id -> annot -> count
     rbp2motif2annot2normc_dic = {}  # rbp_id -> motif_id -> annot -> norm_count
     args.eff_in_reg_size = 0
@@ -13543,6 +13609,27 @@ def main_searchlong(args):
                                          custom_annot_dic=custom_annot_dic,
                                          append=True)
 
+        # Now merge overlapping transcript region annotations and for each overlapping segment select most prominent annotation.
+        intron_exon_gene_out_bed = args.out_folder + "/intron_exon_gene_regions.tmp.bed"
+
+        benchlib.bed_make_regions_unique_select_best(intron_exon_out_bed, intron_exon_gene_out_bed, tid2tio_dic)
+                                        
+        # Output gene regions to BED.
+        print("Output gene regions to BED ... ")
+        benchlib.output_gene_regions_to_bed(gid2gio_dic, gene_regions_bed,
+                                            add_gene_str=True)
+
+        # Get gene regions overlapping with input regions.
+        benchlib.bed_intersect_files(gene_regions_bed, filtered_sites_bed, gene_regions_ol_in_bed, params="-s -u")
+
+        # Get gene regions/region parts not overlapping with selected intron exon annotations.
+        print("Get gene region parts not overlapping with other annotations ... ")
+        benchlib.bed_subtract_files(gene_regions_ol_in_bed, intron_exon_gene_out_bed, gene_regions_sub_exon_intron_bed, params="-s")
+
+        # Append these parts to intron_exon_gene_out_bed.
+        with open(gene_regions_sub_exon_intron_bed, "r") as src, open(intron_exon_gene_out_bed, "a") as dst:
+            dst.write(src.read())
+
         motif_hits_bed_tmp_out = args.out_folder + "/motif_hits.tmp.bed"
         benchlib.reformat_to_bed10(motif_hits_bed_out, motif_hits_bed_tmp_out)
 
@@ -13553,12 +13640,24 @@ def main_searchlong(args):
         # use compatible function get_motif_hit_region_annotations().
         params = "-s -wao -f %s" %(str(args.gtf_feat_min_overlap))
         overlap_motif_hit_annotations_bed = args.out_folder + "/overlap_motif_hit_annotations.tmp.bed"
-        benchlib.bed_intersect_files(motif_hits_bed_tmp_out, intron_exon_out_bed, 
+        benchlib.bed_intersect_files(motif_hits_bed_tmp_out, intron_exon_gene_out_bed, 
                                      overlap_motif_hit_annotations_bed,
                                      params=params)
 
+        """
+        overlap_motif_hit_annotations_bed includes already unique (!) motif hits overlapped with annotations.
+
+        motif_hit2annot_dic[motif_hit] = [annot_id, tr_id]
+        For unassigned genic: ["unassigned genic", "ENSG6666"]
+        For intergenic: ["intergenic", False]
+        motif_hit format: chr10:1000-1006(+)motif_id
+        
+        """
+
         motif_hit2annot_dic = benchlib.get_motif_hit_region_annotations(overlap_motif_hit_annotations_bed,
                                                                         tid2tio_dic=tid2tio_dic)
+
+
         # motif_hit2annot_dic = benchlib.get_region_annotations(
         #                                     overlap_motif_hit_annotations_bed,
         #                                     motif_hits=True,
@@ -13587,10 +13686,11 @@ def main_searchlong(args):
                 annot = motif_hit2annot_dic[hit_id][0]
             cols = motif_reg_dic[hit_id].split("\t")
             match_seq = cols[11]
-            cols_part1 = "\t".join(cols[0:10]) 
+            cols_part1 = "\t".join(cols[0:10])
             OUTBED.write("%s\t%s\t%s\n" %(cols_part1, annot, match_seq))
         OUTBED.close()
 
+        # Make unique motif hits into mapping: rbp_id -> motif_id -> annot -> count.
         for motif_hit in motif_hit2annot_dic:
             # motif_hit format: "chr1:10-15(+)motif_id". Get motif_id.
             motif_id = motif_hit.split(")")[1]
@@ -13608,15 +13708,12 @@ def main_searchlong(args):
 
         """
         Get normalized rbp2motif2annot2c_dic (rbp2motif2annot2normc_dic)
-        I.e., the count gets normalized by the total annot region length in the 
-        filtered_sites_bed. This way we can better see whether motifs tend to occur
-        more often in certain annotated regions.
-        Note that overlap is done with filtered_sites_bed vs intron_exon_out_bed,
-        counting all feature overlaps, whereas in rbp2motif2annot2c_dic the best 
-        overlapping annotation is determined inside get_motif_hit_region_annotations.
-        So a motif hit can only overlap with one annotation for the rbp2motif2annot2c_dic
-        counts, whereas the filtered_sites_bed can overlap with different annotations
-        (all the annotations in intron_exon_out_bed).
+        I.e., the motif hit count in each annotation region gets normalized 
+        by the total length of the annotation appearing in the unique input 
+        regions (merged overlapping regions).
+        NOTE that intron_exon_gene_out_bed contains selected intron + exon annotations,
+        plus all the gene region parts overlapping input regions, but not the selected 
+        intron + exon annotations.
 
         eff_in_reg_size:
             Effective input regions size (i.e., overlapping regions merged).
@@ -13625,7 +13722,7 @@ def main_searchlong(args):
 
         print("Get normalized annotation counts ... ")
         rbp2motif2annot2normc_dic, eff_in_reg_size = benchlib.get_normalized_annot_counts(
-                                        filtered_sites_bed, intron_exon_out_bed,
+                                        filtered_sites_bed, intron_exon_gene_out_bed,
                                         rbp2motif2annot2c_dic, reg2pol_dic, 
                                         args.out_folder)
 
@@ -13640,7 +13737,8 @@ def main_searchlong(args):
 
     if rbp2motif2annot2c_dic:
 
-        annot_dic = {"3'UTR" : 0, "5'UTR" : 0, "CDS" : 0, "lncRNA" : 0, "intron" : 0, "intergenic" : 0}
+        # annot_dic = {"3'UTR" : 0, "5'UTR" : 0, "CDS" : 0, "lncRNA" : 0, "intron" : 0, "intergenic" : 0, "genic unassigned" : 0}
+        annot_dic = benchlib.get_basic_annot_dic()
 
         if rbp2motif2annot2c_dic:
             for rbp_id in rbp2motif2annot2c_dic:
@@ -13651,15 +13749,17 @@ def main_searchlong(args):
                         else:
                             annot_dic[annot] += 1
 
-        # hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
-        hex_colors = benchlib.get_hex_colors_list(min_len=len(annot_dic))
+        # # hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
+        # hex_colors = benchlib.get_hex_colors_list(min_len=len(annot_dic))
 
-        idx = 0
-        for annot in sorted(annot_dic, reverse=False):
-            # hc = hex_colors[idx]
-            # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
-            annot2color_dic[annot] = hex_colors[idx]
-            idx += 1
+        # idx = 0
+        # for annot in sorted(annot_dic, reverse=False):
+        #     # hc = hex_colors[idx]
+        #     # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
+        #     annot2color_dic[annot] = hex_colors[idx]
+        #     idx += 1
+
+        annot2color_dic = benchlib.get_annot2color_dic(annot_dic)
 
 
     """
@@ -13696,7 +13796,7 @@ def main_searchlong(args):
                                         rbp2motif2annot2normc_dic=rbp2motif2annot2normc_dic,
                                         annot2color_dic=annot2color_dic,
                                         html_report_out=html_motif_plots_out,
-                                        rbpbench_mode="searchlong --plot-motifs",
+                                        rbpbench_mode="searchlong",
                                         reg_seq_str="regions",
                                         id2pids_dic=id2pids_dic,
                                         id2exp_dic=id2exp_dic,
@@ -17776,9 +17876,11 @@ def main_searchlongrna(args):
     annot2color_dic = {}
 
     # annot_dic = {"5'UTR" : 0, "CDS" : 0, "3'UTR" : 0, "intergenic" : 0}
-    annot_dic = {"3'UTR" : 0, "5'UTR" : 0, "CDS" : 0, "intron" : 0, "intergenic" : 0}
+    # annot_dic = {"3'UTR" : 0, "5'UTR" : 0, "CDS" : 0, "intron" : 0, "intergenic" : 0}
 
     if rbp2motif2annot2c_dic:
+
+        annot_dic = benchlib.get_basic_annot_dic()
 
         if rbp2motif2annot2c_dic:
             for rbp_id in rbp2motif2annot2c_dic:
@@ -17789,15 +17891,17 @@ def main_searchlongrna(args):
                         else:
                             annot_dic[annot] += 1
 
-        # hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
-        hex_colors = benchlib.get_hex_colors_list(min_len=len(annot_dic))
+        # # hex_colors = get_hex_colors_list(min_len=len(annot_with_hits_dic))
+        # hex_colors = benchlib.get_hex_colors_list(min_len=len(annot_dic))
 
-        idx = 0
-        for annot in sorted(annot_dic, reverse=False):
-            # hc = hex_colors[idx]
-            # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
-            annot2color_dic[annot] = hex_colors[idx]
-            idx += 1
+        # idx = 0
+        # for annot in sorted(annot_dic, reverse=False):
+        #     # hc = hex_colors[idx]
+        #     # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
+        #     annot2color_dic[annot] = hex_colors[idx]
+        #     idx += 1
+
+        annot2color_dic = benchlib.get_annot2color_dic(annot_dic)
 
 
     """
@@ -19284,7 +19388,8 @@ def main_enmo(args):
         assert pos_reg2annot_dic, "--bg-mode 1 set, but no input region annotations found. Please contact developers"
         assert neg_reg2annot_dic, "--bg-mode 1 set, but no background region annotations found. Please contact developers"
 
-        annot_dic = {"3'UTR" : 0, "5'UTR" : 0, "CDS" : 0, "lncRNA" : 0, "intron" : 0, "intergenic" : 0}
+        # annot_dic = {"3'UTR" : 0, "5'UTR" : 0, "CDS" : 0, "lncRNA" : 0, "intron" : 0, "intergenic" : 0}
+        annot_dic = benchlib.get_basic_annot_dic()
 
         for reg_id in pos_reg2annot_dic:
             annot = pos_reg2annot_dic[reg_id][0]
@@ -19299,14 +19404,16 @@ def main_enmo(args):
             else:
                 annot_dic[annot] += 1
 
-        hex_colors = benchlib.get_hex_colors_list(min_len=len(annot_dic))
+        # hex_colors = benchlib.get_hex_colors_list(min_len=len(annot_dic))
 
-        idx = 0
-        for annot in sorted(annot_dic, reverse=False):
-            # hc = hex_colors[idx]
-            # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
-            annot2color_dic[annot] = hex_colors[idx]
-            idx += 1
+        # idx = 0
+        # for annot in sorted(annot_dic, reverse=False):
+        #     # hc = hex_colors[idx]
+        #     # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
+        #     annot2color_dic[annot] = hex_colors[idx]
+        #     idx += 1
+
+        annot2color_dic = benchlib.get_annot2color_dic(annot_dic)
 
 
     """
@@ -21761,7 +21868,8 @@ def main_nemo(args):
         assert pos_reg2annot_dic, "--bg-mode 1 set, but no input region annotations found. Please contact developers"
         assert neg_reg2annot_dic, "--bg-mode 1 set, but no background region annotations found. Please contact developers"
 
-        annot_dic = {"3'UTR" : 0, "5'UTR" : 0, "CDS" : 0, "lncRNA" : 0, "intron" : 0, "intergenic" : 0}
+        # annot_dic = {"3'UTR" : 0, "5'UTR" : 0, "CDS" : 0, "lncRNA" : 0, "intron" : 0, "intergenic" : 0}
+        annot_dic = benchlib.get_basic_annot_dic()
 
         for reg_id in pos_reg2annot_dic:
             annot = pos_reg2annot_dic[reg_id][0]
@@ -21776,14 +21884,17 @@ def main_nemo(args):
             else:
                 annot_dic[annot] += 1
 
-        hex_colors = benchlib.get_hex_colors_list(min_len=len(annot_dic))
+        # hex_colors = benchlib.get_hex_colors_list(min_len=len(annot_dic))
 
-        idx = 0
-        for annot in sorted(annot_dic, reverse=False):
-            # hc = hex_colors[idx]
-            # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
-            annot2color_dic[annot] = hex_colors[idx]
-            idx += 1
+        # idx = 0
+        # for annot in sorted(annot_dic, reverse=False):
+        #     # hc = hex_colors[idx]
+        #     # print("Assigning hex color %s to annotation %s ... " %(hc, annot))
+        #     annot2color_dic[annot] = hex_colors[idx]
+        #     idx += 1
+
+        annot2color_dic = benchlib.get_annot2color_dic(annot_dic)
+
 
     """
     Get FIMO + REGEX hits.
