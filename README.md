@@ -1455,7 +1455,7 @@ This background correction helps to differentiate between k-mer content potentia
 To make enrichment and depletion symmetric around zero, log2 fold change values are used in the output statistics and plots (`~ 0` → no enrichment, `> 0` → enrichment, `< 0` → negative enrichment / depletion). The following tables describe the meaning of these values and how to interpret them individually and combined.
 
 
-**Table:** Interpretion of the three different fold change values for a specific k-mer (typically k>=5 for higher-order enrichment check).
+**Table:** Interpretation of the three different fold change values for a specific k-mer (typically k>=5 for higher-order enrichment check).
 Foreground low-order composition: 1-/2-mer composition of input regions.
 
 
@@ -1466,7 +1466,7 @@ Foreground low-order composition: 1-/2-mer composition of input regions.
 | **MM/BG log2FC** | Does the **foreground low-order composition** make this k-mer more expected than the annotation-matched background does? | Foreground 1-/2-mer composition favors this k-mer relative to BG |
 
 
-**Table:** Interpretion of different fold change value combinations for a specific k-mer (typically k>=5 for higher-order enrichment check). 
+**Table:** Interpretation of different fold change value combinations for a specific k-mer (typically k>=5 for higher-order enrichment check). 
 Label *high* means that the k-mer has a positive value and ranks among the top k-mers in the respective background statistics table above.
 
 | FG/BG log2FC | FG/MM log2FC | MM/BG log2FC | Interpretation |
@@ -1513,13 +1513,8 @@ For example, suppose we have the 5-mer `TGCAT`, and the input regions contain:
 
 The expected count of `TGCAT` is calculated as:
 
-$$
-E_{\mathrm{TGCAT}}
-= 30000 \cdot 0.002
-+ 50000 \cdot 0.001
-+ 20000 \cdot 0.0005
-= 120
-$$
+$$E_{\mathrm{TGCAT}} = 30000 \cdot 0.002 + 50000 \cdot 0.001 + 20000 \cdot 0.0005 = 120$$
+
 
 If `TGCAT` is observed 240 times in the foreground, the fold change relative to the annotation-matched background is:
 
