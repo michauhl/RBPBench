@@ -1467,7 +1467,7 @@ Foreground low-order composition: 1-/2-mer composition of input regions.
 
 
 **Table:** Interpretation of different fold change value combinations for a specific k-mer (typically k>=5 for higher-order enrichment check). 
-Label *high* means that the k-mer has a positive value and ranks among the top k-mers in the respective background statistics table above.
+Label *high* means that the k-mer has a positive value and ranks among the top k-mers in the respective background statistics table (tables shown in HTML report).
 
 | FG/BG log2FC | FG/MM log2FC | MM/BG log2FC | Interpretation |
 |-------------:|-------------:|-------------:|----------------|
