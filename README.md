@@ -8,13 +8,13 @@
 
 
 RBPBench is a multi-function tool to evaluate CLIP-seq and other related genomic region data 
-using a comprehensive collection of known RNA-binding protein (RBP) binding motifs. 
+using a comprehensive collection of known RNA-binding protein (RBP) binding motifs, 
+together with informative sequence- (k-mer) and annotation-based statistics.
 RBPBench can be used for a variety of purposes, from RBP motif search (database or 
 user-supplied RBP motifs) in genomic regions, over motif enrichment and co-occurrence analysis, 
-in-depth comparisons over multiple datasets via sequence and genomic annotation statistics,
-to benchmarking CLIP-seq peak caller methods as well as comparisons across cell types 
-and CLIP-seq protocols. RBPBench supports both sequence and structure motifs,
-as well as regular expressions (sequence and structure patterns). 
+in-depth comparisons over multiple datasets, to benchmarking CLIP-seq peak caller methods as well 
+as comparisons across cell types and CLIP-seq protocols. RBPBench supports both sequence and 
+structure motifs, as well as regular expressions (sequence and structure patterns). 
 Moreover, users can easily provide their own motif collections.
 
 
@@ -111,7 +111,7 @@ fitting GTF file, e.g., from Ensembl ([details](#genomic-annotations)):
 
 ```
 cd test/
-wget https://hgdownload.cse.ucsc.edu/goldenpath/hg38/bigZips/hg38.fa.gz
+wget --no-check-certificate https://hgdownload.cse.ucsc.edu/goldenpath/hg38/bigZips/hg38.fa.gz
 gunzip hg38.fa.gz
 wget https://ftp.ensembl.org/pub/release-112/gtf/homo_sapiens/Homo_sapiens.GRCh38.112.gtf.gz
 ```
@@ -167,8 +167,8 @@ rbpbench search --in eclip_clipper_idr/PUM2_K562_IDR_peaks.bed --genome hg38.fa 
 ```
 
 Here we also extend the input regions by 10 nt up- and downstream (`--ext 10`, for different up- and downstream use e.g. `--ext 0,20`) before search. 
-**Fig. 1** shows the plots generated in this example (found in HTML report file `report.rbpbench_search.html`, additional plots can be 
-generated e.g. via `--enable-upset-plot`, `--set-rbp-id`). Detailed explanations on plot contents can be found in the generated HTML file. 
+**Fig. 1** shows a selection of plots generated in this example (found in HTML report file `report.rbpbench_search.html`, additional plots can be 
+generated e.g. via `--set-rbp-id`). Detailed explanations on plot contents can be found in the generated HTML file. 
 Note that apart from HTML reports, RBPBench also outputs various table files (e.g., motif hit regions, region annotations, RBP + motif hit statistics, 
 more details e.g. [here](#hit-statistics-table-files)), which can later be used for comparing search results or again as input regions for motif search.
 
@@ -183,13 +183,12 @@ more details e.g. [here](#hit-statistics-table-files)), which can later be used 
 **e:** mRNA region coverage profile.
 **f:** Exon-intron overlap statistics.
 **g:** Intronic regions intron border distances.
-
 Note that for plotting purposes the interactive plots (here and subsequent figures) appear more cramped than in the HTML reports.
 
 **Fig. 1a** shows the RBP motif co-occurrences heat map (color scale values are -log10 of Fisher's exact test p-value), 
 visualizing significant RBP motif co-occurrences ([details](#co-occurrence-statistics)). 
 We can see that PUM2 and PUM1 binding motifs frequently co-occur, which makes sense since their database motifs are very similar 
-(to visualize all selected RBP motifs in HMTL, add `--plot-motifs` and 
+(to visualize all selected RBP motifs and show their hit statistics in a second HMTL file, add `--plot-motifs` and 
 inspect `motif_plots.rbpbench_search.html`, example entry shown in **Fig. 2**). 
 We also see significant co-occurrences of `AATAAA` regex hits with PUM2 and PUM1, which too is reasonable since 
 PUM2 binding sites tend to be in 3'UTR regions, often also towards their ends (as showcased in **Fig. 1e** and **Fig. 1f**).
@@ -199,8 +198,7 @@ the sequences and motif hits for each sequence.
 **Fig. 1c** positions input sequences based on their k-mer contents (i.e., the closer two sequences in the plot, the more
 similar their k-mer contents, default k=3). The hover box shows additional information for each sequence, including its sequence, genomic region annotations,
 motif hits and nucleotide percentages. This way we can e.g. easily inspect general sequence characteristics of the input regions, or spot outliers.
-**Fig. 1d** shows genomic region annotations for all input regions (add `--add-all-reg-bar`), 
-as well as the regions with motif hits for each specified RBP.
+**Fig. 1d** shows genomic region annotations for all input regions (*All* bar), as well as the regions with motif hits for each specified RBP.
 **Fig. 1e** displays the coverage of mRNA regions (5'UTR, CDS, 3'UTR) by the input regions. 
 **Fig. 1f** provides exon-intron overlap statistics of the input regions, including upstream and downstream proximate and distant 
 intronic regions, exon-intron border regions, and also first, last, and single exon regions.
@@ -262,13 +260,11 @@ which mRNAs these map. Also note that this plot becomes less informative if the 
 gets lower (info given in HTML figure legend, here: 82.0%). Most often, this is the case for intron-binding RBPs, where you typically
 have low percentages of exonic regions and thus also low mRNA coverage.
 
-
-To visualize the most frequent RBP combinations in the input regions (i.e., motif hits from different RBPs that frequently occur together in the input regions), 
-we can also enable the RBP combinations upset plot via `--enable-upset-plot`:
+An RBP combinations upset plot is also produced, which visualizes the most frequent RBP combinations in the input regions (i.e., motif hits from different RBPs that frequently occur together in the input regions):
 
 <img src="docs/search.ex2.3.png" width="700" />
 
-**Fig. 4**: RBP combinations upset plot produced by `rbpbench search` (SLBP example, `--enable-upset-plot` enabled, with setting `--upset-plot-max-rbp-rank 10`). 
+**Fig. 4**: RBP combinations upset plot produced by `rbpbench search` (SLBP example, with setting `--upset-plot-max-rbp-rank 10`). 
 
 The upset plot conveniently shows the most frequent RBP combinations in the input regions (numbers on top: hit regions for RBP combination, 
 numbers on right: total hit regions for each RBP), as well as annotations of these combination regions (if `--gtf` provided).
@@ -278,34 +274,8 @@ be shown in total (`--upset-plot-max-subset-rank`). Note that the upset plot onl
 combination means *"regions containing motif hits for at least these RBPs"*, not *"regions containing motif hits for exactly these RBPs"*, 
 which is more informative for our purposes.
 
-Additionally, `rbpbench search` HTML report includes several plots showing k-mer distributions and variations in the input dataset (**Fig. 5**), 
-which also take into account the region scores to identify enriched k-mers, which can hint at RBP binding preferences.
 
-<img src="docs/search.ex2.2.png" width="800" />
-
-**Fig. 5**: Example visualizations produced by `rbpbench search` (SLBP example). 
-**a:** Top vs bottom scoring regions k-mer distribution. 
-**b:** Input sequences k-mer variation plot.
-
-The first plot (**Fig. 5a**) shows the k-mer distribution of the top and bottom scoring input regions (set k=4, change via `--kmer-plot-k`).
-We can see several k-mers that are enriched in the top scoring regions, such as CAAA, CCAA, CTTT, or AAAG. It is known that SLBP
-binds a conserved stem loop element in histone mRNA 3'UTRs, and the reported k-mers are also highly conserved in and around the 
-stem loop (reported e.g. [here](https://pubmed.ncbi.nlm.nih.gov/11214174/)). The second plot (**Fig. 5b**) 
-looks more closely at the k-mer variation in the input regions, plotting for each k-mer the percentage of input regions it 
-occurs in (y-axis) vs the variation of the k-mer over the dataset (x-axis, using the coefficient of variation (CV) 
-of k-mer ratios over all input regions). 
-In short, the lower the CV of a k-mer, the more even the distribution of its ratios (see HTML report for details).
-Moreover, the k-mers are colored by their correlation (Spearman) with the input region scores (k-mer ratios vs scores). 
-This way we can identify k-mers that appear evenly over the dataset (high site %), that have similar ratios over the dataset (low CV),
-and that are also enriched in the top scoring regions (higher correlation with scores). 
-For example, a k-mer might have high site % but a lower correlation, which can be interpreted as a sequence element that often 
-occurs in the binding site context, but does not contribute that much to the RBP binding preference or does not have high affinty towards the RBP.
-These could be repeat elements (unless the RBP binds to repeats), which also often feature a shift in the k-mer variation to the right, 
-as the number of repeats over the input regions varies more.
-Again, we can see an agreement with reported SLBP binding preferences, showing the known k-mers enriched in top scoring regions 
-(although they are not necessarily the ones with highest site %).
-
-Coming back to our motif hits, to take a closer look at how these are distributed around a specific RBP, we can specify the RBP to focus on via `set-rbp-id`:
+To take a closer look at how motif hits are distributed around a specific RBP, we can further specify the RBP to focus on via `set-rbp-id`:
 
 ```
 rbpbench search --in eclip_clipper_idr/SLBP_K562_IDR_peaks.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_slbp_tr_rsd_tep_gh_out --functions TR RSD TEP  --rbps ALL --ext 20 --set-rbp-id SLBP --greatest-hits
@@ -320,15 +290,15 @@ hits are included in the outputs and analysis).
 
 <img src="docs/search.ex3.1.png" width="800" />
 
-**Fig. 6**: Example visualizations and statistics produced by `rbpbench search` (SLBP example with `--set-rbp-id`). 
+**Fig. 5**: Example visualizations and statistics produced by `rbpbench search` (SLBP example with `--set-rbp-id`). 
 **a:** Set RBP SLBP motif distances plot. 
 **b:** Motif distance statistics table.
 
-**Fig. 6a** shows the distances of other RBP motifs relative to the set RBP (SLBP here), resulting in a 
+**Fig. 5a** shows the distances of other RBP motifs relative to the set RBP (SLBP here), resulting in a 
 coverage plot for each RBP that passes the filter thresholds (default minimum motif pair count 10, set via `--rbp-min-pair-count`).  
 This plot is generated both on the RBP level, but also on the single RBP motif level (so for each motif associated 
-with the set RBP, **Fig. 6a** shows RBP level). 
-**Fig. 6b** shows the RBP motifs most frequently observed in the neighborhood of the set RBP (here on motif level).
+with the set RBP, **Fig. 5a** shows RBP level).
+**Fig. 5b** shows the RBP motifs most frequently observed in the neighborhood of the set RBP (here on motif level).
 These plots give us an idea which motifs occur at which distances in the input regions. 
 To get a more fine-grained picture of co-occurrences on the single motif level, 
 including signifying motif enrichment in input regions, 
@@ -340,6 +310,62 @@ all selected RBP motifs:
 ```
 rbpbench search --in eclip_clipper_idr/PUM2_K562_IDR_peaks.bed --genome hg38.fa --gtf Homo_sapiens.GRCh38.112.gtf.gz --out test_search_pum2_1_2_out --rbps ALL --ext 10 --motifs PUM2_1 PUM2_2
 ```
+
+
+
+#### K-mer based statistics
+
+K-mer based statistics make up a major part of RBPBench's output statistics (on top of and in combination with motif-based and annotation-based statistics). 
+In `rbpbench search`, the HTML report includes various informative k-mer based statistics and plots, e.g. on k-mer distribution and variation in the input dataset, 
+as well as k-mer enrichment over annotation-matched background (**Fig. 6**).
+
+<img src="docs/search.ex2.2.png" width="800" />
+
+**Fig. 6**: Example k-mer based visualizations produced by `rbpbench search` (SLBP example). 
+**a:** Top vs bottom scoring regions k-mer distribution. 
+**b:** Input sequences k-mer variation plot.
+**c:** K-mer enrichment plot. Track 1: input region genomic sequence. Track 2: 2-mer FG/BG log2FC. Track 3: 6-mer FG/BG log2FC. Track 4: 6-mer FG/MM log2FC. Track 5: MM/BG log2FC. Track 6: genomic annotation track.
+
+
+The first plot (**Fig. 6a**) shows the k-mer distribution of the top and bottom scoring input regions (set k=4, change via `--kmer-plot-k`).
+We can see several k-mers that are enriched in the top scoring regions, such as CAAA, CCAA, CTTT, or AAAG. It is known that SLBP
+binds a conserved stem loop element in histone mRNA 3'UTRs, and the reported k-mers are also highly conserved in and around the 
+stem loop (reported e.g. in [this paper](https://pubmed.ncbi.nlm.nih.gov/11214174/)). The second plot (**Fig. 6b**) 
+looks more closely at the k-mer variation in the input regions, plotting for each k-mer the percentage of input regions it 
+occurs in (y-axis) vs the variation of the k-mer over the dataset (x-axis, using the coefficient of variation (CV) 
+of k-mer ratios over all input regions). 
+In short, the lower the CV of a k-mer, the more even the distribution of its ratios (see HTML report for details).
+Moreover, the k-mers are colored by their correlation (Spearman) with the input region scores (k-mer ratios vs scores). 
+This way we can identify k-mers that appear evenly over the dataset (high site %), that have similar ratios over the dataset (low CV),
+and that are also enriched in the top scoring regions (higher correlation with scores). 
+For example, a k-mer might have high site % but a lower correlation, which can be interpreted as a sequence element that often 
+occurs in the binding site context, but does not contribute that much to the RBP binding preference or does not have high affinty towards the RBP.
+These could be repeat elements (unless the RBP binds to repeats), which also often feature a shift in the k-mer variation to the right, 
+as the number of repeats over the input regions varies more.
+Again, we can see an agreement with reported SLBP binding preferences, showing the known k-mers enriched in top scoring regions 
+(although they are not necessarily the ones with highest site %).
+
+The third plot (**Fig. 6c**) is part of the k-mer enrichment statistics produced if a GTF file is supplied. 
+Details on how to interpret these statistics can be found [below](#k-mer-enrichment-statistics) as well as in the HTML report. 
+In a nutshell, 3 descriptive values are calculated for each k-mer occurring in the input regions (foreground) to check whether these k-mers might present higher-order signals (i.e., possible binding motifs):
+
+* Foreground/background enrichment (FG/BG log2FC): is the k-mer enriched in the foreground relative to the annotation-matched background?
+* Foreground/foreground low-order composition enrichment (FG/MM log2FC): is the k-mer observed more often than expected from the foreground low-order (1-/2-mer) composition?
+* Foreground low-order composition/background enrichment (MM/BG log2FC): does the foreground low-order composition make this k-mer more expected than the annotation-matched background does?
+
+These values and their combinations thus allow us to evaluate whether given k-mers present higher-order signals, 
+first by showing whether they are enriched over the background, and second by showing that their frequency is higher than expected given the foreground 1-/2-mer composition. 
+For example, there might be 6-mers enriched over the background (high positive FG/BG log2FC), but these enrichments could be largely explained by the foreground 1-/2-mer composition (lower FG/MM log2FC).
+In this case, the composition of the sites might be more important for RBP binding than the presence of some well defined motifs.
+Back to the above plot, which depicts the SLBP eCLIP input region with the highest FG/BG log2FC value (output by default, set k=6, track 3), 
+we can see that the most enriched 6-mers in the track (highest FG/BG log2FC values) form a peak centering on a known SLBP binding 
+stem loop region (resembling Figure 1 stem loop from the [above paper](https://pubmed.ncbi.nlm.nih.gov/11214174/)), 
+located in the 3'UTR of the histone gene H2AC6 (annotation track 6). Moreover, track 4 (FG/MM log2FC) values are high as well for these 6-mers,
+meaning that low-order composition alone cannot fully explain their observed frequencies (hinting at higher-order enrichment).
+Also, track 5 (MM/BG log2FC) values are relatively low, meaning that the foreground composition does not particularly favor these 6-mers (especially in the loop part).
+The k-mer enrichment statistics (containing plots and tables) in the HTML report thus can provide us with deeper insights into potential binding preferences of the CLIPped RBP.
+
+
 
 
 ### Motif search with multiple input datasets
@@ -449,7 +475,8 @@ datasets with similar transcript occupancy profiles.
 **Fig. 8c** further expands on occupied transcripts statistics, this time using the cosine similarity 
 to measure the similarity in occupied transcripts between datasets. In addition, the datasets are ordered 
 based on hierarchical clustering, resulting in similar datasets appearing close together on the axes.
-This enables us to identify groups of datasets which have similar occupancy profiles.
+This enables us to identify groups of datasets which have similar occupancy profiles. 
+The plot is done separately for transcript regions, as well as 5'UTR, CDS, 3'UTR, and intron regions.
 **Fig. 8d** gives us the genomic region annotations for each input dataset, using 2D-PCA to 
 reduce dimensions. Moreover, datasets are colored by the highest percentage annotation, allowing 
 us to identify groups of input datasets with similar binding characteristics (e.g., the blue dots 
@@ -550,9 +577,9 @@ Both of these are valuable insights, which help us to better understand and inte
 To get enrichment and co-occurrence statistics on single motif level, we can use `rbpbench enmo` and `rbpbench nemo`.
 The difference is that `rbpbench enmo` checks for enriched motifs in the input regions, while 
 `rbpbench nemo` checks for neighboring motifs in the input regions, including differential up- and downstream motif analysis. 
-This makes `rbpbench nemo` well suited for analysing e.g. motif hit regions that were obtained from one of the 
-other search modes, which optionally can be included or excluded in the motif search space. To check for enriched motifs
-and their co-occurrences in a set of input regions on a single motif level using `rbpbench enmo`:
+This makes `rbpbench nemo` especially well suited for analysing e.g. motif hit regions that were obtained from one of the 
+other search modes, which optionally can be included or excluded in the motif search space. 
+To check for enriched motifs and their co-occurrences in a set of input regions on a single motif level using `rbpbench enmo`:
 
 
 ```
@@ -560,7 +587,7 @@ rbpbench enmo --in eclip_clipper_idr/PUM2_K562_IDR_peaks.bed --genome hg38.fa --
 ```
 Note that only the enriched motifs (passing the set p-value threshold `--enmo-pval-thr`) are reported and 
 then included in the following co-occurrence analysis. Also note that reported p-values can differ between 
-runs (due to random background set generation, to keep results same set a `--random-seed`). **Fig. 9** shows 
+runs (due to sampling in background set generation, to keep results same set a `--random-seed`). **Fig. 9** shows 
 the generated visualizations:
 
 <img src="docs/enmo.ex1.1.png" width="800" />
@@ -584,11 +611,8 @@ about the reason for filtering out the pair. **Fig. 10c** plots the motifs arran
 colored by their significance, allowing us to identify groups of motifs with similar motif contents.
 **Fig. 10d** compares the k-mer (here 5-mer) distribution between the input and the generated background regions.
 Here we can also see that 5-mers similar to the PUM2 motifs appear more frequently in the input regions.
-Generation of the background regions can be controlled with various parameters (see `rbpbench enmo -h` for more details).
-For example, `--bg-mode` allows us to either use shuffled negatives (from input set), or randomly sampled negatives 
-from genomic or transcript regions (depending on the type of input regions). Moreover, the background set size 
-can be increased (`--bg-min-size`), plus the user can tell RBPBench from which genomic (or transcript) regions
-to sample (`--bg-incl-bed`) or to not sample (`--bg-mask-bed`).
+Generation of the background regions can be controlled with various parameters (see `rbpbench enmo -h` or 
+[below](#input-region-motif-enrichment-statistics) for more details).
 
 
 #### NEMO mode
@@ -853,7 +877,7 @@ Here we select all motifs in the database (`--rbps ALL`) and use some additional
 
 ## Documentation
 
-This documentation provides further details on RBPBench (version 1.1.x).
+This documentation provides further details on RBPBench (version 1.2.x).
 
 ### Program modes
 
@@ -866,10 +890,16 @@ usage: rbpbench [-h] [-v]
                 {search,batch,compare,searchseq,searchregex,searchlong,searchrna,searchlongrna,enmo,nemo,con,sponge,isocomp,streme,tomtom,goa,optex,dist,info}
                 ...
 
-Evaluate CLIP-seq and other genomic region data using a comprehensive collection of known RBP binding motifs (RNA sequence +
-structure). RBPBench can be used for a variety of purposes, from RBP motif search in genomic regions, over motif enrichment and co-
-occurrence analysis, in-depth comparisons over multiple datasets via sequence and genomic annotation statistics, to benchmarking
-CLIP-seq peak callers, as well as comparisons across cell types and CLIP-seq protocols.
+Evaluate CLIP-seq and other related genomic region data using a comprehensive
+collection of known RNA-binding protein (RBP) binding motifs, together with
+informative sequence- (k-mer) and annotation-based statistics. RBPBench can be
+used for a variety of purposes, from RBP motif search (database or user-
+supplied RBP motifs) in genomic regions, over motif enrichment and co-
+occurrence analysis, in-depth comparisons over multiple datasets, to
+benchmarking CLIP-seq peak caller methods as well as comparisons across cell
+types and CLIP-seq protocols. RBPBench supports both sequence and structure
+motifs, as well as regular expressions (sequence and structure patterns).
+Moreover, users can easily provide their own motif collections.
 
 positional arguments:
   {search,batch,compare,searchseq,searchregex,searchlong,searchrna,searchlongrna,enmo,nemo,con,sponge,isocomp,streme,tomtom,goa,optex,dist,info}
@@ -888,7 +918,7 @@ positional arguments:
     sponge              Check for sponge transcripts
     isocomp             Compare motif hits on transcript isoforms
     streme              Discover motifs in input sites using STREME
-    tomtom              Compare motif(s) with database using TOMOTM
+    tomtom              Compare motif(s) with database using TOMTOM
     goa                 Run GO enrichment analysis on gene list
     optex               Investigate optimal extension
     dist                Plot nt distribution at genomic positions
@@ -903,8 +933,9 @@ options:
 ##### Single and batch motif search
 
 `rbpbench search` can be used to search for RBP binding motifs in genomic regions, selecting 
-any number of RBPs (database or user-defined (sequence or structure), or regular expressions) 
-and to look at motif enrichment and co-occurrences.
+any number of RBPs (database or user-defined (sequence or structure), or regular expressions).
+Various statistics are produced, e.g. on motif enrichment and co-occurrences, as well as 
+sequence- and annotation-based statistics.
 `rbpbench batch` is `rbpbench search` extended to multiple input files (BED files containing 
 genomic regions), with one RBP to search for each input file. Informative HTML reports are produced 
 in most of the modes, e.g. for `rbpbench batch` the input datasets are compared via 
@@ -957,9 +988,9 @@ translation regulation, and RNA stability & decay).
 
 ##### More modes
 
-```rbpbench con``` be used to compare conservation scores in two sets of genomic sites. For example, 
+```rbpbench con``` is used to compare conservation scores in two sets of genomic sites. For example, 
 we can compare different sets of motif hit regions, or sets from different peak callers.
-```rbpbench sponge``` allows to search for sponge transcripts, i.e., transcripts that serve as sponges for RBPs or miRNAs.
+```rbpbench sponge``` allows to search for sponge transcripts, i.e., transcripts that serve as sponges for RBPs or microRNAs.
 ```rbpbench isocomp``` can be used to check whether there are differences in motif hits between transcript isoforms of a gene.
 ```rbpbench optex``` allows us to investigate the optimal extension of input regions for motif search, i.e., to find the best up- and downstream extension for motif search in genomic regions.
 ```rbpbench streme``` allows to discover new motifs using STREME from MEME suite. 
@@ -985,7 +1016,7 @@ can again be used as input regions for the other modes, allowing for easily refi
 Motifs for search can be sequence motifs ([MEME motif format](https://meme-suite.org/meme/doc/meme-format.html), example see [below](#user-provided-motif-search)), 
 structure motifs (covariance models obtained through [Infernal](https://github.com/EddyRivasLab/infernal)),
 or [regular expressions](#regular-expressions) (given via `--regex` argument).
-Search motifs are selected via `--r bps`, e.g., to select PUM1 (sequence) and SLBP (structure) motifs `--rbps PUM1 SLBP`.
+Search motifs are selected via `--rbps`, e.g., to select PUM1 (sequence) and SLBP (structure) motifs `--rbps PUM1 SLBP`.
 To select all database motifs, set `--rbps ALL` (internal motif database can be changed via `--motif-db`, 
 a custom motif database can be supplied too). Additionally, a regular expression (regex) (e.g. `AATAAA`) can be added to 
 search via `--regex AA[AG]AA`. To search only for a regular expression, set `--rbps REGEX --regex AA[AG]AA`. Co-occurrence 
@@ -1011,7 +1042,6 @@ such as `AA((((ARNA))))CCC` (where `(` and `)` denote base pairs), `AA(((A[A)))C
 and even structure patterns with variable length and nucleotide content spacers in it, such as `AA(((AA(((.)))CC)))CC` (where `.` denotes the variable spacer part).
 Furthermore, if a structure pattern is given, a minimum GC base pair fraction (`--regex-min-gc`), a maximum GU base pair fraction (`--regex-max-gu`),
 and a minimum and maximum spacer length (`--regex-spacer-min`, `--regex-spacer-max`) can be defined to fine-tune the structure pattern search.
-
 
 #### Genomic regions
 
@@ -1040,7 +1070,6 @@ Before motif search, the input regions are filtered and optionally extended via 
 and downstream extension).
 Regions with invalid chromosome IDs are removed. Furthermore, duplicated regions are merged 
 into one region (same chromosome ID + start + end + strand).
-
 
 #### Transcript regions
 
@@ -1414,24 +1443,157 @@ by motif pair similarity (only for MEME motif formatted sequence motifs, `--moti
 allows us to focus on co-occurrences with more dissimilar motifs. 
 
 
+#### K-mer enrichment statistics
+
+To obtain individual k-mer enrichment statistics in `rbpbench search` mode, observed k-mer frequencies of input regions (foreground) are compared to their expected annotation-matched background frequencies. These are computed (details [below](#k-mer-fold-change-value-calculation)) by using background frequencies from reference genome annotations together with the observed genomic region annotations of the input regions (defined via supplied `--gtf` file). For example, an input region located partially in CDS and 3'UTR leads to different expected k-mer frequencies/counts compared to a region located in CDS only. 
+This background correction helps to differentiate between k-mer content potentially relevant for RBP binding and k-mer content that is simply very common in input regions from a certain genomic annotation background. By observing k-mers of different lengths, we can further check if binding depends more on low-order sequence composition (1-mer and 2-mer differences foreground vs background), or also on higher-order sequence motifs (5-mer or 6-mer differences). Three different fold change values are used to assess k-mer enrichment:
+
+* **Foreground / background fold change (FG/BG)**: Measures the overall enrichment of a k-mer in the foreground relative to the annotation-matched background ([calculation](#k-mer-fold-change-value-calculation)).
+* **Foreground / Markov model fold change (FG/MM)**: Measures the enrichment of a k-mer beyond what is expected from foreground low-order composition ([calculated](#modeling-low-order-sequence-composition) by first-order Markov model using observed foreground 1-/2-mer frequencies). A high value indicates higher-order sequence enrichment that cannot be fully explained by low-order composition.
+* **Markov model / background fold change (MM/BG)**: Measures the shift in expected k-mer frequency caused by the foreground low-order composition relative to the annotation-matched background. A high value indicates that the foreground low-order composition favors the k-mer.
+
+To make enrichment and depletion symmetric around zero, log2 fold change values are used in the output statistics and plots (`~ 0` → no enrichment, `> 0` → enrichment, `< 0` → negative enrichment / depletion). The following tables describe the meaning of these values and how to interpret them individually and combined.
+
+
+**Table:** Interpretion of the three different fold change values for a specific k-mer (typically k>=5 for higher-order enrichment check).
+Foreground low-order composition: 1-/2-mer composition of input regions.
+
+
+| Value | Intuitive meaning | If > 0 |
+|---|---|---|
+| **FG/BG log2FC** | Is the k-mer enriched in the **actual foreground** relative to the annotation-matched background? | Yes, the k-mer is enriched in the input regions relative to matched genomic sequence |
+| **FG/MM log2FC** | Is the k-mer observed more often than expected from the **foreground low-order composition**? | Yes, low-order composition alone cannot fully explain its observed frequency; there is higher-order enrichment |
+| **MM/BG log2FC** | Does the **foreground low-order composition** make this k-mer more expected than the annotation-matched background does? | Foreground 1-/2-mer composition favors this k-mer relative to BG |
+
+
+**Table:** Interpretion of different fold change value combinations for a specific k-mer (typically k>=5 for higher-order enrichment check). 
+Label *high* means that the k-mer has a positive value and ranks among the top k-mers in the respective background statistics table above.
+
+| FG/BG log2FC | FG/MM log2FC | MM/BG log2FC | Interpretation |
+|-------------:|-------------:|-------------:|----------------|
+| high | ~0 | high | mainly compositional enrichment |
+| high | high | ~0 | mainly higher-order/motif-like enrichment |
+| very high | high | high | both compositional and higher-order preference |
+| high | very high | negative | strong higher-order enrichment despite unfavorable low-order composition |
+
+
+
+Full fold change statistics (k=1..6, for all non-zero k-mers) can be found in *kmer_enrichment_stats.tsv* output table (inside `rbpench search` output folder). Note that if the number of input regions (`rbpbench search --in`) is small, computed k-mer fold change values can become more inaccurate / unrealistically high due to a lack of foreground k-mer positions. In these cases a maximum set k of 5 both for the tables and plots (`--kmer-enr-k 5 --kmer-enr-plot-k 5`) could work better.
+
+
+
+#### K-mer fold change value calculation
+
+To calculate the foreground (FG) / background (BG) fold change value (i.e., observed k-mer count / expected k-mer count), we need to calculate the expected count.
+Whereas the observed count FG is simply how many times the k-mer occurs in the input regions, the expected count BG is obtained by recording 
+for each annotation class the number of k-mers in the foreground, and multiply this by the background frequency of the k-mer from the annotation class, 
+obtained from reference genome annotations (default annotation used: "human (gencode v50)" GTF file).
+Formally, the expected count of a k-mer is calculated as:
+
+$$
+E_m = \sum_{a \in A} N_a^{FG} \cdot f_{m,a}^{BG}
+$$
+
+where:
+
+- $E_m$: Expected count of k-mer $m$ in the foreground (input regions).
+- $A$: Set of genomic annotation classes occurring in the foreground (e.g., CDS, 3′UTR, intron).
+- $N_a^{FG}$: Total number of valid foreground k-mer positions assigned to annotation $a$.
+- $f_{m,a}^{BG}$: Background frequency of k-mer $m$ in annotation $a$.
+
+
+For example, suppose we have the 5-mer `TGCAT`, and the input regions contain:
+
+| Annotation | FG k-mer positions | BG frequency of TGCAT | Expected count |
+|------------|-------------------:|----------------------:|---------------:|
+| CDS        | 30,000             | 0.0020                | 60             |
+| 3′UTR      | 50,000             | 0.0010                | 50             |
+| Intron     | 20,000             | 0.0005                | 10             |
+| **Total**  | **100,000**        |                       | **120**        |
+
+The expected count of `TGCAT` is calculated as:
+
+$$
+E_{\mathrm{TGCAT}}
+= 30000 \cdot 0.002
++ 50000 \cdot 0.001
++ 20000 \cdot 0.0005
+= 120
+$$
+
+If `TGCAT` is observed 240 times in the foreground, the fold change relative to the annotation-matched background is:
+
+$$
+FC_{FG/BG} = \frac{240}{120} = 2
+$$
+
+And the corresponding log2 fold change is:
+
+$$
+\log_2 FC_{FG/BG} = \log_2(2) = 1
+$$
+
+Thus, `TGCAT` is **2× more frequent than expected** from the annotation-matched genomic background.
+
+In the current implementation, a variety of different annotation classes are considered for calculating expected k-mer counts / frequencies, including 
+`CDS`, `3'UTR`, `5'UTR`, numerous ncRNA classes, 
+, individual intron subclasses (`intron_5SS_100`, `intron_3SS_100`, `intron_1-200`, `intron_201-1000`, `intron_1001-5000``intron_5001-10000`, `intron_10001-plus`) 
+to separate 5'/3' splice sites and various intron length groups,
+, as well as different border classes (transitions between annotations, like transcript to gene region, UTR to CDS etc.).
+
+
+#### Modeling low-order sequence composition
+
+To calculate the expected count for a k-mer based on the low-order (1-/2-mer) sequence composition of the foreground sequences (i.e., input regions), 
+a first-order Markov model (MM) is used. The expected frequency of a k-mer $m = x_1x_2\dots x_k$ is calculated as:
+
+$$
+P_{MM}(m) = P(x_1) \prod_{i=2}^{k} P(x_i \mid x_{i-1})
+$$
+
+where:
+
+- $P(x_1)$: Frequency of the first nucleotide in the foreground sequences.
+- $P(x_i \mid x_{i-1})$: Conditional probability of nucleotide $x_i$ following nucleotide $x_{i-1}$, estimated from foreground 2-mer counts.
+- $P_{MM}(m)$: Expected frequency of k-mer $m$ under the first-order Markov model.
+
+For example, the expected frequency of the 5-mer `TGCAT` is:
+
+$$
+P_{MM}(\mathrm{TGCAT}) =
+P(T) \cdot P(G \mid T) \cdot P(C \mid G) \cdot P(A \mid C) \cdot P(T \mid A)
+$$
+
+The expected count is obtained by multiplying this probability by the total number of valid foreground k-mer positions:
+
+$$
+E_m^{MM} = N_{FG} \cdot P_{MM}(m)
+$$
+
+Combining this expected count (MM) with the [above](#k-mer-fold-change-value-calculation) calculated counts (FG, BG) gives us **FG/MM log2FC** and **MM/BG log2FC** (value descriptions [here](#k-mer-enrichment-statistics)).
+
+
+
 #### Input region motif enrichment statistics
 
 Not to be confused with the region score statistic [above](#input-region-score-motif-enrichment-statistics), 
 input region motif enrichment statistics are calculated in the modes `rbpbench enmo`, `rbpbench nemo`, 
 using the motif occurrences in the input region dataset and comparing it to their occurrences 
 in a background dataset (again via Fisher's exact test). The background set can be generated in 
-various ways, either by shuffling the input sequences (`--bg-mode 2`), or by sampling background 
-regions from the genome or transcriptome (default: `--bg-mode 1`if input regions are on transcripts).
+various ways, either by sampling from foreground (input region) annotation-matched background regions (default, `--bg-mode 1`),
+by sampling completely random background regions from the genome or transcriptome (`--bg-mode 2`),
+or by shuffling the input sequences (`--bg-mode 3`).
 Various options to modify background set generation exist: 
 `--bg-min-size` to sample additional background regions; 
 `--bg-mask-bed` to define regions from which no background regions should be sampled;
-`--bg-incl-bed` to define regions from which to sample background regions;
+`--bg-incl-bed` to define regions from which to sample background regions (only effective with `--bg-mode 2`);
 `--bg-shuff-factor`, `--bg-shuff-k` to customize shuffling;
-and some more options (`--bg-mask-blacklist`, `--bg-ada-sampling`, `--random-seed`, 
-check `rbpbench enmo -h` for details).
-Similar to the co-occurrence statistics, p-value threshold and multiple testing correction method 
+and some more options (`--bg-mask-blacklist`, `--random-seed`, check `rbpbench enmo -h` for details).
+Similarly to the co-occurrence statistics, p-value threshold and multiple testing correction method 
 can be adapted (`--enmo-pval-thr`, `--enmo-pval-mode`, `--nemo-pval-thr`, `--nemo-pval-mode`), 
 and `--fisher-mode` is also available.
+
+
 
 
 #### Additional region annotations
@@ -1593,53 +1755,28 @@ with the bottom 1000 scoring (`--kmer-plot-bottom-n 1000`) sites.
 
 #### Helper scripts
 
-Various helper scripts are included as well on the command line:
+Various helper scripts are available via the command line. Use the `-h` option to display detailed usage information (e.g., `bed_merge_ol_reg.py -h`).
 
-```
-batch_get_common_dataset_gene_ids.py
-bed_extend_regions.py
-bed_guess_assembly.py
-bed_merge_ol_reg.py
-bed_print_first_n_pos.py
-bed_print_last_n_pos.py
-bed_shift_regions.py
-create_custom_meme_motif_db.py
-get_genomic_conservation_scores.py
-gtf_extract_exon_intron_border_bed.py
-gtf_extract_exon_intron_region_bed.py
-gtf_extract_gene_region_bed.py
-gtf_extract_mpt_region_bed.py
-gtf_extract_tr_feat_bed.py
-gtf_extract_transcript_data.py
-gtf_get_gene_region_nt_freqs.py
-gtf_get_gene_transcripts.py
-gtf_get_mpt_nt_freqs.py
-gtf_get_mpt_with_introns_nt_freqs.py
-```
+| Script | Description |
+|---|---|
+| `batch_get_common_dataset_gene_ids.py` | Extracts gene IDs shared across all datasets from the `gene_region_occupancies.tsv` file in an RBPBench batch output folder |
+| `bed_extend_regions.py` | Extends genomic regions in a BED file by a specified number of nucleotides up- and downstream |
+| `bed_guess_assembly.py` | Guesses the genome assembly associated with a BED file |
+| `bed_merge_ol_reg.py` | Merges overlapping or bookended genomic regions in a BED file and outputs merged regions to new BED file |
+| `bed_print_first_n_pos.py` | Extracts the first *n* positions of each region in a BED file |
+| `bed_print_last_n_pos.py` | Extracts the last *n* positions of each region in a BED file |
+| `bed_shift_regions.py` | Shifts genomic regions in a BED file by a specified number of nucleotides up- or downstream. |
+| `create_custom_meme_motif_db.py` | Generates a custom MEME motif database for use in all search modes with `--custom-db` option |
+| `get_genomic_conservation_scores.py` | Extracts genomic conservation scores for regions provided in a BED file |
+| `gtf_extract_exon_intron_border_bed.py` | Extracts exon-intron border positions from a GTF file and stores them in BED file |
+| `gtf_extract_exon_intron_region_bed.py` | Extracts exon or intron regions from a GTF file and stores them in BED file |
+| `gtf_extract_gene_region_bed.py` | Extracts gene regions from a GTF file and stores them in BED file |
+| `gtf_extract_mpt_region_bed.py` | Extracts most prominent transcript (MPT) regions from a GTF file, optionally including separate BED files for 5'UTR, CDS, and 3'UTR regions |
+| `gtf_extract_tr_feat_bed.py` | Extracts specific transcript features (e.g., stop codons) from a GTF file and stores them in BED file |
+| `gtf_extract_transcript_data.py` | Extracts transcript information from a GTF file, including exon/intron regions, mRNA regions, and transcript sequences |
+| `gtf_get_gene_region_nt_freqs.py` | Calculates nucleotide frequencies across all gene regions given a GTF file and corresponding genome FASTA |
+| `gtf_get_gene_transcripts.py` | Extracts transcript information for a specified list of genes from a GTF file and saves it in TSV format |
+| `gtf_get_mpt_nt_freqs.py` | Calculates nucleotide frequencies across most prominent transcript (MPT) sequences, excluding introns, using a GTF file and genome FASTA |
+| `gtf_get_mpt_with_introns_nt_freqs.py` | Calculates nucleotide frequencies across most prominent transcript (MPT) sequences, including introns, using a GTF file and genome FASTA |
 
-You can call their help pages to get more infos on what they do and how to use them (e.g., `bed_merge_ol_reg.py -h`).
-To get a quick overview: 
-`batch_get_common_dataset_gene_ids.py` extracts gene IDs which occur in all datasets, given the `gene_region_occupancies.tsv` file from RBPBench batch output folder.
-`bed_extend_regions.py` extends genomic regions in a BED file by a given number of nucleotides up- and downstream.
-`bed_guess_assembly.py` guesses the genome assembly of a BED file.
-`bed_merge_ol_reg.py` takes a BED file and merges bookend or overlapping regions outputs the merged regions to a new BED file.
-`bed_print_first_n_pos.py` prints the first n positions of each region from the provided BED file.
-`bed_print_last_n_pos.py` prints the last n positions of each region from the provided BED file.
-`bed_shift_regions.py` shifts all regions from the provided BED file a given number of nucleotides up- or downstream.
-`get_genomic_conservation_scores.py` extracts conservation scores for a set of genomic regions of interest (given via `--in BED`).
-`create_custom_meme_motif_db.py` as described above generates a custom sequence motifs database which can be used in all search modes via `--custom-db`.
-`gtf_extract_exon_intron_border_bed.py` extracts exon-intron border positions from a GTF file and stores them in a BED file, 
-which can be used as input e.g. in `rbpbench nemo`.
-`gtf_extract_exon_intron_region_bed.py` extracts exon or intron regions from a GTF file and stores them in a BED file.
-`gtf_extract_gene_region_bed.py` extracts gene regions from a GTF file and stores them in a BED file.
-`gtf_extract_mpt_region_bed.py` extracts most prominent transcript regions from a GTF file and stores them in a BED file. 
-Additionally, mRNA regions (5'UTR, CDS, 3'UTR) can be output to a separate BED file.
-`gtf_extract_tr_feat_bed.py` extracts transcript feature regions from a GTF file and stores them in a BED file (e.g. stop_codon).
-`gtf_extract_transcript_data.py` extracts transcript data from a GTF file, such exon + intron regions, mRNA regions and transcript sequences.
-`gtf_get_gene_region_nt_freqs.py` calculates nucleotide frequencies from all gene regions extracted from a GTF and the corresponding genome FASTA.
-`gtf_get_gene_transcripts.py` extracts for a given gene list all transcripts from a GTF file and stores the transcript information in a TSV file.
-FIMO can be given this information as a nucleotide frequencies file (see options `--fimo-ntf-file`, `--fimo-ntf-mode`).
-`gtf_get_mpt_nt_freqs.py` calculates nucleotide frequencies of from all most prominent transcript (MPT) sequences (introns excluded) 
-extracted from a GTF and the corresponding genome FASTA.
-`gtf_get_mpt_with_introns_nt_freqs.py` calculates nucleotide frequencies of from all most prominent transcript (MPT) sequences (introns included) 
-extracted from a GTF and the corresponding genome FASTA.
+Nucleotide frequency files generated by the respective scripts can be used with FIMO via the `--fimo-ntf-file` and `--fimo-ntf-mode` options.
